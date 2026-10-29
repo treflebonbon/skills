@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 0 ]; then
+  echo "usage: git-push-topic" >&2
+  exit 2
+fi
+
+git_command="$(type -P git || true)"
+if [ -z "$git_command" ]; then
+  echo "ERROR: Git is required" >&2
+  exit 1
+fi
+case "$git_command" in
+/*) ;;
+*) git_command="$PWD/$git_command" ;;
+esac
+
+branch="$("$git_command" branch --show-current)"
+if [ -z "$branch" ]; then
+  echo "ERROR: detached HEAD cannot be published as a topic branch" >&2
+  exit 1
+fi
+
+command_name="$(basename "$0")"
+if [ "$command_name" != "git-push-reviewed" ]; then
+  case "$branch" in
+  main | master)
+    echo "ERROR: refusing to push default branch: $branch" >&2
+    exit 1
+    ;;
+  esac
+fi
+
+if ! remote_head="$("$git_command" ls-remote --symref origin HEAD 2>/dev/null)"; then
+  echo "ERROR: cannot resolve origin's default branch" >&2
+  exit 1
+fi
+default_ref=""
+while IFS=$' \t' read -r key value ref; do
+  if [ "$key" = "ref:" ] && [ "$ref" = "HEAD" ]; then
+    default_ref="$value"
+    break
+  fi
+done <<<"$remote_head"
+case "$default_ref" in
+refs/heads/*) ;;
+*)
+  echo "ERROR: cannot resolve origin's default branch" >&2
+  exit 1
+  ;;
+esac
+default_branch="${default_ref#refs/heads/}"
+
+if [ "$command_name" = "git-push-reviewed" ]; then
+  if [ "$branch" != "$default_branch" ]; then
+    echo "ERROR: refusing reviewed push from non-default branch: $branch" >&2
+    exit 1
+  fi
+else
+  if [ "$branch" = "$default_branch" ]; then
+    echo "ERROR: refusing to push default branch: $branch" >&2
+    exit 1
+  fi
+fi
+
+exec "$git_command" push -u origin HEAD

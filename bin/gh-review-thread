@@ -1,0 +1,503 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+
+THREADS_QUERY = """
+query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          isResolved
+          isOutdated
+          path
+          line
+          diffSide
+          startLine
+          startDiffSide
+          originalLine
+          originalStartLine
+          resolvedBy { login }
+        }
+      }
+    }
+  }
+}
+""".strip()
+
+THREAD_QUERY = """
+query($threadId: ID!, $cursor: String) {
+  viewer { login }
+  node(id: $threadId) {
+    ... on PullRequestReviewThread {
+      id
+      isResolved
+      pullRequest {
+        number
+        repository { nameWithOwner }
+      }
+      comments(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          body
+          createdAt
+          updatedAt
+          author { login }
+        }
+      }
+    }
+  }
+}
+""".strip()
+
+COMMITS_QUERY = """
+query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      commits(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes { commit { oid } }
+      }
+    }
+  }
+}
+""".strip()
+
+REPLY_MUTATION = """
+mutation($threadId: ID!, $body: String!) {
+  addPullRequestReviewThreadReply(
+    input: {
+      pullRequestReviewThreadId: $threadId
+      body: $body
+    }
+  ) {
+    comment { id }
+  }
+}
+""".strip()
+
+RESOLVE_MUTATION = """
+mutation($threadId: ID!) {
+  resolveReviewThread(input: { threadId: $threadId }) {
+    thread {
+      id
+      isResolved
+    }
+  }
+}
+""".strip()
+
+
+def fail(message: str, status: int = 1) -> None:
+    print(f"ERROR: {message}", file=sys.stderr)
+    raise SystemExit(status)
+
+
+def run_gh(args: list[str]) -> str:
+    executable = shutil.which("gh")
+    if not executable:
+        fail("GitHub CLI is required")
+    try:
+        executable = str(Path(executable).resolve(strict=True))
+        result = subprocess.run(
+            [executable, *args],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+    except (OSError, RuntimeError) as error:
+        fail(f"GitHub CLI could not be started: {error}")
+    if result.returncode != 0:
+        fail(result.stderr.strip() or f"gh {' '.join(args)} failed")
+    return result.stdout
+
+
+def run_gh_json(args: list[str]) -> dict[str, Any]:
+    output = run_gh(args)
+    try:
+        payload = json.loads(output)
+    except json.JSONDecodeError as error:
+        fail(f"gh returned invalid JSON: {error}")
+    if payload.get("errors"):
+        fail(f"GitHub GraphQL error: {json.dumps(payload['errors'])}")
+    return payload
+
+
+def split_repo(repo: str) -> tuple[str, str]:
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
+        fail("--repo must use OWNER/REPO", 2)
+    owner, name = repo.split("/", 1)
+    return owner, name
+
+
+def fetch_threads(repo: str, pr: int) -> list[dict[str, Any]]:
+    owner, name = split_repo(repo)
+    threads: list[dict[str, Any]] = []
+    cursor: str | None = None
+
+    while True:
+        args = [
+            "api",
+            "graphql",
+            "-f",
+            f"query={THREADS_QUERY}",
+            "-f",
+            f"owner={owner}",
+            "-f",
+            f"repo={name}",
+            "-F",
+            f"number={pr}",
+        ]
+        if cursor:
+            args.extend(["-f", f"cursor={cursor}"])
+        payload = run_gh_json(args)
+        pull_request = payload["data"]["repository"]["pullRequest"]
+        if pull_request is None:
+            fail(f"pull request {repo}#{pr} was not found")
+        connection = pull_request["reviewThreads"]
+        threads.extend(connection.get("nodes") or [])
+        page_info = connection["pageInfo"]
+        if not page_info["hasNextPage"]:
+            return threads
+        cursor = page_info["endCursor"]
+
+
+# Only known review-bot markup is removed so code such as `<<EOF` or `Result<T>`
+# survives; fenced blocks (closed by a fence of the same kind, or unclosed to the
+# end) and inline code spans (closed by an equal backtick run, within a
+# paragraph) are kept verbatim.
+CODE = re.compile(
+    r"^[ \t]*(`{3,}|~{3,}).*?(?:^[ \t]*\1[^\n]*$|\Z)"
+    r"|(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n).)+?(?<!`)\2(?!`)",
+    re.MULTILINE | re.DOTALL,
+)
+REVIEW_MARKUP = re.compile(
+    r"<!--.*?-->"
+    r"|</?(?:details|summary|sub|br|p|blockquote)\b[^>]*>"
+    r"|<img\b[^>]*\bsrc=[\"']?https://img\.shields\.io/[^>]*>"
+    r"|!\[[^\]]*\]\(https://img\.shields\.io/[^)]*\)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def strip_review_markup(text: str) -> str:
+    return re.sub(r"\n(?:[ \t]*\n){2,}", "\n\n", REVIEW_MARKUP.sub("", text))
+
+
+def plain_body(body: str) -> str:
+    parts: list[str] = []
+    position = 0
+    for code in CODE.finditer(body):
+        parts += [strip_review_markup(body[position : code.start()]), code[0]]
+        position = code.end()
+    parts.append(strip_review_markup(body[position:]))
+    # Code parts sit at odd indexes, so trimming the edges never touches code.
+    parts[0] = parts[0].lstrip()
+    parts[-1] = parts[-1].rstrip()
+    return "".join(parts)
+
+
+def inspect(repo: str, pr: int, no_diff: bool = False, plain: bool = False) -> None:
+    metadata = json.loads(
+        run_gh(
+            [
+                "pr",
+                "view",
+                str(pr),
+                "--repo",
+                repo,
+                "--json",
+                "number,url,title,state,headRefOid,headRefName,baseRefName",
+            ]
+        )
+    )
+    diff = "" if no_diff else run_gh(["pr", "diff", str(pr), "--repo", repo, "--patch"])
+    threads = fetch_threads(repo, pr)
+    for thread in threads:
+        comments = fetch_thread(thread["id"])["comments"]
+        if plain:
+            for comment in comments:
+                comment["body"] = plain_body(comment.get("body") or "")
+        thread["comments"] = {"nodes": comments}
+    print(
+        json.dumps(
+            {
+                "pull_request": metadata,
+                **({} if no_diff else {"diff": diff}),
+                "review_threads": threads,
+            },
+            ensure_ascii=False,
+        )
+    )
+
+
+def fetch_thread(thread_id: str) -> dict[str, Any]:
+    cursor: str | None = None
+    comments: list[dict[str, Any]] = []
+    thread: dict[str, Any] | None = None
+    viewer: str | None = None
+
+    while True:
+        args = [
+            "api",
+            "graphql",
+            "-f",
+            f"query={THREAD_QUERY}",
+            "-f",
+            f"threadId={thread_id}",
+        ]
+        if cursor:
+            args.extend(["-f", f"cursor={cursor}"])
+        payload = run_gh_json(args)
+        node = payload["data"]["node"]
+        if node is None:
+            fail(f"review thread {thread_id} was not found")
+        if thread is None:
+            thread = {
+                "id": node["id"],
+                "isResolved": node["isResolved"],
+                "pullRequest": node["pullRequest"],
+            }
+            viewer = payload["data"]["viewer"]["login"]
+        connection = node["comments"]
+        comments.extend(connection.get("nodes") or [])
+        page_info = connection["pageInfo"]
+        if not page_info["hasNextPage"]:
+            assert thread is not None
+            thread["comments"] = comments
+            thread["viewer"] = viewer
+            return thread
+        cursor = page_info["endCursor"]
+
+
+def verify_thread_scope(thread: dict[str, Any], repo: str, pr: int) -> None:
+    pull_request = thread["pullRequest"]
+    actual_repo = pull_request["repository"]["nameWithOwner"]
+    actual_pr = pull_request["number"]
+    if actual_repo.casefold() != repo.casefold() or actual_pr != pr:
+        fail(
+            f"review thread belongs to {actual_repo}#{actual_pr}, "
+            f"not {repo}#{pr}"
+        )
+
+
+def verify_commit(repo: str, pr: int, commit: str) -> None:
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", commit):
+        fail("--commit must be a full 40-character SHA", 2)
+    # REST caps PR commits at 250; commit-to-PR associations can omit this PR
+    # once another PR introduces the same commit to the default branch.
+    owner, name = split_repo(repo)
+    cursor: str | None = None
+    while True:
+        args = [
+            "api",
+            "graphql",
+            "-f",
+            f"query={COMMITS_QUERY}",
+            "-f",
+            f"owner={owner}",
+            "-f",
+            f"repo={name}",
+            "-F",
+            f"number={pr}",
+        ]
+        if cursor:
+            args.extend(["-f", f"cursor={cursor}"])
+        payload = run_gh_json(args)
+        pull_request = payload["data"]["repository"]["pullRequest"]
+        if pull_request is None:
+            fail(f"pull request {repo}#{pr} was not found")
+        connection = pull_request["commits"]
+        if any(
+            node["commit"]["oid"].casefold() == commit.casefold()
+            for node in connection["nodes"]
+        ):
+            return
+        page_info = connection["pageInfo"]
+        if not page_info["hasNextPage"]:
+            fail(f"commit {commit} is not published in {repo}#{pr}")
+        cursor = page_info["endCursor"]
+
+
+def validate_reply_body(body: str, commit: str | None) -> None:
+    if commit is not None:
+        expected_prefix = f"対応しました（{commit[:7]}）。"
+        marker = "\n\n確認:"
+        if not body.startswith(expected_prefix) or marker not in body:
+            fail(
+                "fix replies must use "
+                f"'{expected_prefix}<summary>\\n\\n確認: <verification>'",
+                2,
+            )
+        summary, verification = body[len(expected_prefix) :].split(marker, 1)
+        if not summary.strip() or not verification.strip():
+            fail(
+                "fix replies must include a non-empty summary and verification",
+                2,
+            )
+        return
+
+    expected_prefix = "確認しました。"
+    marker = "\n\n根拠:"
+    if not body.startswith(expected_prefix) or marker not in body:
+        fail(
+            "explanation-only replies must use "
+            "'確認しました。<answer>\\n\\n根拠: <evidence>'",
+            2,
+        )
+    answer, evidence = body[len(expected_prefix) :].split(marker, 1)
+    if not answer.strip() or not evidence.strip():
+        fail(
+            "explanation-only replies must include a non-empty answer and evidence",
+            2,
+        )
+
+
+def normalize_reply_body(body: str) -> str:
+    return body.rstrip("\r\n")
+
+
+def reply_resolve(
+    repo: str,
+    pr: int,
+    thread_id: str,
+    body_file: str,
+    commit: str | None,
+) -> None:
+    try:
+        body = Path(body_file).read_text(encoding="utf-8")
+    except OSError as error:
+        fail(f"cannot read --body-file: {error}", 2)
+    if not body.strip():
+        fail("--body-file must not be empty", 2)
+    validate_reply_body(body, commit)
+
+    thread = fetch_thread(thread_id)
+    verify_thread_scope(thread, repo, pr)
+    if commit is not None:
+        verify_commit(repo, pr, commit)
+
+    comments = thread["comments"]
+    normalized_body = normalize_reply_body(body)
+    matching_reply_index = next(
+        (
+            index
+            for index in range(len(comments) - 1, -1, -1)
+            if (comments[index].get("author") or {}).get("login")
+            == thread["viewer"]
+            and normalize_reply_body(comments[index].get("body") or "")
+            == normalized_body
+        ),
+        None,
+    )
+    duplicate = matching_reply_index is not None and all(
+        (comment.get("author") or {}).get("login") == thread["viewer"]
+        for comment in comments[matching_reply_index + 1 :]
+    )
+    if not duplicate:
+        run_gh_json(
+            [
+                "api",
+                "graphql",
+                "-f",
+                f"query={REPLY_MUTATION}",
+                "-f",
+                f"threadId={thread_id}",
+                "-f",
+                f"body={body}",
+            ]
+        )
+
+    # 取得時の isResolved は返信中に変わりうるため、resolve 済みでも冪等な resolve を実行する。
+    run_gh_json(
+        [
+            "api",
+            "graphql",
+            "-f",
+            f"query={RESOLVE_MUTATION}",
+            "-f",
+            f"threadId={thread_id}",
+        ]
+    )
+    print(
+        json.dumps(
+            {
+                "thread_id": thread_id,
+                "reply": "skipped" if duplicate else "created",
+                "resolve": "resolved",
+            }
+        )
+    )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="gh-review-thread")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    inspect_parser = subparsers.add_parser("inspect")
+    inspect_parser.add_argument("--repo", required=True)
+    inspect_parser.add_argument("--pr", type=int, required=True)
+    inspect_parser.add_argument(
+        "--no-diff", action="store_true", help="omit the PR diff (about 40KB)"
+    )
+    inspect_parser.add_argument(
+        "--plain",
+        action="store_true",
+        help="strip known review-bot HTML and badges from comment bodies",
+    )
+    reply_parser = subparsers.add_parser(
+        "reply-resolve",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "返信本文の形式（ADR-0032）:\n"
+            "  --commit の場合:\n"
+            "    対応しました（<commitの先頭7文字>）。<修正要約>\n"
+            "    （本文は短縮 SHA、--commit には40桁の完全な SHA を渡す）\n\n"
+            "    確認: <検証結果>\n\n"
+            "  --explanation-only の場合:\n"
+            "    確認しました。<回答>\n\n"
+            "    根拠: <根拠>"
+        ),
+    )
+    reply_parser.add_argument("--repo", required=True)
+    reply_parser.add_argument("--pr", type=int, required=True)
+    reply_parser.add_argument("--thread-id", required=True)
+    mode = reply_parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--commit")
+    mode.add_argument("--explanation-only", action="store_true")
+    reply_parser.add_argument("--body-file", required=True)
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    if args.pr < 1:
+        fail("--pr must be a positive integer", 2)
+    split_repo(args.repo)
+    run_gh(["auth", "status"])
+    if args.command == "inspect":
+        inspect(args.repo, args.pr, args.no_diff, args.plain)
+    elif args.command == "reply-resolve":
+        reply_resolve(
+            args.repo,
+            args.pr,
+            args.thread_id,
+            args.body_file,
+            args.commit,
+        )
+
+
+if __name__ == "__main__":
+    main()
