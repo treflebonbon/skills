@@ -212,6 +212,7 @@ filesystem = {
         "projects/repo/private-note": "deny",
         "projects/repo/read-only-note": "read",
         "projects/repo/private-subtree": {".": "read", "private-note": "deny"},
+        "*/other-repo/**": "deny",
         ".cache/host-only": "read",
         ".cache/**": "deny",
     },
@@ -238,6 +239,7 @@ assert normalized[str(root / "private-subtree")] == {
 assert normalized[str(common_dir)]["profile-deny-fixture"] == "deny"
 assert "~/projects/repo" not in normalized
 assert str(home) not in normalized
+assert "*/other-repo/**" not in normalized
 assert str(home / ".cache/host-only") not in normalized
 assert str(host_grant) not in normalized
 assert str(home / ".config/nix-devshell/skills-plugin.json") not in normalized
@@ -261,14 +263,15 @@ except ValueError as error:
 else:
     raise AssertionError("relative traversal in an ancestor rule was accepted")
 
-complex_pattern = dict(filesystem)
-complex_pattern["~"] = {"projects/**/.env": "deny"}
-try:
-    module["raw_filesystem_profile"]({"filesystem": complex_pattern}, repo)
-except ValueError as error:
-    assert "ancestor pattern may affect a public path" in str(error)
-else:
-    raise AssertionError("a complex ancestor pattern affecting public paths was dropped")
+for pattern in ("projects/**/.env", "*/repo/**"):
+    complex_pattern = dict(filesystem)
+    complex_pattern["~"] = {pattern: "deny"}
+    try:
+        module["raw_filesystem_profile"]({"filesystem": complex_pattern}, repo)
+    except ValueError as error:
+        assert "ancestor pattern may affect a public path" in str(error)
+    else:
+        raise AssertionError(f"an ancestor pattern affecting public paths was dropped: {pattern}")
 print("HOME_RELATIVE_PUBLIC_GRANT_OK")
 PY
   [ "$status" -eq 0 ]

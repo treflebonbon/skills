@@ -256,32 +256,22 @@ def raw_filesystem_profile(profile, repo):
             if not root.is_relative_to(base):
                 continue
             root_parts = root.relative_to(base).parts
-            prefix = []
-            for component in pattern.parts:
+            for index, component in enumerate(pattern.parts):
                 if component == "**":
-                    shared = min(len(prefix), len(root_parts))
-                    if tuple(prefix[:shared]) == root_parts[:shared]:
-                        return True
-                    break
+                    return True
                 if any(marker in component for marker in "{}"):
-                    shared = min(len(prefix), len(root_parts))
-                    if tuple(prefix[:shared]) == root_parts[:shared]:
-                        return True
-                    break
+                    return True
                 if any(marker in component for marker in "*?[]"):
-                    shared = min(len(prefix), len(root_parts))
-                    if tuple(prefix[:shared]) != root_parts[:shared]:
-                        break
-                    if len(prefix) < len(root_parts):
-                        if fnmatch.fnmatchcase(root_parts[len(prefix)], component):
-                            return True
-                    elif tuple(prefix[: len(root_parts)]) == root_parts:
+                    if index == len(root_parts):
                         return True
-                    break
-                if len(prefix) < len(root_parts):
-                    if component != root_parts[len(prefix)]:
+                    if not fnmatch.fnmatchcase(root_parts[index], component):
                         break
-                prefix.append(component)
+                elif index == len(root_parts):
+                    return True
+                elif component != root_parts[index]:
+                    break
+            else:
+                return True
         return False
 
     def project_host_scoped_rules(base, value, *, include_base=False):
