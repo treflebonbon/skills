@@ -338,12 +338,53 @@ class OfficialPluginTest(unittest.TestCase):
             "codex", "plugin", "add", "treflebonbon-skills@treflebonbon", "--json"
         ))
         installed = Path(result["installedPath"])
-        self.assertEqual(json.loads((installed / "plugin.json").read_text())["version"], CANDIDATE_VERSION)
+        self.assertEqual(
+            json.loads((installed / "plugin.json").read_text())["version"],
+            CANDIDATE_VERSION,
+        )
         installed_skills = {
             skill_file.parent.name
             for skill_file in (installed / "skills").glob("*/SKILL.md")
         }
         self.assertEqual(installed_skills, EXPECTED_SKILLS)
+        for name in (
+            "git-push-topic",
+            "git-push-reviewed",
+            "gh-review-thread",
+            "orca-send",
+            "codex-reviewer",
+        ):
+            entrypoint = installed / "bin" / name
+            with self.subTest(entrypoint=name):
+                self.assertTrue(
+                    entrypoint.is_file(),
+                    f"Codex の公式導入物から {name} が欠落しています",
+                )
+                self.assertFalse(
+                    entrypoint.is_symlink(),
+                    f"{name} は通常ファイルとして導入される必要があります",
+                )
+                self.assertTrue(
+                    os.access(entrypoint, os.X_OK),
+                    f"Codex の公式導入物で {name} が実行可能ではありません",
+                )
+        bats = shutil.which("bats")
+        if bats:
+            cli_root = Path(self.temporary.name) / "codex-installed-cli-tests"
+            cli_root.mkdir()
+            for name in ("bin", "contracts", "lib", "packages", "share", "skills"):
+                os.symlink(installed / name, cli_root / name, target_is_directory=True)
+            shutil.copytree(ROOT / "tests/cli", cli_root / "tests/cli")
+            suites = sorted((cli_root / "tests/cli").glob("*.bats"))
+            result = subprocess.run(
+                [bats, *map(str, suites)],
+                cwd=cli_root,
+                env=self.environment,
+                capture_output=True,
+                text=True,
+                timeout=240,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         for name in EXPECTED_SKILLS:
             with self.subTest(skill=name):
                 self.assertEqual(

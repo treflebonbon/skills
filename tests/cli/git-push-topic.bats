@@ -76,6 +76,23 @@ EOF
   [ ! -e "$MOCK_LOG" ]
 }
 
+@test "git-push-reviewed resolves the shared body from outside the package directory" {
+  run env PATH="$MOCK_BIN:/usr/bin:/bin" MOCK_BRANCH="main" MOCK_DEFAULT="main" \
+    MOCK_LOG="$MOCK_LOG" bash -c 'cd "$1" && exec "$2"' _ \
+    "$BATS_TEST_TMPDIR" "$REVIEWED_SCRIPT"
+
+  [ "$status" -eq 0 ]
+  [ "$(cat "$MOCK_LOG")" = "push -u origin HEAD" ]
+}
+
+@test "git-push-reviewed preserves arguments for the shared body to reject" {
+  run env PATH="$MOCK_BIN:/usr/bin:/bin" MOCK_BRANCH="main" MOCK_DEFAULT="main" \
+    MOCK_LOG="$MOCK_LOG" "$REVIEWED_SCRIPT" --force
+
+  [ "$status" -eq 2 ]
+  [ ! -e "$MOCK_LOG" ]
+}
+
 @test "git-push-topic rejects arguments and detached HEAD" {
   run env PATH="$MOCK_BIN:$PATH" MOCK_BRANCH="feat/example" MOCK_DEFAULT="main" \
     MOCK_LOG="$MOCK_LOG" "$SCRIPT" --force
