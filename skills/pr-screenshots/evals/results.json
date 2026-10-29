@@ -1,0 +1,367 @@
+{
+  "date": "2026-10-01",
+  "baseline_commit": "701c0cb",
+  "scenarios_sha256": "4e2c7f9786249e3f64199c86f9d95b5c617fada6da531ee8b9991f11143b2b7b",
+  "target_sha256": {
+    "baseline": "81ac55dd4a6ac419d3c326d9bd269a395baad111ef8e5cb9690d054bb5781abc",
+    "request-boundary": "900d1670f1274db77f9732feba73ea630c72e7a0cd6a4dd9f83dcef66257400b",
+    "confirmed-facts": "0e79859f6aee5367df5ef88d70b0eebfcca6fcc276547d61d60f9d29517a4163"
+  },
+  "scoring": "○=1, partial=0.5, ×=0。すべてのcritical項目が○の場合のみSuccess○。",
+  "metrics_source": "Claude: native Agent完了通知のusage生値。Codex: collaborationメタデータ未取得、代替測定なし。",
+  "fixture_correction": "Claude r1-Bでは gh pr view --comments がmetadataのみを返したためcritical5をpartial。r2以降はコメント一覧出力を修正。シナリオ・判定項目は不変。",
+  "runs": [
+    {
+      "run": "r1-A",
+      "runtime": "Codex",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "xhigh",
+      "prompt_revision": "baseline",
+      "scenario": "A",
+      "achievement": [1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100,
+      "tool_uses": null,
+      "duration_ms": null,
+      "retries": 0,
+      "new_instruction_issues": 0,
+      "report_sha256": "702aa3b7a9588c7d48ee1707d16689db6c234e9a0f9d4c33a786ddf5c16b87c0"
+    },
+    {
+      "run": "r1-B",
+      "runtime": "Codex",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "xhigh",
+      "prompt_revision": "baseline",
+      "scenario": "B",
+      "achievement": [1, 1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100,
+      "tool_uses": null,
+      "duration_ms": null,
+      "retries": 1,
+      "new_instruction_issues": 0,
+      "report_sha256": "faa6e2e79a136981f93bdb72a20629bd02865551f8c50ca0e761c2f47cf074aa"
+    },
+    {
+      "run": "r1-C",
+      "runtime": "Codex",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "xhigh",
+      "prompt_revision": "baseline",
+      "scenario": "C",
+      "achievement": [1, 1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100,
+      "tool_uses": null,
+      "duration_ms": null,
+      "retries": 0,
+      "new_instruction_issues": 0,
+      "report_sha256": "5d20c0f268518f8716b0065a6ed429ece7d607788cdd422a73b360f78a33ebae"
+    },
+    {
+      "run": "r2-A",
+      "runtime": "Codex",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "xhigh",
+      "prompt_revision": "baseline",
+      "scenario": "A",
+      "achievement": [1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100,
+      "tool_uses": null,
+      "duration_ms": null,
+      "retries": 0,
+      "new_instruction_issues": 0,
+      "report_sha256": "17331889b8c4d5dc8b6a508d0097d633549d500117b80b2df12c73ed7876aa5e"
+    },
+    {
+      "run": "r2-B",
+      "runtime": "Codex",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "xhigh",
+      "prompt_revision": "baseline",
+      "scenario": "B",
+      "achievement": [1, 1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100,
+      "tool_uses": null,
+      "duration_ms": null,
+      "retries": 1,
+      "new_instruction_issues": 0,
+      "report_sha256": "dc01bb26ad1679eb0c69440a2b67e6f1c42b1c5da0fe0d3c50f39d46bb4a2f89"
+    },
+    {
+      "run": "r2-C",
+      "runtime": "Codex",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "xhigh",
+      "prompt_revision": "baseline",
+      "scenario": "C",
+      "achievement": [1, 1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100,
+      "tool_uses": null,
+      "duration_ms": null,
+      "retries": 0,
+      "new_instruction_issues": 0,
+      "report_sha256": "9ad7f82a2b8e411fdcc07e1b4dfbe9cd7811e06f8efd6120c5ca287eb3a421e6"
+    },
+    {
+      "run": "holdout-D",
+      "runtime": "Codex",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "xhigh",
+      "prompt_revision": "request-boundary-at-dispatch",
+      "scenario": "D",
+      "achievement": [1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100,
+      "tool_uses": null,
+      "duration_ms": null,
+      "retries": 0,
+      "new_instruction_issues": 0,
+      "report_sha256": "23cc8874a13ffbaa7b5cd4fca145f002bfdf47515bf47ef840e426046da424f4"
+    },
+    {
+      "run": "claude-r1-A",
+      "runtime": "Claude Code",
+      "agent_id": "a7f690dcfe790c65a",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "baseline",
+      "scenario": "A",
+      "achievement": [1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100.0,
+      "tool_uses": 5,
+      "duration_ms": 23882,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r1-A/after.png"
+      ],
+      "report_sha256": "80d21617587e4e7c2b3874c168bdff233a343f6c859a9fffb8b6ff42fcaa8e31"
+    },
+    {
+      "run": "claude-r1-B",
+      "runtime": "Claude Code",
+      "agent_id": "a67afc5a2f4d430aa",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "baseline",
+      "scenario": "B",
+      "achievement": [1, 1, 1, 1, 0.5, 1],
+      "success": "×",
+      "accuracy": 91.66666666666667,
+      "tool_uses": 8,
+      "duration_ms": 29452,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r1-B/saved/after.png",
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r1-B/before.png"
+      ],
+      "report_sha256": "286ee097ccaeda79dcc327b80aa47e6255bb36f155dea04ed323b7f04ee079e8"
+    },
+    {
+      "run": "claude-r1-C",
+      "runtime": "Claude Code",
+      "agent_id": "ada747d5882c91252",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "baseline",
+      "scenario": "C",
+      "achievement": [1, 1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100.0,
+      "tool_uses": 7,
+      "duration_ms": 32509,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r1-C/before.png",
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r1-C/after.png"
+      ],
+      "report_sha256": "7856f1630fe2ef80c9a38bc6fd8cfa0e8e295c1b165bd4c4dfc7f44b9453041e"
+    },
+    {
+      "run": "claude-r2-A",
+      "runtime": "Claude Code",
+      "agent_id": "a29b042f035f56dd3",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "request-boundary",
+      "scenario": "A",
+      "achievement": [1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100.0,
+      "tool_uses": 6,
+      "duration_ms": 20383,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r2-A/after.png"
+      ],
+      "report_sha256": "3547c7ca5720d0a54e85188723ea0436f65acc3a22ef7e579843afc91b374fce"
+    },
+    {
+      "run": "claude-r2-B",
+      "runtime": "Claude Code",
+      "agent_id": "aed777bcadb0f1b60",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "request-boundary",
+      "scenario": "B",
+      "achievement": [1, 1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100.0,
+      "tool_uses": 8,
+      "duration_ms": 37000,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r2-B/before.png",
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r2-B/after.png"
+      ],
+      "report_sha256": "98f41d09979363ca5f0e458602edd84ebfa9b3e74dad657229afed5a4a5d759b"
+    },
+    {
+      "run": "claude-r2-C",
+      "runtime": "Claude Code",
+      "agent_id": "aa9fadf22f8d8f4b7",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "request-boundary",
+      "scenario": "C",
+      "achievement": [1, 1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100.0,
+      "tool_uses": 8,
+      "duration_ms": 25787,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r2-C/before.png",
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r2-C/after.png"
+      ],
+      "report_sha256": "286ee097ccaeda79dcc327b80aa47e6255bb36f155dea04ed323b7f04ee079e8"
+    },
+    {
+      "run": "claude-r3-A",
+      "runtime": "Claude Code",
+      "agent_id": "a6e4d3cd28a21f6a7",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "confirmed-facts",
+      "scenario": "A",
+      "achievement": [1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100.0,
+      "tool_uses": 5,
+      "duration_ms": 19885,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r3-A/after.png"
+      ],
+      "report_sha256": "5fa4ded0ac6ab4ecc3fc6fde0b22d2a9a015be2781dd7bf0a3644456111cc0bb"
+    },
+    {
+      "run": "claude-r3-B",
+      "runtime": "Claude Code",
+      "agent_id": "a7a078655a062e80b",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "confirmed-facts",
+      "scenario": "B",
+      "achievement": [1, 1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100.0,
+      "tool_uses": 6,
+      "duration_ms": 29866,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r3-B/saved/after.png"
+      ],
+      "report_sha256": "793ca025dd7bc2a60f4e550562df19d615be739a60671e0c1eb26191a2f32df5"
+    },
+    {
+      "run": "claude-r3-C",
+      "runtime": "Claude Code",
+      "agent_id": "a6475e5c857550651",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "confirmed-facts",
+      "scenario": "C",
+      "achievement": [1, 1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100.0,
+      "tool_uses": 8,
+      "duration_ms": 33103,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r3-C/before.png",
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r3-C/after.png"
+      ],
+      "report_sha256": "6e9c2a710ee7e02d2b2ec72d80e8385fd26b3e74896e2e5283ce1d71d2d1904f"
+    },
+    {
+      "run": "claude-r4-A",
+      "runtime": "Claude Code",
+      "agent_id": "a87d691e4c7f2efa0",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "confirmed-facts",
+      "scenario": "A",
+      "achievement": [1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100.0,
+      "tool_uses": 5,
+      "duration_ms": 21152,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r4-A/after.png"
+      ],
+      "report_sha256": "cb641d67f20452469d16187e16c0ff5b9559d48ff77b6be8b64a2ed5f119767a"
+    },
+    {
+      "run": "claude-r4-B",
+      "runtime": "Claude Code",
+      "agent_id": "a137834f639238123",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "confirmed-facts",
+      "scenario": "B",
+      "achievement": [1, 1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100.0,
+      "tool_uses": 7,
+      "duration_ms": 33941,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r4-B/saved/after.png"
+      ],
+      "report_sha256": "5c7aa93bfca8e89761ca9e4e71b3b83069b63a2b23677df2b2d6dd10c053c59e"
+    },
+    {
+      "run": "claude-r4-C",
+      "runtime": "Claude Code",
+      "agent_id": "a383a77ec00a8b522",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "confirmed-facts",
+      "scenario": "C",
+      "achievement": [1, 1, 1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100.0,
+      "tool_uses": 8,
+      "duration_ms": 28261,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r4-C/before.png",
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-r4-C/after.png"
+      ],
+      "report_sha256": "286ee097ccaeda79dcc327b80aa47e6255bb36f155dea04ed323b7f04ee079e8"
+    },
+    {
+      "run": "claude-holdout-D",
+      "runtime": "Claude Code",
+      "agent_id": "a2c24bae8347280f3",
+      "model": "claude-sonnet-5-5",
+      "prompt_revision": "confirmed-facts",
+      "scenario": "D",
+      "achievement": [1, 1, 1, 1],
+      "success": "○",
+      "accuracy": 100.0,
+      "tool_uses": 5,
+      "duration_ms": 21885,
+      "retries": 0,
+      "image_reads": [
+        "/home/ubuntu/.herdr/worktrees/dotfiles/worktree-green-river-bd83/tmp/pr-screenshots-empirical/claude-holdout-D/after.png"
+      ],
+      "report_sha256": "286ee097ccaeda79dcc327b80aa47e6255bb36f155dea04ed323b7f04ee079e8"
+    }
+  ]
+}
