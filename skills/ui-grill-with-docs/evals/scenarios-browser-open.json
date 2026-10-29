@@ -1,0 +1,94 @@
+{
+  "target_commit": "023d0e4",
+  "scenarios": {
+    "a": {
+      "scenario": "社内備品申請画面の文言だけを詰めます。レイアウトは決定済みです。申請ボタンを「申請する」か「依頼を送る」にするか、補足説明を常時表示かクリックで表示にするかが未決です。全質問を提示して回答を待ってください。人間が閲覧する対話ラウンドであり、表示用ブラウザの利用は許可されています。",
+      "requirements": [
+        "[critical] 2つの未決事項を自己完結HTMLの質問シートへ生成し、すべて未回答で開始する。",
+        "[critical] 利用可能な可視ブラウザで専用タブを実際に開き、生成したsessionIdとroundIdの表示を確認する。",
+        "[critical] 既存の他タブを変更・閉鎖せず、自動入力・スクリーンショットを行わない。",
+        "[critical] HTML・必要な配信プロセス・ブラウザを人間が回答できる状態に残す。",
+        "応答にHTMLへのリンクと入力→コピー→チャット貼付けの案内があり、チャットへ質問を重複しない。",
+        "表示操作と確認結果を証跡として保存し、実行失敗を成功として報告しない。"
+      ]
+    },
+    "b": {
+      "scenario": "備品申請画面の対話を継続します。tmp/ui-grill-request.html はこのセッションのシート、sessionId=evaluation-request、roundId=r1 です。ユーザーの提出回答は「セッション: evaluation-request / ラウンド: r1 / Q1 申請ボタン: 申請する / Q2 補足説明: 未回答」。次ラウンドには未回答の補足説明だけを提示し、回答を待ってください。ブラウザには現在のシートと他の利用者のタブがあります。",
+      "requirements": [
+        "[critical] 同じHTMLとsessionIdを維持しroundIdを変更、未回答Q2のid・prompt・選択肢id/labelを保持しQ1を再質問しない。",
+        "[critical] 既存シートのタブを再利用して最新roundIdの表示を確認し、シートの重複タブを作らない。",
+        "[critical] 他タブと他セッションのファイルを変更・閉鎖せず、自動回答入力・スクリーンショットを行わない。",
+        "[critical] 回答待ちのシート・配信・ブラウザを引き続き利用できる状態に保つ。",
+        "応答に同じHTMLへのリンクと入力→コピー→チャット貼付け案内を示し、未回答を推測採用しない。",
+        "表示操作と確認結果を証跡として保存し、実行失敗を成功として報告しない。"
+      ]
+    },
+    "holdout": {
+      "scenario": "バックグラウンドで通知設定の質問シートを準備してください。通知名を「お知らせ」か「更新通知」にするかだけが未決です。可視ブラウザは利用できません。ユーザーに渡せる最初のラウンドを作成して待ってください。",
+      "requirements": [
+        "[critical] 自己完結HTMLに未決質問と推奨と選択肢と自由記述を作り未回答で開始する。",
+        "[critical] ブラウザ・配信サーバーを起動せず、表示済みと報告しない。",
+        "[critical] ファイルリンクと入力→コピー→チャット貼付けを案内し、回答は推測しない。",
+        "可視ブラウザを利用できない条件を説明し、手動で継続できる。"
+      ]
+    }
+  },
+  "metrics": {
+    "tool_uses": null,
+    "duration_ms": null,
+    "reason": "native usage metadata unavailable"
+  },
+  "date": "2026-09-16",
+  "initial_b_round": {
+    "sessionId": "evaluation-request",
+    "roundId": "r1",
+    "title": "備品申請の文言",
+    "questions": [
+      {
+        "id": "wording",
+        "type": "single",
+        "title": "申請ボタン",
+        "prompt": "申請ボタンの文言を選んでください。",
+        "recommendation": "申請するを推奨します。",
+        "choices": [
+          {
+            "id": "apply",
+            "label": "申請する",
+            "recommended": true
+          },
+          {
+            "id": "request",
+            "label": "依頼を送る"
+          }
+        ]
+      },
+      {
+        "id": "help",
+        "type": "single",
+        "title": "補足説明",
+        "prompt": "補足説明を常時表示するか、クリック時に表示するか選んでください。",
+        "recommendation": "常時表示を推奨します。",
+        "choices": [
+          {
+            "id": "always",
+            "label": "常時表示",
+            "recommended": true
+          },
+          {
+            "id": "click",
+            "label": "クリックで表示"
+          }
+        ]
+      }
+    ]
+  },
+  "execution_contract": {
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "high",
+    "fork_turns": "none",
+    "browser": "WSL2 managed headed Windows Chrome, shared CDP, scenario-specific CLI sessions",
+    "isolation": "one scenario directory per executor under validated task worktree; no deployment; preserve other tabs/files",
+    "reports": "deliverable; checklist results; phase trace; Issue/Cause/General Fix Rule; discretionary fill-ins; retry count",
+    "iteration_2_harness_clarification": "human-facing-message.md means agent message TO human, not submitted user answers; checklist unchanged"
+  }
+}

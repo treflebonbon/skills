@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+package_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+upstream="${PWCLI_UPSTREAM:-$package_root/bin/upstream-playwright-cli}"
+
+if [[ -n "${PWCLI_TEST_WSL+x}" ]]; then
+  [[ "$PWCLI_TEST_WSL" == "1" ]] || exec "$upstream" "$@"
+elif [[ ! -r /proc/sys/kernel/osrelease ]] || ! grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null; then
+  exec "$upstream" "$@"
+fi
+
+exec "$package_root/libexec/playwright-cli-wrapper.sh" "$@"

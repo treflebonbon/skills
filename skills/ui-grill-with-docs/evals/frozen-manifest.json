@@ -1,0 +1,31 @@
+{
+  "date": "2026-09-10",
+  "timezone": "Asia/Tokyo",
+  "target_versions": {
+    "baseline": {
+      "iterations": [1, 2],
+      "sha256": {
+        "SKILL.md": "807f6090109d4aeefc80b885b081d6f18e82aa4ae574c137e718fe02fa17c5f5",
+        "assets/round.html": "a8fa2b570319f96308419b33c9b64ec8d274f9e581506a959ab28367b417f202"
+      }
+    },
+    "carry_unanswered": {
+      "iterations": [3, 4],
+      "sha256": {
+        "SKILL.md": "a538aa6417c2a0834fd25a6fc8d57301d5a0603e79fa81c94dafb869d240b8bb",
+        "assets/round.html": "a8fa2b570319f96308419b33c9b64ec8d274f9e581506a959ab28367b417f202"
+      }
+    }
+  },
+  "evaluation_definitions": {
+    "original_sha256": {
+      "evals/scenarios.json": "5d24bc38f5fd8937406c35b60f6875acca9dcf7271c109ee54ecf884f95b982c",
+      "evals/previous-round.json": "a7d63400e1efea3c4cb9459d79d91888620530986fcf156e4af791734973f719"
+    },
+    "formatted_sha256": {
+      "evals/scenarios.json": "5d24bc38f5fd8937406c35b60f6875acca9dcf7271c109ee54ecf884f95b982c",
+      "evals/previous-round.json": "a7d63400e1efea3c4cb9459d79d91888620530986fcf156e4af791734973f719"
+    },
+    "note": "JSON formatting changed after dispatch; checklist values and critical tags are unchanged."
+  }
+}

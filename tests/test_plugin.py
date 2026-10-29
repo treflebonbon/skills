@@ -61,12 +61,14 @@ class OfficialPluginTest(unittest.TestCase):
         return result.stdout
 
     @unittest.skipUnless(shutil.which("agy"), "Antigravity CLI が必要")
-    def test_antigravity_accepts_the_portable_rop_plugin(self):
+    def test_antigravity_accepts_all_bundled_skills(self):
         result = json.loads(
             self.command("agy", "plugin", "validate", str(ROOT), "--strict", "--json")
         )
         self.assertEqual(result["name"], "treflebonbon-skills")
-        self.assertEqual(result["components"]["skills"], 1)
+        self.assertEqual(
+            result["components"]["skills"], len(list((ROOT / "skills").glob("*/SKILL.md")))
+        )
         self.assertEqual(
             [f for f in result["findings"] if f["severity"] != "note"], []
         )

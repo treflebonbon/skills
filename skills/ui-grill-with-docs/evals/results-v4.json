@@ -1,0 +1,109 @@
+{
+  "date": "2026-10-08",
+  "timezone": "Asia/Tokyo",
+  "scoring": "full=1, partial=0.5, failed=0; success needs every [critical] item at 1. Scores come from the parent session reading each artifact, not the executor's self-report.",
+  "scenarios": "scenarios-v3.json (e, f, g), unchanged. Executor inputs (common.md, scenario-*.md) are Git-ignored under tmp/tuning/.",
+  "metrics_note": "All runs are Codex panes driven through herdr; tool_uses and duration_ms are unavailable (null) and excluded from convergence. Do not substitute self-reports or wall-clock.",
+  "pass_summary": "Iteration 4 (baseline, 3 runs) and iteration 5 (after the template fix, 3 runs) all passed with no new unclear points.",
+  "ledger": [
+    {
+      "pattern": "Template ships a user-facing string in a language that mismatches the UI",
+      "example": "round.html rendered ' (Recommended)' in an otherwise Japanese sheet; all 3 iteration-4 executors independently rewrote it to '(推奨)' as a discretionary fill-in.",
+      "general_fix_rule": "User-facing strings in the bundled template match the sheet's language so executors do not patch the template.",
+      "seen_in": [4],
+      "fixed_in": 5
+    }
+  ],
+  "runs": [
+    {
+      "iteration": 4,
+      "executor": "codex",
+      "scenario": "e",
+      "success": true,
+      "accuracy": "4/4",
+      "critical_items": [1, 2],
+      "tool_uses": null,
+      "duration_ms": null,
+      "new_unclear_points": "none",
+      "discretionary": "rewrote '(Recommended)' to '(推奨)'",
+      "target_sha256": {
+        "round.html": "ce86174f2c53a9f96d3bc98f2e2def04faf8fa9b2e896379d17563556e2db418"
+      }
+    },
+    {
+      "iteration": 4,
+      "executor": "codex",
+      "scenario": "f",
+      "success": true,
+      "accuracy": "3/3",
+      "critical_items": [1, 2],
+      "tool_uses": null,
+      "duration_ms": null,
+      "new_unclear_points": "none",
+      "discretionary": "rewrote '(Recommended)' to '(推奨)'"
+    },
+    {
+      "iteration": 4,
+      "executor": "codex",
+      "scenario": "g",
+      "success": true,
+      "accuracy": "4/4",
+      "critical_items": [1, 2],
+      "tool_uses": null,
+      "duration_ms": null,
+      "new_unclear_points": "none",
+      "discretionary": "rewrote '(Recommended)' to '(推奨)'"
+    },
+    {
+      "iteration": 5,
+      "executor": "codex",
+      "scenario": "e",
+      "success": true,
+      "accuracy": "4/4",
+      "critical_items": [1, 2],
+      "tool_uses": null,
+      "duration_ms": null,
+      "new_unclear_points": "none",
+      "discretionary": "none on the template",
+      "artifact_sha256": {
+        "round.html": "e9edd6dd65f63408ebd29fabe391b260ac05382133eb2fc3f7c5ede76205d9b0",
+        "response.md": "6aec1fa894a1f64f0e090e518a0e06a82dc462684f32b60f87e35c08c0d9b3d5"
+      },
+      "target_sha256": {
+        "round.html": "671ad2e5d925ff8b29f155a8412d2926527e19f74d9a3e66c9a626ad93b63b76"
+      }
+    },
+    {
+      "iteration": 5,
+      "executor": "codex",
+      "scenario": "f",
+      "success": true,
+      "accuracy": "3/3",
+      "critical_items": [1, 2],
+      "tool_uses": null,
+      "duration_ms": null,
+      "new_unclear_points": "none",
+      "discretionary": "none on the template",
+      "artifact_sha256": {
+        "round.html": "c65b62dc7ba5a81d6fa0bc3fc9bceb27d0102a806a2cc76aaef670591b4405b4",
+        "response.md": "d0ec392b153748632fe762b373acd270e5433e9d5c05716c128a16b316da44cb"
+      }
+    },
+    {
+      "iteration": 5,
+      "executor": "codex",
+      "scenario": "g",
+      "success": true,
+      "accuracy": "4/4",
+      "critical_items": [1, 2],
+      "tool_uses": null,
+      "duration_ms": null,
+      "new_unclear_points": "none",
+      "discretionary": "none on the template",
+      "artifact_sha256": {
+        "round.html": "9589cd01f25e2a3503fc2715d18669ac4ec152b3980f10867ae3db343b3b034e",
+        "response.md": "91a16cfae9f6b4f6cce307918da64b1c98d27a8b1abc4c871fc777e2c27a61dd"
+      }
+    }
+  ]
+}

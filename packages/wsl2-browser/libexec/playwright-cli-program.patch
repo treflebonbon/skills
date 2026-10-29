@@ -1,0 +1,5 @@
+--- a/lib/playwright-core/lib/tools/cli-client/program.js
++++ b/lib/playwright-core/lib/tools/cli-client/program.js
+@@ -1 +1 @@
+-const toolText = await runInSessionOrStop(newEntry, clientInfo, { _: ["goto", ...params.length ? params : ["about:blank"]] }, output);
++const toolText = await runInSessionOrStop(newEntry, clientInfo, { _: [process.env.PWTEST_CLI_MANAGED_CHROME === "1" ? "tab-new" : "goto", ...params.length ? params : ["about:blank"]] }, output);

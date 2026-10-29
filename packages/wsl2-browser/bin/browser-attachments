@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'browser-attachments: %s\n' "$*" >&2
+  exit 1
+}
+
+pwcli_wslinfo="${PWCLI_WSLINFO:-wslinfo}"
+pwcli_powershell="${PWCLI_POWERSHELL:-powershell.exe}"
+pwcli_wslpath="${PWCLI_WSLPATH:-wslpath}"
+
+if [[ -n "${PWCLI_TEST_WSL+x}" ]]; then
+  [[ "$PWCLI_TEST_WSL" == "1" ]] ||
+    fail "the managed attachment browser requires WSL2 and Windows interoperability; use the existing manual attachment handoff outside WSL2."
+elif [[ ! -r /proc/sys/kernel/osrelease ]] ||
+  ! grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null; then
+  fail "the managed attachment browser requires WSL2 and Windows interoperability; use the existing manual attachment handoff outside WSL2."
+fi
+
+command -v "$pwcli_wslinfo" >/dev/null 2>&1 ||
+  fail "wslinfo is unavailable. Use WSL2 and verify its networking mode with: wslinfo --networking-mode"
+command -v "$pwcli_powershell" >/dev/null 2>&1 ||
+  fail "powershell.exe is unavailable. Enable Windows interoperability for this WSL distribution and restart WSL."
+command -v "$pwcli_wslpath" >/dev/null 2>&1 ||
+  fail "wslpath is unavailable. Enable Windows interoperability for this WSL distribution and restart WSL."
+
+network_mode="$("$pwcli_wslinfo" --networking-mode 2>/dev/null || true)"
+[[ "$network_mode" == "mirrored" ]] ||
+  fail "the managed attachment browser requires WSL2 mirrored networking. Set [wsl2] networkingMode=mirrored in %UserProfile%\\.wslconfig, run wsl.exe --shutdown, restart WSL, and verify with: wslinfo --networking-mode"
+
+if ! "$pwcli_powershell" -NoProfile -NonInteractive -Command '$PSVersionTable.PSVersion.ToString()' >/dev/null 2>&1; then
+  fail "powershell.exe cannot start from this WSL distribution. Enable Windows interoperability and verify with: powershell.exe -NoProfile -Command '\$PSVersionTable.PSVersion'"
+fi
+
+package_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+export MANAGED_CHROME_OWNER="${MANAGED_CHROME_OWNER:-$package_root/bin/managed-chrome-owner}"
+export PWCLI_WINDOWS_SCRIPT="${PWCLI_WINDOWS_SCRIPT:-$package_root/libexec/playwright-cli-windows.ps1}"
+export DOGFOOD_WINDOWS_SCRIPT="${DOGFOOD_WINDOWS_SCRIPT:-$package_root/libexec/dogfood-chrome-windows.ps1}"
+if [[ -z "${BROWSER_ATTACHMENTS_PLAYWRIGHT:-}" ]]; then
+  runtime="$(node "$package_root/libexec/runtime-path.mjs" require)"
+  export BROWSER_ATTACHMENTS_PLAYWRIGHT="$runtime/node_modules/playwright-core/index.mjs"
+fi
+
+exec node "$package_root/libexec/browser-attachments.mjs" "$@"

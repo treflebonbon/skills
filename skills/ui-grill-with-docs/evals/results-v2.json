@@ -1,0 +1,129 @@
+{
+  "date": "2026-09-10",
+  "timezone": "Asia/Tokyo",
+  "scenarios_file": "scenarios-v2.json",
+  "scoring_note": "scenarios-v2.json strengthens scenario b requirement 1 to check question id/prompt/choice id/label byte-identity for the carried-forward question, per its revision_note. This file is a separate, additive record; it does not overwrite results.json (the frozen scenarios.json run).",
+  "execution_count": 5,
+  "target_version": {
+    "label": "carry_unanswered",
+    "sha256": {
+      "SKILL.md": "a538aa6417c2a0834fd25a6fc8d57301d5a0603e79fa81c94dafb869d240b8bb",
+      "assets/round.html": "a8fa2b570319f96308419b33c9b64ec8d274f9e581506a959ab28367b417f202"
+    },
+    "note": "Confirmed by sha256sum against frozen-manifest.json's carry_unanswered entry before dispatch: this v2 run tests the same SKILL.md/round.html bytes that v1 iterations 3-4 tested, under the strengthened v2 checklist. No SKILL.md changes were made during this run."
+  },
+  "verification_method": "Structural verification only, per artifact, independent of executor self-reports: round-data JSON parsed and diffed field-by-field (question id/prompt/type/recommendation/choices id+label) against the pre-existing fixture for scenario b; decoy file (ui-grill-other-session.html) checked byte-identical after each scenario-b run; reused answer-handling <script> block checked byte-identical to assets/round.html's template logic in all 5 artifacts; holdout artifact additionally checked for <script>/</script> tag-count balance, JSON.parse success, literal presence of </script> and <更新> in the decoded question text (i.e. correctly escaped in source, correctly decoded at runtime), and Node syntax-check of the reused logic script. Browser regression (headless rendering) was NOT re-run in this v2 pass — the holdout executor reported no chromium/playwright available in its sandbox. Confidence rests on structural checks plus byte-identity to the template already validated by the browser regression at commit 703718d, not on a fresh browser run.",
+  "records": [
+    {
+      "iteration": 1,
+      "scenario": "a",
+      "success": "○",
+      "item_scores": [1, 1, 1, 1, 1, 1],
+      "accuracy_percent": 100.0,
+      "executor_self_report_summary": "3-question fresh round sheet (layout/button-label/list-fields); visual mockup limited to the layout comparison; all inputs initially unanswered; response links artifact and asks for fill-in/copy/paste without duplicating questions in chat.",
+      "evaluator_issues": [],
+      "weak_phase": null,
+      "native_usage": { "tool_uses": null, "duration_ms": null },
+      "artifact": {
+        "path": "tmp/empirical-ui-grill-v2/iter-1/a/workspace/tmp/ui-grill-equipment-request.html",
+        "sha256": "5505bee0fe1896245865aa6f61c9ab1c5ac2f3c6ae0d4b21c47aca1d1e7742f1"
+      },
+      "retries": 0
+    },
+    {
+      "iteration": 1,
+      "scenario": "b",
+      "success": "○",
+      "item_scores": [1, 1, 1, 1, 1, 1],
+      "accuracy_percent": 100.0,
+      "executor_self_report_summary": "Continuation round: carried the unanswered wording question forward with id/prompt/type/recommendation/choices unchanged, added new order question for the newly-unblocked display order decision; sessionId kept, roundId r1->r2; other-session file untouched.",
+      "evaluator_issues": [],
+      "weak_phase": null,
+      "native_usage": { "tool_uses": null, "duration_ms": null },
+      "artifact": {
+        "path": "tmp/empirical-ui-grill-v2/iter-1/b/workspace/tmp/ui-grill-request.html",
+        "sha256": "2c6cc14a4a5b6d8d0d48d6ba6dfe9e4c56887b714f827fa845e8874c30d7b33f"
+      },
+      "independent_verification": "Parsed round-data: wording question id/prompt/type/recommendation/choices(id,label) byte-identical to the pre-round fixture; only roundId changed (r1->r2). Decoy file unchanged.",
+      "retries": 0
+    },
+    {
+      "iteration": 2,
+      "scenario": "a",
+      "success": "○",
+      "item_scores": [1, 1, 1, 1, 1, 1],
+      "accuracy_percent": 100.0,
+      "executor_self_report_summary": "Independent fresh run of the same median scenario; same 3-question frontier, visual mockup limited to layout; initial state unanswered.",
+      "evaluator_issues": [],
+      "weak_phase": null,
+      "native_usage": { "tool_uses": null, "duration_ms": null },
+      "artifact": {
+        "path": "tmp/empirical-ui-grill-v2/iter-2/a/workspace/tmp/ui-grill-equipment-request.html",
+        "sha256": "ecd9592fb696de947e5f036dd1c9aa9b6ae0f9837d095440d99b1e3552409196"
+      },
+      "retries": 0
+    },
+    {
+      "iteration": 2,
+      "scenario": "b",
+      "success": "○",
+      "item_scores": [1, 1, 1, 1, 1, 1],
+      "accuracy_percent": 100.0,
+      "executor_self_report_summary": "Independent fresh run of the same edge scenario; carried wording question forward unchanged, added field-order question; flagged a structural tension between the skill's 'record resolved terms through domain-modeling in CONTEXT.md' line and domain-modeling's own glossary-only scope, and chose not to write CONTEXT.md this round as a result.",
+      "evaluator_issues": [],
+      "weak_phase": null,
+      "native_usage": { "tool_uses": null, "duration_ms": null },
+      "artifact": {
+        "path": "tmp/empirical-ui-grill-v2/iter-2/b/workspace/tmp/ui-grill-request.html",
+        "sha256": "f1126c7fd6f42fcec760375b79a19be29048a064f73c989f19e65ab7bb4dcd06"
+      },
+      "independent_verification": "Parsed round-data: wording question id/prompt/type/recommendation/choices(id,label) byte-identical to the pre-round fixture; only roundId changed (r1->r2). Decoy file unchanged.",
+      "retries": 0
+    },
+    {
+      "iteration": 3,
+      "scenario": "holdout",
+      "success": "○",
+      "item_scores": [1, 1, 1, 1, 1, 1],
+      "accuracy_percent": 100.0,
+      "executor_self_report_summary": "Notification-settings scenario with </script> and <更新> embedded in a free-text example; escaped correctly in source (\\u003c), decoded correctly at runtime; no visual mockup added since none of the 3 questions needed one; 3 tool-level retries caused by the Edit tool's own JSON-argument decoding silently un-escaping \\u003c back to a literal <, self-corrected via direct byte writes; no headless browser available in the sandbox, so verification was structural only.",
+      "evaluator_issues": [],
+      "weak_phase": null,
+      "native_usage": { "tool_uses": null, "duration_ms": null },
+      "artifact": {
+        "path": "tmp/empirical-ui-grill-v2/holdout/workspace/tmp/ui-grill-notification-settings.html",
+        "sha256": "e999029fc1bbb7204a5cc0642af0c75cb54a1f7e24a1e614bb8a7e599dde4410"
+      },
+      "independent_verification": "<script> tag count balanced 2/2; round-data JSON parses; decoded question text contains literal </script> and <更新> substrings (i.e. correctly escaped as \\u003c in source, correctly decoded at runtime); no </template> mockup added; reused answer-handling script is byte-identical to assets/round.html and passes a Node syntax check.",
+      "retries": 3
+    }
+  ],
+  "ledger_non_blocking": [
+    {
+      "pattern": "grilling/domain-modeling composition ambiguity",
+      "seen_in": ["iter-1 scenario a", "iter-2 scenario b"],
+      "note": "Whether 'Call the Skill tool with \"grilling\" and with \"domain-modeling\"' is a literal per-round invocation or background framing is not fully disambiguated by the body text. Did not affect any checklist item (the checklist does not score this behavior)."
+    },
+    {
+      "pattern": "domain-modeling/CONTEXT.md scope conflict",
+      "seen_in": ["iter-2 scenario b"],
+      "note": "ui-grill-with-docs instructs recording resolved terms via domain-modeling in CONTEXT.md for every settled decision, but domain-modeling scopes CONTEXT.md to a glossary, not UI/implementation decisions like 'table layout' or 'which fields to show'. One executor read this as a genuine contradiction and skipped the CONTEXT.md write as a result. This is the most substantive of the recurring findings; it is a real cross-skill scope tension, not a wording nit, but is out of scope for what scenarios-v2.json tests and was not acted on in this run."
+    },
+    {
+      "pattern": "visual-mockup category boundary ambiguity",
+      "seen_in": ["iter-1 scenario b", "iter-2 scenario a"],
+      "note": "Whether a table-column/field display-order decision counts as a 'layout, component placement, or navigation comparison' requiring a visual mockup is not explicit. Both executors independently chose to add one; did not affect any checklist item."
+    },
+    {
+      "pattern": "\\u003c escaping via Edit-tool JSON arguments",
+      "seen_in": ["holdout"],
+      "note": "Not a SKILL.md wording issue: writing a literal \\u003c through some file-edit tool call channels can get silently re-decoded to a raw < by the tool call's own JSON parsing before it reaches the file. The holdout executor caught this via self-verification and switched to direct byte writes. Worth noting as an execution-technique caveat for whoever runs this skill, not a prompt fix."
+    }
+  ],
+  "termination": {
+    "type": "resource cutoff",
+    "qualitative": "qualitative plateau",
+    "quantitative": "quantitative convergence unverified",
+    "reason": "Checklist accuracy is at ceiling across all 5 runs (30/30 items, 2 full iterations plus a holdout, zero [critical] failures), including the strengthened scenario-b question-identity check and the holdout's script-injection resistance check. Strict convergence (zero new unclear points across 2 consecutive rounds) was not reached — non-critical unclear points recurred in both iterations — so this is not reported as 'converged'. native_usage (tool_uses/duration_ms) is unavailable in this runtime, so the quantitative variation criteria (step count ±10%, duration ±15%) cannot be evaluated at all, consistent with results.json's v1 termination. No SKILL.md fix was applied in this run; recurring non-critical findings are recorded in ledger_non_blocking for a future round, not acted on here."
+  }
+}
