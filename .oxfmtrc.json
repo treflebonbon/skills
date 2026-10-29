@@ -1,1 +1,3 @@
-{}
+{
+  "ignorePatterns": ["skills/domain-modeling-studio/dist/**", "**/vendor/**"]
+}
