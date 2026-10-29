@@ -1,0 +1,8 @@
+{
+  "name": "treflebonbon-skills",
+  "version": "0.1.0",
+  "description": "ROP と開発ワークフローの Agent Skills",
+  "author": {
+    "name": "treflebonbon"
+  }
+}

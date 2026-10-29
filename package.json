@@ -1,0 +1,16 @@
+{
+  "name": "treflebonbon-skills",
+  "private": true,
+  "scripts": {
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "test": "python3 -m unittest discover -s tests -v",
+    "lint": "agy plugin validate . --strict --json && claude plugin validate ."
+  },
+  "devDependencies": {
+    "oxfmt": "0.67.0"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

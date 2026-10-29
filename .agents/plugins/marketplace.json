@@ -1,0 +1,15 @@
+{
+  "name": "treflebonbon",
+  "interface": {
+    "displayName": "treflebonbon"
+  },
+  "plugins": [
+    {
+      "name": "treflebonbon-skills",
+      "source": {
+        "source": "local",
+        "path": "./"
+      }
+    }
+  ]
+}
