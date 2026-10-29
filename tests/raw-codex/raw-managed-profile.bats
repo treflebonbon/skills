@@ -183,6 +183,64 @@ for name in (".env", "ordinary-looking-name", "nested/.env", "nested/renamed"):
 PY
 }
 
+@test "home-relative public workspace grants project to an absolute raw path" {
+  run python3 - "$PROJECT_ROOT/share/codex-isolation/secret-isolation-worktree.py" "$BATS_TEST_TMPDIR" <<'PY'
+import os
+import runpy
+import sys
+import tomllib
+from pathlib import Path
+from types import SimpleNamespace
+
+module = runpy.run_path(sys.argv[1])
+home = Path(sys.argv[2]) / "host-home"
+os.environ["HOME"] = str(home)
+root = home / "projects/repo"
+git_dir = root / ".git/worktrees/task"
+common_dir = root / ".git"
+repo = SimpleNamespace(root=root, git_dir=git_dir, common_dir=common_dir)
+workspace_rules = {".": "write", ".env": "deny", "**/*.key": "deny"}
+host_grant = home / ".config/gh"
+filesystem = {
+    ":root": "deny",
+    ":minimal": "read",
+    ":slash_tmp": "deny",
+    "/tmp/codex": {".": "write", "**/.env": "deny"},
+    "~/projects/repo": workspace_rules,
+    "~/.config/gh": "read",
+    "~/.config/nix-devshell/skills-plugin.json": "read",
+    str(home / ".config/nix-devshell/skills-plugin.json"): "read",
+    str(common_dir): {".": "write", "profile-deny-fixture": "deny"},
+}
+projected, private_tmp_codex = module["raw_filesystem_profile"](
+    {"filesystem": filesystem}, repo
+)
+assert private_tmp_codex is True
+document = module["toml_document"](
+    {"permissions": {"dotfiles-secure": {"filesystem": projected}}}
+)
+normalized = tomllib.loads(document)["permissions"]["dotfiles-secure"]["filesystem"]
+assert normalized[str(root)] == workspace_rules
+assert normalized[str(common_dir)]["profile-deny-fixture"] == "deny"
+assert "~/projects/repo" not in normalized
+assert str(host_grant) not in normalized
+assert str(home / ".config/nix-devshell/skills-plugin.json") not in normalized
+assert str(Path("/home/agent") / "projects/repo") not in normalized
+
+duplicate = dict(filesystem)
+duplicate[str(root)] = {".": "write"}
+try:
+    module["raw_filesystem_profile"]({"filesystem": duplicate}, repo)
+except ValueError as error:
+    assert "duplicate normalized path grants" in str(error)
+else:
+    raise AssertionError("absolute and home-relative aliases were accepted together")
+print("HOME_RELATIVE_PUBLIC_GRANT_OK")
+PY
+  [ "$status" -eq 0 ]
+  [[ "$output" == *HOME_RELATIVE_PUBLIC_GRANT_OK* ]]
+}
+
 @test "managed host grants project to the raw namespace without exposing host resources" {
   raw_fixture
   mkdir -p "$RAW_BASE/state/treflebonbon-skills/plugin-sync" \

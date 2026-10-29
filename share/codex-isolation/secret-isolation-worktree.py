@@ -179,7 +179,10 @@ def raw_filesystem_profile(profile, repo):
             )
         )
 
-    metadata_paths = {str(repo.git_dir), str(repo.common_dir)}
+    metadata_paths = {
+        PurePosixPath(repo.git_dir),
+        PurePosixPath(repo.common_dir),
+    }
     exposed_roots = {
         PurePosixPath(repo.root),
         PurePosixPath(repo.git_dir),
@@ -201,6 +204,15 @@ def raw_filesystem_profile(profile, repo):
         )
 
     projected = {}
+
+    def add_projected_path(path, value):
+        key = str(path)
+        if key in projected:
+            raise ValueError(
+                "managed filesystem contains duplicate normalized path grants"
+            )
+        projected[key] = value
+
     for key, value in filesystem.items():
         if key == "glob_scan_max_depth":
             if not isinstance(value, int) or isinstance(value, bool) or value < 1:
@@ -229,24 +241,6 @@ def raw_filesystem_profile(profile, repo):
                 )
             projected[key] = value
             continue
-        if key == "/nix":
-            if value != "read":
-                raise ValueError("raw Nix runtime access must remain read-only")
-            projected[key] = value
-            continue
-        if key == "/tmp/codex":
-            if not workspace_policy(value):
-                raise ValueError(
-                    "raw private scratch policy must grant writes with deny rules only"
-                )
-            projected[key] = value
-            continue
-        if key in metadata_paths:
-            if not namespace_policy(value, {"read", "write", "deny"}):
-                raise ValueError("raw Git metadata policy is invalid")
-            projected[key] = value
-            continue
-
         home_grant = key == "~" or key.startswith("~/")
         path_value = key
         if home_grant:
@@ -259,17 +253,33 @@ def raw_filesystem_profile(profile, repo):
         path = PurePosixPath(path_value)
         if not path.is_absolute() or str(path) != path_value or ".." in path.parts:
             raise ValueError("managed filesystem contains an invalid path grant")
-        if not home_grant and any(
-            path == root or path.is_relative_to(root) for root in exposed_roots
-        ):
+
+        if path in metadata_paths:
+            if not namespace_policy(value, {"read", "write", "deny"}):
+                raise ValueError("raw Git metadata policy is invalid")
+            add_projected_path(path, value)
+            continue
+        if any(path == root or path.is_relative_to(root) for root in exposed_roots):
             if not namespace_policy(value, {"read", "write", "deny"}):
                 raise ValueError("raw public filesystem policy is invalid")
-            projected[key] = value
+            add_projected_path(path, value)
+            continue
+        if path == PurePosixPath("/nix"):
+            if value != "read":
+                raise ValueError("raw Nix runtime access must remain read-only")
+            add_projected_path(path, value)
             continue
         if path.is_relative_to(PurePosixPath("/nix")):
             if not namespace_policy(value, {"read", "deny"}):
                 raise ValueError("raw Nix filesystem policy must remain read-only")
-            projected[key] = value
+            add_projected_path(path, value)
+            continue
+        if path == PurePosixPath("/tmp/codex"):
+            if not workspace_policy(value):
+                raise ValueError(
+                    "raw private scratch policy must grant writes with deny rules only"
+                )
+            add_projected_path(path, value)
             continue
         if any(path == root or path.is_relative_to(root) for root in host_roots):
             if not host_read_policy(value):
