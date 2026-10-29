@@ -2,11 +2,11 @@
 
 この文書は検証境界と記録方法の入口です。最終 candidate の source SHA、payload hash、実 CLI の version、session 証跡は dotfiles の [Issue #540](https://github.com/treflebonbon/dotfiles/issues/540) に紐づく共有 QA report と PR 記録へ置きます。受入時の結果をこの repository へ追記して source SHA を変える運用はしません。
 
-## Candidate 0.2.1 の受入境界
+## Candidate 0.2.2 の受入境界
 
-候補版 `0.2.1` では、以下を別々に確認します。
+候補版 `0.2.2` では、以下を別々に確認します。
 
-公開済み `0.2.0` の Codex metadata discovery で、公式 app-server が返す全11 skill の canonical name に plugin namespace が含まれることを確認しました。これに合わせて明示呼び出し案内を修正し、公開済み payload は変更せず `0.2.1` 候補へ反映しています。metadata discovery は新規 session での呼び出し成功を示す証拠ではありません。
+公開済み `0.2.1` は変更せず、Claude Code 2.1.312 の official local marketplace install で確認した開発依存の自動展開を修正します。Claude Code は plugin root の `package.json` と `package-lock.json` にある Node.js 依存を導入時に install します（[公式仕様](https://code.claude.com/docs/en/plugins/loading#node-js-package-dependencies)）。そのため formatter の package と lockfile を `development/` へ移し、runtime plugin root に開発依存と lockfile を置かない構成にします。0.2.1 の導入・session 証跡は 0.2.2 の結果へ転用しません。
 
 | 境界                 | 確認内容                                                                                                                        | 成功扱いに必要な証拠                                                             |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -27,7 +27,7 @@ validator は manifest の受理、mock/fixture は指定分岐の挙動、公�
 開発依存として Node.js 20.19+、npm、Python 3、Bats Core 1.x、`jq` を用意します。
 
 ```sh
-npm ci
+npm ci --prefix development
 npm run format:check
 npm test
 npm run lint
@@ -37,7 +37,7 @@ npm run lint
 
 ## 以前の version 0.1.0 の記録
 
-次の結果は rop だけを収録した `0.1.0` の記録です。`0.2.1` の11件の導入・呼出し・資源解決の受入証拠へ転用しません。旧 CLI session は当時の実行確認としてのみ保持します。
+次の結果は rop だけを収録した `0.1.0` の記録です。`0.2.2` の11件の導入・呼出し・資源解決の受入証拠へ転用しません。旧 CLI session は当時の実行確認としてのみ保持します。
 
 | 境界                                           | 旧結果                                                    |
 | ---------------------------------------------- | --------------------------------------------------------- |

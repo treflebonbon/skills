@@ -1,6 +1,6 @@
 # treflebonbon-skills
 
-Claude Code、Codex、Antigravity CLI で使う Agent Skills plugin です。現在の採用候補は `0.2.1` で、対象11件を1つの plugin にまとめています。plugin の利用と汎用 skill に dotfiles や Nix は必要ありません。
+Claude Code、Codex、Antigravity CLI で使う Agent Skills plugin です。現在の採用候補は `0.2.2` で、対象11件を1つの plugin にまとめています。plugin の利用と汎用 skill に dotfiles や Nix は必要ありません。
 
 ## 収録 skill
 
@@ -128,7 +128,7 @@ raw Codex isolation の準備条件は [raw Codex 隔離手順](docs/raw-codex-i
 開発には Node.js 20.19+、npm、Python 3、Bats Core 1.x、`jq` が必要です。`npm run lint` には Antigravity CLI `agy` と Claude Code CLI `claude` も必要です。`npm run format:check` の対象は配布 metadata、README、verification entrypoint、worktree-gc の変更文書です。移管済み全 skill source の一括 reformat 結果を示すものではありません。
 
 ```sh
-npm ci
+npm ci --prefix development
 npm run format:check
 npm test
 npm run lint

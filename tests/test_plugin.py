@@ -24,7 +24,7 @@ EXPECTED_SKILLS = {
     "ui-grill-with-docs",
     "worktree-gc",
 }
-CANDIDATE_VERSION = "0.2.1"
+CANDIDATE_VERSION = "0.2.2"
 RUN_PLUGIN_CLI_E2E = os.environ.get("TREFLEBONBON_PLUGIN_CLI_E2E") == "1"
 
 
@@ -89,10 +89,41 @@ class PluginPackageContractTest(unittest.TestCase):
         self.assertEqual(codex_entry["category"], "Productivity")
 
         package = json.loads((ROOT / "package.json").read_text())
-        lock = json.loads((ROOT / "package-lock.json").read_text())
-        self.assertEqual(lock["version"], CANDIDATE_VERSION)
         self.assertEqual(package["version"], CANDIDATE_VERSION)
-        self.assertEqual(lock["packages"][""]["version"], CANDIDATE_VERSION)
+
+    def test_formatter_dependencies_live_outside_the_plugin_root(self):
+        package = json.loads((ROOT / "package.json").read_text())
+        self.assertNotIn("devDependencies", package)
+        self.assertFalse((ROOT / "package-lock.json").exists())
+
+        development = json.loads((ROOT / "development/package.json").read_text())
+        self.assertTrue(development["private"])
+        self.assertEqual(development["devDependencies"], {"oxfmt": "0.67.0"})
+        lock = json.loads((ROOT / "development/package-lock.json").read_text())
+        self.assertEqual(lock["name"], development["name"])
+        self.assertEqual(lock["version"], development["version"])
+        self.assertEqual(lock["packages"][""]["name"], development["name"])
+        self.assertEqual(lock["packages"][""]["version"], development["version"])
+        self.assertEqual(
+            lock["packages"][""]["devDependencies"], development["devDependencies"]
+        )
+        self.assertEqual(lock["packages"]["node_modules/oxfmt"]["version"], "0.67.0")
+
+    def test_quality_commands_and_docs_install_the_development_formatter(self):
+        package = json.loads((ROOT / "package.json").read_text())
+        format_targets = package["scripts"]["format"].split()[1:]
+        format_check_targets = package["scripts"]["format:check"].split()[2:]
+        self.assertEqual(format_check_targets, format_targets)
+
+        for script in ("format", "format:check"):
+            with self.subTest(script=script):
+                self.assertIn("development/node_modules/.bin/oxfmt", package["scripts"][script])
+                self.assertIn("development/package.json", package["scripts"][script])
+                self.assertIn("development/package-lock.json", package["scripts"][script])
+
+        for path in (ROOT / "README.md", ROOT / "docs/verification.md"):
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertIn("npm ci --prefix development", path.read_text(encoding="utf-8"))
 
     def test_manual_only_skills_keep_each_runtime_policy(self):
         for name in ("pr-screenshots", "ui-grill-with-docs"):
@@ -302,7 +333,7 @@ class PluginPackageContractTest(unittest.TestCase):
 
     def test_npm_locks_use_public_registry_urls_and_integrity(self):
         locks = (
-            ROOT / "package-lock.json",
+            ROOT / "development/package-lock.json",
             ROOT / "skills/dogfood/references/package-lock.json",
             ROOT / "skills/domain-modeling-studio/package-lock.json",
             ROOT / "packages/wsl2-browser/package-lock.json",
