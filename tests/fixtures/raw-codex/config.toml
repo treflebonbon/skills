@@ -1,0 +1,41 @@
+model = "gpt-6-luna"
+model_reasoning_effort = "xhigh"
+model_provider = "isolated"
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"
+default_permissions = "dotfiles-secure"
+web_search = "disabled"
+
+[features]
+network_proxy = true
+shell_snapshot = false
+
+[permissions.dotfiles-secure]
+extends = ":workspace"
+
+[permissions.dotfiles-secure.filesystem]
+":root" = "write"
+
+[permissions.dotfiles-secure.network]
+enabled = true
+
+[permissions.dotfiles-secure.network.domains]
+"cache.nixos.org" = "allow"
+"*.github.com" = "allow"
+"github.com" = "allow"
+
+[model_providers.isolated]
+name = "Fixture model gateway"
+base_url = "http://127.0.0.1:8123/v1"
+wire_api = "responses"
+requires_openai_auth = false
+request_max_retries = 0
+stream_max_retries = 0
+
+[mcp_servers.context7]
+command = "bunx"
+args = ["-y", "@upstash/context7-mcp"]
+
+[mcp_servers.serena]
+command = "uvx"
+args = ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--enable-web-dashboard", "false"]

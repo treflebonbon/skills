@@ -1,0 +1,108 @@
+#!/usr/bin/env -S python3 -I
+"""Prepare and launch trusted raw Codex worktree sessions."""
+
+import argparse
+import os
+from pathlib import Path
+import runpy
+import subprocess
+import sys
+
+
+package_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(package_root / "lib/python"))
+from treflebonbon_skills.devshell_environment import (  # noqa: E402
+    InvalidContext,
+    PreparationError,
+    Repository,
+    reuse_environment,
+    trust_command,
+)
+
+
+def isolation_module():
+    return runpy.run_path(
+        str(package_root / "share/codex-isolation/secret-isolation-worktree.py")
+    )
+
+
+def main():
+    if len(sys.argv) < 2:
+        raise PreparationError("usage: devshell-env {trust|untrust|status|admit|codex|with-env}")
+
+    command, arguments = sys.argv[1], sys.argv[2:]
+    if command == "codex":
+        try:
+            return isolation_module()["launch"](arguments)
+        except (
+            InvalidContext,
+            PreparationError,
+            OSError,
+            ValueError,
+            KeyError,
+            subprocess.SubprocessError,
+        ) as error:
+            print(f"codex-worktree: {error}", file=sys.stderr)
+            return 1
+
+    if command == "admit":
+        parser = argparse.ArgumentParser(
+            description="Declare named files and reachable Git history as public inputs for raw Codex."
+        )
+        parser.add_argument("--git-head", required=True)
+        parser.add_argument(
+            "--mcp", action="append", choices=("context7", "serena"), default=[]
+        )
+        parser.add_argument("--github-policy", type=Path)
+        parser.add_argument("files", nargs="+")
+        args = parser.parse_args(arguments)
+        try:
+            repository = Repository.discover(Path.cwd(), linked_only=True)
+            isolation_module()["admit"](
+                repository,
+                args.git_head,
+                args.files,
+                mcp=args.mcp,
+                github_policy=args.github_policy,
+            )
+            return 0
+        except (
+            OSError,
+            ValueError,
+            KeyError,
+            InvalidContext,
+            subprocess.SubprocessError,
+        ) as error:
+            print(f"devshell-env: {error}", file=sys.stderr)
+            return 1
+
+    if command == "with-env":
+        if arguments[:1] != ["--prepared"]:
+            raise PreparationError("with-env requires --prepared inside an isolated session")
+        arguments = arguments[1:]
+        if arguments[:1] == ["--"]:
+            arguments = arguments[1:]
+        if not arguments:
+            raise PreparationError("usage: devshell-env with-env --prepared -- command [args...]")
+        repository = Repository.discover(Path.cwd(), allow_gitfile=True)
+        environment = reuse_environment(repository, os.environ.copy())
+        os.execvpe(arguments[0], arguments, environment)
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=("trust", "untrust", "status"))
+    parser.add_argument("directory", nargs="?", default=".")
+    args = parser.parse_args(sys.argv[1:])
+    try:
+        trust_command(args.command, Repository.discover(args.directory))
+    except (InvalidContext, OSError, ValueError) as error:
+        print(f"devshell-env: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (InvalidContext, PreparationError, OSError, ValueError) as error:
+        print(f"devshell-env: {error}", file=sys.stderr)
+        sys.exit(1)
