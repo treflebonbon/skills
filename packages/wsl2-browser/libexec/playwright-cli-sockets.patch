@@ -1,0 +1,11 @@
+--- a/lib/coreBundle.js
++++ b/lib/coreBundle.js
+@@ -8402,7 +8402,7 @@
+   if (Buffer.byteLength(result2) > UNIX_SOCKET_PATH_MAX)
+     result2 = import_path3.default.join(dir, calculateSha1(name).slice(0, 16) + ".sock");
+   if (Buffer.byteLength(result2) > UNIX_SOCKET_PATH_MAX)
+-    throw new Error(`Socket directory path is too long (${Buffer.byteLength(dir)} bytes); set PWTEST_SOCKETS_DIR to a shorter location.`);
++    result2 = require("./playwright-cli-sockets.cjs").shortSocketPath(dir, name);
+   import_fs3.default.mkdirSync(dir, { recursive: true });
+   return result2;
+ }
