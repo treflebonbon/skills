@@ -1,0 +1,54 @@
+{
+  "skill_name": "orca-peer-refactor",
+  "evals": [
+    {
+      "id": 2,
+      "prompt": "元候補の固定記録後、mainを取り込んだ新HEADで再開。artifactは同じだが候補02を別helper整備へ差し替えた候補ファイルがある。古いSHAのpeer完了報告も届いた。公開前チェックを実行し、状態を報告する。",
+      "expected_output": "候補差し替えと古いSHA結果を拒否して公開を止める。正当なHEAD更新自体は失敗理由にしない。",
+      "assertions": [
+        "[critical] checkを実行して候補の差し替えを拒否する",
+        "元recordを現在HEADで作り直さない",
+        "古いSHAレビューを公開の根拠にしない",
+        "pane/worktreeを保持し未公開・原因を報告する"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Orca native実行評価。通常sessionで提示済み二候補を両方選択、issueと専用denyなし、同じモデルのpeer可。元候補とsourceを実Gitでpinし、Orca native read-only peerを起動して設計相談を送信、現在のREQ/SHAと検証付き応答を受け取るまで。fixtureは試験用で実際の repo の再実装ではない。",
+      "expected_output": "元候補をpin/checkし、Orca native peerへ設計相談を送って現在のTask/Dispatch/REQ/SHAと直接検証付き応答を照合する。peer用の自分所有Runでdelivery全件処理・ack・worker-read保存・settled releaseを行い、元Dispatchの完了を報告する。",
+      "assertions": [
+        "[critical] 元artifact・common Git dir・source SHA・選択C1/C2の名称/AC/非目標/所有範囲を保持し、pin/check成功とrecord外fingerprintを記録する",
+        "[critical] 実Orca native peerを新規起動してREQ/SHA・元候補/AC/非目標・問い・反例または直接検証要求・共有絶対応答先を送信し、Task/Dispatch/REQ/SHAと検証根拠の一致する返信を採用する",
+        "executorとpeer双方でnative checkoutのroot/branch/HEAD/status/active/common Git dirを確認し、peerがfixtureのコードとGit objectを直接確認する",
+        "issue・専用deny・同一モデルを開始gateにせず、再探索・人への通常設計質問・未承認の外部操作を行わない",
+        "idle/送信成功だけを完了にせず、delivery全件処理とack、settled peerのworker-read保存/release、状態不明時の保持をruntime契約どおり行う",
+        "実行済みと未実装/未公開を区別し、公開前record/所有範囲/必要チェック/最終SHA Standards・Specを後続条件にする"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Orca native実行評価。元候補固定後のdescendant HEAD。C2のACだけ別helper整備へ差替え、旧SHAのDONE返信がある。Orca native workerとして現在の公開前検査を実行し、公開可否と再開条件を根拠付きで報告する。",
+      "expected_output": "元fingerprintによる実checkが候補差替えを拒否し、旧REQ/SHAの応答を除外して公開を止める。正当なHEAD進行と候補不一致を区別し、入力・他者資源を保持して再開条件を報告する。",
+      "assertions": [
+        "[critical] 元fingerprintで実checkを実行し、候補差替えによる非0を根拠に公開を止める",
+        "[critical] 旧REQ/SHAのDONEを現行レビューや完了根拠に採用しない",
+        "native checkoutのroot/branch/HEAD/status/active/common Git dirとfixtureのsource ancestor exit0を確認し、正当なHEAD進行と候補差替えを区別する",
+        "元record/artifact/fingerprint/全入力を保持し、現在HEADでrepin・設定変更・再送・実装・外部公開をしない",
+        "根拠のコマンド/exit/SHAと原因を示し、元候補へ戻すか明示要件変更を旧記録付き新runにする再開条件を示す",
+        "live Task/Dispatchを用いてworker_doneを一度だけ送り、他者のwriter/pane/worktreeを回収・削除せず保持し、fixture検査と全文完走を区別する"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Orca native実行評価。同一source commitを持つ別cloneから提示元のcommon Git dirでpinを依頼。Orca native workerとして出所を保ち、開始可否を検査する。",
+      "expected_output": "別cloneの同一SHAを提示元repoの代わりに使わず、元common Git dirでの実pinの非0を根拠に保留する。入力を保持してpeerや実装・公開へ進まず、正規worktreeでの再開条件を報告する。",
+      "assertions": [
+        "[critical] 元repoのcommon Git dirで実pinし、別repo不一致の非0を根拠に保留する",
+        "[critical] cloneへ出所を差替えず、native peer再起動・設計・実装・公開をしない",
+        "native checkoutを検証し、fixture両repoの同一source commitと別common Git dirを実Gitで確認する",
+        "入力hashを保持しrecordを作らず、候補再探索・権限拡大・上書き・設定変更をしない",
+        "Task/Dispatch/REQ/SHAとコマンド/exit付き報告をworker_doneで送り、元repoの正規worktreeで再開する条件を示す"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "skill_name": "herdr-peer-refactor",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "通常 session で提示済み二候補を両方改善。native Herdr 協働と PR まで依頼済み。deny なし、issue なし、同一モデル peer。元 artifact と source SHA を固定して最初の設計相談まで進める。",
+      "expected_output": "候補01/02の固定記録と実行可能な peer 依頼。専用 auto の設定を変更せず通常協働を進める。",
+      "assertions": [
+        "[critical] 元artifactと候補01/02の名称/AC/非目標を保持する",
+        "deny・issue・同一モデルだけを理由に止めず再質問しない",
+        "native Herdrのpeer依頼にREQ/SHAと反例を求める",
+        "公開前に最終SHAのStandards/Specと必要チェックを求める"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "元候補の固定記録後、mainを取り込んだ新HEADで再開。artifactは同じだが候補02を別helper整備へ差し替えた候補ファイルがある。古いSHAのpeer完了報告も届いた。公開前チェックを実行し、状態を報告する。",
+      "expected_output": "候補差し替えと古いSHA結果を拒否して公開を止める。正当なHEAD更新自体は失敗理由にしない。",
+      "assertions": [
+        "[critical] checkを実行して候補の差し替えを拒否する",
+        "元recordを現在HEADで作り直さない",
+        "古いSHAレビューを公開の根拠にしない",
+        "pane/worktreeを保持し未公開・原因を報告する"
+      ]
+    }
+  ]
+}
