@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -9,15 +9,27 @@ import { fileURLToPath } from "node:url";
 const packageRoot = await fs.realpath(
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
 );
+const pluginRoot = path.resolve(packageRoot, "../..");
+const fail = (message) => {
+  throw new Error(message);
+};
+const isInside = (candidate, root) =>
+  candidate === root || candidate.startsWith(root + path.sep);
 const packageManifest = JSON.parse(
   await fs.readFile(path.join(packageRoot, "package.json"), "utf8"),
 );
+const pluginManifest = JSON.parse(
+  await fs.readFile(path.join(pluginRoot, "plugin.json"), "utf8"),
+);
+if (pluginManifest.name !== "treflebonbon-skills") {
+  fail("The WSL2 browser package must run from the treflebonbon-skills plugin.");
+}
 const lockText = await fs.readFile(path.join(packageRoot, "package-lock.json"), "utf8");
 const lock = JSON.parse(lockText);
 const lockDigest = createHash("sha256").update(lockText).digest("hex");
 const patchVersion = 1;
-const readPatch = async (filename) => {
-  const lines = (await fs.readFile(filename, "utf8")).split("\n");
+const parsePatch = (source) => {
+  const lines = source.split("\n");
   const removed = lines.filter((line) => line.startsWith("-") && !line.startsWith("---"));
   const added = lines.filter((line) => line.startsWith("+") && !line.startsWith("+++"));
   if (removed.length !== 1 || added.length !== 1) {
@@ -25,20 +37,25 @@ const readPatch = async (filename) => {
   }
   return [removed[0].slice(1).trim(), added[0].slice(1).trim()];
 };
-const [socketPatch, managedSocketPatch] = await readPatch(
-  path.join(packageRoot, "libexec/playwright-cli-sockets.patch"),
-);
-const [programPatch, managedProgramPatch] = await readPatch(
-  path.join(packageRoot, "libexec/playwright-cli-program.patch"),
-);
-const [runtimeSource, socketHelper] = await Promise.all([
+const [
+  socketPatchSource,
+  programPatchSource,
+  runtimeSource,
+  socketHelper,
+] = await Promise.all([
+  fs.readFile(path.join(packageRoot, "libexec/playwright-cli-sockets.patch"), "utf8"),
+  fs.readFile(path.join(packageRoot, "libexec/playwright-cli-program.patch"), "utf8"),
   fs.readFile(fileURLToPath(import.meta.url)),
   fs.readFile(path.join(packageRoot, "libexec/playwright-cli-sockets.cjs")),
 ]);
+const [socketPatch, managedSocketPatch] = parsePatch(socketPatchSource);
+const [programPatch, managedProgramPatch] = parsePatch(programPatchSource);
 const runtimeDigest = createHash("sha256")
   .update(`${packageManifest.version}\n${lockDigest}\n${patchVersion}\n`)
   .update(runtimeSource)
   .update(socketHelper)
+  .update(socketPatchSource)
+  .update(programPatchSource)
   .digest("hex");
 
 const configuredRuntime = process.env.WSL2_BROWSER_DEPS_DIR;
@@ -51,9 +68,6 @@ const runtimeDir = path.resolve(
 const readyFile = path.join(runtimeDir, ".wsl2-browser-runtime.json");
 const expectedCli = lock.packages["node_modules/@playwright/cli"]?.version;
 const expectedCore = lock.packages["node_modules/playwright-core"]?.version;
-const fail = (message) => {
-  throw new Error(message);
-};
 
 if (!expectedCli || expectedCli !== packageManifest.dependencies["@playwright/cli"]) {
   fail("The package manifest and lock do not agree on the Playwright CLI version.");
@@ -67,11 +81,8 @@ if (configuredRuntime && !path.isAbsolute(configuredRuntime)) {
 if (process.env.XDG_CACHE_HOME && !path.isAbsolute(process.env.XDG_CACHE_HOME)) {
   fail("XDG_CACHE_HOME must be absolute when setting the Playwright runtime location.");
 }
-if (
-  runtimeDir === packageRoot ||
-  runtimeDir.startsWith(`${packageRoot}${path.sep}`)
-) {
-  fail("WSL2_BROWSER_DEPS_DIR must stay outside the fixed package.");
+if (isInside(runtimeDir, pluginRoot)) {
+  fail("WSL2_BROWSER_DEPS_DIR must stay outside the plugin.");
 }
 if (/[\r\n\t]/u.test(runtimeDir)) {
   fail("The dependency runtime path cannot contain tabs or line breaks.");
@@ -89,11 +100,8 @@ const physicalRuntimeDir = async () => {
       });
       const candidate =
         existingTarget || path.resolve(physicalAncestor, ...remaining);
-      if (
-        candidate === packageRoot ||
-        candidate.startsWith(`${packageRoot}${path.sep}`)
-      ) {
-        fail("WSL2_BROWSER_DEPS_DIR resolves inside the fixed package.");
+      if (isInside(candidate, pluginRoot)) {
+        fail("WSL2_BROWSER_DEPS_DIR resolves inside the plugin.");
       }
       return candidate;
     } catch (error) {
