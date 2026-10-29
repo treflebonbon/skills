@@ -37,6 +37,8 @@ class OfficialPluginTest(unittest.TestCase):
         for directory, dirs, files in os.walk(ROOT):
             dirs[:] = [d for d in dirs if d not in {".git", "node_modules", "__pycache__"}]
             for name in files:
+                if name == ".env" or name.startswith(".env."):
+                    continue
                 path = Path(directory) / name
                 contents[str(path.relative_to(ROOT))] = (
                     hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_mode
