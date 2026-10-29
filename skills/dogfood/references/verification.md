@@ -42,7 +42,7 @@ node --test "$SKILL_DIR/tests/runtime.test.mjs"
 bats "$SKILL_DIR/tests/"*.bats
 ```
 
-Node test は一時 plugin copy と fake npm/browser installer を使い、依存準備・通常 run・再実行の前後で plugin payload が不変か確認します。Bats は通常 Web/MV3 fixture、CLI fault injection、WSL ownership lifecycle mock を検証します。fake browser fixture に CDP server はないため、実 CDP attach が必要な2件は skip されます。CLI fault injection は証跡不足、cleanup 失敗、中断 retry、古い report の扱いも確認します。
+Node test は一時 plugin copy と fake npm/browser installer を使い、依存準備・通常 run・再実行の前後で plugin payload が不変か確認します。通常 Bats suite は Web/MV3 runner fixture、CLI fault injection、WSL ownership lifecycle mock を検証します。`dogfood-real-browser.bats` は固定 Playwright と Chromium を `dogfood-runtime.mjs prepare` で外部 cache に準備し、public helper の Web run/re-run、実 CLI の CDP attach/eval/detach、MV3 service worker と annotation の同一 browser context を確認します。live suite は Linux Chromium を使うため WSL2 の Windows Chrome 設定や認証に依存しません。依存準備と各実行の前後で `.env` と `.env.*` を読まずに plugin payload を照合します。CLI fault injection は証跡不足、cleanup 失敗、中断 retry、古い report の扱いも確認します。
 
 For a manual dashboard check, run the runner with `--annotate` against a disposable page, submit two rectangles, and confirm the latest and attempt reports, the Playwright CLI PNG/YAML files, and `annotations/response.json` are present inside the attempt. Review an older attempt through `--resume` to verify historical evidence paths. Do not treat Submit as approval to create issues; candidates still go through Keep/Skip/Edit.
 

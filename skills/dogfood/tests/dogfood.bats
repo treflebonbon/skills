@@ -31,14 +31,10 @@ setup() {
   # managed-dogfood-browser.bats; the Windows helper test opts in separately.
   export DOGFOOD_TEST_WSL=0
   export DOGFOOD_OBSERVATION=none
-  export DOGFOOD_TEST_MOCK_PLAYWRIGHT=1
   export DOGFOOD_WINDOWS_SCRIPT="$PROJECT_ROOT/packages/wsl2-browser/libexec/dogfood-chrome-windows.ps1"
   export MANAGED_CHROME_OWNER="$PROJECT_ROOT/packages/wsl2-browser/bin/managed-chrome-owner"
   export BROWSER_OWNERSHIP_DIR="$BATS_TEST_TMPDIR/browser-ownership"
-  export REAL_PLAYWRIGHT_CLI="$(command -v playwright-cli)"
   export FAKE_CLI_LOG="$BATS_TEST_TMPDIR/playwright-cli.log"
-  export PWTEST_DAEMON_SESSION_DIR="$BATS_TEST_TMPDIR/playwright-cli-daemon"
-  export PWTEST_SERVER_REGISTRY="$BATS_TEST_TMPDIR/playwright-server-registry"
   mkdir -p "$BATS_TEST_TMPDIR/bin"
   cat >"$BATS_TEST_TMPDIR/bin/playwright-cli" <<'EOF'
 #!/usr/bin/env bash
@@ -63,9 +59,6 @@ case " $* " in
       printf '%s\n' 'attach failed' >&2
       exit 1
     fi
-    if [[ "${FAKE_CLI_MODE:-}" == "cdp-probe" ]]; then
-      "$REAL_PLAYWRIGHT_CLI" "$@"
-    fi
     ;;
   *" show --annotate --json "*)
     mkdir -p .playwright-cli
@@ -74,9 +67,6 @@ case " $* " in
     if [[ "${FAKE_CLI_MODE:-}" == "show-fail" ]]; then
       printf '%s\n' 'dashboard failed' >&2
       exit 1
-    elif [[ "${FAKE_CLI_MODE:-}" == "cdp-probe" ]]; then
-      "$REAL_PLAYWRIGHT_CLI" "$1" eval '() => document.URL' --json >>"$FAKE_CLI_LOG"
-      printf '%s\n' '{"result":"No annotations were submitted."}'
     elif [[ "${FAKE_CLI_MODE:-}" == "empty" ]]; then
       printf '%s\n' '{"result":"No annotations were submitted."}'
     else
@@ -84,9 +74,6 @@ case " $* " in
     fi
     ;;
   *" detach "*)
-    if [[ "${FAKE_CLI_MODE:-}" == "cdp-probe" ]]; then
-      "$REAL_PLAYWRIGHT_CLI" "$@"
-    fi
     ;;
   *)
     printf 'unexpected command: %s\n' "$*" >&2
@@ -256,23 +243,6 @@ EOF
   [ -f "$out/$attempt/annotations/response.json" ]
 }
 
-@test "annotation attaches to the runner-owned Chromium and leaves it alive" {
-  local out="$BATS_TEST_TMPDIR/output"
-  export FAKE_CLI_MODE=cdp-probe
-  export FAKE_CLI_TMPDIR="$BATS_TEST_TMPDIR/long-socket-parent-for-nested-runtimes-and-bats/another-long-component-to-exceed-the-unix-socket-limit"
-  mkdir -p "$FAKE_CLI_TMPDIR"
-
-  [[ "$DOGFOOD_TEST_MOCK_PLAYWRIGHT" != 1 ]] || skip "the runner uses a mock browser fixture without a CDP server"
-  [ -n "$REAL_PLAYWRIGHT_CLI" ] || skip "real Playwright CLI is not installed"
-  run node "$RUNNER" --target about:blank --output "$out" --annotate
-
-  [ "$status" -eq 0 ]
-  grep -Fq 'about:blank' "$FAKE_CLI_LOG"
-  grep -Fq 'detach' "$FAKE_CLI_LOG"
-  attempt="$(sed -n 's/^Attempt directory: //p' "$out/report.md")"
-  [ -f "$out/$attempt/traces/playwright-trace.zip" ]
-}
-
 @test "annotation attach failure still finalizes automated evidence" {
   local out="$BATS_TEST_TMPDIR/output"
   export FAKE_CLI_MODE=attach-fail
@@ -336,19 +306,4 @@ EOF
   [ -f "$out/report.md" ]
   attempt="$(sed -n 's/^Attempt directory: //p' "$out/report.md")"
   [ -f "$out/$attempt/traces/playwright-trace.zip" ]
-}
-
-@test "MV3 inspection and annotation share the persistent Chromium context" {
-  local out="$BATS_TEST_TMPDIR/output"
-  local extension="$REF_DIR/fixtures/mv3-min"
-  export FAKE_CLI_MODE=cdp-probe
-
-  [[ "$DOGFOOD_TEST_MOCK_PLAYWRIGHT" != 1 ]] || skip "the runner uses a mock browser fixture without a CDP server"
-  [ -n "$REAL_PLAYWRIGHT_CLI" ] || skip "real Playwright CLI is not installed"
-  run node "$RUNNER" --target about:blank --extension "$extension" --output "$out" --annotate
-
-  [ "$status" -eq 0 ]
-  grep -Eq '^Extension ID: [a-z]+' "$out/report.md"
-  grep -Fq 'about:blank' "$FAKE_CLI_LOG"
-  ! grep -Fq 'MV3 service worker did not register' "$out/report.md"
 }
