@@ -1,0 +1,14 @@
+{
+  "repository": "owner/repo",
+  "credential_type": "fine-grained personal access token",
+  "permissions": {
+    "contents": "read",
+    "issues": "read",
+    "metadata": "read",
+    "pull_requests": "read"
+  },
+  "verified_at": "YYYY-MM-DD",
+  "verified_by": "human name",
+  "activated_at": "YYYY-MM-DD",
+  "activated_by": "human name"
+}

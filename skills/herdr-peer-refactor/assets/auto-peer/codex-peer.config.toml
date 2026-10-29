@@ -1,0 +1,107 @@
+approval_policy = "never"
+default_permissions = "dotfiles-peer"
+
+[features]
+network_proxy = true
+
+[permissions.dotfiles-peer]
+extends = ":workspace"
+
+[permissions.dotfiles-peer.filesystem]
+glob_scan_max_depth = 4
+":root" = "deny"
+":minimal" = "read"
+":slash_tmp" = "deny"
+"/nix" = "read"
+"~/.gitconfig" = "read"
+
+[permissions.dotfiles-peer.filesystem.":workspace_roots"]
+"." = "read"
+"**/.env" = "deny"
+"**/.env[!.r]*" = "deny"
+"**/.envr" = "deny"
+"**/.envr[!c]*" = "deny"
+"**/.envrc?*" = "deny"
+"**/.env." = "deny"
+"**/.env.[!e]*" = "deny"
+"**/.env.e" = "deny"
+"**/.env.e[!x]*" = "deny"
+"**/.env.ex" = "deny"
+"**/.env.ex[!a]*" = "deny"
+"**/.env.exa" = "deny"
+"**/.env.exa[!m]*" = "deny"
+"**/.env.exam" = "deny"
+"**/.env.exam[!p]*" = "deny"
+"**/.env.examp" = "deny"
+"**/.env.examp[!l]*" = "deny"
+"**/.env.exampl" = "deny"
+"**/.env.example?*" = "deny"
+"**/*.pem" = "deny"
+"**/*.key" = "deny"
+"**/*.pfx" = "deny"
+"**/*.p12" = "deny"
+"**/credentials.json" = "deny"
+"**/credentials.*.json" = "deny"
+"**/secret.json" = "deny"
+"**/secrets.json" = "deny"
+"**/service-account*.json" = "deny"
+
+[permissions.dotfiles-peer.filesystem."~/.local/bin"]
+"." = "read"
+
+[permissions.dotfiles-peer.filesystem."~/.config/git"]
+"." = "read"
+
+[permissions.dotfiles-peer.filesystem."~/.codex-peer/gh"]
+"." = "read"
+
+[permissions.dotfiles-peer.filesystem."/tmp/codex"]
+"." = "write"
+"**/.env" = "deny"
+"**/.env[!.r]*" = "deny"
+"**/.envr" = "deny"
+"**/.envr[!c]*" = "deny"
+"**/.envrc?*" = "deny"
+"**/.env." = "deny"
+"**/.env.[!e]*" = "deny"
+"**/.env.e" = "deny"
+"**/.env.e[!x]*" = "deny"
+"**/.env.ex" = "deny"
+"**/.env.ex[!a]*" = "deny"
+"**/.env.exa" = "deny"
+"**/.env.exa[!m]*" = "deny"
+"**/.env.exam" = "deny"
+"**/.env.exam[!p]*" = "deny"
+"**/.env.examp" = "deny"
+"**/.env.examp[!l]*" = "deny"
+"**/.env.exampl" = "deny"
+"**/.env.example?*" = "deny"
+"**/*.pem" = "deny"
+"**/*.key" = "deny"
+"**/*.pfx" = "deny"
+"**/*.p12" = "deny"
+"**/credentials.json" = "deny"
+"**/credentials.*.json" = "deny"
+"**/secret.json" = "deny"
+"**/secrets.json" = "deny"
+"**/service-account*.json" = "deny"
+
+[permissions.dotfiles-peer.network]
+enabled = true
+
+[permissions.dotfiles-peer.network.domains]
+"registry.npmjs.org" = "allow"
+"**.github.com" = "allow"
+"**.githubusercontent.com" = "allow"
+"**.context7.com" = "allow"
+"**.pypi.org" = "allow"
+"files.pythonhosted.org" = "allow"
+"**.python.org" = "allow"
+"cache.nixos.org" = "allow"
+"nodejs.org" = "allow"
+"proxy.golang.org" = "allow"
+"sum.golang.org" = "allow"
+"**.crates.io" = "allow"
+"static.rust-lang.org" = "allow"
+"**.hex.pm" = "allow"
+"cpan.metacpan.org" = "allow"

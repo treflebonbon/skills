@@ -1,48 +1,71 @@
-# 専用 auto session の追加保護
+# 専用 auto session の準備と起動
 
-> この移管資料は追加保護の設計経緯を残す参考資料です。必要な専用起動ゲート、隔離設定、実効保護の検証を package として提供するものではありません。専用 auto を実行済み・有効と扱わず、完成条件は専用 ticket の実装と検証を参照してください。通常の明示 peer 協働にはこの資料の gate を適用しません。
->
-> この下の `dotfiles-peer`、`dotfiles-secure`、`private_dot_config`、`~/.codex-peer` などは移管元 dotfiles 環境の設定名・path です。この package はそれらを配置も有効化もしません。利用対象 repo の現在の設定や専用 auto の保護として扱わないでください。
+専用 auto の保護は [保護契約](../../../contracts/auto-peer-protection.md) が正本である。通常 session から明示依頼された peer 協働はこの起動 gate の対象外で、専用 auto が未準備でも通常経路を拒否しない。逆に、専用 auto が保護確認に失敗したとき通常 profile へ切り替えて続行しない。
 
-通常の明示依頼からの peer 協働には、この起動ゲートを適用しない。専用 auto session を選んだ場合だけ以下を確認する。設定の存在は適用の証拠ではない。専用起動前に配備済み `permissions.deny`／rules の内容を read-only で確認し、空・不正・必要な拒否規則がない場合は保留する。権限設定を変更して通過させない。
+この package は、元候補の固定、read-only peer、独立 review、merge を行わない条件を [通常 peer 契約](../../../contracts/autonomous-peer-contract.md) から引き継ぐ。専用 auto はそれらの契約を変えず、専用 home・実効 permission・credential の追加条件を満たした場合だけ起動する。
 
-## auto session の識別と merge deny
+実効保護を検証する専用起動入口は Claude Code と Codex である。Orca Yolo / auto worker にはこの package の Claude deny と Codex permission profile を結び付ける入口がなく、専用 auto として起動しない。通常 session の明示 Orca read-only peer は引き続き [Orca 手順](../../orca-peer-refactor/references/orca.md) を使う。
 
-merge の禁止は文書だけでなく permission の deny でも強制する。deny は Claude と Codex の標準の permission 機能だけで実現し、独自の検証層（確認結果の記録表、版と設定の識別の照合）は持たない（ADR-0075）。deny は auto session 限定で `gh pr merge` などの merge の形を拒否し、通常 session の承認済み merge は妨げない。
+## 正本と人による準備
 
-deny は、列挙した形に対するパターン照合で、merge の権限そのものの保証ではない。codex 経路で資格情報の側から止める方法は、codex peer の資格情報の節に書く。
+[`assets/auto-peer/auto-peer.rules`](../assets/auto-peer/auto-peer.rules) の `peer_deny` が拒否規則の正本である。同じ directory の `auto-peer-deny.json` は Claude の deny 投影、`claude-peer.settings.json` は Claude 専用 profile、`codex-peer.config.toml` は Codex 専用 profile である。資格情報の値や live runtime 設定は配布しない。
 
-| 項目 | 内容 |
-| --- | --- |
-| deny の実体（Claude） | `~/.claude/auto-peer-deny.json`（`permissions.deny` の断片）。auto session は `claude --permission-mode auto --settings ~/.claude/auto-peer-deny.json` で起動する |
-| deny の実体（Codex） | 専用 `CODEX_HOME` の `rules/auto-peer.rules`（`forbidden`）と、`dotfiles-peer` の permission profile。専用 home には人が置く（認証も人） |
-| auto session の識別 | 専用起動の指定は、自分の `claude` プロセスの引数に `--settings` と断片のパスが含まれることで観測する。これは runtime の実効 deny の確認ではない（`ps -o args= -p <pid>`。Linux と macOS で共通）。環境変数は使わない。断片が無ければ通常 session |
-| 起動チェック | 次を確認し、成り立たなければ auto を開始せず人へ戻す。設定内容・起動経路と runtime の実効 deny を確認し、引数の観測だけを適用の証拠にしない。適用が確認できない場合は専用 auto の起動を保留する。通常の明示協働へ自動で切り替えない。断片があるのに Run Scope などのゲートが通らない session は、auto の失敗として人へ戻す。deny を適用できない runtime（Orca Yolo など）では開始しない |
+人が既存設定を上書きせず専用 home を用意する。
 
-### codex peer の資格情報
+- Claude は `$HOME/.claude-peer` を mode `0700` にし、`claude-peer.settings.json` を `auto-peer-settings.json` として配置する。Claude の認証は `CLAUDE_CONFIG_DIR=$HOME/.claude-peer` を指定して、その専用 home に人が準備する。
+- Codex は `$HOME/.codex-peer` と `rules/` を mode `0700` にし、`codex-peer.config.toml` と `auto-peer.rules` を配置する。`$HOME/.codex-peer/gh` も mode `0700` にして `GH_CONFIG_DIR` に指定し、そこへ repository 限定 fine-grained token を人が用意する。
+- Codex の `auto-peer-read-only-attestation.json` は `read-only-attestation.example.json` を基に人が記入する。対象 repo と read-only 権限、確認者・有効化者、実日付を記録する。CLI status と repo identity は別途照合されるが、権限内容を確認したという attestation の代わりにはならない。
 
-codex の peer は GitHub に書き込まないので、書込み権限のない資格情報で起動する。codex は、並行実行の前提ではなく、後から加える強化である（ADR-0075）。
+設定ファイルの存在、起動 argv、rule evaluator の結果だけでは、runtime が実際に権限を適用した証拠にならない。認証がない、専用 home が違う、profile/rules が一致しない、canary が失敗する場合は専用 auto を保留する。保護を弱めて通過させない。
 
-- 資格情報: repo 限定の read-only の fine-grained token を、専用の gh 設定先 `~/.codex-peer/gh`（`GH_CONFIG_DIR`）に置く。人が発行して置く。
-- 隔離: peer は `dotfiles-peer` profile（`private_dot_config/codex/config.toml.tmpl`）で起動する。`dotfiles-secure` から、書込み可能な資格情報がある `~/.config/gh` の読取りを外し、`~/.codex-peer/gh` だけを読む。
-- 別の認証経路: 管理設定は GitHub App を `approve` で有効にしている（`[apps.github]`）。peer では `--disable apps` で App 全体を無効にし、`gh` の read-only の資格情報を唯一の GitHub 認証にする。
-- 起動: 専用 auto 経路はこの package では実装・検証していません。人が用意する専用 home、認証、rules、profile と、その実効性の検証条件を完了するまで実行しないでください。通常の明示協働で Codex reviewer を使う場合は、[共用 CLI](../../../docs/shared-cli.md) の `bin/codex-reviewer` を読み、選択済み profile と実際の権限を確認します。
-- 使う条件: 専用 home、`rules/auto-peer.rules`、read-only の資格情報を人が用意し、この参照の「有効化」の表の行を人が「有効」に更新したときだけ使う。それまでは未有効の規則で、実行せず、報告に未実行の項目と有効化の手順を書く。実測は任意で、済んでいなくても使えるが、rules が覆うのは列挙した形だけで、`sh -c` や `env` の前置きは実行できる。
+## Preflight と起動
 
-## 起動と既存 helper
+receipt 用に `/tmp/codex` 配下で private run directory を作る。`skill_dir` はロードされた `SKILL.md` の絶対 path の親にする。
 
-`launch-child.sh` と `plan-parallel.sh` は専用 auto 起動の追加保護として維持する。前者は子自身の `--settings` 引数と cwd、親停止、上限を検査する。引数の観測だけでは runtime が拒否規則を有効にした証明にならず、実効性が確認不能なら保留する。後者はファイル単位の保守的な選定であり、通常の明示協働で別 hunk を並行改善する手順には使わない。`agent start` の設定転送を適用証拠にせず、専用 auto は pane の shell から `claude --permission-mode auto --settings ~/.claude/auto-peer-deny.json` で起動する。Claude の background process しか観測できず適用が確認できない場合、その専用 auto 起動は保留する。
+```bash
+: "${skill_dir:?現在の skill directory を指定してください}"
+run_dir="$(mktemp -d /tmp/codex/auto-peer.XXXXXX)"
 
-Codex 専用 auto peer は未有効のまま。専用資格情報・rules・profile の準備と有効化が済むまでは使わない。この制限は通常の明示依頼で native Codex を read-only reviewer として使うことを禁止しない。
+CLAUDE_CONFIG_DIR="$HOME/.claude-peer" \
+  python3 -B "$skill_dir/scripts/auto-peer-preflight.py" claude \
+    --settings "$HOME/.claude-peer/auto-peer-settings.json" \
+    --receipt "$run_dir/claude-preflight.json"
 
-### 専用 auto の並行 helper
+CODEX_HOME="$HOME/.codex-peer" GH_CONFIG_DIR="$HOME/.codex-peer/gh" \
+  python3 -B "$skill_dir/scripts/auto-peer-preflight.py" codex \
+    --repository owner/name \
+    --receipt "$run_dir/codex-preflight.json"
+```
 
-親 1・子 N・peer N+1 の live-agent 上限は 2N+2。`plan-parallel.sh <limit> <records.tsv>` はファイル単位の保守的選定、`launch-child.sh <run-dir> <parent-pane> <worktree> <candidate-id> <limit>` は子ごとに専用 workspace（`herdr workspace create`）を作り、その root pane で起動して `herdr pane process-info` で子自身の `--settings` 引数と cwd を確認する。実行中の pane は `pane move` で移さない（pane ID が変わる）。`<parent-pane>` は互換のため受け取るが分割には使わない。mock 起動テストはこの観測の検査であり、実効 deny の検証ではない。確認できない子には依頼を送らない。親が止まったら `<run dir>/stopped` を記録し、新規子を起動しない。公開前は `check-owned.sh <child worktree> <base> <owned-files>` で実差分を照合する。base は開始時に確定した値を使い、main を取り込んだ後は新しい main の SHA に替えて範囲付きの宣言を読み替える(SKILL.md の「worktree と担当」)。
+Claude の Herdr child は次の入口だけで開始する。
 
-### 有効化
+```bash
+bash "$skill_dir/scripts/launch-child.sh" \
+  "$run_dir" "$parent_pane" "$worktree" "$child_id" "$limit" \
+  "$run_dir/claude-preflight.json" "$HOME/.claude-peer/auto-peer-settings.json"
+```
 
-| 任意の追加保護                                  | 状態   |
-| ----------------------------------------------- | ------ |
-| Codex 専用 auto peer の起動・read-only 資格情報 | 未有効 |
+この入口は起動直前にも receipt、専用 home 認証、CLI identity、settings hash、実効 canary を再確認する。確認が通る前に pane / workspace を作らず、child にも専用 `CLAUDE_CONFIG_DIR` と `--settings` を渡す。`herdr agent start` の設定転送を active policy の証拠には使わない。
 
-設定の作成・有効化は人が行う。通常の native reviewer を専用 auto peer と報告しない。
+Codex の専用 auto peer は次の入口を使う。
+
+```bash
+bash "$skill_dir/scripts/codex-auto-peer.sh" owner/name \
+  "$run_dir/codex-preflight.json" -- "<review prompt>"
+```
+
+この入口は receipt、専用 `CODEX_HOME` と `GH_CONFIG_DIR`、GitHub auth status、repository identity、config/rules/attestation hash、公式 `execpolicy check`、実 session canary を起動直前に再検証してから、共有 `bin/codex-reviewer --peer --disable apps` へ渡す。失敗時は Codex session を開始しない。通常の read-only reviewer は従来どおり `bin/codex-reviewer --peer` から使え、専用 auto receipt を要求しない。
+
+## Canary の範囲と限界
+
+Claude は専用 settings を使った実 CLI session で no-deny control と configured deny を比較する。no-deny control の無害な probe が実行され、workspace 外にある settings を読めないことを確認する。専用 settings では policy probe と raw push の実 permission denial が返ることを確認する。sandbox unavailable や拒否不足は fail closed となる。Claude の preflight と起動直前の verify はそれぞれ2回の authenticated API canary を行い、各 invocation は `--max-budget-usd 0.02` を指定する。実際の Claude auth/API canary はこの package の統合検証では実行していない。
+
+Codex は実 CLI sessionへ loopback-only model fixture を使う。canary 用の `HOME` / `CODEX_HOME` は、実際の専用 home から検証済み config と rules だけを複写した一時 home で、資格情報は含めず、GH directory は空にする。loopback server は request body の tool output だけを使い、header/body/prompt を出力せず、`Authorization` header があれば失敗する。workspace write と raw push は使い捨て linked Git worktree と fake Git で確認する。CLI が実際に付ける linked worktree の Git dir/common dir override を適用して `git status --short` の成功も見る。実対象 repo に nonce、file、commit、push は作らない。
+
+Canary が確認するのは Codex filesystem と deny rule の active CLI enforcement であり、GitHub credential の scope ではない。Codex auth status、GitHub CLI の active auth/repository identity、read-only attestation は別々に検査する。mock テストは拒否時の分岐検証であり、実 runtime の証拠とは区別する。実 credential が未準備なら preflight は通らない。
+
+## 子の上限と担当
+
+`plan-parallel.sh <limit> <records.tsv>` は、共有するファイル所有を見て保守的に並行候補を選ぶ。`launch-child.sh` は子ごとに `herdr workspace create --cwd <worktree>` で workspace を作り、親 1・子 N・peer N+1 の live-agent 上限 `2N+2` を守る。子起動後は `herdr pane process-info` の foreground argv と cwd を確認する。process-info は preflight 後の起動経路の観測であり、permission enforcement は canary が別途確認する。
+
+親が停止を記録したら新しい child を開始しない。peer は read-only とし、候補固定と公開証跡を保持する。確認不能・設定不一致・依存不足・累積待機超過では pane、worktree、成果物を保持して保留する。

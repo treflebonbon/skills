@@ -1,8 +1,8 @@
 # 元のアーキテクチャ候補を改善する peer 協働契約
 
-`herdr-peer-refactor` と `orca-peer-refactor` の規範。native 操作は [Herdr 手順](../skills/herdr-peer-refactor/references/herdr.md) と [Orca 手順](../skills/orca-peer-refactor/references/orca.md)、証跡は各 skill の `references/evidence.md` を使う。package 内の共用 CLI の呼び出し方は [共用 CLI](../docs/shared-cli.md) を参照する。この契約は権限設定を変更しない。
+`herdr-peer-refactor` と `orca-peer-refactor` の通常 session における規範。native 操作は [Herdr 手順](../skills/herdr-peer-refactor/references/herdr.md) と [Orca 手順](../skills/orca-peer-refactor/references/orca.md)、証跡は各 skill の `references/evidence.md` を使う。package 内の共用 CLI の呼び出し方は [共用 CLI](../docs/shared-cli.md) を参照する。この契約自体は runtime profile を選択しない。
 
-この package が扱うのは通常 session からの明示的な peer 協働である。raw Codex の隔離と専用 auto session の実効保護は別の機能経路であり、前者は #534、後者は #536 の条件を満たした実装・検証を参照する。未確認の保護を有効と報告せず、専用 auto の不足を通常 session で代用しない。
+通常 session からの明示的な read-only peer 協働は、専用 auto の credential や preflight を必要としない。専用 auto を選択した経路は [専用 auto peer の保護契約](auto-peer-protection.md) と [起動手順](../skills/herdr-peer-refactor/references/auto-session.md) が規範である。実効保護が未確認なら専用 auto のみ保留し、通常協働へ自動で切り替えない。通常協働を専用 auto の不足だけで拒否しない。
 
 ## 開始と承認
 
@@ -50,11 +50,11 @@ peer は新しい context から始め、推奨を先に見せない。元候補
 
 peer の sandbox が返信先へ書けない場合、端末の `DONE <ID> <SHA> <nonce>` 行・本文・`END <ID> <nonce>` 行を親が検査して保存する。依頼 ID・対象 SHA・試行 nonce・非空本文・終端までの完全性が一致しなければ採用しない。peer の権限を広げない。途中切れ、前試行の応答、依頼文の echo は完了にしない。端末を読めない、または保存できない場合は保留する。Claude background session は同じ session に attach し、dashboard を完了扱いしない。状態不明の agent に依頼を再送しない。
 
-| 上限 | 値 |
-| --- | --- |
-| peer 1 回の待機 | 20 分 |
+| 上限             | 値     |
+| ---------------- | ------ |
+| peer 1 回の待機  | 20 分  |
 | 1 候補の累積待機 | 2 時間 |
-| Review Round | 3 回 |
+| Review Round     | 3 回   |
 
 `blocked` は再試行せず保留する。同一の失敗は2回で保留する。個別 timeout だけで編集停止を断定せず、停止と差分の安定を確認してから後継を起動する。確認不能や累積予算超過では pane・worktree・成果物を保持する。可逆な判断は peer に、未承認で影響の広い判断は保留に送る。
 
