@@ -1,5 +1,7 @@
+import hashlib
 import re
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -114,6 +116,33 @@ class PeerRefactorSkillTests(unittest.TestCase):
                 text=True,
             )
             self.assertNotEqual(rejected.returncode, 0)
+
+    def test_run_evidence_does_not_write_bytecode_or_change_script_payload(self):
+        scripts = [
+            *sorted((SKILLS / PEER_NAMES[0] / "scripts").glob("*.py")),
+            *sorted((SKILLS / PEER_NAMES[1] / "scripts").glob("*.py")),
+        ]
+        self.assertTrue(scripts)
+        before = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in scripts}
+        child_env = dict(os.environ)
+        child_env.pop("PYTHONDONTWRITEBYTECODE", None)
+        result = subprocess.run(
+            ["python3", str(SKILLS / PEER_NAMES[0] / "scripts" / "run-evidence.py")],
+            env=child_env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(
+            {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in scripts},
+            before,
+        )
+        for skill_name in PEER_NAMES:
+            with self.subTest(skill=skill_name):
+                self.assertFalse(
+                    list((SKILLS / skill_name).rglob("__pycache__")),
+                    "Python helper wrote bytecode into the shipped skill",
+                )
 
 
 if __name__ == "__main__":

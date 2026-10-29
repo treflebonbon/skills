@@ -122,7 +122,7 @@ assert receipt['nonce'] == '0123456789abcdef'
 assert receipt['head'] == sys.argv[2]
 assert receipt['cwd'] == str(Path(sys.argv[8]).resolve())
 assert receipt['fingerprint'] == sys.argv[3]
-assert receipt['command'][1:] == [sys.argv[4], 'check', sys.argv[5], sys.argv[6], sys.argv[3]]
+assert receipt['command'][1:] == ['-B', sys.argv[4], 'check', sys.argv[5], sys.argv[6], sys.argv[3]]
 assert receipt['exit_code'] == 0
 assert stat.S_IMODE(path.stat().st_mode) == 0o600
 PY
@@ -677,7 +677,7 @@ PY
   mkdir -p "$EVIDENCE/dir" "$BATS_TEST_TMPDIR/outside"
   printf 'inside\n' >"$EVIDENCE/dir/f"
   printf 'outside\n' >"$BATS_TEST_TMPDIR/outside/f"
-  run python3 -I - "$SCRIPT" "$EVIDENCE/dir/f" "$EVIDENCE/dir" "$BATS_TEST_TMPDIR/outside" <<'PY'
+  run python3 -B -I - "$SCRIPT" "$EVIDENCE/dir/f" "$EVIDENCE/dir" "$BATS_TEST_TMPDIR/outside" <<'PY'
 import importlib.util, os, sys
 spec = importlib.util.spec_from_file_location("run_evidence", sys.argv[1])
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
@@ -703,7 +703,7 @@ PY
   mkdir -p "$BATS_TEST_TMPDIR/real/codex"
   ln -s "$BATS_TEST_TMPDIR/real" "$BATS_TEST_TMPDIR/tmp"
   printf 'inside\n' >"$BATS_TEST_TMPDIR/real/codex/f"
-  run python3 -I - "$SCRIPT" "$BATS_TEST_TMPDIR/tmp/codex" <<'PY'
+  run python3 -B -I - "$SCRIPT" "$BATS_TEST_TMPDIR/tmp/codex" <<'PY'
 import importlib.util, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location("run_evidence", sys.argv[1])

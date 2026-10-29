@@ -217,7 +217,7 @@ PY
 @test "replacement during record read cannot switch the verified candidate" {
   run pin_record
   [ "$status" -eq 0 ]
-  run bash -c 'cd "$1" && python3 - "$2" "$3" "$4" "$5"' _ "$REPO" "$SCRIPT" "$RECORD" "$CANDIDATES" "$output" <<'PY'
+  run bash -c 'cd "$1" && python3 -B - "$2" "$3" "$4" "$5"' _ "$REPO" "$SCRIPT" "$RECORD" "$CANDIDATES" "$output" <<'PY'
 import importlib.util, json, sys
 from pathlib import Path
 from unittest.mock import patch

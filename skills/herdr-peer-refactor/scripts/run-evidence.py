@@ -15,6 +15,8 @@ import sys
 import tempfile
 
 
+# Load the sibling helper without writing bytecode into the shipped skill.
+sys.dont_write_bytecode = True
 candidate_record = runpy.run_path(str(Path(__file__).with_name("candidate-record.py")))
 SHARED = Path("/tmp/codex")
 SENSITIVE = (
@@ -86,7 +88,7 @@ def probe(record_path, candidates_path, fingerprint, nonce, receipt_path):
     read_public(candidates_path)
     destination = public_path(receipt_path)
     head = candidate_record["git"]("rev-parse", "--verify", "HEAD^{commit}")
-    command = [sys.executable, str(Path(__file__).with_name("candidate-record.py")),
+    command = [sys.executable, "-B", str(Path(__file__).with_name("candidate-record.py")),
                "check", record_path, candidates_path, fingerprint]
     try:
         exit_code = subprocess.run(command, stdout=subprocess.DEVNULL, timeout=30).returncode
