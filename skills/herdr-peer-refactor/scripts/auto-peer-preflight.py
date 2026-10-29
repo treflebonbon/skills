@@ -109,20 +109,9 @@ def require_owned_directory(path: Path) -> os.stat_result:
     return info
 
 
-def child_environment(*, keep: set[str] = frozenset()) -> dict[str, str]:
-    """Drop ambient credentials and Git context before invoking any CLI."""
-    result = {
-        key: value
-        for key, value in os.environ.items()
-        if key in keep
-        or not re.search(r"(TOKEN|API_KEY|SECRET|PASSWORD|CREDENTIAL)", key, re.IGNORECASE)
-    }
-    for key in list(result):
-        if key.startswith("GIT_"):
-            del result[key]
-        if key.lower() in {"http_proxy", "https_proxy", "all_proxy"}:
-            del result[key]
-    return result
+def child_environment(*, keep: set[str] | frozenset[str] = frozenset()) -> dict[str, str]:
+    """Pass only explicitly selected noncredential environment values to a child CLI."""
+    return {key: value for key, value in os.environ.items() if key in keep}
 
 
 def run_cli(
@@ -717,7 +706,9 @@ def claude_session_canary(executable: Path, settings: Path, env: dict[str, str])
 
 
 def claude_environment() -> tuple[Path, Path, dict[str, str], str, str]:
-    env = child_environment(keep={"HOME", "PATH", "LANG", "LC_ALL", "TMPDIR", "CLAUDE_CONFIG_DIR"})
+    env = child_environment(
+        keep={"HOME", "PATH", "LANG", "LC_ALL", "TMPDIR", "TERM", "COLORTERM", "COLUMNS", "LINES", "NO_COLOR", "CLAUDE_CONFIG_DIR"}
+    )
     home = claude_home(env)
     settings = home / "auto-peer-settings.json"
     settings_hash = check_claude_settings(home, settings)
@@ -735,7 +726,9 @@ def claude_environment() -> tuple[Path, Path, dict[str, str], str, str]:
 
 
 def codex_environment(repository: str) -> tuple[Path, Path, Path, dict[str, str], str, str, str, str]:
-    env = child_environment(keep={"HOME", "PATH", "LANG", "LC_ALL", "TMPDIR", "CODEX_HOME", "GH_CONFIG_DIR"})
+    env = child_environment(
+        keep={"HOME", "PATH", "LANG", "LC_ALL", "TMPDIR", "TERM", "COLORTERM", "COLUMNS", "LINES", "NO_COLOR", "CODEX_HOME", "GH_CONFIG_DIR"}
+    )
     home, gh_home = codex_home(env)
     repository_root = Path.cwd().resolve(strict=True)
     codex_git_paths(repository_root, env)
@@ -851,7 +844,7 @@ def codex_preflight(repository: str, receipt_arg: str) -> None:
     )
 
 
-def verify_claude(settings_arg: str, receipt_arg: str) -> None:
+def verify_claude(settings_arg: str, receipt_arg: str) -> Path:
     receipt = read_receipt(Path(receipt_arg), "claude")
     executable, settings, env, settings_hash, runtime_identity = claude_environment()
     require(Path(settings_arg).absolute() == settings, "Claude settings path changed")
@@ -859,11 +852,13 @@ def verify_claude(settings_arg: str, receipt_arg: str) -> None:
     require(receipt.get("runtime_identity") == runtime_identity, "Claude CLI changed after preflight")
     require(receipt.get("home_sha256") == digest_bytes(str(settings.parent).encode()), "Claude dedicated home changed after preflight")
     require(receipt.get("observed", {}).get("configured_denials") == [PROBE_COMMAND, "git push origin HEAD"], "Claude receipt lacks runtime denial evidence")
+    require("\n" not in str(executable) and "\r" not in str(executable), "Claude CLI path cannot be represented safely")
     observed = claude_session_canary(executable, settings, env)
     require(observed == receipt["observed"], "Claude active policy canary no longer matches its preflight receipt")
+    return executable
 
 
-def verify_codex(repository: str, receipt_arg: str) -> None:
+def verify_codex(repository: str, receipt_arg: str) -> dict[str, str]:
     require(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) is not None, "repository must be owner/name")
     receipt = read_receipt(Path(receipt_arg), "codex")
     executable, home, _gh_home, env, config_hash, rules_hash, attestation_hash, runtime_identity = codex_environment(repository)
@@ -884,6 +879,18 @@ def verify_codex(repository: str, receipt_arg: str) -> None:
         },
         "Codex active-session policy canary failed",
     )
+    return env
+
+
+def launch_codex(repository: str, receipt_arg: str, reviewer_args: list[str]) -> None:
+    if reviewer_args and reviewer_args[0] == "--":
+        reviewer_args = reviewer_args[1:]
+    require(reviewer_args, "a reviewer prompt is required")
+    env = verify_codex(repository, receipt_arg)
+    reviewer = SKILL_ROOT.parents[1] / "bin/codex-reviewer"
+    require(reviewer.is_file() and os.access(reviewer, os.X_OK), "bundled Codex reviewer is unavailable")
+    argv = [str(reviewer), "--peer", "--disable", "apps", "--", *reviewer_args]
+    os.execvpe(str(reviewer), argv, env)
 
 
 def main() -> None:
@@ -900,15 +907,27 @@ def main() -> None:
     verify.add_argument("--settings")
     verify.add_argument("--repository")
     verify.add_argument("--receipt", required=True)
+    verify.add_argument("--print-executable", action="store_true", help=argparse.SUPPRESS)
+    launch = subparsers.add_parser("launch-codex")
+    launch.add_argument("--repository", required=True)
+    launch.add_argument("--receipt", required=True)
+    launch.add_argument("reviewer_args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.action == "claude":
         claude_preflight(args.settings, args.receipt)
     elif args.action == "codex":
         codex_preflight(args.repository, args.receipt)
+    elif args.action == "launch-codex":
+        launch_codex(args.repository, args.receipt, args.reviewer_args)
+        return
     elif args.runtime == "claude":
         require(args.settings is not None, "Claude receipt verification requires --settings")
-        verify_claude(args.settings, args.receipt)
+        executable = verify_claude(args.settings, args.receipt)
+        if args.print_executable:
+            print(executable)
+            return
     else:
+        require(not args.print_executable, "only Claude verification can return an executable path")
         require(args.repository is not None, "Codex receipt verification requires --repository")
         verify_codex(args.repository, args.receipt)
     print("auto-peer preflight passed")
