@@ -1,0 +1,66 @@
+{
+  "sessionId": "evaluation-request",
+  "roundId": "r1",
+  "title": "備品申請画面の設計",
+  "questions": [
+    {
+      "id": "layout",
+      "title": "一覧レイアウト",
+      "prompt": "表表示とカード表示のどちらにしますか？",
+      "type": "single",
+      "recommendation": "比較しやすい表表示を推奨します。",
+      "choices": [
+        {
+          "id": "table",
+          "label": "表表示",
+          "recommended": true
+        },
+        {
+          "id": "cards",
+          "label": "カード表示"
+        }
+      ]
+    },
+    {
+      "id": "wording",
+      "title": "申請ボタンの文言",
+      "prompt": "申請する、依頼を送るのどちらにしますか？",
+      "type": "single",
+      "recommendation": "申請するを推奨します。",
+      "choices": [
+        {
+          "id": "apply",
+          "label": "申請する",
+          "recommended": true
+        },
+        {
+          "id": "request",
+          "label": "依頼を送る"
+        }
+      ]
+    },
+    {
+      "id": "fields",
+      "title": "一覧に載せる情報",
+      "prompt": "金額・申請者・承認状況から複数選んでください。",
+      "type": "multiple",
+      "recommendation": "金額と承認状況を推奨します。",
+      "choices": [
+        {
+          "id": "amount",
+          "label": "金額",
+          "recommended": true
+        },
+        {
+          "id": "approval",
+          "label": "承認状況",
+          "recommended": true
+        },
+        {
+          "id": "applicant",
+          "label": "申請者"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>ラウンド質問シート</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+        color: light-dark(#252525, #eeeeec);
+        background: light-dark(#fafaf8, #202220);
+        --muted: light-dark(#595c56, #babfb5);
+        --line: light-dark(#b5b8af, #63675e);
+        --accent: light-dark(#285a37, #a6d8ae);
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 24px; }
+      main { max-width: 780px; margin-inline: auto; }
+      h1 { font-size: clamp(1.5rem, 4vw, 2rem); line-height: 1.4; }
+      h2, legend { font-size: 1.2rem; font-weight: 700; }
+      p { line-height: 1.7; white-space: pre-wrap; }
+      h1, legend, p, label { overflow-wrap: anywhere; }
+      .meta, .hint { color: var(--muted); }
+      fieldset { min-width: 0; margin: 36px 0; padding: 20px 0 0; border: 0; border-top: 1px solid var(--line); }
+      legend { max-width: 100%; padding: 0 12px 0 0; }
+      .recommendation { color: var(--accent); }
+      .choice-row { display: grid; }
+      details.comment { margin: 0 0 8px 28px; }
+      details.comment > summary { color: var(--muted); cursor: pointer; }
+      details.comment textarea { margin-top: 8px; }
+      #jump { margin-block: 12px; }
+      .choices { display: grid; gap: 4px; margin: 16px 0; }
+      .choice { display: flex; align-items: baseline; gap: 10px; padding-block: 10px; cursor: pointer; }
+      input { flex-shrink: 0; accent-color: var(--accent); }
+      textarea { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 4px; font: inherit; line-height: 1.6; resize: vertical; }
+      label[for] { display: block; margin-block: 16px 8px; }
+      button { min-height: 44px; padding: 10px 16px; border: 1px solid var(--accent); border-radius: 4px; background: transparent; color: var(--accent); font: inherit; cursor: pointer; }
+      button:hover { background: light-dark(#e6eee5, #303e31); }
+      button:disabled { opacity: 0.6; cursor: wait; }
+      :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+      ::selection { background: light-dark(#cfe2ca, #405d3c); }
+      .export { border-top: 2px solid var(--line); margin-top: 40px; padding-top: 12px; }
+      .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
+      #copy-status { min-height: 1.7em; }
+      #markdown { font-family: ui-monospace, monospace; font-size: 0.9rem; }
+      .comparison { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 20px; margin-block: 20px; }
+      .comparison figure { margin: 0; }
+      .comparison figcaption { margin-bottom: 8px; font-weight: 600; }
+      .sample-list, .sample-grid { display: grid; gap: 6px; }
+      .sample-grid { grid-template-columns: 1fr 1fr; }
+      .sample-item { border: 1px solid var(--line); padding: 12px; }
+      @media (max-width: 480px) { body { padding: 16px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="title">ラウンド質問シート</h1>
+      <p class="meta" id="round-label"></p>
+      <p>各質問に回答し、末尾の「回答をコピー」からチャットへ貼り付けてください。独自案は自由記述欄に書けます。空欄は「未回答」としてコピーされます。質問・選択肢へのコメントは判断材料として渡されますが、回答には数えません。</p>
+      <p class="hint" id="save-status" role="status"></p>
+      <button id="jump" type="button"></button>
+      <noscript>回答の入力・保存・コピーにはJavaScriptを有効にしてください。</noscript>
+      <form id="questions"></form>
+      <section class="export" aria-labelledby="export-title">
+        <h2 id="export-title">回答をチャットへ渡す</h2>
+        <p id="progress" role="status"></p>
+        <label for="markdown">コピーするMarkdown</label>
+        <textarea id="markdown" rows="12" readonly spellcheck="false"></textarea>
+        <div class="actions">
+          <button id="copy" type="button">回答をコピー</button>
+          <span class="hint">コピー後、チャットに貼り付けると回答を渡せます。</span>
+        </div>
+        <p id="copy-status" role="status"></p>
+      </section>
+    </main>
+
+    <!-- Replace this example with the current frontier. Escape < as \u003c in JSON. -->
+    <script id="round-data" type="application/json">
+      {
+        "sessionId": "example-product-list",
+        "roundId": "r1",
+        "title": "商品一覧の設計（記入例）",
+        "questions": [
+          {
+            "id": "layout",
+            "title": "一覧のレイアウト",
+            "prompt": "商品一覧では、名前の読み比べと画像の見比べのどちらを優先しますか？",
+            "type": "single",
+            "recommendation": "名前を読み比べやすいリスト表示を推奨します。",
+            "choices": [
+              { "id": "list", "label": "リスト表示 — 名前を読み比べやすい", "recommended": true },
+              { "id": "grid", "label": "グリッド表示 — 画像を見比べやすい" }
+            ]
+          },
+          {
+            "id": "fields",
+            "title": "一覧に載せる情報",
+            "prompt": "商品名に加えて、どの情報を表示しますか？ 複数選べます。",
+            "type": "multiple",
+            "recommendation": "購入判断に必要な価格の表示を推奨します。",
+            "choices": [
+              { "id": "price", "label": "価格", "recommended": true },
+              { "id": "stock", "label": "在庫状況" }
+            ]
+          },
+          {
+            "id": "concerns",
+            "title": "ほかに考慮したいこと",
+            "prompt": "一覧を使う場面で、気になっていることを教えてください。",
+            "type": "text",
+            "recommendation": "具体的な利用場面を1つ挙げることを推奨します。",
+            "choices": []
+          }
+        ]
+      }
+    </script>
+    <template id="visual-layout">
+      <div class="comparison" aria-label="一覧レイアウトの比較例">
+        <figure>
+          <figcaption>リスト表示</figcaption>
+          <div class="sample-list"><div class="sample-item">商品A</div><div class="sample-item">商品B</div></div>
+        </figure>
+        <figure>
+          <figcaption>グリッド表示</figcaption>
+          <div class="sample-grid"><div class="sample-item">商品A</div><div class="sample-item">商品B</div></div>
+        </figure>
+      </div>
+    </template>
+    <script>
+      const round = JSON.parse(document.getElementById("round-data").textContent);
+      const form = document.getElementById("questions");
+      const output = document.getElementById("markdown");
+      const saveStatus = document.getElementById("save-status");
+      const copyStatus = document.getElementById("copy-status");
+      const copyButton = document.getElementById("copy");
+      const storageKey = `ui-grill:${JSON.stringify([round.sessionId, round.roundId])}`;
+      const definition = JSON.stringify(round.questions);
+      const controls = [];
+      const element = (tag, text, className) => {
+        const node = document.createElement(tag);
+        if (text !== undefined) node.textContent = text;
+        if (className) node.className = className;
+        return node;
+      };
+
+      document.title = round.title;
+      document.getElementById("title").textContent = round.title;
+      document.getElementById("round-label").textContent = `${round.sessionId} / ${round.roundId}`;
+
+      round.questions.forEach((question, index) => {
+        const fieldset = element("fieldset");
+        fieldset.append(element("legend", `Q${index + 1}. ${question.title}`));
+        const prompt = element("p", question.prompt);
+        prompt.id = `prompt-${index}`;
+        fieldset.setAttribute("aria-describedby", prompt.id);
+        fieldset.append(prompt, element("p", `推奨: ${question.recommendation}`, "recommendation"));
+        const visual = document.getElementById(`visual-${question.id}`);
+        if (visual) fieldset.append(visual.content.cloneNode(true));
+
+        const choices = element("div", undefined, "choices");
+        const choiceComments = Object.create(null);
+        const inputs = question.choices.map((choice) => {
+          const label = element("label", undefined, "choice");
+          const input = element("input");
+          input.type = question.type === "multiple" ? "checkbox" : "radio";
+          input.name = `question-${index}`;
+          input.value = choice.id;
+          label.append(input, element("span", `${choice.label}${choice.recommended ? " (推奨)" : ""}`));
+          const row = element("div", undefined, "choice-row");
+          const details = element("details", undefined, "comment");
+          const area = element("textarea");
+          area.rows = 2;
+          area.setAttribute("aria-label", `Q${index + 1}「${choice.label}」へのコメント`);
+          details.append(element("summary", "この案へのコメント"), area);
+          row.append(label, details);
+          choices.append(row);
+          choiceComments[choice.id] = area;
+          return input;
+        });
+        fieldset.append(choices);
+        if (question.type === "single" && inputs.length) {
+          const clear = element("button", "選択を解除");
+          clear.type = "button";
+          clear.setAttribute("aria-label", `Q${index + 1}の選択を解除`);
+          clear.addEventListener("click", () => {
+            for (const input of inputs) input.checked = false;
+            form.dispatchEvent(new Event("input", { bubbles: true }));
+          });
+          fieldset.append(clear);
+        }
+        const label = element("label", question.type === "text" ? "回答" : "補足・独自案（自由記述）");
+        const note = element("textarea");
+        note.id = `note-${index}`;
+        note.rows = 3;
+        label.htmlFor = note.id;
+        const commentLabel = element("label", "質問へのコメント（判断材料・懸念。回答には数えません）");
+        const comment = element("textarea");
+        comment.id = `comment-${index}`;
+        comment.rows = 2;
+        commentLabel.htmlFor = comment.id;
+        fieldset.append(label, note, commentLabel, comment);
+        form.append(fieldset);
+        controls.push({ question, inputs, note, comment, choiceComments, fieldset });
+      });
+
+      function answers() {
+        return controls.map(({ question, inputs, note, comment, choiceComments }) => ({
+          id: question.id,
+          selected: inputs.filter((input) => input.checked).map((input) => input.value),
+          note: note.value,
+          comment: comment.value,
+          choiceComments: Object.fromEntries(Object.entries(choiceComments).map(([id, area]) => [id, area.value])),
+        }));
+      }
+
+      // Comments are context for the decision, never an answer.
+      const isAnswered = (answer) => answer.selected.length > 0 || answer.note.trim() !== "";
+      const quote = (text) => text.split(/\r?\n/).map((line) => `> ${markdownText(line)}`);
+
+      const markdownText = (value) => String(value).replace(/[\\`*_{}[\]()#+\-.!|>~<]/g, "\\$&");
+
+      function renderOutput() {
+        const current = answers();
+        const lines = [
+          `# ${markdownText(round.title)} — 回答`,
+          `セッション: ${markdownText(round.sessionId)}`,
+          `ラウンド: ${markdownText(round.roundId)}`,
+        ];
+        current.forEach((answer, index) => {
+          const question = round.questions[index];
+          lines.push("", `## Q${index + 1}. ${markdownText(question.title)}`, "", markdownText(question.prompt), "");
+          const selected = question.choices.filter((choice) => answer.selected.includes(choice.id));
+          if (selected.length) {
+            lines.push("選択:", ...selected.map((choice) => `- ${markdownText(choice.label)}`));
+          }
+          if (answer.note.trim()) {
+            lines.push("", "自由記述:", ...answer.note.split(/\r?\n/).map((line) => `> ${markdownText(line)}`));
+          }
+          if (!isAnswered(answer)) lines.push("回答: 未回答");
+          if (answer.comment.trim()) lines.push("", "質問コメント（回答ではありません）:", ...quote(answer.comment));
+          const commented = question.choices.filter((choice) => (answer.choiceComments[choice.id] || "").trim());
+          if (commented.length) {
+            lines.push("", "選択肢コメント（選択ではありません）:");
+            for (const choice of commented) lines.push(`- ${markdownText(choice.label)}`, ...quote(answer.choiceComments[choice.id]).map((line) => `  ${line}`));
+          }
+        });
+        output.value = `${lines.join("\n")}\n`;
+        const answered = current.filter(isAnswered).length;
+        document.getElementById("progress").textContent = `${current.length}問中${answered}問に回答済み`;
+        jump.textContent = answered === current.length ? "すべて回答済み" : `未回答 ${current.length - answered} 件 — 次の未回答へ`;
+        jump.disabled = answered === current.length;
+      }
+
+      const jump = document.getElementById("jump");
+      let jumpFrom = -1;
+      jump.addEventListener("click", () => {
+        const current = answers();
+        for (let step = 1; step <= current.length; step += 1) {
+          const index = (jumpFrom + step) % current.length;
+          if (isAnswered(current[index])) continue;
+          jumpFrom = index;
+          const { fieldset, inputs, note } = controls[index];
+          fieldset.scrollIntoView({ block: "start" });
+          (inputs[0] || note).focus({ preventScroll: true });
+          return;
+        }
+      });
+
+      function saveDraft() {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify({ definition, answers: answers() }));
+          saveStatus.textContent = "このラウンドの入力をブラウザに保存しました。";
+        } catch {
+          saveStatus.textContent = "自動保存できません。ページを閉じる前に回答をコピーしてください。";
+        }
+      }
+
+      function restoreDraft() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+          if (!saved) {
+            saveDraft();
+            return;
+          }
+          if (saved.definition !== definition) {
+            saveStatus.textContent = "質問が更新されたため、以前の入力は復元していません。";
+            return;
+          }
+          if (!Array.isArray(saved.answers)) throw new Error("Invalid draft");
+          for (const { question, inputs, note, comment, choiceComments } of controls) {
+            const answer = saved.answers.find((entry) => entry && entry.id === question.id);
+            if (!answer) continue;
+            if (!Array.isArray(answer.selected) || typeof answer.note !== "string") throw new Error("Invalid answer");
+            let selected = inputs.filter((input) => answer.selected.includes(input.value));
+            if (question.type !== "multiple") selected = selected.slice(0, 1);
+            for (const input of inputs) input.checked = selected.includes(input);
+            note.value = answer.note;
+            comment.value = typeof answer.comment === "string" ? answer.comment : "";
+            const savedChoice = answer.choiceComments && typeof answer.choiceComments === "object" ? answer.choiceComments : {};
+            for (const [id, area] of Object.entries(choiceComments)) area.value = typeof savedChoice[id] === "string" ? savedChoice[id] : "";
+          }
+          saveStatus.textContent = "このラウンドの入力を復元しました。";
+        } catch {
+          saveStatus.textContent = "保存した入力を読み込めません。入力後、ページを閉じる前に回答をコピーしてください。";
+        }
+      }
+
+      form.addEventListener("submit", (event) => event.preventDefault());
+      form.addEventListener("input", () => {
+        renderOutput();
+        saveDraft();
+        copyStatus.textContent = "";
+      });
+      copyButton.addEventListener("click", async () => {
+        const text = output.value;
+        copyButton.disabled = true;
+        try {
+          await navigator.clipboard.writeText(text);
+          copyStatus.textContent = output.value === text
+            ? "コピーしました。チャットに貼り付けてください。"
+            : "コピー中に回答が変わりました。もう一度コピーしてください。";
+        } catch {
+          output.focus();
+          output.select();
+          copyStatus.textContent = "自動コピーできません。選択された回答をCtrl+C / ⌘C、または端末のコピーメニューでコピーしてください。";
+        } finally {
+          copyButton.disabled = false;
+        }
+      });
+      restoreDraft();
+      renderOutput();
+    </script>
+  </body>
+</html>

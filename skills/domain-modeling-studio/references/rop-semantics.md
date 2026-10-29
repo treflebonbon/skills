@@ -1,0 +1,17 @@
+# ROP semantics for the function-flow layer
+
+These rules govern how the function-flow layer turns an implementation's control flow into nodes and edges. Explain the existing implementation; keep its code unchanged. The layer describes possible paths inferred from source, not an observed execution or an exhaustive proof. See the package [modeling scope](architecture-scope.md).
+
+The graph must preserve control flow, including the edges — not merely describe the correct semantics in prose while drawing contradictory arrows:
+
+- Model executed actions rather than the presence of operators in a pipeline. Success bypasses error-handler and error-transform callbacks and connects directly to the next success stage; keep the operator's source location on its failure/recovery node or in details. For example, `mapError` / `map_err` conversion nodes receive only failures. Distinguish combinator filtering from dispatch inside a callback: `catchTag` invokes its handler only for matching tags, while Rust `or_else` invokes its closure for every `Err`, including an `other => Err(other)` arm. Preserve that executed dispatch and its non-recovering arms; only the recovery action within a selected arm is conditional on that match.
+- **Bind** runs its operation only for success. Failure skips later success-only stages and reaches the handler or return belonging to its actual scope.
+- **Map error** changes an error and remains a failure.
+- **Recovery actions** run only for errors within their scope and matching their condition. Draw both recovery success and recovery failure; show whether unmatched errors bypass the callback or are propagated by an executed callback arm.
+- **Bypass** is propagation, not an extra function call. Label synthetic bypass nodes as such, with no invented source line.
+- **Termination** ends that path. Early returns must not flow into later code in the same function. A caller may handle the returned error in a separate stage.
+- **Outside typed errors** includes explicitly relevant defects, interruptions, panics, or unsupported constructs. Use the outside category and a bounded explanation instead of forcing these into a typed-error branch. When a function or module carries no typed-error discipline at all — no `Result`/`Effect`/checked-exception channel to bind, map, or catch against, only plain `throw`/exceptions — classify every one of its failure paths this way by default; do not invent a `STAGE`/`FAILURE_HANDLER`/`RECOVERY`/`BYPASS` distinction the code never expresses. This differs from a language that merely lacks a migrated extraction helper (e.g. Rust, still modeled through its own typed `Result`, see [Rust Result semantics](rust.md)): the deciding factor is whether the source itself carries a typed-error track, not which language it is written in or whether a helper exists for it.
+
+Distinguish fallible work from pure transformations, including fallible taps. Keep handler scope visible when grouping operations. Represent parallel work as a named grouped operation with its actual join/failure policy in the details, rather than inventing a serial order. State unmodeled paths explicitly rather than omitting them silently.
+
+Add a small set of feasible named paths: ordinary success, a failure that skips later work, and a recovery outcome when present. Trace each edge list from the entry to a terminal against source, including branch conditions. Do not offer arbitrary per-node failure toggles: those can combine incompatible outcomes.

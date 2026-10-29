@@ -1,0 +1,9 @@
+# Dependencies and source
+
+Use Node.js 20 or later for the model, architecture, and HTML generation scripts. The offline review HTML itself has no runtime dependency. The exact versions used to build its bundled editor and third-party notices are pinned by this skill's `package-lock.json`; a consumer can use the checked-in `dist/studio.html` without installing npm packages. Rebuilding the editor runs `npm ci` in a temporary directory and writes only the distributable template and its license notice under `dist/`.
+
+The workflow's domain-documentation step requires the separately installed `domain-modeling` skill. The package also includes `ui-grill-with-docs`; its source and use are at [the sibling skill](../../ui-grill-with-docs/SKILL.md). The external skill collection snapshot recorded for this package is [mattpocock/skills at `49dd158d1076134a641b33efb035946536778336`](https://github.com/mattpocock/skills/tree/49dd158d1076134a641b33efb035946536778336). Install third-party skills through the runtime's official skill or plugin path; this package does not vendor them.
+
+Python 3 and `ast-grep` are needed only for TypeScript syntax-evidence extraction. If either is unavailable, record the helper's `unavailable` or `failed` result and continue by reading source; add an unresolved note when the missing evidence leaves a behavior unsettled. The other modeling and rendering paths do not depend on Python, `ast-grep`, or Nix.
+
+The separately installed `playwright-cli` skill and CLI are needed only for interactive browser review. If they are unavailable, render the offline HTML and provide its link; do not block model generation. Keep model JSON, extracted evidence, rendered review HTML, and generated artifacts in session-owned task scratch outside this installed skill. The generator reads its template relative to its own script location.
