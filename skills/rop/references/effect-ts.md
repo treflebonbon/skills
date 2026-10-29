@@ -1,5 +1,7 @@
 # Effect-TS ROP Patterns
 
+この reference のコード例は Effect 3 を対象とする。適用前に対象プロジェクトの major version を確認する。Effect 4 では [公式ガイド](https://effect.website/docs/v4/error-management/error-accumulation) で API を照合する。
+
 ## bind — `Effect.gen` with `yield*` / `Effect.flatMap`
 
 ### Generator style (preferred for multi-step pipelines)
@@ -121,8 +123,13 @@ const validate = (params: Params) =>
 
 // Accumulate all errors
 const validate = (params: Params) =>
-  Effect.validate([validateName(params), validateEmail(params), validateAge(params)]);
+  Effect.validateAll(
+    [validateName(params), validateEmail(params), validateAge(params)],
+    (effect) => effect,
+  );
 ```
+
+Effect 3 の `validateAll` は各入力へ適用する関数も受け取る。[公式のエラー集約例](https://effect.website/docs/v3/additional-resources/effect-vs-neverthrow#combinewithallerrors-1)を参照する。並列に実行する必要がある場合は、対象 API の `concurrency` option も明示する。
 
 For struct-style validation:
 

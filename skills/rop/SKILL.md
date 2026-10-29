@@ -9,7 +9,7 @@ metadata:
 
 # ROP
 
-1. 指定された言語と module を確認し、二軌道の Result 合成を扱う範囲を定める。
+1. 指定された言語と module を確認し、二軌道の Result 合成を扱う範囲を定める。Effect-TS は対象プロジェクトの major version も確認する。
 2. この SKILL.md と同じ directory を起点に、対象言語の reference を読む。
    - Elixir: [references/elixir.md](references/elixir.md)
    - Gleam: [references/gleam.md](references/gleam.md)
