@@ -134,7 +134,7 @@ npm test
 npm run lint
 ```
 
-`npm test` は Python suite、dogfood・domain-modeling-studio・WSL2 browser package の nested Node suite、dogfood・WSL2 browser package・raw-Codex の Bats fixture を実行します。実 browser を使う dogfood / WSL2 browser suite は通常テストに含めません。`npm run test:plugin-cli` は Claude Code、Codex、Antigravity CLI がすべて必要な隔離 HOME での公式導入 smoke test です。CLI が不足する必須実行では skip を成功と扱わず、[検証記録](docs/verification.md)へ未確認として残します。公式実 session の11 skill × 3 runtime の証跡と最終 version/source SHA/hash は plugin 外の採用記録に保管し、この README に自己参照として埋め込みません。
+`npm test` は Python suite、dogfood・domain-modeling-studio・WSL2 browser package の nested Node suite、dogfood・WSL2 browser package・raw-Codex の Bats fixture、および公開 root / CLI の Bats suite（`tests/*.bats`、`tests/cli/*.bats`）を実行します。実 browser を使う dogfood / WSL2 browser suite は通常テストに含めません。`npm run test:plugin-cli` は Claude Code、Codex、Antigravity CLI がすべて必要な隔離 HOME での公式導入 smoke test です。CLI が不足する必須実行では skip を成功と扱わず、[検証記録](docs/verification.md)へ未確認として残します。公式実 session の11 skill × 3 runtime の証跡と最終 version/source SHA/hash は plugin 外の採用記録に保管し、この README に自己参照として埋め込みません。
 
 ## 公式仕様と配布元
 
