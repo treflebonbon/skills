@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/favicon.ico" />
+    <script src="/render-fixture.js" defer></script>
+  </head>
+  <body><pre class="mermaid" tabindex="0" aria-label="変更前の依存関係"><code>flowchart TB
+  H["CSV primary adapter"] --> L["100件ごとの巡回・終了判定"]
+  L --> S["search interface"]
+  S --> R["Postgres adapter"]
+  R --> Q["検索 + COUNT"]
+  class L leak;</code></pre></body>
+</html>
