@@ -55,14 +55,18 @@ PWCLI_WORKSPACE=/absolute/path/to/task-worktree \
 
 所有権が不明、起動・停止が未確認、または別 consumer が同じ resource を使っている場合、処理は state を保持して失敗します。owner 記録や profile を手で削除せず、owner が示す終了・復旧手順を使ってください。通常の `close` は profile を保持します。Managed Playwright Chrome の `reset-profile` は該当 identity が停止し所有権を解放した後にだけ使えます。共有添付ブラウザの認証 profile は reset 対象にしません。
 
+WSL2 の headed/headless 切替、Dashboard と session の所有、port relocation、手動認証の条件は [Playwright CLI の WSL2 運用規約](references/playwright-cli-wsl.md)を参照してください。
+
 ## 共有添付ブラウザ
 
-GitHub の認証は利用者が専用の共有添付ブラウザで手動確立します。認証情報をコピーせず、通常利用の Chrome profile を使いません。
+GitHub の認証は利用者が専用の共有添付ブラウザで手動確立します。最初に残った headless session を閉じ、専用ウィンドウで手動ログインしてから再度閉じます。認証情報をコピーせず、通常利用の Chrome profile を使いません。
 
 ```sh
-bin/browser-attachments auth
+BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
+"$BROWSER_BIN/browser-attachments" close
+"$BROWSER_BIN/browser-attachments" auth
 # 専用 Chrome でログイン/MFA を手動完了
-bin/browser-attachments close
+"$BROWSER_BIN/browser-attachments" close
 ```
 
 添付は同じ専用 profile を headless で再利用します。未認証なら明示的な認証手順へ戻り、通常 profile に切り替えません。
@@ -70,7 +74,8 @@ bin/browser-attachments close
 `upload` は指定した画像を GitHub の PR 本文に置いた placeholder へ反映します。明示依頼を受けてから実行してください。
 
 ```sh
-bin/browser-attachments upload \
+BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
+"$BROWSER_BIN/browser-attachments" upload \
   --repo OWNER/REPO --pr NUMBER --image PATH \
   --placeholder '<placeholder>' --request-id REQUEST_ID
 ```
@@ -78,7 +83,8 @@ bin/browser-attachments upload \
 複数画像を一つのコメントにする場合は `comment` を使います。本文には各画像に対応する `<!-- screenshot-1 -->` から始まる placeholder を一度ずつ置き、同じ操作を再試行するときは同じ request ID を使います。
 
 ```sh
-bin/browser-attachments comment \
+BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
+"$BROWSER_BIN/browser-attachments" comment \
   --repo OWNER/REPO --pr NUMBER \
   --image BEFORE.png --image AFTER.png \
   --body-file COMMENT.md --request-id REQUEST_ID
