@@ -127,6 +127,180 @@ def managed_mcp(config, selected):
     return servers, tools
 
 
+def raw_filesystem_profile(profile, repo):
+    """Keep only the managed policy that the raw namespace can represent."""
+    filesystem = profile.get("filesystem")
+    if not isinstance(filesystem, dict):
+        raise ValueError("managed filesystem policy must be a table")
+
+    host_roots = set()
+    home = os.environ.get("HOME")
+    for name in (
+        "HOME",
+        "CODEX_HOME",
+        "GH_CONFIG_DIR",
+        "XDG_CONFIG_HOME",
+        "XDG_CACHE_HOME",
+        "XDG_DATA_HOME",
+        "XDG_STATE_HOME",
+        "XDG_RUNTIME_DIR",
+    ):
+        value = os.environ.get(name)
+        if value is None:
+            continue
+        path = PurePosixPath(value)
+        if (
+            not path.is_absolute()
+            or str(path) != value
+            or ".." in path.parts
+            or path == PurePosixPath("/")
+        ):
+            raise ValueError(
+                "managed filesystem roots must be canonical absolute paths"
+            )
+        host_roots.add(path)
+
+    def host_read_policy(value):
+        if isinstance(value, str):
+            return value in ("read", "deny")
+        return isinstance(value, dict) and all(
+            isinstance(key, str) and key not in ("", "..") and host_read_policy(mode)
+            for key, mode in value.items()
+        )
+
+    def workspace_policy(value):
+        return (
+            isinstance(value, dict)
+            and value.get(".") == "write"
+            and all(
+                isinstance(key, str) and key not in ("", ".", "..") and mode == "deny"
+                for key, mode in value.items()
+                if key != "."
+            )
+        )
+
+    metadata_paths = {str(repo.git_dir), str(repo.common_dir)}
+    exposed_roots = {
+        PurePosixPath(repo.root),
+        PurePosixPath(repo.git_dir),
+        PurePosixPath(repo.common_dir),
+    }
+
+    def namespace_policy(value, modes):
+        if isinstance(value, str):
+            return value in modes
+        if not isinstance(value, dict):
+            return False
+        return all(
+            isinstance(key, str)
+            and key
+            and not key.startswith("/")
+            and ".." not in PurePosixPath(key).parts
+            and namespace_policy(mode, modes)
+            for key, mode in value.items()
+        )
+
+    projected = {}
+    for key, value in filesystem.items():
+        if key == "glob_scan_max_depth":
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                raise ValueError("managed filesystem scan depth is invalid")
+            projected[key] = value
+            continue
+        if key == ":root":
+            if value != "deny":
+                raise ValueError("raw filesystem root access must remain denied")
+            projected[key] = value
+            continue
+        if key == ":minimal":
+            if value != "read":
+                raise ValueError("raw minimal filesystem access must remain read-only")
+            projected[key] = value
+            continue
+        if key == ":slash_tmp":
+            if value != "deny":
+                raise ValueError("raw host /tmp access must remain denied")
+            projected[key] = value
+            continue
+        if key == ":workspace_roots":
+            if not workspace_policy(value):
+                raise ValueError(
+                    "raw workspace policy must grant writes with deny rules only"
+                )
+            projected[key] = value
+            continue
+        if key == "/nix":
+            if value != "read":
+                raise ValueError("raw Nix runtime access must remain read-only")
+            projected[key] = value
+            continue
+        if key == "/tmp/codex":
+            if not workspace_policy(value):
+                raise ValueError(
+                    "raw private scratch policy must grant writes with deny rules only"
+                )
+            projected[key] = value
+            continue
+        if key in metadata_paths:
+            if not namespace_policy(value, {"read", "write", "deny"}):
+                raise ValueError("raw Git metadata policy is invalid")
+            projected[key] = value
+            continue
+
+        home_grant = key == "~" or key.startswith("~/")
+        path_value = key
+        if home_grant:
+            if not home:
+                raise ValueError("managed home grants cannot be projected without HOME")
+            path_value = home + key[1:]
+        elif key.startswith("~"):
+            raise ValueError("managed filesystem contains an unsupported home grant")
+
+        path = PurePosixPath(path_value)
+        if not path.is_absolute() or str(path) != path_value or ".." in path.parts:
+            raise ValueError("managed filesystem contains an invalid path grant")
+        if not home_grant and any(
+            path == root or path.is_relative_to(root) for root in exposed_roots
+        ):
+            if not namespace_policy(value, {"read", "write", "deny"}):
+                raise ValueError("raw public filesystem policy is invalid")
+            projected[key] = value
+            continue
+        if path.is_relative_to(PurePosixPath("/nix")):
+            if not namespace_policy(value, {"read", "deny"}):
+                raise ValueError("raw Nix filesystem policy must remain read-only")
+            projected[key] = value
+            continue
+        if any(path == root or path.is_relative_to(root) for root in host_roots):
+            if not host_read_policy(value):
+                raise ValueError(
+                    "host filesystem grants must be read-only before projection"
+                )
+            continue
+        raise ValueError("managed filesystem contains an unrecognized namespace grant")
+
+    if "/tmp/codex" not in projected:
+        raise ValueError("managed filesystem must allow private /tmp/codex scratch")
+    return projected, True
+
+
+def enable_raw_git_metadata(filesystem, repo):
+    """Grant Git writes without discarding path-specific metadata denials."""
+    for path in (repo.git_dir, repo.common_dir):
+        key = str(path)
+        existing = filesystem.get(key)
+        if existing is None:
+            filesystem[key] = "write"
+        elif existing == "write":
+            continue
+        elif isinstance(existing, dict):
+            if existing.get(".", "write") != "write":
+                raise ValueError("raw Git metadata root must remain writable")
+            existing["."] = "write"
+        else:
+            raise ValueError("raw Git metadata root must remain writable")
+
+
 def admit(repo, head, names, *, mcp=(), github_policy=None):
     """Human-only declaration of public project bytes and managed runtime policy."""
     policy = input_policy(repo)
@@ -139,23 +313,31 @@ def admit(repo, head, names, *, mcp=(), github_policy=None):
         raise ValueError("Codex configuration must be outside the project")
     config = tomllib.loads(read_input(codex_home, "config.toml")[0].decode())
     profiles = config.pop("permissions", {})
+    if not isinstance(profiles, dict):
+        raise ValueError("managed permission profiles must be a table")
     profile = profiles.get("dotfiles-secure", {})
     if (
-        profile.get("extends") != ":workspace"
-        or not profile.get("filesystem")
-        or not profile.get("network", {}).get("enabled")
+        not isinstance(profile, dict)
+        or profile.get("extends") != ":workspace"
+        or not isinstance(profile.get("network"), dict)
+        or profile["network"].get("enabled") is not True
+        or not isinstance(profile["network"].get("domains"), dict)
     ):
         raise ValueError(
             "managed dotfiles-secure filesystem and network policy is required"
         )
-    domain_rules = profile["network"].get("domains", {})
+    domain_rules = profile["network"]["domains"]
+    if any(
+        not isinstance(name, str) or mode not in ("allow", "deny")
+        for name, mode in domain_rules.items()
+    ):
+        raise ValueError("managed network domain policy is invalid")
     domains = [name for name, mode in domain_rules.items() if mode == "allow"]
     if not domains:
         raise ValueError("managed network domain policy is required")
+    profile["filesystem"], private_tmp_codex = raw_filesystem_profile(profile, repo)
     profile["workspace_roots"] = {}
-    profile["filesystem"].update(
-        {str(path): "write" for path in (repo.git_dir, repo.common_dir)}
-    )
+    enable_raw_git_metadata(profile["filesystem"], repo)
     config["default_permissions"] = "dotfiles-secure"
     servers, mcp_tools = managed_mcp(config, mcp)
     config["mcp_servers"] = servers
@@ -190,6 +372,7 @@ def admit(repo, head, names, *, mcp=(), github_policy=None):
     for name in ("AGENTS.md", "rules/default.rules"):
         if (codex_home / name).exists():
             files[name] = read_input(codex_home, name)[0].decode()
+    profiles = {"dotfiles-secure": profile}
     requirements = {
         "default_permissions": "dotfiles-secure",
         "allowed_permission_profiles": {"dotfiles-secure": True},
@@ -248,6 +431,7 @@ def admit(repo, head, names, *, mcp=(), github_policy=None):
         "git_identity": identity,
         "ca_bundle": str(Path(ca).resolve(strict=True)),
         "mcp_tools": mcp_tools,
+        "private_tmp_codex": private_tmp_codex,
         "github": github,
         "push_helper": push_helper,
     }
@@ -644,7 +828,9 @@ def run_isolated(repo, policy, output, command, services, ca_bundle=None, runtim
                         }
                         if service == "dependencies" and runtime.get("github"):
                             common = output / "root" / str(repo.common_dir).lstrip("/")
-                            head = json.loads((output / "session.json").read_text())["git_head"]
+                            head = json.loads((output / "session.json").read_text())[
+                                "git_head"
+                            ]
                             options.update(
                                 github_policy=runtime["github"],
                                 github_seed={
@@ -695,7 +881,9 @@ def run_isolated(repo, policy, output, command, services, ca_bundle=None, runtim
                         for cert in context.get_ca_certs(binary_form=True)
                     )
                 )
-                certificate_path = "/nix/codex-ca-bundle.crt" if runtime else "/ca-bundle.crt"
+                certificate_path = (
+                    "/nix/codex-ca-bundle.crt" if runtime else "/ca-bundle.crt"
+                )
                 mounts.extend(["--ro-bind", str(ca), certificate_path])
                 startup += """export HTTPS_PROXY=http://127.0.0.1:8124 HTTP_PROXY=http://127.0.0.1:8124
 export https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY
@@ -704,7 +892,9 @@ export NO_PROXY=localhost,127.0.0.1,::1 no_proxy=localhost,127.0.0.1,::1
                 startup += f"export NIX_SSL_CERT_FILE={certificate_path} SSL_CERT_FILE={certificate_path}\n"
                 if runtime:
                     resolver = output / "resolv.conf"
-                    resolver.write_text("nameserver 127.0.0.1\noptions timeout:2 attempts:2\n")
+                    resolver.write_text(
+                        "nameserver 127.0.0.1\noptions timeout:2 attempts:2\n"
+                    )
                     mounts.extend(["--ro-bind", str(resolver), "/etc/resolv.conf"])
                     startup += "python3 /gateway-bridge.py --dns /gateway/dependencies/service.sock </dev/null &\n"
             if runtime:
@@ -724,7 +914,8 @@ export NO_PROXY=localhost,127.0.0.1,::1 no_proxy=localhost,127.0.0.1,::1
                 )
                 if runtime.get("github"):
                     shutil.copyfile(
-                        runtime_source / "github-client.py", runtime_copy / "github-client.py"
+                        runtime_source / "github-client.py",
+                        runtime_copy / "github-client.py",
                     )
                     publisher = runtime_copy / "bin/git-push-topic"
                     publisher.write_text(
@@ -751,7 +942,9 @@ export NO_PROXY=localhost,127.0.0.1,::1 no_proxy=localhost,127.0.0.1,::1
                     public.parent.mkdir(parents=True, exist_ok=True)
                     public.write_text(content)
                     if name != "config.toml":
-                        mounts.extend(["--ro-bind", str(public), "/home/agent/.codex/" + name])
+                        mounts.extend(
+                            ["--ro-bind", str(public), "/home/agent/.codex/" + name]
+                        )
                 specification = runtime_copy / "launch.json"
                 specification.write_text(
                     json.dumps(
@@ -766,7 +959,9 @@ export NO_PROXY=localhost,127.0.0.1,::1 no_proxy=localhost,127.0.0.1,::1
                 )
                 requirements = output / "requirements.toml"
                 requirements.write_text(runtime["requirements"])
-                mounts.extend(["--ro-bind", str(requirements), "/etc/codex/requirements.toml"])
+                mounts.extend(
+                    ["--ro-bind", str(requirements), "/etc/codex/requirements.toml"]
+                )
                 common = output / "root" / str(repo.common_dir).lstrip("/")
                 (common / "hooks").mkdir(exist_ok=True)
                 for name, contents in runtime["hooks"].items():
@@ -819,6 +1014,11 @@ printf '%s\n' "$command_status" > /result/exit-code
                 "/dev",
                 "--dir",
                 "/tmp",
+                *(
+                    ["--dir", "/tmp/codex"]
+                    if runtime and runtime.get("private_tmp_codex")
+                    else []
+                ),
                 "--dir",
                 "/home/agent",
                 "--bind",

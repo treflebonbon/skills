@@ -53,7 +53,9 @@ def validate_codex_arguments(arguments):
             value = (
                 next(arguments, "")
                 if argument in ("-c", "--config")
-                else argument[2:] if argument.startswith("-c") else argument.split("=", 1)[1]
+                else argument[2:]
+                if argument.startswith("-c")
+                else argument.split("=", 1)[1]
             )
             key, separator, raw_value = value.partition("=")
             # Codex does not resolve quoted TOML keys like a TOML document does.
@@ -62,13 +64,17 @@ def validate_codex_arguments(arguments):
             try:
                 config = tomllib.loads("effort=" + raw_value)
             except tomllib.TOMLDecodeError as error:
-                raise InvalidContext("reasoning effort must be a TOML string") from error
+                raise InvalidContext(
+                    "reasoning effort must be a TOML string"
+                ) from error
             if (
                 set(config) != {"effort"}
                 or not isinstance(config["effort"], str)
                 or not config["effort"]
             ):
-                raise InvalidContext("reasoning effort must be one nonempty TOML string")
+                raise InvalidContext(
+                    "reasoning effort must be one nonempty TOML string"
+                )
             effort_seen = True
         elif argument == "--":
             break
@@ -115,7 +121,7 @@ def main():
     )
     # These values and arguments belong to the launcher, not shellHook output.
     environment["CODEX_HOME"] = "/home/agent/.codex"
-    environment["TMPDIR"] = tempfile.mkdtemp(prefix="codex-worktree-", dir="/tmp")
+    environment["TMPDIR"] = tempfile.mkdtemp(prefix="codex-worktree-", dir="/tmp/codex")
     for key in list(environment):
         if key.startswith("LD_"):
             del environment[key]

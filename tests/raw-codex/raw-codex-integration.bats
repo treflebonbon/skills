@@ -6,20 +6,17 @@ load ../helpers/raw-codex
 setup() { PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"; }
 teardown() {
   raw_cleanup
-  if [ -n "${RAW_HOST_TMP:-}" ]; then rm -rf -- "$RAW_HOST_TMP"; fi
 }
 
 @test "raw Codex keeps host /tmp private while its isolated TMPDIR remains writable" {
   raw_fixture
-  # 並列実行の別ファイルが先に作った場合も、次行で種類と所有者を確かめる。
-  mkdir -m 700 /tmp/codex 2>/dev/null || :
-  [ -d /tmp/codex ] && [ ! -L /tmp/codex ] && [ -O /tmp/codex ]
-  RAW_HOST_TMP="$(mktemp -d /tmp/codex/raw-host.XXXXXX)"
+  RAW_HOST_TMP="$BATS_TEST_TMPDIR/host-private"
+  mkdir -m 700 "$RAW_HOST_TMP"
   printf 'host-only\n' >"$RAW_HOST_TMP/public.txt"
   cat >"$RAW_BASE/work/task.sh" <<'TASK'
 set -eu
 test ! -e "$1/public.txt"
-case "$TMPDIR" in /tmp/codex-worktree-*) ;; *) exit 1 ;; esac
+case "$TMPDIR" in /tmp/codex/codex-worktree-*) ;; *) exit 1 ;; esac
 file="$(mktemp "$TMPDIR/public.XXXXXX")"
 printf 'created\n' >"$file"
 test "$(cat "$file")" = created

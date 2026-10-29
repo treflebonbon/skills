@@ -14,7 +14,23 @@ shell_snapshot = false
 extends = ":workspace"
 
 [permissions.dotfiles-secure.filesystem]
-":root" = "write"
+":root" = "deny"
+":minimal" = "read"
+":slash_tmp" = "deny"
+"/nix" = "read"
+
+[permissions.dotfiles-secure.filesystem.":workspace_roots"]
+"." = "write"
+".env" = "deny"
+"*/**/.env" = "deny"
+"**/*.key" = "deny"
+"**/credentials.json" = "deny"
+
+[permissions.dotfiles-secure.filesystem."/tmp/codex"]
+"." = "write"
+"**/.env" = "deny"
+"**/*.key" = "deny"
+"**/credentials.json" = "deny"
 
 [permissions.dotfiles-secure.network]
 enabled = true

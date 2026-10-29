@@ -29,6 +29,8 @@ codex-worktree
 
 入力登録時に managed `CODEX_HOME/config.toml` の `dotfiles-secure` profile と network domain allowlist を確認します。この package は profile の配布・導入や実効 policy の preflight を行いません。profile は起動前の導入条件で、存在しない・形式が合わない場合は `admit` が拒否します。起動 argv から permission profile、filesystem root、追加 workspace、sandbox、approval、remote を差し替える指定も拒否します。`model_reasoning_effort` の単一指定は引き続き受け付けます。
 
+raw の permission requirements には、snapshot workspace と Git metadata、コピー済み Nix runtime、既知の deny pattern、network allow/deny だけを投影します。raw namespace に公開されない host HOME・XDG・Codex・GitHub 設定先への read grant は投影せず、host-only write grant と未知の path grant は `admit` で拒否します。profile が許可する `/tmp/codex` は外側 tmpfs 内に作る専用 scratch で、Codex の一時作業もその配下に置きます。ホストの `/tmp/codex` は bind しません。選択 profile と `default_permissions` は `dotfiles-secure` に固定し、requirements ファイルは隔離内で読み取り専用です。
+
 ## 隔離と復旧
 
 raw 起動はホストの HOME、Nix daemon、任意の継承環境変数、未登録ファイルを渡しません。専用 user・filesystem・PID・network namespace と使い捨ての Nix store を作り、登録済み snapshot と選択済み Nix tool closure だけを使用します。host Codex login は host 側の model gateway が利用し、token や認証ファイルは隔離内へコピーしません。モデル gateway は Responses API に限定され、依存取得は登録済み domain allowlist と公開 IP の gateway を通ります。GitHub は別途人が用意した topic policy がある場合だけ公開 metadata gateway を使います。
