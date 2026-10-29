@@ -4,7 +4,7 @@
 
 ## Candidate 0.2.3 の再受入境界
 
-候補版 `0.2.3` は、公開 `test:bats` から `tests/*.bats` が漏れていた問題を解消し、CLI / GC / image-comment Bats の Python bridge を整理して Bats を直接一度実行する入口へ統一します。移管済み機能の test も追加します。新しい source SHA で全受入境界を再確認し、その結果は Issue #540 と PR の共有 QA report に記録します。
+候補版 `0.2.3` では、dotfiles から未移管だった機能契約 test を公開側へ揃えます。既存の root / CLI Bats は従来 Python bridge 経由で `npm test` に含まれており、その成功を保ったまま、新しい suite と合わせて `test:bats` から全 Bats を直接実行する入口へ統一します。重複する bridge を整理し、新しい source SHA で全受入境界を再確認します。結果は Issue #540 と PR の共有 QA report に記録します。
 
 ## Candidate 0.2.2 の受入境界
 
