@@ -114,7 +114,7 @@ const process = (input: Input) =>
   );
 ```
 
-## plus — Parallel Validation
+## plus — 検証とエラー集約
 
 ```typescript
 // Fail-fast (first error stops)
@@ -193,6 +193,6 @@ The error channel automatically accumulates all possible error types through the
 ## Gotchas
 
 - **`yield*` は Effect 専用**: `yield*` を純粋な値に使うと型エラー。純粋変換は通常の `const x = f(y)` で行う
-- **`Effect.all` vs `Effect.validate`**: `Effect.all` は fail-fast、`Effect.validate` はエラー蓄積。バリデーションには `Effect.validate` を使う
+- **`Effect.all` と `Effect.validateAll`**: `Effect.all` は fail-fast。Effect 3 でエラーを蓄積する検証は `Effect.validateAll(effects, effect => effect)` を使い、並列化する場合は `concurrency` も指定する。
 - **Service Pattern の `R` パラメータ**: エラー型 `E` は自動合成されるが、Requirements `R` も自動合成される。`pipe` チェーンの型推論が複雑になる場合は `Effect.gen` を使う
 - **`Data.TaggedError` の `_tag`**: `_tag` プロパティで `Effect.catchTag` によるパターンマッチが可能。`Data.TaggedError` を使うと `_tag` が自動設定される — plain class で `catchTag` を使う場合は `_tag` プロパティを手動で定義する必要がある
