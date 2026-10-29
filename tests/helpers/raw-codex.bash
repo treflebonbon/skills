@@ -38,7 +38,8 @@ PY
 }
 
 raw_cli() {
-  env HOME="$RAW_BASE/home" CODEX_HOME="$RAW_BASE/home/.codex" XDG_STATE_HOME="$RAW_BASE/state" \
+  env HOME="${RAW_HOME:-$RAW_BASE/home}" \
+    CODEX_HOME="$RAW_BASE/home/.codex" XDG_STATE_HOME="$RAW_BASE/state" \
     CODEX_ISOLATION_CA_BUNDLE="$RAW_CA" \
     bash -c 'cd "$1"; shift; exec "$@"' _ "$RAW_BASE/work" "$RAW_BASE/bin/devshell-env" "$@"
 }
@@ -53,7 +54,8 @@ raw_admit() {
 }
 
 raw_run() {
-  env HOME="$RAW_BASE/home" CODEX_HOME="$RAW_BASE/home/.codex" XDG_STATE_HOME="$RAW_BASE/state" \
+  env HOME="${RAW_HOME:-$RAW_BASE/home}" \
+    CODEX_HOME="$RAW_BASE/home/.codex" XDG_STATE_HOME="$RAW_BASE/state" \
     bash -c 'cd "$1"; shift; exec "$@"' _ "$RAW_BASE/work" "$RAW_BASE/bin/codex-worktree" "$@"
 }
 

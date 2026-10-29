@@ -207,6 +207,14 @@ filesystem = {
     ":slash_tmp": "deny",
     "/tmp/codex": {".": "write", "**/.env": "deny"},
     "~/projects/repo": workspace_rules,
+    "~": {
+        ".": "read",
+        "projects/repo/private-note": "deny",
+        "projects/repo/read-only-note": "read",
+        "projects/repo/private-subtree": {".": "read", "private-note": "deny"},
+        ".cache/host-only": "read",
+        ".cache/**": "deny",
+    },
     "~/.config/gh": "read",
     "~/.config/nix-devshell/skills-plugin.json": "read",
     str(home / ".config/nix-devshell/skills-plugin.json"): "read",
@@ -221,8 +229,16 @@ document = module["toml_document"](
 )
 normalized = tomllib.loads(document)["permissions"]["dotfiles-secure"]["filesystem"]
 assert normalized[str(root)] == workspace_rules
+assert normalized[str(root / "private-note")] == "deny"
+assert normalized[str(root / "read-only-note")] == "read"
+assert normalized[str(root / "private-subtree")] == {
+    ".": "read",
+    "private-note": "deny",
+}
 assert normalized[str(common_dir)]["profile-deny-fixture"] == "deny"
 assert "~/projects/repo" not in normalized
+assert str(home) not in normalized
+assert str(home / ".cache/host-only") not in normalized
 assert str(host_grant) not in normalized
 assert str(home / ".config/nix-devshell/skills-plugin.json") not in normalized
 assert str(Path("/home/agent") / "projects/repo") not in normalized
@@ -235,24 +251,54 @@ except ValueError as error:
     assert "duplicate normalized path grants" in str(error)
 else:
     raise AssertionError("absolute and home-relative aliases were accepted together")
+
+invalid_traversal = dict(filesystem)
+invalid_traversal["~"] = {"projects/../repo/private-note": "deny"}
+try:
+    module["raw_filesystem_profile"]({"filesystem": invalid_traversal}, repo)
+except ValueError as error:
+    assert "invalid relative path rule" in str(error)
+else:
+    raise AssertionError("relative traversal in an ancestor rule was accepted")
+
+complex_pattern = dict(filesystem)
+complex_pattern["~"] = {"projects/**/.env": "deny"}
+try:
+    module["raw_filesystem_profile"]({"filesystem": complex_pattern}, repo)
+except ValueError as error:
+    assert "ancestor pattern may affect a public path" in str(error)
+else:
+    raise AssertionError("a complex ancestor pattern affecting public paths was dropped")
 print("HOME_RELATIVE_PUBLIC_GRANT_OK")
 PY
   [ "$status" -eq 0 ]
   [[ "$output" == *HOME_RELATIVE_PUBLIC_GRANT_OK* ]]
 }
 
-@test "managed host grants project to the raw namespace without exposing host resources" {
+@test "managed host grants and ancestor path rules stay scoped in raw namespace" {
   raw_fixture
+  RAW_HOME="$RAW_BASE"
+  export RAW_HOME
   mkdir -p "$RAW_BASE/state/treflebonbon-skills/plugin-sync" \
     "$RAW_BASE/state/treflebonbon-skills/legacy"
+  printf 'host home only\n' >"$RAW_BASE/host-home-only.txt"
   raw_managed_profile
   printf 'public fixture\n' >"$RAW_BASE/work/fixture.txt"
+  printf 'PRIVATE_NOTE_SECRET=dummy-scope-secret\n' >"$RAW_BASE/work/private-note"
+  printf 'public read-only note\n' >"$RAW_BASE/work/read-only-note"
   cat >"$RAW_BASE/work/task.sh" <<'TASK'
 set -eu
 test "$(cat fixture.txt)" = 'public fixture'
 test ! -e ordinary-looking-name
 secret_contents="$(cat .env 2>/dev/null || true)"
 [[ "$secret_contents" != *RAW_DUMMY_SECRET* && "$secret_contents" != *dummy-root-secret* ]]
+private_note="$(cat private-note 2>/dev/null || true)"
+[[ "$private_note" != *PRIVATE_NOTE_SECRET* && "$private_note" != *dummy-scope-secret* ]]
+test "$(cat read-only-note)" = 'public read-only note'
+if printf 'blocked\n' >read-only-note 2>/dev/null; then
+  printf 'UNSAFE_READ_ONLY_NOTE_WRITE_SUCCEEDED\n'
+  exit 36
+fi
 for path in "$@"; do
   test ! -e "$path"
   test ! -L "$path"
@@ -298,6 +344,8 @@ workspace = filesystem[str(Path.cwd())]
 assert workspace['.'] == 'write'
 assert workspace['.env'] == 'deny'
 assert workspace['**/*.key'] == 'deny'
+assert filesystem[str(Path.cwd() / 'private-note')] == 'deny'
+assert filesystem[str(Path.cwd() / 'read-only-note')] == 'read'
 common_dir = subprocess.check_output(
     ['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], text=True
 ).strip()
@@ -316,6 +364,7 @@ host_paths = sys.argv[1:]
 assert not any(path in raw for path in host_paths[:-1]), host_paths
 assert not any(path in filesystem for path in host_paths), host_paths
 assert not any(key.startswith('~') for key in filesystem), filesystem
+assert str(Path.cwd().parent) not in filesystem
 PY
 mkdir -p /tmp/codex/raw-profile-evidence
 printf 'private isolated evidence\n' >/tmp/codex/raw-profile-evidence/evidence.txt
@@ -341,6 +390,7 @@ TASK
 
   local host_paths before after
   host_paths=(
+    "$RAW_BASE/host-home-only.txt"
     "$RAW_BASE/home/.gitconfig"
     "$RAW_BASE/home/.config/nix-devshell/skills-plugin.json"
     "$RAW_BASE/state/treflebonbon-skills/plugin-sync/receipt.json"
@@ -352,7 +402,8 @@ TASK
     "$RAW_BASE/home/.config/gh/hosts.yml"
     "$RAW_BASE/state"
   )
-  git -C "$RAW_BASE/work" add -- flake.nix task.sh fixture.txt
+  git -C "$RAW_BASE/work" add -- flake.nix task.sh fixture.txt \
+    private-note read-only-note
   git -C "$RAW_BASE/work" commit -qm 'test: managed permission fixture'
   raw_cli trust
   local head receipt
@@ -399,7 +450,15 @@ PY
   [[ "$output" == *'must allow private /tmp/codex scratch'* ]]
 
   raw_managed_profile
-  run raw_cli admit --git-head "$head" -- flake.nix task.sh fixture.txt
+  cat >>"$RAW_BASE/home/.codex/config.toml" <<'TOML'
+
+[permissions."dotfiles-secure".filesystem."~"]
+"." = "read"
+"work/private-note" = "deny"
+"work/read-only-note" = "read"
+TOML
+  run raw_cli admit --git-head "$head" -- \
+    flake.nix task.sh fixture.txt private-note read-only-note
   raw_assert_status 0
   before="$(raw_profile_host_state)"
   before_secrets="$(raw_profile_workspace_secrets)"
@@ -416,4 +475,7 @@ PY
   [ "$after_secrets" = "$before_secrets" ]
   [ ! -e "$RAW_BASE/state/private-write" ]
   [ "$(cat "$RAW_BASE/work/.env")" = 'RAW_DUMMY_SECRET=dummy-root-secret' ]
+  [ "$(cat "$RAW_BASE/work/private-note")" = 'PRIVATE_NOTE_SECRET=dummy-scope-secret' ]
+  [ "$(cat "$RAW_BASE/work/read-only-note")" = 'public read-only note' ]
+  [ "$(cat "$RAW_BASE/host-home-only.txt")" = 'host home only' ]
 }

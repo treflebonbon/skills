@@ -3,6 +3,7 @@
 
 import argparse
 import fcntl
+import fnmatch
 import hashlib
 import json
 import os
@@ -213,6 +214,105 @@ def raw_filesystem_profile(profile, repo):
             )
         projected[key] = value
 
+    def relative_rule_path(key):
+        if not isinstance(key, str) or not key or "\\" in key or "\0" in key:
+            raise ValueError(
+                "managed host filesystem contains an invalid relative path rule"
+            )
+        path = PurePosixPath(key)
+        if path.is_absolute() or str(path) != key or ".." in path.parts:
+            raise ValueError(
+                "managed host filesystem contains an invalid relative path rule"
+            )
+        return path
+
+    def validate_host_rule_paths(value):
+        if not isinstance(value, dict):
+            return
+        for key, child in value.items():
+            if key != ".":
+                relative_rule_path(key)
+            validate_host_rule_paths(child)
+
+    def public_path_targets(path):
+        targets = [
+            root for root in exposed_roots if path == root or path.is_relative_to(root)
+        ]
+        targets.extend(
+            root for root in exposed_roots if root.is_relative_to(path) and root != path
+        )
+        return list(dict.fromkeys(targets))
+
+    def add_scoped_public_rule(path, value):
+        if not namespace_policy(value, {"read", "deny"}):
+            raise ValueError(
+                "host ancestor restrictions for public paths must be read-only"
+            )
+        for target in public_path_targets(path):
+            add_projected_path(target, value)
+
+    def pattern_may_affect_public_path(base, pattern):
+        for root in exposed_roots:
+            if not root.is_relative_to(base):
+                continue
+            root_parts = root.relative_to(base).parts
+            prefix = []
+            for component in pattern.parts:
+                if component == "**":
+                    shared = min(len(prefix), len(root_parts))
+                    if tuple(prefix[:shared]) == root_parts[:shared]:
+                        return True
+                    break
+                if any(marker in component for marker in "{}"):
+                    shared = min(len(prefix), len(root_parts))
+                    if tuple(prefix[:shared]) == root_parts[:shared]:
+                        return True
+                    break
+                if any(marker in component for marker in "*?[]"):
+                    shared = min(len(prefix), len(root_parts))
+                    if tuple(prefix[:shared]) != root_parts[:shared]:
+                        break
+                    if len(prefix) < len(root_parts):
+                        if fnmatch.fnmatchcase(root_parts[len(prefix)], component):
+                            return True
+                    elif tuple(prefix[: len(root_parts)]) == root_parts:
+                        return True
+                    break
+                if len(prefix) < len(root_parts):
+                    if component != root_parts[len(prefix)]:
+                        break
+                prefix.append(component)
+        return False
+
+    def project_host_scoped_rules(base, value, *, include_base=False):
+        if not isinstance(value, dict):
+            if include_base:
+                add_scoped_public_rule(base, value)
+            return
+        if include_base and "." in value:
+            add_scoped_public_rule(base, value["."])
+        for key, child in value.items():
+            if key == ".":
+                continue
+            relative = relative_rule_path(key)
+            if any(marker in key for marker in "*?[]{}"):
+                if pattern_may_affect_public_path(base, relative):
+                    raise ValueError(
+                        "managed ancestor pattern may affect a public path"
+                    )
+                continue
+            target = base / relative
+            if any(
+                target == root or target.is_relative_to(root) for root in exposed_roots
+            ):
+                if not namespace_policy(child, {"read", "deny"}):
+                    raise ValueError(
+                        "host ancestor restrictions for public paths must be read-only"
+                    )
+                add_projected_path(target, child)
+            elif any(root.is_relative_to(target) for root in exposed_roots):
+                project_host_scoped_rules(target, child, include_base=True)
+
     for key, value in filesystem.items():
         if key == "glob_scan_max_depth":
             if not isinstance(value, int) or isinstance(value, bool) or value < 1:
@@ -282,10 +382,15 @@ def raw_filesystem_profile(profile, repo):
             add_projected_path(path, value)
             continue
         if any(path == root or path.is_relative_to(root) for root in host_roots):
+            validate_host_rule_paths(value)
             if not host_read_policy(value):
                 raise ValueError(
                     "host filesystem grants must be read-only before projection"
                 )
+            if isinstance(value, dict) and any(
+                root.is_relative_to(path) for root in exposed_roots
+            ):
+                project_host_scoped_rules(path, value)
             continue
         raise ValueError("managed filesystem contains an unrecognized namespace grant")
 
