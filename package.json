@@ -1,10 +1,15 @@
 {
   "name": "treflebonbon-skills",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
-    "format": "oxfmt .",
-    "format:check": "oxfmt --check .",
-    "test": "python3 -m unittest discover -s tests -v",
+    "format": "oxfmt README.md docs/verification.md .agents/plugins/marketplace.json .claude-plugin/marketplace.json .claude-plugin/plugin.json plugin.json package.json package-lock.json skills/worktree-gc/SKILL.md skills/worktree-gc/DEPENDENCIES.md skills/worktree-gc/references/glossary.md",
+    "format:check": "oxfmt --check README.md docs/verification.md .agents/plugins/marketplace.json .claude-plugin/marketplace.json .claude-plugin/plugin.json plugin.json package.json package-lock.json skills/worktree-gc/SKILL.md skills/worktree-gc/DEPENDENCIES.md skills/worktree-gc/references/glossary.md",
+    "test": "npm run test:python && npm run test:node && npm run test:bats",
+    "test:python": "TREFLEBONBON_PLUGIN_CLI_E2E=0 python3 -B -m unittest discover -s tests -v",
+    "test:node": "node --test skills/dogfood/tests/runtime.test.mjs && npm --prefix skills/domain-modeling-studio test && npm --prefix packages/wsl2-browser test",
+    "test:bats": "bats skills/dogfood/tests/dogfood.bats skills/dogfood/tests/dogfood-results.bats skills/dogfood/tests/managed-dogfood-browser.bats packages/wsl2-browser/tests/*.bats tests/raw-codex/*.bats",
+    "test:plugin-cli": "TREFLEBONBON_PLUGIN_CLI_E2E=1 python3 -B -m unittest tests.test_plugin.OfficialPluginTest -v",
     "lint": "agy plugin validate . --strict --json && claude plugin validate ."
   },
   "devDependencies": {
