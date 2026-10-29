@@ -23,7 +23,7 @@
 
 起動前に、mode `0700` の一時 directory を `/tmp/codex` 配下に作って receipt の保存先にする。Claude は Claude Code の専用 home 認証を、Codex は Codex と GitHub CLI の専用 home 認証および repository identity を確認した後、active runtime の canary を行う。各起動 wrapper は 24 時間以内の receipt、runtime binary、profile/rules の hash を再照合し、canary をもう一度実行してから session を開始する。
 
-認証値を含む host の ambient environment は最終 peer へ渡さない。Codex guard は `verify_codex` が確認した `child_environment` と専用 `CODEX_HOME` / `GH_CONFIG_DIR` を使って bundled reviewer を exec する。Claude child は `env -i` で `child_environment` と同じ非credential runtime/terminal variables、専用 `CLAUDE_CONFIG_DIR` だけを継承する。必要な terminal 変数は保ち、token/key/auth/secret 等の host 変数は除く。
+認証値を含む host の ambient environment は最終 peer へ渡さない。Codex guard は `verify_codex` が確認した `child_environment` と専用 `CODEX_HOME` / `GH_CONFIG_DIR` を使って bundled reviewer を exec する。Claude child は対象 pane の shell 内で allowlist を組み、`env -i` で非credential runtime/terminal variables、専用 `CLAUDE_CONFIG_DIR`、その子 pane 自身の Herdr context だけを継承する。親 pane の ID や socket をコピーせず、token/key/auth/secret/provider selector などの host 変数は除く。
 
 ```bash
 run_dir="$(mktemp -d /tmp/codex/auto-peer.XXXXXX)"

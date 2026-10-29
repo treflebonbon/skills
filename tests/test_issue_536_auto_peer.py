@@ -468,6 +468,13 @@ class AutoPeerLauncherTests(unittest.TestCase):
                 "AUTO_PEER_TEST_PREFLIGHT_PASS": "1",
                 "AUTO_PEER_TEST_SETTINGS": str(self.settings),
                 "AUTO_PEER_TEST_WORKTREE": str(self.worktree),
+                "HERDR_ENV": "1",
+                "HERDR_BIN_PATH": "/fixture/parent/bin/herdr",
+                "HERDR_SOCKET_PATH": "/fixture/parent/herdr.sock",
+                "HERDR_STARTUP_CWD": "/fixture/parent/cwd",
+                "HERDR_WORKSPACE_ID": "parent-workspace",
+                "HERDR_TAB_ID": "parent-tab",
+                "HERDR_PANE_ID": "parent-pane-id",
             }
         )
         python = self.bin / "python3"
@@ -482,7 +489,8 @@ class AutoPeerLauncherTests(unittest.TestCase):
             "#!/usr/bin/env python3\n"
             "import json, os\n"
             "names = ('GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'OPENAI_API_KEY', 'CODEX_ACCESS_TOKEN', 'ANTHROPIC_API_KEY', 'AWS_ACCESS_KEY_ID', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'CLAUDE_CODE_USE_BEDROCK', 'AWS_PROFILE', 'HTTPS_PROXY', 'AUTO_PEER_TEST_UNKNOWN')\n"
-            f"payload = {{'ambient_env_present': {{name: bool(os.environ.get(name)) for name in names}}, 'claude_config_dir': os.environ.get('CLAUDE_CONFIG_DIR'), 'home': os.environ.get('HOME'), 'term': os.environ.get('TERM')}}\n"
+            "herdr_names = ('HERDR_ENV', 'HERDR_BIN_PATH', 'HERDR_SOCKET_PATH', 'HERDR_STARTUP_CWD', 'HERDR_WORKSPACE_ID', 'HERDR_TAB_ID', 'HERDR_PANE_ID')\n"
+            f"payload = {{'ambient_env_present': {{name: bool(os.environ.get(name)) for name in names}}, 'herdr_context': {{name: os.environ.get(name) for name in herdr_names}}, 'claude_config_dir': os.environ.get('CLAUDE_CONFIG_DIR'), 'home': os.environ.get('HOME'), 'term': os.environ.get('TERM')}}\n"
             f"open({str(self.claude_record)!r}, 'w', encoding='utf-8').write(json.dumps(payload))\n",
             encoding="utf-8",
         )
@@ -498,7 +506,9 @@ class AutoPeerLauncherTests(unittest.TestCase):
             "elif args[:2] == ['pane', 'process-info']:\n"
             "    print(json.dumps({'result': {'process_info': {'foreground_processes': [{'argv': ['claude', '--permission-mode', 'auto', '--settings', os.environ['AUTO_PEER_TEST_SETTINGS']], 'cwd': os.environ['AUTO_PEER_TEST_WORKTREE']}]}}}))\n"
             "elif args[:2] == ['pane', 'run']:\n"
-            "    subprocess.run(args[3], shell=True, check=True, env=os.environ.copy(), capture_output=True, text=True)\n"
+            "    child_env = os.environ.copy()\n"
+            "    child_env.update({'HERDR_ENV': '1', 'HERDR_BIN_PATH': '/fixture/child/bin/herdr', 'HERDR_SOCKET_PATH': '/fixture/child/herdr.sock', 'HERDR_STARTUP_CWD': '/fixture/child/cwd', 'HERDR_WORKSPACE_ID': 'child-workspace', 'HERDR_TAB_ID': 'child-tab', 'HERDR_PANE_ID': 'child-pane'})\n"
+            "    subprocess.run(args[3], shell=True, check=True, env=child_env, capture_output=True, text=True)\n"
             "    sys.exit(0)\n"
             "else:\n"
             "    sys.exit(64)\n",
@@ -553,14 +563,28 @@ class AutoPeerLauncherTests(unittest.TestCase):
         self.assertEqual(recorded[0], "preflight")
         pane_run = next(call for call in recorded if isinstance(call, list) and call[:2] == ["pane", "run"])
         self.assertIn("env -i", pane_run[3])
-        self.assertIn("TERM=xterm-256color", pane_run[3])
-        self.assertIn(f"CLAUDE_CONFIG_DIR={self.home / '.claude-peer'}", pane_run[3])
-        self.assertIn(f"--settings {self.settings}", pane_run[3])
+        self.assertIn("bash -c", pane_run[3])
+        for name in ("HOME", "PATH", "TERM", "HERDR_ENV", "HERDR_BIN_PATH", "HERDR_SOCKET_PATH", "HERDR_STARTUP_CWD", "HERDR_WORKSPACE_ID", "HERDR_TAB_ID", "HERDR_PANE_ID"):
+            self.assertIn(name, pane_run[3])
+        for value in (self.env["HERDR_PANE_ID"], self.env["HERDR_SOCKET_PATH"], "test-only-gh-token", "test-only-openai-key"):
+            self.assertNotIn(value, pane_run[3])
+        self.assertIn(str(self.settings), pane_run[3])
         payload = json.loads(self.claude_record.read_text(encoding="utf-8"))
         self.assertEqual(payload["ambient_env_present"], {name: False for name in payload["ambient_env_present"]})
         self.assertEqual(payload["claude_config_dir"], str(self.home / ".claude-peer"))
         self.assertEqual(payload["home"], str(self.home))
         self.assertEqual(payload["term"], "xterm-256color")
+        self.assertEqual(payload["herdr_context"], {
+            "HERDR_ENV": "1",
+            "HERDR_BIN_PATH": "/fixture/child/bin/herdr",
+            "HERDR_SOCKET_PATH": "/fixture/child/herdr.sock",
+            "HERDR_STARTUP_CWD": "/fixture/child/cwd",
+            "HERDR_WORKSPACE_ID": "child-workspace",
+            "HERDR_TAB_ID": "child-tab",
+            "HERDR_PANE_ID": "child-pane",
+        })
+        self.assertNotEqual(payload["herdr_context"]["HERDR_PANE_ID"], self.env["HERDR_PANE_ID"])
+        self.assertNotEqual(payload["herdr_context"]["HERDR_SOCKET_PATH"], self.env["HERDR_SOCKET_PATH"])
 
     def test_codex_launcher_never_falls_back_when_preflight_fails(self):
         codex = self.bin / "codex"
