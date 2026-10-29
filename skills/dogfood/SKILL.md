@@ -51,7 +51,16 @@ Without `--issues`, finish with the report and findings summary, including run/e
      }; then
        node "$SKILL_DIR/scripts/dogfood-runtime.mjs" run "${ARGS[@]}" --headed || runner_status=$?
      else
-       xvfb-run -a node "$SKILL_DIR/scripts/dogfood-runtime.mjs" run "${ARGS[@]}" --headed || runner_status=$?
+       if ! command -v xvfb-run >/dev/null 2>&1 ||
+         ! command -v Xvfb >/dev/null 2>&1 ||
+         ! command -v xauth >/dev/null 2>&1; then
+         printf '%s\n' \
+           'WSL2以外のheaded retryには xvfb-run、Xvfb、xauth が必要です。' \
+           'Ubuntu/Debian: sudo apt install xvfb xauth。macOS (Homebrew): brew install xorg-server。' >&2
+         runner_status=127
+       else
+         xvfb-run -a node "$SKILL_DIR/scripts/dogfood-runtime.mjs" run "${ARGS[@]}" --headed || runner_status=$?
+       fi
      fi
    fi
    if [ "$runner_status" -ne 0 ]; then

@@ -17,6 +17,11 @@ dogfood の依存は必要な処理の直前にだけ準備します。skill 本
 
 ## 選択した経路だけで必要な依存
 
+- 非 WSL2 で headless 実行の終了値が `2` となった後の headed retry だけで、`xvfb-run`、`Xvfb`、`xauth` が必要です。`xvfb-run` は Xvfb を起動する wrapper で、認証 cookie 用の `xauth` も要求します（[Ubuntu の `xvfb-run` manual](https://manpages.ubuntu.com/manpages/noble/man1/xvfb-run.1.html)）。通常の headless 実行と WSL2 retry には必要ありません。
+  - Ubuntu/Debian は OS 公式 package repository から `sudo apt install xvfb xauth` で導入します。Ubuntu の [`xvfb` package](https://packages.ubuntu.com/noble/xvfb) は `Xvfb` と `xvfb-run` を含み、[`xauth` package](https://packages.ubuntu.com/noble/xauth) は認証 utility を提供します。今回の Ubuntu 24.04.4 確認環境で導入済みだった版は `xvfb 2:21.1.12-1ubuntu1.6`、`xauth 1:1.1.2-1build1` です。
+  - Debian の公式 [`xvfb` package](https://packages.debian.org/bookworm/xvfb) も `Xvfb` と `xvfb-run` を含み、[`xauth` package](https://packages.debian.org/bookworm/amd64/xauth) は認証 utility を提供します。2026-10-29 に確認した Bookworm package page は `xvfb 2:21.1.7-3+deb12u13`、`xauth 1:1.1.2-1` を示していました。Debian host での導入・実行はこの作業では確認していません。
+  - macOS は Homebrew の公式 [`xorg-server` formula](https://formulae.brew.sh/formula/xorg-server) が `Xvfb` と `xvfb-run` を含み、`xauth` を依存に持ちます。`brew install xorg-server` で導入できます。2026-10-29 に公式 formula が示していた版は `xorg-server 21.1.25`、[`xauth 1.1.5`](https://formulae.brew.sh/formula/xauth) です。macOS での実行はこの作業では確認していません。
+  - これらは供給元と確認時の版を示すもので、最低対応版や導入・実行の動作保証ではありません。retry の直前に3 command の有無を検査し、不足していれば package 準備方法を案内して headed retry だけを止めます。
 - `--issues`: GitHub CLI `gh` と利用者の GitHub login が必要です。runtime preflight が `gh auth status`、repo と Issues の利用可否を確認します。Issue 候補の承認前には作成しません。
 - `--annotate`: Microsoft の公式 [Playwright CLI skill](https://github.com/microsoft/playwright-cli) を別途インストールしてから読み込みます。skill は third-party 配布のままとし、この plugin へコピーしません。`packages/wsl2-browser` の `@playwright/cli` `0.1.22` 固定 runtime は、annotation を選んだときだけ `bin/wsl2-browser-prepare` が package 固有 lock から plugin 外へ準備します。WSL2 では Windows Chrome、mirrored networking、Windows interop が必要です。
 - open-ended の browser exploration: 同じ公式 Playwright CLI skill を別途導入してから使います。dogfood runner は対象 page の初期状態だけを検査します。

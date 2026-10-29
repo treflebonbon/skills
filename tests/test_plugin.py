@@ -155,6 +155,66 @@ class PluginPackageContractTest(unittest.TestCase):
             with self.subTest(detail=detail):
                 self.assertIn(detail, readme)
 
+    def test_optional_ast_grep_and_xvfb_dependencies_are_route_scoped(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("ast-grep", readme)
+        self.assertIn("0.42.1", readme)
+        self.assertIn("Xvfb", readme)
+        self.assertIn("xauth", readme)
+
+        studio_path = ROOT / "skills/domain-modeling-studio/references/dependencies.md"
+        studio = studio_path.read_text(encoding="utf-8")
+        self.assertIn("ast-grep 0.42.1", studio)
+        self.assertIn("npm install --global @ast-grep/cli@0.42.1", studio)
+        self.assertIn("ソースコードを読んで調査を続けます", studio)
+        self.assertIn("構文抽出 helper 自体も実行していません", studio)
+
+        dogfood_dependencies = (
+            ROOT / "skills/dogfood/references/dependencies.md"
+        ).read_text(encoding="utf-8")
+        for requirement in (
+            "sudo apt install xvfb xauth",
+            "brew install xorg-server",
+            "2:21.1.12-1ubuntu1.6",
+            "1:1.1.2-1build1",
+            "2:21.1.7-3+deb12u13",
+            "1:1.1.2-1",
+            "非 WSL2",
+            "headed retry",
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, dogfood_dependencies)
+
+    def test_non_wsl_headed_retry_checks_xvfb_before_running(self):
+        skill = (ROOT / "skills/dogfood/SKILL.md").read_text(encoding="utf-8")
+        initial_run = skill.index(
+            'node "$SKILL_DIR/scripts/dogfood-runtime.mjs" run "${ARGS[@]}"'
+        )
+        retry_start = skill.index('if [ "$runner_status" -eq 2 ]; then')
+        retry_end = skill.index('if [ "$runner_status" -ne 0 ]; then', retry_start)
+        retry = skill[retry_start:retry_end]
+        wsl_branch = retry.index('if [[ -n "${WSL_DISTRO_NAME:-}" ]] || {')
+        xvfb_run = retry.index(
+            'xvfb-run -a node "$SKILL_DIR/scripts/dogfood-runtime.mjs"'
+        )
+        guard = retry.index("if ! command -v xvfb-run")
+
+        self.assertLess(initial_run, retry_start)
+        self.assertLess(0, wsl_branch)
+        self.assertLess(wsl_branch, guard)
+        self.assertLess(guard, xvfb_run)
+        for binary in ("xvfb-run", "Xvfb", "xauth"):
+            with self.subTest(binary=binary):
+                check = retry.find(f"command -v {binary}")
+                self.assertGreaterEqual(check, 0)
+                self.assertLess(check, xvfb_run)
+        self.assertIn("sudo apt install xvfb xauth", retry[:xvfb_run])
+        self.assertIn("runner_status=127", retry[guard:xvfb_run])
+        self.assertIn(
+            'node "$SKILL_DIR/scripts/dogfood-runtime.mjs" run "${ARGS[@]}" --headed',
+            skill,
+        )
+
     def test_all_package_markdown_links_resolve_inside_the_package(self):
         tracked = subprocess.run(
             ["git", "ls-files", "-z"], cwd=ROOT, check=True, capture_output=True
