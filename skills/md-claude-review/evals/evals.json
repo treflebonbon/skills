@@ -1,0 +1,67 @@
+{
+  "skill_name": "md-claude-review",
+  "evals": [
+    {
+      "id": 1,
+      "name": "messy-claude-md",
+      "prompt": "Review the CLAUDE.md at evals/files/messy-claude.md with the md-claude-review skill. Dry run: present the decision table you would put in the interactive confirmation batch and do not edit any file.",
+      "files": ["evals/files/messy-claude.md"],
+      "expected_output": "One verb per unit with a cited criteria row; tool-use discouragement and 'do not be lazy' lines flagged; Move-to targets are paths that exist.",
+      "assertions": [
+        "[critical] The preamble and every ## section (7 units) each get exactly one verb from Keep/Trim/Reword/Move-to/Delete, with a criteria row cited",
+        "[critical] 'Only use tools when strictly necessary / Minimize tool calls' gets Delete or Reword, not Keep",
+        "'Do not be lazy / Be thorough / NEVER give up' gets Delete or Reword",
+        "[critical] Every Move-to target is verified in the reviewed project; if no suitable path exists, offers Delete or labels a new destination as new",
+        "Commands section (pnpm test / lint / typecheck) is Keep",
+        "Overview ('write clean code') is Delete",
+        "No file was edited and the decisions are shaped for one interactive confirmation batch"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "already-clean-claude-md",
+      "prompt": "Review the CLAUDE.md at evals/files/clean-claude.md with the md-claude-review skill. Dry run: present the decision table you would put in the interactive confirmation batch and do not edit any file.",
+      "files": ["evals/files/clean-claude.md"],
+      "expected_output": "Mostly Keep; the verification instruction is preserved; no manufactured edits.",
+      "assertions": [
+        "[critical] The instruction to run `task test` and `task typecheck` before reporting done is not deleted or trimmed away (Keep, or a Reword that keeps both commands)",
+        "[critical] At most one unit gets Delete; the file is reported as mostly clean rather than padded with edits",
+        "Every unit gets exactly one verb with a criteria row cited",
+        "The 'Never edit gen/' prohibition and its reason are kept",
+        "The result states explicitly that the file is mostly clean",
+        "No file was edited"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "older-model-era-claude-md",
+      "prompt": "Review the CLAUDE.md at evals/files/older-model-claude.md with the md-claude-review skill. Dry run: present the decision table you would put in the interactive confirmation batch and do not edit any file. State which model you are targeting and how you decided that.",
+      "files": ["evals/files/older-model-claude.md"],
+      "expected_output": "Target model is the executor's own model; model-specific wording handled by prompt-audit or the fallback procedure, with validity checked before applying generation-specific rows.",
+      "assertions": [
+        "[critical] States the target model is the model it is itself running on (not a fixed older model) and how it determined that",
+        "[critical] Reports which path handled model-specific wording: a scoped prompt-audit call, or the fallback procedure (fetching the best-practices page), and does not apply generation-specific rows without a validity note",
+        "The generic 'verify your output twice / ask a subagent to re-check' line is a Delete or Reword candidate, while 'run pnpm test before reporting done' is kept",
+        "The numeric cap ('under 100 words') is flagged for Reword to a qualitative instruction",
+        "'Spawn a subagent for every file' is flagged for Reword with delegation criteria",
+        "No file was edited"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "holdout-python-service",
+      "prompt": "Review the CLAUDE.md at evals/files/python-service-claude.md with the md-claude-review skill. Dry run: present the decision table you would put in the interactive confirmation batch and do not edit any file. Perform any read-only fetches the skill asks for, and report if one fails.",
+      "files": ["evals/files/python-service-claude.md"],
+      "expected_output": "Tutorial section moved or deleted with a verified target; standard style section deleted; commands and the deploy-from-main rule kept; header states target model and path.",
+      "assertions": [
+        "[critical] Every unit gets a verb with a criteria row cited, and the table opens with the target model and the path used for model-specific wording",
+        "[critical] The `make deploy` / `pytest -x` commands and the reason to deploy only from main are kept",
+        "The Style section (PEP 8, snake_case, line length) is Delete",
+        "The Getting started tutorial is Move-to a target that exists in the repo (verified), or Delete; a new file is labelled as new",
+        "The sentence 'Run tests thoroughly and never skip them' is removed or reworded, and the Testing section's commands and DATABASE_URL note are kept, with the sentence-level change labelled distinctly from a whole-unit Delete",
+        "The short overlap of `make deploy` between the preamble and Deployment is not treated as a Delete trigger",
+        "No file was edited"
+      ]
+    }
+  ]
+}
