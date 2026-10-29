@@ -1,4 +1,4 @@
-#!/usr/bin/env -S python3 -I
+#!/usr/bin/env -S python3 -I -B
 """Prepare and launch trusted raw Codex worktree sessions."""
 
 import argparse
