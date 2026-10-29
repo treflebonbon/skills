@@ -2,6 +2,10 @@
 
 この文書は検証境界と記録方法の入口です。最終 candidate の source SHA、payload hash、実 CLI の version、session 証跡は dotfiles の [Issue #540](https://github.com/treflebonbon/dotfiles/issues/540) に紐づく共有 QA report と PR 記録へ置きます。受入時の結果をこの repository へ追記して source SHA を変える運用はしません。
 
+## Candidate 0.2.3 の再受入境界
+
+候補版 `0.2.3` は、公開 `test:bats` から `tests/*.bats` が漏れていた問題を解消し、CLI / GC / image-comment Bats の Python bridge を整理して Bats を直接一度実行する入口へ統一します。移管済み機能の test も追加します。新しい source SHA で全受入境界を再確認し、その結果は Issue #540 と PR の共有 QA report に記録します。
+
 ## Candidate 0.2.2 の受入境界
 
 候補版 `0.2.2` では、以下を別々に確認します。
@@ -33,7 +37,7 @@ npm test
 npm run lint
 ```
 
-`npm test` は Python、dogfood / domain-modeling-studio / WSL2 browser package の Node suite、dogfood / WSL2 browser package / raw Codex の fixture Bats を実行します。通常 suite は実 browser suite を起動しません。`npm run test:plugin-cli` は3 CLI すべてを要求する install smoke test で、モデルを呼ぶ実 session の証拠にはなりません。
+`npm test` は Python の unittest discovery、dogfood / domain-modeling-studio / WSL2 browser package の Node suite、dogfood / WSL2 browser package / raw Codex fixture、および公開 `tests/*.bats` と `tests/cli/*.bats` を実行します。通常 suite は実 browser suite を起動しません。`npm run test:plugin-cli` は3 CLI すべてを要求する install smoke test で、モデルを呼ぶ実 session の証拠にはなりません。
 
 ## 以前の version 0.1.0 の記録
 

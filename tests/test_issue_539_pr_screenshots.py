@@ -1,6 +1,5 @@
 import json
 import re
-import shutil
 import subprocess
 import tempfile
 import unittest
@@ -9,8 +8,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_ROOT = ROOT / "skills/pr-screenshots"
-BATS = shutil.which("bats")
-JQ = shutil.which("jq")
 
 
 class PRScreenshotsSkillTest(unittest.TestCase):
@@ -107,20 +104,6 @@ class PRScreenshotsSkillTest(unittest.TestCase):
         self.assertIn("送信結果不明", scenarios["B"]["scenario"])
         self.assertTrue(any(run.get("scenario") == "D" for run in results["runs"]))
         self.assertTrue(evaluation.startswith("# pr-screenshots 配備前の実行評価"))
-
-    @unittest.skipUnless(BATS and JQ, "image-comment fixtures require Bats and jq")
-    def test_migrated_image_comment_safety_fixtures(self):
-        for suite in ("pr-evidence.bats", "browser-attachments.bats"):
-            with self.subTest(suite=suite):
-                result = subprocess.run(
-                    [BATS, str(ROOT / "packages/wsl2-browser/tests" / suite)],
-                    cwd=ROOT,
-                    capture_output=True,
-                    text=True,
-                    timeout=180,
-                )
-                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-
 
 if __name__ == "__main__":
     unittest.main()

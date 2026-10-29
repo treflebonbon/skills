@@ -1,6 +1,6 @@
 # treflebonbon-skills
 
-Claude Code、Codex、Antigravity CLI で使う Agent Skills plugin です。現在の採用候補は `0.2.2` で、対象11件を1つの plugin にまとめています。plugin の利用と汎用 skill に dotfiles や Nix は必要ありません。
+Claude Code、Codex、Antigravity CLI で使う Agent Skills plugin です。現在の採用候補は `0.2.3` で、対象11件を1つの plugin にまとめています。plugin の利用と汎用 skill に dotfiles や Nix は必要ありません。
 
 ## 収録 skill
 

@@ -148,7 +148,10 @@ PY
 
 @test "probe refuses unsafe paths invalid nonces and existing receipts" {
   local path nonce
-  for path in "$EVIDENCE/.env" "$EVIDENCE/private.key" "$BATS_TEST_TMPDIR/outside.json"; do
+  # This sentinel is only passed to the path validator and must stay outside
+  # the shared /tmp/codex namespace, even when Bats itself uses that namespace.
+  local outside_path="/tmp/outside-probe-${BASHPID:-$$}.json"
+  for path in "$EVIDENCE/.env" "$EVIDENCE/private.key" "$outside_path"; do
     run probe 0123456789abcdef "$path"
     [ "$status" -ne 0 ]
     [ ! -e "$path" ]
@@ -242,7 +245,7 @@ PY
 }
 
 @test "checkpoint refuses sensitive names symlinks directories and paths outside shared evidence" {
-  local path
+  local path outside_path="/tmp/outside-checkpoint-${BASHPID:-$$}.md"
   for path in .env private.key credentials.json auth.json secret.json secrets.json service-account-test.json .ENV .envrc token.json .aws/credentials .ssh/config .config/gh/hosts.yml .docker/config.json .azure/accessTokens.json .git-credentials .credentials.json id_rsa id_ed25519 id_ecdsa id_dsa; do
     mkdir -p "$(dirname "$EVIDENCE/$path")"
     printf 'synthetic\n' >"$EVIDENCE/$path"
@@ -256,7 +259,7 @@ PY
   [[ "$output" == *'symlink'* ]]
   run checkpoint "$EVIDENCE/peer"
   [ "$status" -ne 0 ]
-  run checkpoint "$BATS_TEST_TMPDIR/outside.md"
+  run checkpoint "$outside_path"
   [ "$status" -ne 0 ]
   [[ "$output" == *'/tmp/codex'* ]]
   [ ! -e "$COMMON/peer-refactor-evidence" ]
