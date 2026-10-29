@@ -24,7 +24,7 @@ EXPECTED_SKILLS = {
     "ui-grill-with-docs",
     "worktree-gc",
 }
-CANDIDATE_VERSION = "0.2.0"
+CANDIDATE_VERSION = "0.2.1"
 RUN_PLUGIN_CLI_E2E = os.environ.get("TREFLEBONBON_PLUGIN_CLI_E2E") == "1"
 
 
@@ -108,6 +108,30 @@ class PluginPackageContractTest(unittest.TestCase):
                 codex_policy,
                 r"(?ms)^policy:\n\s+allow_implicit_invocation: false\s*$",
             )
+
+    def test_codex_invocation_guidance_uses_the_plugin_namespace(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertRegex(
+            readme,
+            r"(?m)^\| Codex\s+\| `\$treflebonbon-skills:<skill-name>`\s+\|$",
+        )
+
+        for path in (
+            ROOT / "skills/dogfood/SKILL.md",
+            ROOT / "skills/dogfood/references/verification.md",
+        ):
+            with self.subTest(path=path.relative_to(ROOT)):
+                text = path.read_text(encoding="utf-8")
+                self.assertRegex(
+                    text,
+                    r"(?m)^Codex: \$treflebonbon-skills:dogfood(?:\s|$)",
+                )
+                self.assertNotRegex(text, r"(?m)^Codex: \$dogfood\b")
+
+    def test_verification_entrypoint_tracks_candidate_version(self):
+        verification = (ROOT / "docs/verification.md").read_text(encoding="utf-8")
+        self.assertIn(f"Candidate {CANDIDATE_VERSION}", verification)
+        self.assertIn(f"候補版 `{CANDIDATE_VERSION}`", verification)
 
     def test_readme_documents_all_skills_platforms_and_dependency_routes(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

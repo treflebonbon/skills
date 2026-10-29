@@ -1,6 +1,6 @@
 # treflebonbon-skills
 
-Claude Code、Codex、Antigravity CLI で使う Agent Skills plugin です。現在の採用候補は `0.2.0` で、対象11件を1つの plugin にまとめています。plugin の利用と汎用 skill に dotfiles や Nix は必要ありません。
+Claude Code、Codex、Antigravity CLI で使う Agent Skills plugin です。現在の採用候補は `0.2.1` で、対象11件を1つの plugin にまとめています。plugin の利用と汎用 skill に dotfiles や Nix は必要ありません。
 
 ## 収録 skill
 
@@ -79,7 +79,7 @@ agy plugin list --json
 | Runtime         | 呼び出し                            |
 | --------------- | ----------------------------------- |
 | Claude Code     | `/treflebonbon-skills:<skill-name>` |
-| Codex           | `$<skill-name>`                     |
+| Codex           | `$treflebonbon-skills:<skill-name>` |
 | Antigravity CLI | `/<skill-name>`                     |
 
 Claude Code の plugin manifest と Codex の plugin package は公式仕様に従います。Agent Skills の core frontmatter を使い、`ui-grill-with-docs` と `pr-screenshots` の明示起動条件は維持しています。Claude Code では `disable-model-invocation: true`、Codex では各 `agents/openai.yaml` の `policy.allow_implicit_invocation: false` を使います。これらの runtime 固有 metadata を core upload validator の成功と混同しません。Antigravity CLI の strict validator による manifest 検証と、manual-only の実効制御は別の確認項目です。

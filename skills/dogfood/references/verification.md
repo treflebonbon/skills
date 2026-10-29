@@ -55,7 +55,7 @@ Resume is a skill procedure, not a runner CLI mode. Verify its report-reading st
 Run against a low-risk public page with the plugin's named invocation:
 
 ```text
-Codex: $dogfood https://example.com
+Codex: $treflebonbon-skills:dogfood https://example.com
 Claude Code: /treflebonbon-skills:dogfood https://example.com
 Antigravity CLI: /dogfood https://example.com
 ```

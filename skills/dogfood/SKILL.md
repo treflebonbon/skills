@@ -13,7 +13,7 @@ metadata:
 Run automated inspection and report findings with local evidence. Annotation and Issue creation are independent opt-ins:
 
 ```text
-Codex: $dogfood <URL>
+Codex: $treflebonbon-skills:dogfood <URL>
 Claude Code: /treflebonbon-skills:dogfood <URL>
 Antigravity CLI: /dogfood <URL>
 
