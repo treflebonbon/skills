@@ -443,6 +443,28 @@ class AutoPeerPreflightTests(unittest.TestCase):
 
         self.assertEqual(verified.returncode, 0, verified.stdout + verified.stderr)
 
+    def test_claude_verify_returns_only_the_receipt_matched_physical_cli_path(self):
+        self.state.write_text(json.dumps({"deny": True}), encoding="utf-8")
+        generated = self.run_preflight("claude", "--settings", self.settings, "--receipt", self.receipt)
+        self.assertEqual(generated.returncode, 0, generated.stdout + generated.stderr)
+
+        verified = self.run_preflight(
+            "verify", "--runtime", "claude", "--settings", self.settings, "--receipt", self.receipt, "--print-executable"
+        )
+
+        executable = str((self.bin / "claude").resolve(strict=True))
+        self.assertEqual(verified.returncode, 0, verified.stdout + verified.stderr)
+        self.assertEqual(verified.stdout, executable + "\n")
+
+        cli = self.bin / "claude"
+        cli.write_text(cli.read_text(encoding="utf-8") + "\n# different executable identity\n", encoding="utf-8")
+        changed = self.run_preflight(
+            "verify", "--runtime", "claude", "--settings", self.settings, "--receipt", self.receipt, "--print-executable"
+        )
+
+        self.assertNotEqual(changed.returncode, 0)
+        self.assertEqual(changed.stdout, "")
+
 
 class AutoPeerLauncherTests(unittest.TestCase):
     def setUp(self):
@@ -453,12 +475,15 @@ class AutoPeerLauncherTests(unittest.TestCase):
         self.home.mkdir()
         self.bin = self.base / "bin"
         self.bin.mkdir()
+        self.child_bin = self.base / "child-bin"
+        self.child_bin.mkdir()
         self.worktree = self.base / "worktree"
         self.worktree.mkdir()
         self.settings = self.home / ".claude-peer" / "auto-peer-settings.json"
         self.receipt = self.base / "auto-peer-receipt.json"
         self.log = self.base / "calls.jsonl"
         self.claude_record = self.base / "claude-env.json"
+        self.shadow_record = self.base / "shadow-claude-used"
         self.env = dict(os.environ)
         self.env.update(
             {
@@ -468,6 +493,8 @@ class AutoPeerLauncherTests(unittest.TestCase):
                 "AUTO_PEER_TEST_PREFLIGHT_PASS": "1",
                 "AUTO_PEER_TEST_SETTINGS": str(self.settings),
                 "AUTO_PEER_TEST_WORKTREE": str(self.worktree),
+                "AUTO_PEER_TEST_VERIFIED_CLAUDE": str(self.bin / "claude"),
+                "AUTO_PEER_TEST_CHILD_PATH": f"{self.child_bin}:{self.bin}:{os.environ['PATH']}",
                 "HERDR_ENV": "1",
                 "HERDR_BIN_PATH": "/fixture/parent/bin/herdr",
                 "HERDR_SOCKET_PATH": "/fixture/parent/herdr.sock",
@@ -480,21 +507,35 @@ class AutoPeerLauncherTests(unittest.TestCase):
         python = self.bin / "python3"
         python.write_text(
             "#!/bin/sh\n"
-            f"case \" $* \" in *auto-peer-preflight.py*) printf '%s\\n' preflight >>\"$AUTO_PEER_TEST_CALL_LOG\"; [ \"$AUTO_PEER_TEST_PREFLIGHT_PASS\" = 1 ] ;; *) exec {shlex.quote(sys.executable)} \"$@\" ;; esac\n",
+            "case \" $* \" in\n"
+            "  *auto-peer-preflight.py*)\n"
+            "    printf '%s\\n' preflight >>\"$AUTO_PEER_TEST_CALL_LOG\"\n"
+            "    [ \"$AUTO_PEER_TEST_PREFLIGHT_PASS\" = 1 ] || exit 1\n"
+            "    case \" $* \" in *--print-executable*) printf '%s\\n' \"$AUTO_PEER_TEST_VERIFIED_CLAUDE\" ;; esac\n"
+            "    ;;\n"
+            f"  *) exec {shlex.quote(sys.executable)} \"$@\" ;;\n"
+            "esac\n",
             encoding="utf-8",
         )
         python.chmod(0o755)
         claude = self.bin / "claude"
         claude.write_text(
             "#!/usr/bin/env python3\n"
-            "import json, os\n"
+            "import json, os, sys\n"
             "names = ('GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'OPENAI_API_KEY', 'CODEX_ACCESS_TOKEN', 'ANTHROPIC_API_KEY', 'AWS_ACCESS_KEY_ID', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'CLAUDE_CODE_USE_BEDROCK', 'AWS_PROFILE', 'HTTPS_PROXY', 'AUTO_PEER_TEST_UNKNOWN')\n"
             "herdr_names = ('HERDR_ENV', 'HERDR_BIN_PATH', 'HERDR_SOCKET_PATH', 'HERDR_STARTUP_CWD', 'HERDR_WORKSPACE_ID', 'HERDR_TAB_ID', 'HERDR_PANE_ID')\n"
-            f"payload = {{'ambient_env_present': {{name: bool(os.environ.get(name)) for name in names}}, 'herdr_context': {{name: os.environ.get(name) for name in herdr_names}}, 'claude_config_dir': os.environ.get('CLAUDE_CONFIG_DIR'), 'home': os.environ.get('HOME'), 'term': os.environ.get('TERM')}}\n"
+            f"payload = {{'argv': sys.argv[1:], 'executable': os.path.realpath(sys.argv[0]), 'ambient_env_present': {{name: bool(os.environ.get(name)) for name in names}}, 'herdr_context': {{name: os.environ.get(name) for name in herdr_names}}, 'claude_config_dir': os.environ.get('CLAUDE_CONFIG_DIR'), 'home': os.environ.get('HOME'), 'term': os.environ.get('TERM')}}\n"
             f"open({str(self.claude_record)!r}, 'w', encoding='utf-8').write(json.dumps(payload))\n",
             encoding="utf-8",
         )
         claude.chmod(0o755)
+        shadow = self.child_bin / "claude"
+        shadow.write_text(
+            "#!/bin/sh\n"
+            f"printf reached > {shlex.quote(str(self.shadow_record))}\n",
+            encoding="utf-8",
+        )
+        shadow.chmod(0o755)
         herdr = self.bin / "herdr"
         herdr.write_text(
             "#!/usr/bin/env python3\n"
@@ -507,6 +548,7 @@ class AutoPeerLauncherTests(unittest.TestCase):
             "    print(json.dumps({'result': {'process_info': {'foreground_processes': [{'argv': ['claude', '--permission-mode', 'auto', '--settings', os.environ['AUTO_PEER_TEST_SETTINGS']], 'cwd': os.environ['AUTO_PEER_TEST_WORKTREE']}]}}}))\n"
             "elif args[:2] == ['pane', 'run']:\n"
             "    child_env = os.environ.copy()\n"
+            "    child_env['PATH'] = os.environ['AUTO_PEER_TEST_CHILD_PATH']\n"
             "    child_env.update({'HERDR_ENV': '1', 'HERDR_BIN_PATH': '/fixture/child/bin/herdr', 'HERDR_SOCKET_PATH': '/fixture/child/herdr.sock', 'HERDR_STARTUP_CWD': '/fixture/child/cwd', 'HERDR_WORKSPACE_ID': 'child-workspace', 'HERDR_TAB_ID': 'child-tab', 'HERDR_PANE_ID': 'child-pane'})\n"
             "    subprocess.run(args[3], shell=True, check=True, env=child_env, capture_output=True, text=True)\n"
             "    sys.exit(0)\n"
@@ -574,6 +616,9 @@ class AutoPeerLauncherTests(unittest.TestCase):
         self.assertEqual(payload["claude_config_dir"], str(self.home / ".claude-peer"))
         self.assertEqual(payload["home"], str(self.home))
         self.assertEqual(payload["term"], "xterm-256color")
+        self.assertEqual(payload["executable"], str((self.bin / "claude").resolve()))
+        self.assertEqual(payload["argv"], ["--permission-mode", "auto", "--settings", str(self.settings)])
+        self.assertFalse(self.shadow_record.exists())
         self.assertEqual(payload["herdr_context"], {
             "HERDR_ENV": "1",
             "HERDR_BIN_PATH": "/fixture/child/bin/herdr",

@@ -52,8 +52,19 @@ esac
 skill_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 preflight="$skill_dir/scripts/auto-peer-preflight.py"
 claude_home="$(dirname -- "$settings")"
-CLAUDE_CONFIG_DIR=$claude_home python3 -B "$preflight" verify --runtime claude --settings "$settings" --receipt "$receipt" || {
+claude_executable=$(CLAUDE_CONFIG_DIR=$claude_home python3 -B "$preflight" verify --runtime claude --settings "$settings" --receipt "$receipt" --print-executable) || {
   echo "dedicated Claude auto-peer preflight failed; no child was started" >&2
+  exit 1
+}
+case $claude_executable in
+/*) ;;
+*)
+  echo "verified Claude executable path is not absolute; no child was started" >&2
+  exit 1
+  ;;
+esac
+[ -f "$claude_executable" ] && [ -x "$claude_executable" ] || {
+  echo "verified Claude executable is unavailable; no child was started" >&2
   exit 1
 }
 
@@ -96,20 +107,22 @@ child_script='
 set -euo pipefail
 settings=$1
 claude_home=$2
+claude_executable=$3
 child_env=()
 for name in HOME PATH LANG LC_ALL TMPDIR TERM COLORTERM COLUMNS LINES NO_COLOR HERDR_ENV HERDR_BIN_PATH HERDR_SOCKET_PATH HERDR_STARTUP_CWD HERDR_WORKSPACE_ID HERDR_TAB_ID HERDR_PANE_ID; do
   if [[ -v $name ]]; then
     child_env+=("$name=${!name}")
   fi
 done
-exec env -i "${child_env[@]}" "CLAUDE_CONFIG_DIR=$claude_home" claude --permission-mode auto --settings "$settings"
+exec env -i "${child_env[@]}" "CLAUDE_CONFIG_DIR=$claude_home" "$claude_executable" --permission-mode auto --settings "$settings"
 '
 printf -v child_script_arg '%q' "$child_script"
 printf -v settings_arg '%q' "$settings"
 printf -v home_arg '%q' "$claude_home"
+printf -v executable_arg '%q' "$claude_executable"
 # Build the environment in the new pane's shell so Herdr routing points to that
-# child, not the caller. Only noncredential runtime and terminal values survive.
-herdr pane run "$pane" "bash -c $child_script_arg -- $settings_arg $home_arg" >/dev/null
+# child, not the caller. The verified CLI path is explicit; PATH serves other tools.
+herdr pane run "$pane" "bash -c $child_script_arg -- $settings_arg $home_arg $executable_arg" >/dev/null
 
 # The checker is passed with -c so that stdin stays free for the JSON snapshot.
 check_py=$(

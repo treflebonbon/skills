@@ -844,7 +844,7 @@ def codex_preflight(repository: str, receipt_arg: str) -> None:
     )
 
 
-def verify_claude(settings_arg: str, receipt_arg: str) -> None:
+def verify_claude(settings_arg: str, receipt_arg: str) -> Path:
     receipt = read_receipt(Path(receipt_arg), "claude")
     executable, settings, env, settings_hash, runtime_identity = claude_environment()
     require(Path(settings_arg).absolute() == settings, "Claude settings path changed")
@@ -852,8 +852,10 @@ def verify_claude(settings_arg: str, receipt_arg: str) -> None:
     require(receipt.get("runtime_identity") == runtime_identity, "Claude CLI changed after preflight")
     require(receipt.get("home_sha256") == digest_bytes(str(settings.parent).encode()), "Claude dedicated home changed after preflight")
     require(receipt.get("observed", {}).get("configured_denials") == [PROBE_COMMAND, "git push origin HEAD"], "Claude receipt lacks runtime denial evidence")
+    require("\n" not in str(executable) and "\r" not in str(executable), "Claude CLI path cannot be represented safely")
     observed = claude_session_canary(executable, settings, env)
     require(observed == receipt["observed"], "Claude active policy canary no longer matches its preflight receipt")
+    return executable
 
 
 def verify_codex(repository: str, receipt_arg: str) -> dict[str, str]:
@@ -905,6 +907,7 @@ def main() -> None:
     verify.add_argument("--settings")
     verify.add_argument("--repository")
     verify.add_argument("--receipt", required=True)
+    verify.add_argument("--print-executable", action="store_true", help=argparse.SUPPRESS)
     launch = subparsers.add_parser("launch-codex")
     launch.add_argument("--repository", required=True)
     launch.add_argument("--receipt", required=True)
@@ -919,8 +922,12 @@ def main() -> None:
         return
     elif args.runtime == "claude":
         require(args.settings is not None, "Claude receipt verification requires --settings")
-        verify_claude(args.settings, args.receipt)
+        executable = verify_claude(args.settings, args.receipt)
+        if args.print_executable:
+            print(executable)
+            return
     else:
+        require(not args.print_executable, "only Claude verification can return an executable path")
         require(args.repository is not None, "Codex receipt verification requires --repository")
         verify_codex(args.repository, args.receipt)
     print("auto-peer preflight passed")
