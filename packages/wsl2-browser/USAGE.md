@@ -12,7 +12,7 @@
 /absolute/path/to/skills/packages/wsl2-browser/bin/wsl2-browser-prepare
 ```
 
-既定では `${XDG_CACHE_HOME:-~/.cache}/treflebonbon/wsl2-browser/` の配下を使います。`WSL2_BROWSER_DEPS_DIR` に絶対パスを指定すると、その場所へ準備します。準備は package 固有の `package-lock.json` に対して `npm ci --ignore-scripts` を使い、`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` を設定します。上流ファイルへの WSL2 patch を検査した後にだけ完成した cache を公開します。`node_modules`、一時 install、patch 済み上流ファイルは package source に置きません。
+既定では `${XDG_CACHE_HOME:-~/.cache}/treflebonbon/wsl2-browser/` の配下を使います。`WSL2_BROWSER_DEPS_DIR` に plugin root の外にある絶対 path を指定すると、その場所へ準備します。準備は package 固有の `package-lock.json` に対して `npm ci --ignore-scripts` を使い、`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` を設定します。上流ファイルへの WSL2 patch を検査した後にだけ完成した cache を公開します。`node_modules`、一時 install、patch 済み上流ファイルは plugin source に置きません。
 
 ## 入口
 
@@ -40,7 +40,7 @@ PWCLI_WORKSPACE=/absolute/path/to/task-worktree \
 
 | 環境変数 | 用途 |
 | --- | --- |
-| `WSL2_BROWSER_DEPS_DIR` | 固定 Playwright runtime を置く絶対 path。省略時は lock と patch の指紋を含む XDG cache path を使います。 |
+| `WSL2_BROWSER_DEPS_DIR` | 固定 Playwright runtime を置く plugin root の外にある絶対 path。省略時は lock と patch の指紋を含む XDG cache path を使います。 |
 | `PWCLI_WORKSPACE` | 作業 directory が worktree 外にある場合の Managed Playwright Chrome identity。 |
 | `PWCLI_RUNTIME_DIR` | Playwright session、Dashboard、lease の一時状態 root。省略時は `XDG_RUNTIME_DIR` を使い、未設定なら `PWCLI_TMPDIR` または mode 0700 の `/tmp` 配下を使います。 |
 | `BROWSER_OWNERSHIP_DIR` | Playwright、添付、Dogfood が共有する ownership state root。各 consumer で同じ値を使います。 |
