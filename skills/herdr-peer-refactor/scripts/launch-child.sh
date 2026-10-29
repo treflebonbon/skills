@@ -92,9 +92,18 @@ need=$((1 + (count + 1) + (count + 2)))
 create_out=$(herdr workspace create --cwd "$wt" --label "$id" --no-focus)
 pane=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["result"]["root_pane"]["pane_id"])' <<<"$create_out")
 
+child_env=()
+for name in HOME PATH LANG LC_ALL TMPDIR TERM COLORTERM COLUMNS LINES NO_COLOR; do
+  if [[ -v $name ]]; then
+    printf -v env_arg '%q' "$name=${!name}"
+    child_env+=("$env_arg")
+  fi
+done
 printf -v settings_arg '%q' "$settings"
-printf -v home_arg '%q' "$claude_home"
-herdr pane run "$pane" "CLAUDE_CONFIG_DIR=$home_arg claude --permission-mode auto --settings $settings_arg" >/dev/null
+printf -v home_arg '%q' "CLAUDE_CONFIG_DIR=$claude_home"
+# Keep the noncredential runtime/terminal variables used by child_environment;
+# ambient token, key, auth, and secret variables do not reach Claude.
+herdr pane run "$pane" "env -i ${child_env[*]} $home_arg claude --permission-mode auto --settings $settings_arg" >/dev/null
 
 # The checker is passed with -c so that stdin stays free for the JSON snapshot.
 check_py=$(

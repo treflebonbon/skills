@@ -97,7 +97,6 @@ class AutoPeerPreflightTests(unittest.TestCase):
             {
                 "HOME": str(self.home),
                 "PATH": f"{self.bin}:{os.environ['PATH']}",
-                "AUTO_PEER_TEST_STATE": str(self.state),
             }
         )
         self.claude_home = self.home / ".claude-peer"
@@ -119,7 +118,7 @@ class AutoPeerPreflightTests(unittest.TestCase):
             "elif args == ['auth', 'status', '--json']:\n"
             "    print(json.dumps({'authMethod': 'claude.ai', 'configDirectory': os.environ['CLAUDE_CONFIG_DIR']}))\n"
             "elif '--print' in args:\n"
-            "    state = json.loads(open(os.environ['AUTO_PEER_TEST_STATE'], encoding='utf-8').read())\n"
+            f"    state = json.loads(open({str(self.state)!r}, encoding='utf-8').read())\n"
             "    settings_path = args[args.index('--settings') + 1] if '--settings' in args else ''\n"
             "    if os.path.basename(settings_path) == 'baseline.settings.json':\n"
             "        subprocess.run(['treflebonbon-auto-policy-probe'], check=True)\n"
@@ -196,7 +195,15 @@ class AutoPeerPreflightTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(self.receipt.exists())
 
-    def install_codex_mock(self, *, denied=True):
+    def install_codex_mock(
+        self,
+        *,
+        denied=True,
+        send_header=False,
+        write_allowed=False,
+        raw_push_allowed=False,
+        final_record=None,
+    ):
         self.codex_home = self.home / ".codex-peer"
         (self.codex_home / "rules").mkdir(parents=True, mode=0o700)
         (self.codex_home / "gh").mkdir(mode=0o700)
@@ -225,7 +232,9 @@ class AutoPeerPreflightTests(unittest.TestCase):
         )
         self.env["CODEX_HOME"] = str(self.codex_home)
         self.env["GH_CONFIG_DIR"] = str(self.codex_home / "gh")
-        self.env["AUTO_PEER_TEST_CODEX_CALL"] = str(self.base / "codex-call.json")
+        self.codex_call = self.base / "codex-call.json"
+        if final_record is None:
+            final_record = self.base / "final-codex.json"
         codex = self.bin / "codex"
         codex.write_text(
             "#!/usr/bin/env python3\n"
@@ -236,7 +245,7 @@ class AutoPeerPreflightTests(unittest.TestCase):
             "elif args == ['login', 'status']:\n"
             "    sys.exit(0)\n"
             "elif args and args[0] == 'exec':\n"
-            "    open(os.environ['AUTO_PEER_TEST_CODEX_CALL'], 'w', encoding='utf-8').write(json.dumps({'args': args, 'home': os.environ['HOME'], 'codex_home': os.environ['CODEX_HOME'], 'gh_home': os.environ['GH_CONFIG_DIR']}))\n"
+            f"    open({str(self.codex_call)!r}, 'w', encoding='utf-8').write(json.dumps({{'args': args, 'home': os.environ['HOME'], 'codex_home': os.environ['CODEX_HOME'], 'gh_home': os.environ['GH_CONFIG_DIR']}}))\n"
             "    provider = next(value for value in args if value.startswith('model_providers.mock='))\n"
             "    url = re.search(r'base_url=\\\"([^\\\"]+)', provider).group(1)\n"
             "    input_items = []\n"
@@ -245,13 +254,13 @@ class AutoPeerPreflightTests(unittest.TestCase):
             "        'auto-peer-workspace-write': 'Process exited with code 1\\nOutput:\\ntouch: cannot touch marker: Read-only file system\\n',\n"
             "        'auto-peer-raw-push': 'exec_command failed: CreateProcess { message: \\\"Rejected(\\\\\\\"git push rejected: No raw push.\\\\\\\")\\\" }',\n"
             "    }\n"
-            "    if os.environ.get('AUTO_PEER_TEST_WRITE_ALLOWED'):\n"
+            f"    if {write_allowed!r}:\n"
             "        outputs['auto-peer-workspace-write'] = 'Process exited with code 0\\nOutput:\\n'\n"
-            "    if os.environ.get('AUTO_PEER_TEST_RAW_PUSH_ALLOWED'):\n"
+            f"    if {raw_push_allowed!r}:\n"
             "        outputs['auto-peer-raw-push'] = 'Process exited with code 0\\nOutput:\\n'\n"
             "    for _ in range(4):\n"
             "        headers = {'Content-Type': 'application/json'}\n"
-            "        if os.environ.get('AUTO_PEER_TEST_SEND_AUTH'):\n"
+            f"        if {send_header!r}:\n"
             "            headers['Authorization'] = 'Bearer fixture-only'\n"
             "        request = urllib.request.Request(url, data=json.dumps({'model': 'mock-model', 'input': input_items}).encode(), headers=headers)\n"
             "        with urllib.request.urlopen(request, timeout=5) as response:\n"
@@ -273,6 +282,10 @@ class AutoPeerPreflightTests(unittest.TestCase):
             "    if decision is not None:\n"
             "        result['decision'] = decision\n"
             "    print(json.dumps(result))\n"
+            "elif args and args[0] == '-C':\n"
+            "    names = ('GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'OPENAI_API_KEY', 'CODEX_ACCESS_TOKEN', 'ANTHROPIC_API_KEY', 'AWS_ACCESS_KEY_ID', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'CLAUDE_CODE_USE_BEDROCK', 'HTTPS_PROXY', 'AUTO_PEER_TEST_UNKNOWN')\n"
+            "    payload = {'argv': args, 'ambient_env_present': {name: bool(os.environ.get(name)) for name in names}, 'codex_home': os.environ.get('CODEX_HOME'), 'gh_config_dir': os.environ.get('GH_CONFIG_DIR'), 'term': os.environ.get('TERM')}\n"
+            f"    open({str(final_record)!r}, 'w', encoding='utf-8').write(json.dumps(payload))\n"
             "else:\n"
             "    sys.exit(64)\n",
             encoding="utf-8",
@@ -297,7 +310,7 @@ class AutoPeerPreflightTests(unittest.TestCase):
             "raw_push": "forbidden",
             "loopback_authorization": "absent",
         })
-        invocation = json.loads(Path(self.env["AUTO_PEER_TEST_CODEX_CALL"]).read_text(encoding="utf-8"))
+        invocation = json.loads(self.codex_call.read_text(encoding="utf-8"))
         arguments = invocation["args"]
         canary_home = Path(invocation["codex_home"]).resolve()
         canary_root = Path(invocation["home"]).resolve()
@@ -315,8 +328,7 @@ class AutoPeerPreflightTests(unittest.TestCase):
         self.assertEqual(filesystem_override, f'{{"{git_dir}"="read", "{common_dir}"="read"}}')
 
     def test_codex_preflight_rejects_an_authorization_header_to_loopback(self):
-        self.install_codex_mock()
-        self.env["AUTO_PEER_TEST_SEND_AUTH"] = "1"
+        self.install_codex_mock(send_header=True)
         receipt = self.base / "run" / "codex-auto-peer-preflight.json"
 
         result = self.run_preflight("codex", "--repository", "owner/repo", "--receipt", receipt)
@@ -326,8 +338,7 @@ class AutoPeerPreflightTests(unittest.TestCase):
         self.assertFalse(receipt.exists())
 
     def test_codex_preflight_holds_if_active_workspace_write_is_allowed(self):
-        self.install_codex_mock()
-        self.env["AUTO_PEER_TEST_WRITE_ALLOWED"] = "1"
+        self.install_codex_mock(write_allowed=True)
         receipt = self.base / "run" / "codex-auto-peer-preflight.json"
 
         result = self.run_preflight("codex", "--repository", "owner/repo", "--receipt", receipt)
@@ -337,8 +348,7 @@ class AutoPeerPreflightTests(unittest.TestCase):
         self.assertFalse(receipt.exists())
 
     def test_codex_preflight_holds_if_active_raw_push_reaches_fake_git(self):
-        self.install_codex_mock()
-        self.env["AUTO_PEER_TEST_RAW_PUSH_ALLOWED"] = "1"
+        self.install_codex_mock(raw_push_allowed=True)
         receipt = self.base / "run" / "codex-auto-peer-preflight.json"
 
         result = self.run_preflight("codex", "--repository", "owner/repo", "--receipt", receipt)
@@ -365,6 +375,47 @@ class AutoPeerPreflightTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(receipt.exists())
+
+    def test_codex_auto_launcher_strips_ambient_credentials_from_the_final_peer(self):
+        final_record = self.base / "final-codex.json"
+        self.install_codex_mock(final_record=final_record)
+        receipt = self.base / "run" / "codex-auto-peer-preflight.json"
+        generated = self.run_preflight("codex", "--repository", "owner/repo", "--receipt", receipt)
+        self.assertEqual(generated.returncode, 0, generated.stdout + generated.stderr)
+        self.env.update(
+            {
+                "GH_TOKEN": "test-only-gh-token",
+                "GITHUB_TOKEN": "test-only-github-token",
+                "GH_ENTERPRISE_TOKEN": "test-only-enterprise-token",
+                "OPENAI_API_KEY": "test-only-openai-key",
+                "CODEX_ACCESS_TOKEN": "test-only-codex-access-token",
+                "ANTHROPIC_API_KEY": "test-only-anthropic-key",
+                "AWS_ACCESS_KEY_ID": "test-only-aws-key",
+                "ANTHROPIC_BASE_URL": "https://example.invalid",
+                "OPENAI_BASE_URL": "https://example.invalid",
+                "CLAUDE_CODE_USE_BEDROCK": "1",
+                "HTTPS_PROXY": "http://127.0.0.1:9",
+                "AUTO_PEER_TEST_UNKNOWN": "test-only-unknown-env",
+                "TERM": "xterm-256color",
+            }
+        )
+
+        launched = subprocess.run(
+            [str(LAUNCH_CODEX), "owner/repo", str(receipt), "--", "review this candidate"],
+            cwd=ROOT,
+            env=self.env,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(launched.returncode, 0, launched.stdout + launched.stderr)
+        payload = json.loads(final_record.read_text(encoding="utf-8"))
+        self.assertEqual(payload["ambient_env_present"], {name: False for name in payload["ambient_env_present"]})
+        self.assertEqual(payload["term"], "xterm-256color")
+        self.assertEqual(payload["codex_home"], str(self.codex_home))
+        self.assertEqual(payload["gh_config_dir"], str(self.codex_home / "gh"))
+        self.assertEqual(payload["argv"][-1], "review this candidate")
+        self.assertIn("--disable", payload["argv"])
 
     def test_receipt_verification_detects_a_changed_claude_settings_file(self):
         probe_marker = self.base / "probe-executed"
@@ -407,6 +458,7 @@ class AutoPeerLauncherTests(unittest.TestCase):
         self.settings = self.home / ".claude-peer" / "auto-peer-settings.json"
         self.receipt = self.base / "auto-peer-receipt.json"
         self.log = self.base / "calls.jsonl"
+        self.claude_record = self.base / "claude-env.json"
         self.env = dict(os.environ)
         self.env.update(
             {
@@ -425,10 +477,20 @@ class AutoPeerLauncherTests(unittest.TestCase):
             encoding="utf-8",
         )
         python.chmod(0o755)
+        claude = self.bin / "claude"
+        claude.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, os\n"
+            "names = ('GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'OPENAI_API_KEY', 'CODEX_ACCESS_TOKEN', 'ANTHROPIC_API_KEY', 'AWS_ACCESS_KEY_ID', 'ANTHROPIC_BASE_URL', 'OPENAI_BASE_URL', 'CLAUDE_CODE_USE_BEDROCK', 'AWS_PROFILE', 'HTTPS_PROXY', 'AUTO_PEER_TEST_UNKNOWN')\n"
+            f"payload = {{'ambient_env_present': {{name: bool(os.environ.get(name)) for name in names}}, 'claude_config_dir': os.environ.get('CLAUDE_CONFIG_DIR'), 'home': os.environ.get('HOME'), 'term': os.environ.get('TERM')}}\n"
+            f"open({str(self.claude_record)!r}, 'w', encoding='utf-8').write(json.dumps(payload))\n",
+            encoding="utf-8",
+        )
+        claude.chmod(0o755)
         herdr = self.bin / "herdr"
         herdr.write_text(
             "#!/usr/bin/env python3\n"
-            "import json, os, sys\n"
+            "import json, os, subprocess, sys\n"
             "args = sys.argv[1:]\n"
             "with open(os.environ['AUTO_PEER_TEST_CALL_LOG'], 'a', encoding='utf-8') as log: log.write(json.dumps(args) + '\\n')\n"
             "if args[:2] == ['workspace', 'create']:\n"
@@ -436,6 +498,7 @@ class AutoPeerLauncherTests(unittest.TestCase):
             "elif args[:2] == ['pane', 'process-info']:\n"
             "    print(json.dumps({'result': {'process_info': {'foreground_processes': [{'argv': ['claude', '--permission-mode', 'auto', '--settings', os.environ['AUTO_PEER_TEST_SETTINGS']], 'cwd': os.environ['AUTO_PEER_TEST_WORKTREE']}]}}}))\n"
             "elif args[:2] == ['pane', 'run']:\n"
+            "    subprocess.run(args[3], shell=True, check=True, env=os.environ.copy(), capture_output=True, text=True)\n"
             "    sys.exit(0)\n"
             "else:\n"
             "    sys.exit(64)\n",
@@ -461,6 +524,24 @@ class AutoPeerLauncherTests(unittest.TestCase):
 
         self.log.unlink()
         self.env["AUTO_PEER_TEST_PREFLIGHT_PASS"] = "1"
+        self.env.update(
+            {
+                "TERM": "xterm-256color",
+                "GH_TOKEN": "test-only-gh-token",
+                "GITHUB_TOKEN": "test-only-github-token",
+                "GH_ENTERPRISE_TOKEN": "test-only-enterprise-token",
+                "OPENAI_API_KEY": "test-only-openai-key",
+                "CODEX_ACCESS_TOKEN": "test-only-codex-access-token",
+                "ANTHROPIC_API_KEY": "test-only-anthropic-key",
+                "AWS_ACCESS_KEY_ID": "test-only-aws-key",
+                "ANTHROPIC_BASE_URL": "https://example.invalid",
+                "OPENAI_BASE_URL": "https://example.invalid",
+                "CLAUDE_CODE_USE_BEDROCK": "1",
+                "AWS_PROFILE": "test-only-aws-profile",
+                "HTTPS_PROXY": "http://127.0.0.1:9",
+                "AUTO_PEER_TEST_UNKNOWN": "test-only-unknown-env",
+            }
+        )
         launched = subprocess.run(
             [str(LAUNCH_CLAUDE), str(run_dir), "parent-pane", str(self.worktree), "child-1", "4", str(self.receipt), str(self.settings)],
             env=self.env,
@@ -471,8 +552,15 @@ class AutoPeerLauncherTests(unittest.TestCase):
         recorded = self.calls()
         self.assertEqual(recorded[0], "preflight")
         pane_run = next(call for call in recorded if isinstance(call, list) and call[:2] == ["pane", "run"])
+        self.assertIn("env -i", pane_run[3])
+        self.assertIn("TERM=xterm-256color", pane_run[3])
         self.assertIn(f"CLAUDE_CONFIG_DIR={self.home / '.claude-peer'}", pane_run[3])
         self.assertIn(f"--settings {self.settings}", pane_run[3])
+        payload = json.loads(self.claude_record.read_text(encoding="utf-8"))
+        self.assertEqual(payload["ambient_env_present"], {name: False for name in payload["ambient_env_present"]})
+        self.assertEqual(payload["claude_config_dir"], str(self.home / ".claude-peer"))
+        self.assertEqual(payload["home"], str(self.home))
+        self.assertEqual(payload["term"], "xterm-256color")
 
     def test_codex_launcher_never_falls_back_when_preflight_fails(self):
         codex = self.bin / "codex"

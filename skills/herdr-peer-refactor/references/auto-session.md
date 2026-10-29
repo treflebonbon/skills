@@ -58,7 +58,7 @@ bash "$skill_dir/scripts/codex-auto-peer.sh" owner/name \
 
 ## Canary の範囲と限界
 
-Claude は専用 settings を使った実 CLI session で no-deny control と configured deny を比較する。no-deny control の無害な probe が実行され、workspace 外にある settings を読めないことを確認する。専用 settings では policy probe と raw push の実 permission denial が返ることを確認する。sandbox unavailable や拒否不足は fail closed となる。Claude の preflight と起動直前の verify はそれぞれ2回の authenticated API canary を行い、各 invocation は `--max-budget-usd 0.02` を指定する。実際の Claude auth/API canary はこの package の統合検証では実行していない。
+Claude は専用 settings を使った実 CLI session で no-deny control と configured deny を比較する。no-deny control の無害な probe が実行され、workspace 外にある settings を読めないことを確認する。専用 settings では policy probe と raw push の実 permission denial が返ることを確認する。sandbox unavailable や拒否不足は fail closed となる。Claude の preflight と起動直前の verify はそれぞれ2回の authenticated API canary を行い、各 invocation は `--max-budget-usd 0.02` を指定する。この上限の実動での妥当性・十分性は未検証であり、budget で完了しない場合は保留する。実際の Claude auth/API canary はこの package の統合検証では実行していない。
 
 Codex は実 CLI sessionへ loopback-only model fixture を使う。canary 用の `HOME` / `CODEX_HOME` は、実際の専用 home から検証済み config と rules だけを複写した一時 home で、資格情報は含めず、GH directory は空にする。loopback server は request body の tool output だけを使い、header/body/prompt を出力せず、`Authorization` header があれば失敗する。workspace write と raw push は使い捨て linked Git worktree と fake Git で確認する。CLI が実際に付ける linked worktree の Git dir/common dir override を適用して `git status --short` の成功も見る。実対象 repo に nonce、file、commit、push は作らない。
 
