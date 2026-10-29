@@ -2,4 +2,4 @@
 set -euo pipefail
 
 package_root="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-exec python3 -I "$package_root/lib/python/treflebonbon_skills/codex_reviewer.py" "$@"
+exec python3 -I -B "$package_root/lib/python/treflebonbon_skills/codex_reviewer.py" "$@"

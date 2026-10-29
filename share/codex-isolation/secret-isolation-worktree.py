@@ -348,6 +348,7 @@ def launch(arguments):
             [
                 "python3",
                 "-I",
+                "-B",
                 "/nix/codex-isolation/share/codex-isolation/codex-inner.py",
                 *arguments,
             ],
@@ -737,7 +738,7 @@ export NO_PROXY=localhost,127.0.0.1,::1 no_proxy=localhost,127.0.0.1,::1
                     github_cli.chmod(0o755)
                 with_env = runtime_copy / "bin/with-env"
                 with_env.write_text(
-                    f'#!{paths["bash"]}/bin/bash\nexec {paths["python3"]}/bin/python3 -I /nix/codex-isolation/bin/devshell-env with-env "$@"\n'
+                    f'#!{paths["bash"]}/bin/bash\nexec {paths["python3"]}/bin/python3 -I -B /nix/codex-isolation/bin/devshell-env with-env "$@"\n'
                 )
                 with_env.chmod(0o755)
                 mounts.extend(["--ro-bind", str(runtime_copy), "/nix/codex-isolation"])
