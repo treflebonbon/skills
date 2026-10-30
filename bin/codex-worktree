@@ -1,0 +1,13 @@
+#!/usr/bin/env -S python3 -I -B
+"""Enter raw Codex without importing caller shell or Python startup code."""
+
+from pathlib import Path
+import runpy
+import sys
+
+helper = Path(__file__).absolute().parent / "devshell-env"
+if not helper.is_file():
+    print(f"codex-worktree: missing sibling helper: {helper}", file=sys.stderr)
+    sys.exit(127)
+sys.argv = [str(helper), "codex", *sys.argv[1:]]
+runpy.run_path(str(helper), run_name="__main__")

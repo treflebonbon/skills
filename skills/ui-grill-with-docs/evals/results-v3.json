@@ -1,0 +1,259 @@
+{
+  "date": "2026-10-08",
+  "timezone": "Asia/Tokyo",
+  "scoring": "full=1, partial=0.5, failed=0; success needs every [critical] item at 1. Scores come from the parent session reading each artifact, not the executor's self-report.",
+  "pass_summary": "Iteration 1 ran on the pre-correction input and is excluded from the pass summary. Iterations 2 and 3 (7 Claude and Codex runs) all passed.",
+  "metrics_note": "tool_uses and duration_ms come from the Claude Agent tool usage meta. Codex runs through herdr expose neither, so they are null and excluded from convergence.",
+  "target": {
+    "revision": "edfee96",
+    "sha256": {
+      "SKILL.md": "6f396bcb9cfdb7af423be27da909298783dd6111a708c7480c95b2350c7bd46c",
+      "assets/round.html": "8bb33decf452689ba1f1c117b1f259d42e488e9203a1f80d62f688c884b46808"
+    }
+  },
+  "evaluation_definitions": {
+    "scenarios-v3.json (4dc98cd, scenarios e and f)": "585af1be96c77619e007a5c0bf87131a7ba8deb452ce64045491ed5bcbd895c4",
+    "executor_inputs": {
+      "common.md": "6d353ab3476d56aed7715e1c6029bd46fe1bfa464aaaa765403e557b96965ca9",
+      "scenario-e.md": "236394a4ca144bbba3dad06f756f356885f9b1bedf16ac5d86b466a542a65df8",
+      "scenario-f.md": "47a50b61d9c0208fa2ca7d5ecf85dd9e1ebdfd3de90b596a6af8c036a7230fb4",
+      "scenario-g.md": "1ad40cf2e7380e43b3e88f1daa99fe6ee66a1660e53c5a00810a5e5190178e1b"
+    },
+    "note": "Scenario g was fixed in scenario-g.md before it ran and added to scenarios-v3.json afterwards. Raw HTML and reports stay in the Git-ignored tmp/tuning/ and are identified here by SHA-256."
+  },
+  "runs": [
+    {
+      "iteration": 1,
+      "executor": "claude",
+      "scenario": "e",
+      "success": true,
+      "requirement_scores": {
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1
+      },
+      "critical_items": [1, 2],
+      "accuracy": "4/4",
+      "tool_uses": 8,
+      "duration_ms": 54212,
+      "new_unclear_points": "input gap: previous question text absent",
+      "artifact_sha256": {
+        "round.html": "5ecc20ab930f093331d205b04b35d626dbc95ab125451c7c3b40c3752cf8c149",
+        "response.md": "cdf0f9760a5cf089e4d77a454eb8dab0f3eab2f7ed8958d4b0f3e31fbb822db5"
+      },
+      "input_version": "pre-correction",
+      "counts_toward_pass_summary": false,
+      "requirement_notes": {
+        "2": "Scored 1 against the corrected definition: layout's question ID, prompt (recovered from the pasted Markdown) and choice IDs and labels (given in the scenario text) match it. The Q2 prompt was absent at the time, so Q2 carry-forward cannot be established from this run."
+      }
+    },
+    {
+      "iteration": 1,
+      "executor": "claude",
+      "scenario": "f",
+      "success": true,
+      "requirement_scores": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      },
+      "critical_items": [1, 2],
+      "accuracy": "3/3",
+      "tool_uses": 10,
+      "duration_ms": 50964,
+      "new_unclear_points": "input gap: previous question text absent",
+      "artifact_sha256": {
+        "round.html": "5a9ba5542bb690d36be3de1f2a48a566ff5f37e8c4b1bc6c947b49dc0640a392",
+        "response.md": "45039eda9c8188b6fd2adb5c0d80f22b6e779c216d7bb5ed5f3975a654086e85"
+      },
+      "input_version": "pre-correction",
+      "counts_toward_pass_summary": false
+    },
+    {
+      "iteration": 1,
+      "executor": "codex",
+      "scenario": "e",
+      "success": true,
+      "requirement_scores": {
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1
+      },
+      "critical_items": [1, 2],
+      "accuracy": "4/4",
+      "tool_uses": null,
+      "duration_ms": null,
+      "new_unclear_points": "not captured",
+      "artifact_sha256": null,
+      "input_version": "pre-correction",
+      "counts_toward_pass_summary": false,
+      "note": "Artifacts were deleted before this manifest was written; scores come from the parent's reading at the time and cannot be re-audited."
+    },
+    {
+      "iteration": 1,
+      "executor": "codex",
+      "scenario": "f",
+      "success": true,
+      "requirement_scores": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      },
+      "critical_items": [1, 2],
+      "accuracy": "3/3",
+      "tool_uses": null,
+      "duration_ms": null,
+      "new_unclear_points": "not captured",
+      "artifact_sha256": null,
+      "input_version": "pre-correction",
+      "counts_toward_pass_summary": false,
+      "note": "Artifacts were deleted before this manifest was written; scores come from the parent's reading at the time and cannot be re-audited."
+    },
+    {
+      "iteration": 2,
+      "executor": "claude",
+      "scenario": "e",
+      "success": true,
+      "requirement_scores": {
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1
+      },
+      "critical_items": [1, 2],
+      "accuracy": "4/4",
+      "tool_uses": 10,
+      "duration_ms": 42589,
+      "new_unclear_points": "none",
+      "artifact_sha256": {
+        "round.html": "fcfb0c20ed9419e32185158e149c772342980b48348aaf0223173cef26471da5",
+        "response.md": "e50635b869d0f8c716bd6627f35cb0551827457f03317f6bf193b0883b5b1548"
+      }
+    },
+    {
+      "iteration": 2,
+      "executor": "claude",
+      "scenario": "f",
+      "success": true,
+      "requirement_scores": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      },
+      "critical_items": [1, 2],
+      "accuracy": "3/3",
+      "tool_uses": 11,
+      "duration_ms": 47217,
+      "new_unclear_points": "none",
+      "artifact_sha256": {
+        "round.html": "eb21b2c98feefe59d74bbe5c69820cb3b8feea1ca08ade977a9b6c320ebfb924",
+        "response.md": "4d69ce7ed74a86856af8ffb58a79dbbce52a1f6795bcb2fbcb577e50ea310a97"
+      }
+    },
+    {
+      "iteration": 2,
+      "executor": "codex",
+      "scenario": "e",
+      "success": true,
+      "requirement_scores": {
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1
+      },
+      "critical_items": [1, 2],
+      "accuracy": "4/4",
+      "tool_uses": null,
+      "duration_ms": null,
+      "new_unclear_points": "not captured",
+      "artifact_sha256": {
+        "round.html": "bc1ab3bda7445a343d88eb57b8751050a9e5532834b3ef762388d4e9ba4ede83",
+        "response.md": "a712671b6b81807c9a3866f98fd5d1ece0d18b9d912c3a169504e5b925a58e0b"
+      }
+    },
+    {
+      "iteration": 2,
+      "executor": "codex",
+      "scenario": "f",
+      "success": true,
+      "requirement_scores": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      },
+      "critical_items": [1, 2],
+      "accuracy": "3/3",
+      "tool_uses": null,
+      "duration_ms": null,
+      "new_unclear_points": "not captured",
+      "artifact_sha256": {
+        "round.html": "b366f9e3d3b375d057b8de2a0eb4fb7f123a22b7b580283801e66cbfc57b4a63",
+        "response.md": "637773dccb99dbbc01a4ec7fe65ae66edc374529c04de09c5038578252f98c07"
+      }
+    },
+    {
+      "iteration": 3,
+      "executor": "claude",
+      "scenario": "e",
+      "success": true,
+      "requirement_scores": {
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1
+      },
+      "critical_items": [1, 2],
+      "accuracy": "4/4",
+      "tool_uses": 10,
+      "duration_ms": 50486,
+      "new_unclear_points": "2: omitted unselected items of a settled multiple choice; where a comment-derived proposal goes",
+      "artifact_sha256": {
+        "round.html": "b2721b8a2e3214b9c14d616574191213236906814a3dd9763d6aa687db649962",
+        "response.md": "90522d76e6cf58b3bbaaedd5ff91978b77ba7c78dcf703d8d1703a92c0a7b5d7"
+      }
+    },
+    {
+      "iteration": 3,
+      "executor": "claude",
+      "scenario": "f",
+      "success": true,
+      "requirement_scores": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      },
+      "critical_items": [1, 2],
+      "accuracy": "3/3",
+      "tool_uses": 12,
+      "duration_ms": 53422,
+      "new_unclear_points": "1: order of the updated sheet versus asking about a risky request",
+      "artifact_sha256": {
+        "round.html": "699f8f2b06d3dc97a6c557eeeaa88712ab0d649200878276f737e49fb35fea80",
+        "response.md": "87e6f4dd3de80829e3bdcf2aba36a4f125d9e90beafb649bc7f2c6d4a31d49ad"
+      }
+    },
+    {
+      "iteration": 3,
+      "executor": "claude",
+      "scenario": "g",
+      "success": true,
+      "requirement_scores": {
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1
+      },
+      "critical_items": [1, 2],
+      "accuracy": "4/4",
+      "tool_uses": 10,
+      "duration_ms": 45248,
+      "new_unclear_points": "none",
+      "artifact_sha256": {
+        "round.html": "0dbe65fb4162408c3d9a333f33012b333d2151879e4a183a491acb80d846e4fd",
+        "response.md": "455b1c24e688def23de7a2ce6176c6cf74b3ce8a56bf099969bd7881d992c3c1"
+      }
+    }
+  ]
+}

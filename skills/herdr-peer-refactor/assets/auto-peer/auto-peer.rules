@@ -1,0 +1,173 @@
+# Rules for the dedicated Codex auto peer. Keep this file in its dedicated CODEX_HOME.
+#
+# peer_deny is the source for both runtime projections and their CLI checks.
+# Each record projects to both tools:
+#   Claude: Bash(...) entries are projected to auto-peer-deny.json.
+#   Codex: prefix_rule entries are loaded by the official execpolicy evaluator.
+# Keep AUTO_PEER_POLICY_PROBE denied: the Claude runtime canary must be allowed without
+# this fragment and rejected with it before a dedicated session can start.
+AUTO_PEER_POLICY_PROBE = "treflebonbon-auto-policy-probe"
+peer_deny = [
+    {
+        "claude": ["AskUserQuestion"],
+        "codex": [],
+    },
+    {
+        "claude": ["Bash(treflebonbon-auto-policy-probe)"],
+        "claude_deny": ["treflebonbon-auto-policy-probe"],
+        "claude_allow": ["git status --short"],
+        "codex": [{
+            "pattern": ["treflebonbon-auto-policy-probe"],
+            "decision": "forbidden",
+            "justification": "The policy canary is denied only when the dedicated peer rules are active.",
+            "match": ["treflebonbon-auto-policy-probe"],
+            "not_match": ["git status --short"],
+        }],
+    },
+    {
+        "claude": ["Bash(*gh pr merge*)", "Bash(*gh pr 'merge'*)", "Bash(*gh pr \"merge\"*)"],
+        "claude_deny": [
+            "gh pr merge 1",
+            "gh pr merge --auto --squash 1",
+            "sh -c 'gh pr merge 1'",
+            "/usr/bin/gh pr merge 1",
+            "xargs -n1 gh pr merge",
+            "gh pr 'merge' 1",
+            "gh pr \"merge\" 1",
+        ],
+        "claude_allow": [
+            "gh pr view 1 --json state,mergeStateStatus",
+            "gh pr list --state merged --limit 1",
+            "gh pr create --title 'feat: add merge deny' --body-file b.md",
+            "gh pr close 1",
+            "gh pr reopen 1",
+            "gh pr ready 1",
+        ],
+        "codex": [{
+            "pattern": ["gh", "pr", "merge"],
+            "decision": "forbidden",
+            "justification": "origin/main merges are done by a human.",
+            "match": ["gh pr merge 1"],
+            "not_match": ["gh pr view 1"],
+        }],
+    },
+    {
+        "claude": [
+            "Bash(*gh -R * pr merge*)",
+            "Bash(*gh --repo * pr merge*)",
+            "Bash(*gh --repo=* pr merge*)",
+            "Bash(*gh pr -R * merge*)",
+            "Bash(*gh pr --repo * merge*)",
+            "Bash(*gh pr --repo=* merge*)",
+        ],
+        "claude_deny": [
+            "gh -R o/r pr merge 1",
+            "gh --repo o/r pr merge 1",
+            "gh --repo=o/r pr merge 1",
+            "gh pr -R o/r merge 1",
+            "gh pr --repo o/r merge 1",
+            "gh pr --repo=o/r merge 1",
+        ],
+        "codex": [
+            {
+                "pattern": ["gh", ["-R", "--repo"]],
+                "decision": "forbidden",
+                "justification": "A global repo option can hide a merge subcommand behind it.",
+                "match": ["gh -R o/r pr merge 1", "gh --repo o/r pr merge 1"],
+                "not_match": ["gh pr view 1"],
+            },
+            {
+                "pattern": ["gh", "pr", ["-R", "--repo"]],
+                "decision": "forbidden",
+                "justification": "A repo option between pr and merge hides the subcommand.",
+                "match": ["gh pr -R o/r merge 1", "gh pr --repo o/r merge 1"],
+                "not_match": ["gh pr view 1"],
+            },
+        ],
+    },
+    {
+        "claude": ["Bash(*mergePullRequest*)", "Bash(*enablePullRequestAutoMerge*)"],
+        "claude_deny": [
+            "gh api -X POST graphql -f query='mutation { mergePullRequest(input: {}) { clientMutationId } }'",
+            "gh api graphql -f query='mutation { enablePullRequestAutoMerge(input: {}) { clientMutationId } }'",
+        ],
+        "codex": [],
+    },
+    {
+        "claude": ["Bash(*pulls/*/merge*)", "Bash(*gh api*/merges*)"],
+        "claude_deny": [
+            "gh api -X PUT repos/o/r/pulls/1/merge",
+            "gh -R o/r api repos/o/r/pulls/1/merge",
+            "gh api -X POST repos/o/r/merges",
+        ],
+        "claude_allow": ["gh api graphql -f query='query { viewer { login } }'"],
+        "codex": [{
+            "pattern": ["gh", "api"],
+            "decision": "forbidden",
+            "justification": "GraphQL and REST calls can merge or update refs; a peer reviewer reads through gh issue/pr view.",
+            "match": ["gh api graphql -F query=@x.graphql", "gh api -X PUT repos/o/r/pulls/1/merge"],
+            "not_match": ["gh issue view 1"],
+        }],
+    },
+    {
+        "claude": [],
+        "claude_allow": ["git-push-topic"],
+        "codex": [{
+            "pattern": ["git-push-reviewed"],
+            "decision": "forbidden",
+            "justification": "A default-branch push is a human action.",
+            "match": ["git-push-reviewed"],
+            "not_match": ["git-push-topic"],
+        }],
+    },
+    {
+        "claude": ["Bash(*git push*)", "Bash(*git * push*)"],
+        "claude_deny": [
+            "git push origin HEAD",
+            "git push --force origin HEAD",
+            "git -C . push origin HEAD",
+            "/usr/bin/git -C . push origin HEAD",
+            "git -c core.hooksPath=/dev/null push origin HEAD",
+            "git --git-dir .git push origin HEAD",
+            "/usr/bin/git push origin HEAD",
+            "env git push origin HEAD",
+            "command git push origin HEAD",
+            "sh -c 'git push origin HEAD'",
+        ],
+        "claude_allow": ["git status --short", "git-push-topic"],
+        "codex": [
+            {
+                "pattern": ["git", "push"],
+                "decision": "forbidden",
+                "justification": "Dedicated auto peers must use no raw push; a human owns all publication.",
+                "match": ["git push origin HEAD", "git push --force origin HEAD"],
+                "not_match": ["git status --short", "git-push-topic"],
+            },
+            {
+                "pattern": [["/bin/git", "/usr/bin/git"], "push"],
+                "decision": "forbidden",
+                "justification": "Absolute Git paths do not bypass the raw push prohibition.",
+                "match": ["/bin/git push origin HEAD", "/usr/bin/git push origin HEAD --force"],
+            },
+            {
+                "pattern": ["git", ["-C", "-c", "--git-dir", "--work-tree"]],
+                "decision": "forbidden",
+                "justification": "Git global options cannot move push past the raw push prohibition.",
+                "match": [
+                    "git -C . push origin HEAD",
+                    "git -c core.hooksPath=/dev/null push origin HEAD",
+                    "git --git-dir .git push origin HEAD",
+                    "git --work-tree . push origin HEAD",
+                ],
+            },
+            {
+                "pattern": [["command", "env"], "git"],
+                "decision": "forbidden",
+                "justification": "Command and environment wrappers cannot bypass the raw push prohibition.",
+                "match": ["command git push origin HEAD", "env git push origin HEAD --force"],
+            },
+        ],
+    },
+]
+
+[prefix_rule(**rule) for record in peer_deny for rule in record["codex"]]

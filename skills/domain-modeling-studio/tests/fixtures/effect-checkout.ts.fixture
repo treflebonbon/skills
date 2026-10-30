@@ -1,0 +1,17 @@
+import { Effect } from "effect";
+
+type OutOfStock = { _tag: "OutOfStock" };
+type PaymentDeclined = { _tag: "PaymentDeclined" };
+type CheckoutFailed = { _tag: "CheckoutFailed"; cause: unknown };
+
+declare const reserve: (id: string) => Effect.Effect<string, OutOfStock>;
+declare const charge: (id: string) => Effect.Effect<string, PaymentDeclined>;
+
+export const checkout = (id: string) =>
+  Effect.gen(function* () {
+    const reserved = yield* reserve(id);
+    return yield* charge(reserved);
+  }).pipe(
+    Effect.catchTag("OutOfStock", () => Effect.succeed("backorder")),
+    Effect.mapError((error) => ({ _tag: "CheckoutFailed", cause: error } as CheckoutFailed))
+  );

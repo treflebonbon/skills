@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Fake gh for tests/gh-once.bats. State: $FAKE_DIR/issues.json.
+#   FAKE_LOSE=1  the write lands server-side, then the client sees a failure
+#   FAKE_FAIL=1  the write fails and nothing lands
+#   FAKE_READFAIL=1  list/view fail (API error): existence cannot be known
+printf '%s\n' "$*" >>"$FAKE_DIR/calls.log"
+f=$FAKE_DIR/issues.json
+[ "${FAKE_READFAIL:-}" = 1 ] && [ "$1 $2" != "issue create" ] && [ "$1 $2" != "issue comment" ] && exit 1
+if [ "${FAKE_READFAIL_AFTER:-}" = 1 ] && grep -qE '^issue (create|comment)' "$FAKE_DIR/calls.log"; then
+  case "$1 $2" in "issue list" | "issue view") exit 1 ;; esac
+fi
+case "$1 $2" in
+"issue list") cat "$f" ;;
+"issue view") jq --argjson n "$3" '.[] | select(.number==$n)' "$f" ;;
+"issue create")
+  [ "${FAKE_FAIL:-}" = 1 ] && exit 1
+  while [ $# -gt 0 ]; do
+    case $1 in --body-file)
+      b=$(cat "$2")
+      shift
+      ;;
+    --title)
+      t=$2
+      shift
+      ;;
+    esac
+    shift
+  done
+  n=$(($(jq length "$f") + 1))
+  jq --arg t "$t" --arg b "$b" --argjson n "$n" '. + [{number:$n,title:$t,body:$b,comments:[]}]' "$f" >"$f.new" && mv "$f.new" "$f"
+  [ "${FAKE_LOSE:-}" = 1 ] && exit 1
+  echo "https://github.com/o/r/issues/$n"
+  ;;
+"issue comment")
+  [ "${FAKE_FAIL:-}" = 1 ] && exit 1
+  n=$3
+  shift 3
+  while [ $# -gt 0 ]; do
+    case $1 in --body-file)
+      b=$(cat "$2")
+      shift
+      ;;
+    esac
+    shift
+  done
+  jq --arg b "$b" --argjson n "$n" 'map(if .number==$n then .comments += [{body:$b}] else . end)' "$f" >"$f.new" && mv "$f.new" "$f"
+  [ "${FAKE_LOSE:-}" = 1 ] && exit 1
+  echo "https://github.com/o/r/issues/$n#issuecomment-1"
+  ;;
+*) exit 64 ;;
+esac

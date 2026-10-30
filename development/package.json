@@ -1,0 +1,8 @@
+{
+  "name": "treflebonbon-skills-development",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "oxfmt": "0.67.0"
+  }
+}

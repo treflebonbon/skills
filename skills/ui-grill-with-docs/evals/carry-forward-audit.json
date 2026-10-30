@@ -1,0 +1,142 @@
+{
+  "date": "2026-09-10",
+  "timezone": "Asia/Tokyo",
+  "kind": "retrospective-artifact-audit",
+  "criterion": "Preserve the pending question ID, prompt, choice IDs, and choice labels; all four comparisons must match.",
+  "source_results": "results.json",
+  "expected_source": "previous-round.json",
+  "expected_question": {
+    "id": "wording",
+    "prompt": "申請する、依頼を送るのどちらにしますか？",
+    "choices": [
+      {
+        "id": "apply",
+        "label": "申請する"
+      },
+      {
+        "id": "request",
+        "label": "依頼を送る"
+      }
+    ]
+  },
+  "changes_original_scores": false,
+  "new_executor_runs": 0,
+  "records": [
+    {
+      "iteration": 1,
+      "scenario": "b",
+      "artifact": {
+        "path": "tmp/empirical-ui-grill/iter-1/b/workspace/tmp/ui-grill-request.html",
+        "sha256": "1200648a041eaad90cca1754e7f371b7154b53ed9d9f3dcc3f3358478c809e0d"
+      },
+      "observed_question": {
+        "id": "button-wording",
+        "prompt": "備品を手配するための申請を送るボタンには、どの文言を使いますか？",
+        "choices": [
+          {
+            "id": "apply",
+            "label": "申請する"
+          },
+          {
+            "id": "send-request",
+            "label": "依頼を送る"
+          }
+        ]
+      },
+      "matches": {
+        "question_id": false,
+        "prompt": false,
+        "choice_ids": false,
+        "choice_labels": true
+      },
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "scenario": "b",
+      "artifact": {
+        "path": "tmp/empirical-ui-grill/iter-2/b/workspace/tmp/ui-grill-request.html",
+        "sha256": "94735fb496c859d6cf3fa7fbb02f9489fdbc25b758551e454f13a4a93b0d6edd"
+      },
+      "observed_question": {
+        "id": "application-button-label",
+        "prompt": "備品申請を始めるボタンには、どの文言を表示しますか？",
+        "choices": [
+          {
+            "id": "apply-equipment",
+            "label": "備品を申請する — 操作と対象が明確"
+          },
+          {
+            "id": "create-application",
+            "label": "申請を作成 — 申請書の作成開始を表す"
+          }
+        ]
+      },
+      "matches": {
+        "question_id": false,
+        "prompt": false,
+        "choice_ids": false,
+        "choice_labels": false
+      },
+      "passed": false
+    },
+    {
+      "iteration": 3,
+      "scenario": "b",
+      "artifact": {
+        "path": "tmp/empirical-ui-grill/iter-3/b/workspace/tmp/ui-grill-request.html",
+        "sha256": "80eab84077ef204e453fd54b9c098d710442239bc6a99cdda7afe4025147809d"
+      },
+      "observed_question": {
+        "id": "wording",
+        "prompt": "申請する、依頼を送るのどちらにしますか？",
+        "choices": [
+          {
+            "id": "apply",
+            "label": "申請する"
+          },
+          {
+            "id": "request",
+            "label": "依頼を送る"
+          }
+        ]
+      },
+      "matches": {
+        "question_id": true,
+        "prompt": true,
+        "choice_ids": true,
+        "choice_labels": true
+      },
+      "passed": true
+    },
+    {
+      "iteration": 4,
+      "scenario": "b",
+      "artifact": {
+        "path": "tmp/empirical-ui-grill/iter-4/b/workspace/tmp/ui-grill-request.html",
+        "sha256": "6bee4f38fa53751cb7f6d54edfbe23dce014aa823317186b257276821820d2e9"
+      },
+      "observed_question": {
+        "id": "wording",
+        "prompt": "申請する、依頼を送るのどちらにしますか？",
+        "choices": [
+          {
+            "id": "apply",
+            "label": "申請する"
+          },
+          {
+            "id": "request",
+            "label": "依頼を送る"
+          }
+        ]
+      },
+      "matches": {
+        "question_id": true,
+        "prompt": true,
+        "choice_ids": true,
+        "choice_labels": true
+      },
+      "passed": true
+    }
+  ]
+}

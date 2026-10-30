@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "treflebonbon-skills",
+  "version": "0.2.3",
+  "description": "ROP と開発ワークフローの Agent Skills"
+}

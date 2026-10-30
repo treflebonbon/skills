@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-16T21:55:19+09:00",
+  "title": "Design System: Domain Modeling Studio",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "操作用の深緑",
+        "canonical": "#17645b"
+      },
+      "page": {
+        "role": "neutral",
+        "displayName": "淡い作業台",
+        "canonical": "#f3f6f5"
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "紙面",
+        "canonical": "#fff"
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "細い区切り線",
+        "canonical": "#c7d2d0"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "濃い本文色",
+        "canonical": "#203237"
+      }
+    },
+    "typographyMeta": {
+      "body": {
+        "displayName": "Japanese system UI",
+        "purpose": "モデル、根拠、フォームを高密度に読む本文。"
+      },
+      "title": {
+        "displayName": "Task title",
+        "purpose": "画面名と選択対象を示す見出し。"
+      },
+      "label": {
+        "displayName": "Field label",
+        "purpose": "入力の意味と状態を先に示すラベル。"
+      }
+    },
+    "shadows": [],
+    "motion": [],
+    "breakpoints": [{ "name": "compact", "value": "900px" }]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "保存やコピーなど、現在の作業を前へ進める操作。",
+      "html": "<button class=\"ds-button-primary\">指摘・モデルをコピー</button>",
+      "css": ".ds-button-primary { min-height: 40px; padding: 8px 12px; border: 1px solid #17645b; border-radius: 6px; background: #17645b; color: #fff; cursor: pointer; } .ds-button-primary:focus-visible { outline: 3px solid #32816f; outline-offset: 3px; }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "ラベル付きで根拠やモデルを編集する基本フィールド。",
+      "html": "<label class=\"ds-field-label\">名称<input class=\"ds-field\" value=\"依頼を確認する\"></label>",
+      "css": ".ds-field-label { display: block; margin-block: 12px; color: #203237; font: 550 13px sans-serif; } .ds-field { display: block; width: 100%; min-height: 40px; margin-top: 6px; padding: 8px; border: 1px solid #aabdb7; border-radius: 4px; background: #fff; color: #203237; } .ds-field:focus-visible { outline: 3px solid #32816f; outline-offset: 3px; }"
+    },
+    {
+      "name": "Workspace Tab",
+      "kind": "nav",
+      "refersTo": "button-primary",
+      "description": "一行の workspace 切替。選択中だけを主色で示す。",
+      "html": "<nav class=\"ds-tabs\"><button class=\"ds-tab ds-tab-selected\">モデルをレビュー</button><button class=\"ds-tab\">用語辞書</button></nav>",
+      "css": ".ds-tabs { display: flex; gap: 4px; border-bottom: 1px solid #c7d2d0; overflow-x: auto; } .ds-tab { min-height: 40px; padding: 10px 16px; border: 1px solid #acbeb9; border-bottom: 0; border-radius: 6px 6px 0 0; background: #fff; color: #24433e; white-space: nowrap; } .ds-tab:hover { background: #e5efeb; } .ds-tab:focus-visible { outline: 3px solid #32816f; outline-offset: 3px; } .ds-tab-selected { border-color: #17645b; background: #17645b; color: #fff; }"
+    },
+    {
+      "name": "Warning Notice",
+      "kind": "card",
+      "refersTo": "field",
+      "description": "競合や再確認待ちを、色と文章で併記する通知面。",
+      "html": "<section class=\"ds-warning\"><strong>編集を保護しています。</strong><p>現在の内容をAIへ渡し直してください。</p></section>",
+      "css": ".ds-warning { margin: 8px 0; padding: 12px 16px; border: 1px solid #cfa872; border-radius: 4px; background: #fff6e7; color: #6b4214; } .ds-warning p { margin: 4px 0 10px; }"
+    },
+    {
+      "name": "Domain Node",
+      "kind": "custom",
+      "refersTo": "field",
+      "description": "業務モデルの種別と出所を、狭い図面内で読み分ける要素。",
+      "html": "<article class=\"ds-domain-node ds-command\"><span>COMMAND</span><strong>依頼を確認する</strong><small>コードで確認</small></article>",
+      "css": ".ds-domain-node { display: flex; min-width: 180px; min-height: 100px; flex-direction: column; justify-content: center; gap: 5px; padding: 10px 13px; border: 1px solid #8da39c; border-radius: 6px; background: #fff; color: #203237; } .ds-domain-node span, .ds-domain-node small { font-size: 10px; } .ds-command { border-color: #809ac0; background: #edf4ff; color: #234a76; } .ds-domain-node-selected { outline: 2px solid #17645b; outline-offset: 3px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "静かな根拠机",
+    "overview": "日本語の業務モデルを読み、選び、訂正するための抑制した操作面。広い淡色のキャンバスと白い作業面を分け、操作の優先度は緑の主ボタンと文字による状態表示で伝える。",
+    "keyCharacteristics": [
+      "デスクトップで図と根拠を同時に読む二列構成",
+      "システム UI 書体とネイティブのラベル付きフォーム",
+      "意味を補助する、限定的な EventStorming の種別色"
+    ],
+    "rules": [
+      {
+        "name": "Accent-Is-Action Rule",
+        "body": "緑は主操作、選択、フォーカスに限る。状態の意味は色だけに依存せず、文言でも示す。",
+        "section": "colors"
+      },
+      {
+        "name": "Read-Then-Edit Rule",
+        "body": "ラベルを入力の上に置き、根拠と状態は小さくしても本文より先に消さない。",
+        "section": "typography"
+      },
+      {
+        "name": "Flat-Review Rule",
+        "body": "カード的な浮遊を増やさず、区切り線と背景差だけで編集面を整理する。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do 主操作、選択、フォーカスにだけ primary を使う。",
+      "Do 根拠、警告、未解決事項を文章と領域名で表示する。",
+      "Do 900px 以下では二列の編集面を縦に積む。"
+    ],
+    "donts": [
+      "Don't 影、装飾画像、リモート書体で操作画面の情報密度を増やさない。",
+      "Don't 色だけで種別、警告、保存状態を伝えない。",
+      "Don't 実在しないカード、チップ、ダイアログの見た目をこの system に追加しない。"
+    ]
+  }
+}

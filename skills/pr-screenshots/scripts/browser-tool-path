@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fail() {
+  printf 'pr-screenshots: %s\n' "$*" >&2
+  exit 1
+}
+
+[[ $# == 1 ]] || fail "usage: browser-tool-path {browser-attachments|managed-chrome-owner|playwright-cli|wsl2-browser-prepare}"
+
+case "$1" in
+  browser-attachments | managed-chrome-owner | playwright-cli | wsl2-browser-prepare) ;;
+  *) fail "unsupported bundled CLI: $1" ;;
+esac
+
+script_path="${BASH_SOURCE[0]}"
+script_dir="${script_path%/*}"
+[[ "$script_dir" != "$script_path" ]] || script_dir=.
+skill_root="$(cd -P -- "$script_dir/.." && pwd)"
+plugin_root="$(cd -P -- "$skill_root/../.." && pwd)"
+entrypoint="$plugin_root/packages/wsl2-browser/bin/$1"
+
+[[ -x "$entrypoint" ]] || fail "bundled CLI is unavailable; follow packages/wsl2-browser/USAGE.md"
+printf '%s\n' "$entrypoint"

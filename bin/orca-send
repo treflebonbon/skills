@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Send a literal UTF-8 body through the selected native Orca CLI."""
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+MAX_BODY_BYTES = 8 * 1024
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="orca-send",
+        description="UTF-8本文ファイルを選択済みOrca CLIから文字どおり送信します。",
+        epilog="本文は8 KiB以内の公開情報に限ります。本文をargvに渡すため、同一ホストのプロセスから見える可能性があります。",
+        allow_abbrev=False,
+    )
+    parser.add_argument("--cli", required=True, help="このsessionで選択したOrca実行ファイル")
+    parser.add_argument("--body-file", required=True, help="送信本文のUTF-8ファイル")
+    parser.add_argument("native_args", nargs=argparse.REMAINDER, help="-- の後に渡す native send 引数")
+    args = parser.parse_args()
+
+    if "--" not in sys.argv[1:]:
+        parser.error("native send 引数の前に -- が必要です")
+    native_args = args.native_args
+    if native_args and native_args[0] == "--":
+        native_args = native_args[1:]
+    if not native_args:
+        parser.error("-- の後に native send 引数が必要です")
+    if any(arg in {"--body", "-b", "--body-file"} or arg.startswith(("--body=", "--body-file=", "-b=")) for arg in native_args):
+        parser.error("本文は --body-file で一度だけ指定してください")
+
+    try:
+        with Path(args.body_file).open("rb") as stream:
+            body_bytes = stream.read(MAX_BODY_BYTES + 1)
+        if len(body_bytes) > MAX_BODY_BYTES:
+            print("orca-send: 本文は8 KiB以内にしてください", file=sys.stderr)
+            return 2
+        body = body_bytes.decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        print("orca-send: 本文ファイルをUTF-8として読み取れません", file=sys.stderr)
+        return 2
+    if not body.strip():
+        print("orca-send: 本文が空です", file=sys.stderr)
+        return 2
+    if "\0" in body:
+        print("orca-send: 本文にNUL文字は使えません", file=sys.stderr)
+        return 2
+
+    try:
+        if os.sep in args.cli or Path(args.cli).is_absolute():
+            cli_path = Path(args.cli).resolve(strict=True)
+        else:
+            executable = shutil.which(args.cli)
+            if not executable:
+                raise FileNotFoundError(args.cli)
+            cli_path = Path(executable).resolve(strict=True)
+        result = subprocess.run([str(cli_path), "orchestration", "send", "--body", body, *native_args], check=False)
+    except (OSError, RuntimeError):
+        print("orca-send: 選択したOrca CLIを起動できません", file=sys.stderr)
+        return 2
+    return result.returncode
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

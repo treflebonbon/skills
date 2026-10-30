@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "deny": [
+      "AskUserQuestion",
+      "Bash(treflebonbon-auto-policy-probe)",
+      "Bash(*gh pr merge*)",
+      "Bash(*gh pr 'merge'*)",
+      "Bash(*gh pr \"merge\"*)",
+      "Bash(*gh -R * pr merge*)",
+      "Bash(*gh --repo * pr merge*)",
+      "Bash(*gh --repo=* pr merge*)",
+      "Bash(*gh pr -R * merge*)",
+      "Bash(*gh pr --repo * merge*)",
+      "Bash(*gh pr --repo=* merge*)",
+      "Bash(*mergePullRequest*)",
+      "Bash(*enablePullRequestAutoMerge*)",
+      "Bash(*pulls/*/merge*)",
+      "Bash(*gh api*/merges*)",
+      "Bash(*git push*)",
+      "Bash(*git * push*)"
+    ]
+  }
+}

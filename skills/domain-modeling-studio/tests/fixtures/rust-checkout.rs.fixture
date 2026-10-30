@@ -1,0 +1,31 @@
+enum TaxError {
+    ServiceDown,
+    InvalidCountry,
+}
+
+fn normalize_country(country: &str) -> Result<String, TaxError> {
+    if country.is_empty() {
+        return Err(TaxError::InvalidCountry);
+    }
+    Ok(country.to_uppercase())
+}
+
+fn quote_tax(country: &str) -> Result<u32, TaxError> {
+    if country == "REMOTE" {
+        Err(TaxError::ServiceDown)
+    } else {
+        Ok(7)
+    }
+}
+
+fn tax_rate(country: &str) -> Result<u32, TaxError> {
+    let normalized = normalize_country(country)?;
+    quote_tax(&normalized).or_else(|error| match error {
+        TaxError::ServiceDown => Ok(0),
+        other => Err(other),
+    })
+}
+
+fn charge_invoice(country: &str) -> u32 {
+    tax_rate(country).expect("tax_rate exhausted its recovery paths")
+}

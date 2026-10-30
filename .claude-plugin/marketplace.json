@@ -1,0 +1,16 @@
+{
+  "name": "treflebonbon",
+  "owner": {
+    "name": "treflebonbon"
+  },
+  "plugins": [
+    {
+      "name": "treflebonbon-skills",
+      "source": "./",
+      "version": "0.2.3"
+    }
+  ],
+  "metadata": {
+    "description": "treflebonbon の開発ワークフロー向け Agent Skills"
+  }
+}
