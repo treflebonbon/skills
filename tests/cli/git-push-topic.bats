@@ -37,6 +37,8 @@ case "$*" in
 "remote get-url origin")
   printf 'https://github.com/example/repo.git\n'
   ;;
+"cat-file -e HEAD^{commit}")
+  ;;
 "cat-file -e mergedsha^{commit}" | "cat-file -e mergecommit^{commit}")
   [ "${MOCK_OBJECTS_MISSING:-}" != 1 ]
   ;;
@@ -158,7 +160,7 @@ EOF
     run env PATH="$MOCK_BIN:$PATH" MOCK_BRANCH="feat/example" MOCK_DEFAULT="main" \
       "$variable" MOCK_LOG="$MOCK_LOG" "$SCRIPT"
 
-    [ "$status" -ne 0 ]
+    [ "$status" -ne 0 ] || { echo "pushed despite $variable"; false; }
     [ ! -e "$MOCK_LOG" ]
   done
 }
@@ -204,9 +206,17 @@ EOF
     run env PATH="$MOCK_BIN:$PATH" MOCK_BRANCH="feat/example" MOCK_DEFAULT="main" \
       MOCK_MERGED_PRS="mergedsha mergecommit" "$variable" MOCK_LOG="$MOCK_LOG" "$SCRIPT"
 
-    [ "$status" -ne 0 ]
+    [ "$status" -ne 0 ] || { echo "pushed despite $variable"; false; }
     [ ! -e "$MOCK_LOG" ]
   done
+}
+
+@test "git-push-topic rejects a merged PR continuation when the PR has no merge result" {
+  run env PATH="$MOCK_BIN:$PATH" MOCK_BRANCH="feat/example" MOCK_DEFAULT="main" \
+    MOCK_MERGED_PRS="mergedsha" MOCK_MERGED_ANCESTOR=yes MOCK_LOG="$MOCK_LOG" "$SCRIPT"
+
+  [ "$status" -ne 0 ]
+  [ ! -e "$MOCK_LOG" ]
 }
 
 @test "git-push-topic fails closed without the GitHub CLI" {

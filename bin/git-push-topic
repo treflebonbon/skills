@@ -72,35 +72,35 @@ else
       break
     fi
   done <<<"$remote_head"
-  # A shallow history can report "not an ancestor" for a commit that is one, so it cannot be trusted.
+  # is_ancestor <commit> <descendant>: succeeds when <commit> is in <descendant>'s history. A commit this
+  # clone does not have cannot be in it. Any other failure is not an answer, so stop instead of guessing.
+  is_ancestor() {
+    local status=0
+    "$git_command" cat-file -e "$1^{commit}" 2>/dev/null || return 1
+    "$git_command" merge-base --is-ancestor "$1" "$2" || status=$?
+    case "$status" in
+    0 | 1) return "$status" ;;
+    esac
+    echo "ERROR: cannot compare $1 with $2" >&2
+    exit 1
+  }
+
+  # The tip is fetched so its history is available to is_ancestor. A shallow history can report
+  # "not an ancestor" for a commit that is one, so it cannot be trusted.
   if [ -z "$default_sha" ] || [ "$("$git_command" rev-parse --is-shallow-repository)" != false ] ||
     ! "$git_command" fetch -q origin "$default_ref"; then
     echo "ERROR: cannot compare HEAD with origin/$default_branch" >&2
     exit 1
   fi
-  ancestor_status=0
-  "$git_command" merge-base --is-ancestor HEAD "$default_sha" || ancestor_status=$?
-  case "$ancestor_status" in
-  0)
+  if is_ancestor HEAD "$default_sha"; then
     echo "ERROR: $branch has no commits beyond origin/$default_branch; check that the last commit succeeded" >&2
     exit 1
-    ;;
-  1) ;;
-  *)
-    echo "ERROR: cannot compare HEAD with origin/$default_branch" >&2
-    exit 1
-    ;;
-  esac
+  fi
 
   # Once a PR from this branch is merged, new commits on it never reach the default branch.
   # Reject a HEAD that contains the merged PR's head but not its merge result: that is a continuation
   # of the old branch. A same-named branch cut from the default branch afterwards contains the merge
   # result (a squash or rebase merge result is new, a merge commit keeps the old head reachable).
-  # An object this clone does not have cannot be in HEAD's history. Any other failure is not an answer.
-  is_ancestor() {
-    "$git_command" cat-file -e "$1^{commit}" 2>/dev/null || return 1
-    "$git_command" merge-base --is-ancestor "$1" HEAD
-  }
   cannot_check_merged_prs() {
     echo "ERROR: cannot check merged PRs for $branch" >&2
     exit 1
@@ -118,26 +118,14 @@ else
   [ "$(printf '%s\n' "$merged_prs" | wc -l)" -lt 1000 ] || cannot_check_merged_prs
   while read -r merged_head merge_commit; do
     [ -n "$merged_head" ] || continue
-    if [ -n "$merge_commit" ]; then
-      ancestor_status=0
-      is_ancestor "$merge_commit" || ancestor_status=$?
-      case "$ancestor_status" in
-      0) continue ;;
-      1) ;;
-      *) cannot_check_merged_prs ;;
-      esac
+    if [ -n "$merge_commit" ] && is_ancestor "$merge_commit" HEAD; then
+      continue
     fi
-    ancestor_status=0
-    is_ancestor "$merged_head" || ancestor_status=$?
-    case "$ancestor_status" in
-    0)
+    if is_ancestor "$merged_head" HEAD; then
       echo "ERROR: a PR from $branch is already merged; new commits would not reach $default_branch." >&2
       echo "Create a new branch from origin/$default_branch and cherry-pick them." >&2
       exit 1
-      ;;
-    1) ;;
-    *) cannot_check_merged_prs ;;
-    esac
+    fi
   done <<<"$merged_prs"
 fi
 
