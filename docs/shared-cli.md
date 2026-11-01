@@ -36,7 +36,7 @@ environment = git_environment()
 
 | CLI | 実行時依存 | 契約 |
 | --- | --- | --- |
-| `git-push-topic` | Git、Bash | 引数なしで現在 branch と `origin` の default branch を確認する。detached HEAD・default branch・default branch 不明時は拒否し、topic branch だけ `git push -u origin HEAD` する。force option は受け付けない。 |
+| `git-push-topic` | Git、Bash、GitHub CLI `gh` と、その通常の認証設定（`origin` の PR を読める権限） | 引数なしで現在 branch と `origin` の default branch を確認する。detached HEAD・default branch・default branch 不明時は拒否し、topic branch だけ `git push -u origin HEAD` する。force option は受け付けない。push の前に default branch の tip を fetch し（ローカルの Git metadata を更新する）、HEAD が tip と同一またはその祖先（default の先に commit がない）なら拒否する。同じ head branch の merge 済み PR を `origin` の repository に固定して全件取得し、HEAD が旧 head を含み merge 結果を含まない（merge 済み branch の続き）場合も拒否する。merge 結果を含む同名 branch と、旧 head を含まない同名 branch は通す。fetch・shallow repository・祖先判定・`gh`・PR 取得（上限 1000 件で打ち切りの可能性があるとき）のいずれかで判定できなければ拒否する。追加の検査は topic branch の経路だけで、`git-push-reviewed` は実行しない。 |
 | `git-push-reviewed` | Git、Bash | 隣接する `git-push-topic` を絶対 path で読み込む実行可能 entrypoint で、別実装を持たない。起動 basename を保ち、現在 branch が `origin` の default branch と一致する場合に限り通常 push を行う。呼び出し前に必要な人間の承認は caller が確認する。 |
 | `gh-review-thread` | Python 3.9+、GitHub CLI `gh` と、その通常の認証設定 | `inspect` は PR / review thread を読む。`reply-resolve` は対象 PR、thread、commit、返信内容を検証してから返信し、その後に resolve する。返信に失敗した場合は resolve しない。 |
 | `orca-send` | Python 3.9+、選択済み Orca CLI | UTF-8 本文ファイルを最大 8 KiB まで読み、空本文・NUL・不正 UTF-8・重複 body 引数を拒否する。`--body` は shell を通さず literal のまま一度だけ渡す。本文は Orca CLI の argv に入るため、同一 host 上の process から見える可能性がある。 |

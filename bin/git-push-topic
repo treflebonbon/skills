@@ -62,6 +62,83 @@ else
     echo "ERROR: refusing to push default branch: $branch" >&2
     exit 1
   fi
+
+  # A commit that failed in a hook leaves HEAD equal to the default branch; refuse to publish it.
+  # The local origin/<default> can be stale or missing, so compare against the tip ls-remote reported.
+  default_sha=""
+  while IFS=$' \t' read -r key value _; do
+    if [ "$key" != "ref:" ] && [ "$value" = "HEAD" ]; then
+      default_sha="$key"
+      break
+    fi
+  done <<<"$remote_head"
+  # A shallow history can report "not an ancestor" for a commit that is one, so it cannot be trusted.
+  if [ -z "$default_sha" ] || [ "$("$git_command" rev-parse --is-shallow-repository)" != false ] ||
+    ! "$git_command" fetch -q origin "$default_ref"; then
+    echo "ERROR: cannot compare HEAD with origin/$default_branch" >&2
+    exit 1
+  fi
+  ancestor_status=0
+  "$git_command" merge-base --is-ancestor HEAD "$default_sha" || ancestor_status=$?
+  case "$ancestor_status" in
+  0)
+    echo "ERROR: $branch has no commits beyond origin/$default_branch; check that the last commit succeeded" >&2
+    exit 1
+    ;;
+  1) ;;
+  *)
+    echo "ERROR: cannot compare HEAD with origin/$default_branch" >&2
+    exit 1
+    ;;
+  esac
+
+  # Once a PR from this branch is merged, new commits on it never reach the default branch.
+  # Reject a HEAD that contains the merged PR's head but not its merge result: that is a continuation
+  # of the old branch. A same-named branch cut from the default branch afterwards contains the merge
+  # result (a squash or rebase merge result is new, a merge commit keeps the old head reachable).
+  # An object this clone does not have cannot be in HEAD's history. Any other failure is not an answer.
+  is_ancestor() {
+    "$git_command" cat-file -e "$1^{commit}" 2>/dev/null || return 1
+    "$git_command" merge-base --is-ancestor "$1" HEAD
+  }
+  cannot_check_merged_prs() {
+    echo "ERROR: cannot check merged PRs for $branch" >&2
+    exit 1
+  }
+  gh_command="$(type -P gh || true)"
+  [ -n "$gh_command" ] || cannot_check_merged_prs
+  case "$gh_command" in
+  /*) ;;
+  *) gh_command="$PWD/$gh_command" ;;
+  esac
+  # Name origin's repository explicitly so GH_REPO or a fork's upstream default cannot redirect the query.
+  origin_url="$("$git_command" remote get-url origin)" || cannot_check_merged_prs
+  merged_prs="$("$gh_command" pr list --repo "$origin_url" --head "$branch" --state merged --limit 1000 --json headRefOid,mergeCommit --jq '.[] | "\(.headRefOid) \(.mergeCommit.oid // "")"')" || cannot_check_merged_prs
+  # A full page may have dropped older PRs.
+  [ "$(printf '%s\n' "$merged_prs" | wc -l)" -lt 1000 ] || cannot_check_merged_prs
+  while read -r merged_head merge_commit; do
+    [ -n "$merged_head" ] || continue
+    if [ -n "$merge_commit" ]; then
+      ancestor_status=0
+      is_ancestor "$merge_commit" || ancestor_status=$?
+      case "$ancestor_status" in
+      0) continue ;;
+      1) ;;
+      *) cannot_check_merged_prs ;;
+      esac
+    fi
+    ancestor_status=0
+    is_ancestor "$merged_head" || ancestor_status=$?
+    case "$ancestor_status" in
+    0)
+      echo "ERROR: a PR from $branch is already merged; new commits would not reach $default_branch." >&2
+      echo "Create a new branch from origin/$default_branch and cherry-pick them." >&2
+      exit 1
+      ;;
+    1) ;;
+    *) cannot_check_merged_prs ;;
+    esac
+  done <<<"$merged_prs"
 fi
 
 exec "$git_command" push -u origin HEAD
