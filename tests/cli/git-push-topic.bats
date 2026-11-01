@@ -76,8 +76,10 @@ set -euo pipefail
   printf 'unexpected gh invocation: %s\n' "$*" >&2
   exit 2
 }
-if [ "${MOCK_GH_TRUNCATED:-}" = 1 ]; then
-  yes 'othersha othermerge' | head -n 1000
+if [ -n "${MOCK_GH_LINES:-}" ]; then
+  for ((line = 0; line < MOCK_GH_LINES; line++)); do
+    printf 'mergedsha mergecommit\n'
+  done
 elif [ -n "${MOCK_MERGED_PRS:-}" ]; then
   printf '%s\n' "$MOCK_MERGED_PRS"
 fi
@@ -160,7 +162,10 @@ EOF
     run env PATH="$MOCK_BIN:$PATH" MOCK_BRANCH="feat/example" MOCK_DEFAULT="main" \
       "$variable" MOCK_LOG="$MOCK_LOG" "$SCRIPT"
 
-    [ "$status" -ne 0 ] || { echo "pushed despite $variable"; false; }
+    [ "$status" -ne 0 ] || {
+      echo "pushed despite $variable"
+      false
+    }
     [ ! -e "$MOCK_LOG" ]
   done
 }
@@ -202,13 +207,29 @@ EOF
 }
 
 @test "git-push-topic fails closed when merged PRs cannot be checked" {
-  for variable in MOCK_GH_FAILS=1 MOCK_GH_TRUNCATED=1 MOCK_MERGED_ANCESTOR=error MOCK_MERGE_COMMIT_ANCESTOR=error; do
+  for variable in MOCK_GH_FAILS=1 MOCK_GH_LINES=1000 MOCK_MERGED_ANCESTOR=error MOCK_MERGE_COMMIT_ANCESTOR=error; do
     run env PATH="$MOCK_BIN:$PATH" MOCK_BRANCH="feat/example" MOCK_DEFAULT="main" \
       MOCK_MERGED_PRS="mergedsha mergecommit" "$variable" MOCK_LOG="$MOCK_LOG" "$SCRIPT"
 
-    [ "$status" -ne 0 ] || { echo "pushed despite $variable"; false; }
+    [ "$status" -ne 0 ] || {
+      echo "pushed despite $variable"
+      false
+    }
+    [[ "$output" == *"cannot "* ]] || {
+      echo "no refusal message for $variable: $output"
+      false
+    }
     [ ! -e "$MOCK_LOG" ]
   done
+}
+
+@test "git-push-topic accepts a merged PR list one short of the page limit" {
+  # A full page may have dropped older PRs; one entry fewer is complete, so the same list is not refused for its size.
+  run env PATH="$MOCK_BIN:$PATH" MOCK_BRANCH="feat/example" MOCK_DEFAULT="main" \
+    MOCK_GH_LINES=999 MOCK_LOG="$MOCK_LOG" "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  [ "$(cat "$MOCK_LOG")" = "push -u origin HEAD" ]
 }
 
 @test "git-push-topic rejects a merged PR continuation when the PR has no merge result" {
