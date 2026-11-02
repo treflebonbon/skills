@@ -2,7 +2,11 @@
 
 この文書は検証境界と記録方法の入口です。最終 candidate の source SHA、payload hash、実 CLI の version、session 証跡は dotfiles の [Issue #540](https://github.com/treflebonbon/dotfiles/issues/540) に紐づく共有 QA report と PR 記録へ置きます。受入時の結果をこの repository へ追記して source SHA を変える運用はしません。
 
-## Candidate 0.2.3 の再受入境界
+## Candidate 0.2.4 の再受入境界
+
+候補版 `0.2.4` では、`0.2.3` の後にこの repository へ入った変更を再確認します。`git-push-topic` は topic branch の push 前に、HEAD が default branch の tip と同一またはその祖先の場合と、merge 済み PR の続きの場合を拒否し、判定できないときも拒否します。そのため実行時依存に GitHub CLI `gh` が加わります（契約は `docs/shared-cli.md`）。あわせて、シェルの整形・静的検査（`npm run lint:sh`）、lefthook の git hook、判断が要る規約（`CODING_STANDARDS.md`）、版の正を `plugin.json` に一本化したテストを加えました。0.2.3 の導入・session 証跡は 0.2.4 の結果へ転用しません。結果は Issue #540 と PR の共有 QA report に記録します。
+
+## Candidate 0.2.3 の受入境界
 
 候補版 `0.2.3` では、dotfiles から未移管だった機能契約 test を公開側へ揃えます。既存の root / CLI Bats は従来 Python bridge 経由で `npm test` に含まれており、その成功を保ったまま、新しい suite と合わせて `test:bats` から全 Bats を直接実行する入口へ統一します。重複する bridge を整理し、新しい source SHA で全受入境界を再確認します。結果は Issue #540 と PR の共有 QA report に記録します。
 

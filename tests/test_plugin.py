@@ -26,7 +26,7 @@ EXPECTED_SKILLS = {
 }
 # plugin.json is the single source of the version; the other manifests and the docs must follow it.
 CANDIDATE_VERSION = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))["version"]
-PREVIOUS_CANDIDATE_VERSION = "0.2.2"
+PREVIOUS_CANDIDATE_VERSION = "0.2.3"
 RUN_PLUGIN_CLI_E2E = os.environ.get("TREFLEBONBON_PLUGIN_CLI_E2E") == "1"
 
 
