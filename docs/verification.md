@@ -38,13 +38,25 @@ npm run lint
 npm run lint:sh
 ```
 
-`lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトだけです（`-S warning` 以上。info と style は見ません）。hook や CI には接続しておらず、手動で実行します。
+`lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトだけです（`-S warning` 以上。info と style は見ません）。対象のファイルを commit するときは、pre-commit hook が実行します。CI はありません。
 
 他のシェルファイルは対象外です。そのうち次の Bats 7 ファイルは、`.editorconfig` の `indent_size = 2` で `shfmt -l` に差分が出ることを確認しました。対象へ足すときは、先に整形を揃えます。`peer-peer-request`、`peer-run-evidence`、`peer-skills-contracts`、`devshell-env`、`isolated-github`、`raw-codex-integration`、`secret-isolation-worktree`。他の対象外のファイルは、差分の有無を確認していません。
 
 `npm test` は Python の unittest discovery、dogfood / domain-modeling-studio / WSL2 browser package の Node suite、dogfood / WSL2 browser package / raw Codex fixture、および公開 `tests/*.bats` と `tests/cli/*.bats` を実行します。通常 suite は実 browser suite を起動しません。`npm run test:plugin-cli` は3 CLI すべてを要求する install smoke test で、モデルを呼ぶ実 session の証拠にはなりません。
 
 `tests/raw-codex/raw-managed-profile.bats` の「managed host grants and ancestor path rules stay scoped in raw namespace」は、Claude Code の worktree 隔離 session（Bats の一時 directory が `/tmp/nix-shell.*/` 配下）で失敗し、単独実行でも再現することを確認しました。sandbox 内の task が `mkdir: cannot create directory …/raw/home: Read-only file system` で終了します（confirmed）。原因の特定と、この環境の外で成功するかは未確認です。`npm test` の失敗にこのテスト 1 件だけが現れる場合は、環境依存の可能性が高い（推定）ので、通常の端末で単独実行して切り分けます。
+
+## git hook
+
+hook は `lefthook.yml` が定義し、`lefthook install` で入ります。hook は共有の Git dir に入るため、同じ repo の全 worktree に効きます。`shfmt`、`shellcheck`、`gitleaks`、`cog`、Bats は devShell が提供します。
+
+| hook       | job                    | 内容                                                                                                                                                                                                                                   |
+| ---------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| pre-commit | `format`               | `npm run format:check`。oxfmt が無ければ `npm ci --prefix development` を促して失敗します。新しい clone や worktree では先に導入します。                                                                                               |
+| pre-commit | `shell`                | `npm run lint:sh`。`bin/*`、`tests/cli/git-push-topic.bats`、`.editorconfig`、`package.json` を変更したときだけ動きます。                                                                                                              |
+| pre-commit | `gitleaks`             | staged の変更に秘密情報がないことを確認します。                                                                                                                                                                                        |
+| pre-push   | `tests`                | `npm run test:python` と公開 Bats（`tests/*.bats` と `tests/cli/*.bats`）。実測で約 2 分半です。raw Codex・browser・Node の suite は含みません（前節の sandbox 依存の失敗を避けるためです）。全 suite は `npm test` で別に実行します。 |
+| commit-msg | `conventional-commits` | `cog verify` で Conventional Commits を確認します。merge commit は対象外です。                                                                                                                                                         |
 
 ## 以前の version 0.1.0 の記録
 

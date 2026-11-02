@@ -1,0 +1,32 @@
+glob_matcher: doublestar
+
+# 道具（shfmt・shellcheck・gitleaks・cog・Bats）は devShell が提供する。
+# oxfmt は development/ の依存で動くので、新しい clone や worktree では先に導入する。
+pre-commit:
+  parallel: true
+  jobs:
+    - name: format
+      run: >-
+        test -x development/node_modules/.bin/oxfmt || { echo 'format: oxfmt がない。npm ci --prefix development を実行してから commit する' >&2; exit 1; } && npm run format:check
+    - name: shell
+      run: npm run lint:sh
+      # lint:sh の対象と揃える。対象を広げるときはここも広げる。
+      glob:
+        - "bin/*"
+        - "tests/cli/git-push-topic.bats"
+        - ".editorconfig"
+        - "package.json"
+    - name: gitleaks
+      run: gitleaks protect --staged -v
+
+# 全 suite（npm test）の代わりに、sandbox に依存しない公開 suite だけを通す。
+# raw Codex・browser・Node の suite は、docs/verification.md の手順で別に実行する。
+pre-push:
+  jobs:
+    - name: tests
+      run: npm run test:python && bats tests/*.bats tests/cli/*.bats
+
+commit-msg:
+  jobs:
+    - name: conventional-commits
+      run: cog verify --ignore-merge-commits --file {1}
