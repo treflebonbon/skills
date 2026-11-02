@@ -1,0 +1,10 @@
+root = true
+
+# shfmt reads this file when it is run without formatting flags.
+[bin/*]
+indent_style = space
+indent_size = 2
+
+[*.{sh,bats}]
+indent_style = space
+indent_size = 2

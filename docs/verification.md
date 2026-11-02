@@ -28,16 +28,21 @@ validator は manifest の受理、mock/fixture は指定分岐の挙動、公�
 
 ## 再実行する品質入口
 
-開発依存として Node.js 20.19+、npm、Python 3、Bats Core 1.x、`jq` を用意します。
+開発依存として Node.js 20.19+、npm、Python 3、Bats Core 1.x、`jq` を用意します。`npm run lint:sh` には `shfmt` と `shellcheck` も要ります。
 
 ```sh
 npm ci --prefix development
 npm run format:check
 npm test
 npm run lint
+npm run lint:sh
 ```
 
+`lint:sh` の対象は `bin/` のシェルスクリプトと `tests/cli/git-push-topic.bats` です。`tests/` の他の Bats 7 ファイル（`peer-peer-request`、`peer-run-evidence`、`peer-skills-contracts`、`devshell-env`、`isolated-github`、`raw-codex-integration`、`secret-isolation-worktree`）は、`.editorconfig` の `indent_size = 2` で整形すると差分が出るため、まだ対象外です。整形を揃えたファイルから対象へ足します。
+
 `npm test` は Python の unittest discovery、dogfood / domain-modeling-studio / WSL2 browser package の Node suite、dogfood / WSL2 browser package / raw Codex fixture、および公開 `tests/*.bats` と `tests/cli/*.bats` を実行します。通常 suite は実 browser suite を起動しません。`npm run test:plugin-cli` は3 CLI すべてを要求する install smoke test で、モデルを呼ぶ実 session の証拠にはなりません。
+
+`tests/raw-codex/raw-managed-profile.bats` の「managed host grants and ancestor path rules stay scoped in raw namespace」は、Claude Code の worktree 隔離 session（Bats の一時 directory が `/tmp/nix-shell.*/` 配下）で失敗し、単独実行でも再現することを確認しました。sandbox 内の task が `mkdir: cannot create directory …/raw/home: Read-only file system` で終了します（confirmed）。原因の特定と、この環境の外で成功するかは未確認です。`npm test` の失敗にこのテスト 1 件だけが現れる場合は、変更の影響ではなく環境依存を疑い、通常の端末で単独実行して切り分けます。
 
 ## 以前の version 0.1.0 の記録
 
