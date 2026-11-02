@@ -1,20 +1,10 @@
 # 検証記録の入口
 
-この文書は検証境界と記録方法の入口です。最終 candidate の source SHA、payload hash、実 CLI の version、session 証跡は dotfiles の [Issue #540](https://github.com/treflebonbon/dotfiles/issues/540) に紐づく共有 QA report と PR 記録へ置きます。受入時の結果をこの repository へ追記して source SHA を変える運用はしません。
+この文書は検証境界と記録方法の入口です。[受入](../GLOSSARY.md)した release PR の head の source SHA、payload hash、実 CLI の version、session 証跡は dotfiles の [Issue #540](https://github.com/treflebonbon/dotfiles/issues/540) に紐づく共有 QA report に記録します。受入の結果をこの repository へ追記する運用はしません（追記すると source SHA が変わるためです）。
 
-## Candidate 0.2.4 の再受入境界
+## 受入で確認すること
 
-候補版 `0.2.4` では、`0.2.3` の後にこの repository へ入った変更を再確認します。`git-push-topic` は topic branch の push 前に、HEAD が default branch の tip と同一またはその祖先の場合と、merge 済み PR の続きの場合を拒否し、判定できないときも拒否します。そのため実行時依存に GitHub CLI `gh` が加わります（契約は `docs/shared-cli.md`）。あわせて、シェルの整形・静的検査（`npm run lint:sh`）、lefthook の git hook、判断が要る規約（`CODING_STANDARDS.md`）、版の正を `plugin.json` に一本化したテストを加えました。0.2.3 の導入・session 証跡は 0.2.4 の結果へ転用しません。結果は Issue #540 と PR の共有 QA report に記録します。
-
-## Candidate 0.2.3 の受入境界
-
-候補版 `0.2.3` では、dotfiles から未移管だった機能契約 test を公開側へ揃えます。既存の root / CLI Bats は従来 Python bridge 経由で `npm test` に含まれており、その成功を保ったまま、新しい suite と合わせて `test:bats` から全 Bats を直接実行する入口へ統一します。重複する bridge を整理し、新しい source SHA で全受入境界を再確認します。結果は Issue #540 と PR の共有 QA report に記録します。
-
-## Candidate 0.2.2 の受入境界
-
-候補版 `0.2.2` では、以下を別々に確認します。
-
-公開済み `0.2.1` は変更せず、Claude Code 2.1.312 の official local marketplace install で確認した開発依存の自動展開を修正します。Claude Code は plugin root の `package.json` と `package-lock.json` にある Node.js 依存を導入時に install します（[公式仕様](https://code.claude.com/docs/en/plugins/loading#node-js-package-dependencies)）。そのため formatter の package と lockfile を `development/` へ移し、runtime plugin root に開発依存と lockfile を置かない構成にします。0.2.1 の導入・session 証跡は 0.2.2 の結果へ転用しません。
+受入では、以下を別々に確認します。版ごとの受入の結果は、その版の受入を行った時点の source SHA に対するものです。前の版の導入・session 証跡は、次の版の結果へ転用しません。
 
 | 境界                 | 確認内容                                                                                                                        | 成功扱いに必要な証拠                                                             |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -42,7 +32,7 @@ npm run lint
 npm run lint:sh
 ```
 
-`lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトだけです（`-S warning` 以上。info と style は見ません）。対象のファイルを commit するときは、pre-commit hook が実行します。CI はありません。
+`lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトだけです（`-S warning` 以上。info と style は見ません）。対象のファイルを commit するときは、pre-commit hook が実行します。CI では走りません。
 
 他のシェルファイルは対象外です。そのうち次の Bats 7 ファイルは、`.editorconfig` の `indent_size = 2` で `shfmt -l` に差分が出ることを確認しました。対象へ足すときは、先に整形を揃えます。`peer-peer-request`、`peer-run-evidence`、`peer-skills-contracts`、`devshell-env`、`isolated-github`、`raw-codex-integration`、`secret-isolation-worktree`。他の対象外のファイルは、差分の有無を確認していません。
 
@@ -50,14 +40,17 @@ npm run lint:sh
 
 `tests/raw-codex/raw-managed-profile.bats` の「managed host grants and ancestor path rules stay scoped in raw namespace」は、Claude Code の worktree 隔離 session（Bats の一時 directory が `/tmp/nix-shell.*/` 配下）で失敗し、単独実行でも再現することを確認しました。sandbox 内の task が `mkdir: cannot create directory …/raw/home: Read-only file system` で終了します（confirmed）。原因の特定と、この環境の外で成功するかは未確認です。`npm test` の失敗にこのテスト 1 件だけが現れる場合は、環境依存の可能性が高い（推定）ので、通常の端末で単独実行して切り分けます。
 
-## 版と tag
+## リリース
 
-版は `plugin.json` を正とし、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`、`package.json` を同じ値にします。`tests/test_plugin.py` が、これらと README、本書の「候補版」の記述が `plugin.json` の版に揃っているかを検査します。版を上げるときは `plugin.json` から変更し、テストが失敗するファイルを直します。テストが示さない手順が 2 つあります。
+リリースは release-please が自動で release PR を作り、人が[受入](../GLOSSARY.md)して merge する流れです。判断の経緯は [ADR-0001](adr/0001-automate-releases-with-release-please.md) にあります。
 
-- `tests/test_plugin.py` の `PREVIOUS_CANDIDATE_VERSION` を、上げる前の版へ手で更新します。固定値なので、直し忘れてもテストは失敗しません。
-- 本書に、新しい版の見出し `## Candidate <版> の再受入境界` と、`候補版 \`<版>\``を含む節を書きます。上げる前の版の節は、見出しを`## Candidate <前の版> の受入境界`（「再」を付けない形）にして残します。テストが両方の見出しを検査します。
+1. `main` に版へ影響する変更（`feat`、`fix`、破壊的変更）が merge（squash）されると、release-please が release PR（`chore(main): release <版>`）を作ります。版の更新と `CHANGELOG.md` の更新（初回は新規作成）が含まれます。`chore` や `docs` だけでは、release PR は作られません。
+2. release PR の head で、上の「受入で確認すること」を行い、結果を [Issue #540](https://github.com/treflebonbon/dotfiles/issues/540) に記録します。
+3. 受入が済んだら release PR を merge します（これがリリースです）。tag `v<版>` と GitHub release が自動で作られます。
 
-受入した最終 source SHA に、人が tag（`v<版>`）を付けます。自動化（release-please や `cog bump`）は、版を上げる頻度が増えるか更新漏れが増えるまで導入しません。
+版は、1.0 になる前は `feat` と `fix` で patch、破壊的変更で minor が上がります。PR タイトルは Conventional Commits にします（CI の `conventional-commits` が検査します）。版の場所 4 つ（`plugin.json`、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`、`package.json`）は release-please が更新するので、手で版を上げません。`tests/test_plugin.py` が、4 つが一致し、`release-please-config.json` が 4 つすべてを更新対象にしていることを検査します。
+
+release PR を作るには、リポジトリ設定「Allow GitHub Actions to create and approve pull requests」（Settings → Actions → General → Workflow permissions）が有効である必要があります。
 
 ## git hook
 
@@ -67,13 +60,14 @@ hook は `lefthook.yml` が定義し、`lefthook install` で入ります。hook
 | ---------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | pre-commit | `format`               | `npm run format:check`。oxfmt が無ければ `npm ci --prefix development` を促して失敗します。新しい clone や worktree では先に導入します。                                                                                                                                                                                                           |
 | pre-commit | `shell`                | `npm run lint:sh`。`bin/**`、`tests/cli/git-push-topic.bats`、`.editorconfig`、`package.json` を変更したときだけ動きます。                                                                                                                                                                                                                         |
+| pre-commit | `workflows`            | `.github/workflows/*.{yaml,yml}` を変更したときだけ、`pinact`（action の SHA 固定）、`actionlint`、`ghalint` を順に実行します。                                                                                                                                                                                                                    |
 | pre-commit | `gitleaks`             | staged の変更に秘密情報がないことを確認します。                                                                                                                                                                                                                                                                                                    |
 | pre-push   | `tests`                | `npm run test:python` と公開 Bats（`tests/*.bats` と `tests/cli/*.bats`）。実測で約 2 分半です。raw Codex・browser・Node の suite は含みません（前節の sandbox 依存の失敗を避けるためです）。全 suite は `npm test` で別に実行します。hook が設定する `GIT_DIR` と `GIT_PREFIX` は、テストの fixture の Git が実 repo を向くため外して実行します。 |
 | commit-msg | `conventional-commits` | `cog verify` で Conventional Commits を確認します。merge commit は対象外です。                                                                                                                                                                                                                                                                     |
 
 ## 以前の version 0.1.0 の記録
 
-次の結果は rop だけを収録した `0.1.0` の記録です。`0.2.2` の11件の導入・呼出し・資源解決の受入証拠へ転用しません。旧 CLI session は当時の実行確認としてのみ保持します。
+次の結果は rop だけを収録した `0.1.0` の記録です。それ以降の版の導入・呼出し・資源解決の受入証拠へ転用しません。旧 CLI session は当時の実行確認としてのみ保持します。
 
 | 境界                                           | 旧結果                                                    |
 | ---------------------------------------------- | --------------------------------------------------------- |
@@ -84,4 +78,4 @@ hook は `lefthook.yml` が定義し、`lefthook install` で入ります。hook
 | Claude Code / Codex / Antigravity new session  | 旧 rop 版で名前付き呼出しと Rust reference の読取りを確認 |
 | Antigravity App/IDE                            | 未確認                                                    |
 
-旧 session は既存の通常認証を runtime から利用し、資格情報を直接取得・複製・出力しませんでした。旧 report と一時実行記録は現行 candidate の最終 source SHA ではありません。
+旧 session は既存の通常認証を runtime から利用し、資格情報を直接取得・複製・出力しませんでした。旧 report と一時実行記録は、現行の受入の source SHA ではありません。
