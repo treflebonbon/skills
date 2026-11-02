@@ -25,7 +25,7 @@ EXPECTED_SKILLS = {
     "worktree-gc",
 }
 # plugin.json is the single source of the version; the other manifests and the docs must follow it.
-CANDIDATE_VERSION = json.loads((ROOT / "plugin.json").read_text())["version"]
+CANDIDATE_VERSION = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))["version"]
 PREVIOUS_CANDIDATE_VERSION = "0.2.2"
 RUN_PLUGIN_CLI_E2E = os.environ.get("TREFLEBONBON_PLUGIN_CLI_E2E") == "1"
 
@@ -68,17 +68,20 @@ class PluginPackageContractTest(unittest.TestCase):
             self.assertRegex(frontmatter.group(1), r"(?m)^description:\s*\S")
 
     def test_every_manifest_and_package_uses_candidate_version(self):
-        self.assertRegex(CANDIDATE_VERSION, r"^\d+\.\d+\.\d+$")
-        claude_manifest = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())
+        # SemVer core: ASCII digits only, no leading zeros.
+        self.assertRegex(CANDIDATE_VERSION, r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
+        claude_manifest = json.loads(
+            (ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8")
+        )
         with self.subTest(path=".claude-plugin/plugin.json"):
             self.assertEqual(claude_manifest["version"], CANDIDATE_VERSION)
 
-        marketplace = json.loads((ROOT / ".claude-plugin/marketplace.json").read_text())
+        marketplace = json.loads((ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8"))
         self.assertEqual(len(marketplace["plugins"]), 1)
         with self.subTest(path=".claude-plugin/marketplace.json"):
             self.assertEqual(marketplace["plugins"][0]["version"], CANDIDATE_VERSION)
 
-        codex_marketplace = json.loads((ROOT / ".agents/plugins/marketplace.json").read_text())
+        codex_marketplace = json.loads((ROOT / ".agents/plugins/marketplace.json").read_text(encoding="utf-8"))
         self.assertEqual(len(codex_marketplace["plugins"]), 1)
         codex_entry = codex_marketplace["plugins"][0]
         self.assertEqual(codex_entry["source"], {"source": "local", "path": "./"})
@@ -88,19 +91,19 @@ class PluginPackageContractTest(unittest.TestCase):
         )
         self.assertEqual(codex_entry["category"], "Productivity")
 
-        package = json.loads((ROOT / "package.json").read_text())
+        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         with self.subTest(path="package.json"):
             self.assertEqual(package["version"], CANDIDATE_VERSION)
 
     def test_formatter_dependencies_live_outside_the_plugin_root(self):
-        package = json.loads((ROOT / "package.json").read_text())
+        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         self.assertNotIn("devDependencies", package)
         self.assertFalse((ROOT / "package-lock.json").exists())
 
-        development = json.loads((ROOT / "development/package.json").read_text())
+        development = json.loads((ROOT / "development/package.json").read_text(encoding="utf-8"))
         self.assertTrue(development["private"])
         self.assertEqual(development["devDependencies"], {"oxfmt": "0.67.0"})
-        lock = json.loads((ROOT / "development/package-lock.json").read_text())
+        lock = json.loads((ROOT / "development/package-lock.json").read_text(encoding="utf-8"))
         self.assertEqual(lock["name"], development["name"])
         self.assertEqual(lock["version"], development["version"])
         self.assertEqual(lock["packages"][""]["name"], development["name"])
@@ -111,7 +114,7 @@ class PluginPackageContractTest(unittest.TestCase):
         self.assertEqual(lock["packages"]["node_modules/oxfmt"]["version"], "0.67.0")
 
     def test_quality_commands_and_docs_install_the_development_formatter(self):
-        package = json.loads((ROOT / "package.json").read_text())
+        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         format_targets = package["scripts"]["format"].split()[1:]
         format_check_targets = package["scripts"]["format:check"].split()[2:]
         self.assertEqual(format_check_targets, format_targets)
@@ -459,7 +462,7 @@ class OfficialPluginTest(unittest.TestCase):
         ))
         installed = Path(result["installedPath"])
         self.assertEqual(
-            json.loads((installed / "plugin.json").read_text())["version"],
+            json.loads((installed / "plugin.json").read_text(encoding="utf-8"))["version"],
             CANDIDATE_VERSION,
         )
         installed_skills = {
