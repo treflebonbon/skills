@@ -12,7 +12,7 @@ pre-commit:
       run: npm run lint:sh
       # lint:sh の対象と揃える。対象を広げるときはここも広げる。
       glob:
-        - "bin/*"
+        - "bin/**"
         - "tests/cli/git-push-topic.bats"
         - ".editorconfig"
         - "package.json"
@@ -30,4 +30,4 @@ pre-push:
 commit-msg:
   jobs:
     - name: conventional-commits
-      run: cog verify --ignore-merge-commits --file {1}
+      run: cog verify --ignore-merge-commits --file "{1}"
