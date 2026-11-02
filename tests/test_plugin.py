@@ -34,7 +34,9 @@ def is_local_environment_name(name):
 
 
 def resolve_json_path(document, path):
-    # Only the "$.key" and "[index]" steps the release config uses.
+    # Only the "$.key" and "[index]" steps the release config uses; anything else is an error, not a skip.
+    if not re.fullmatch(r"\$(?:\.[A-Za-z_]+|\[\d+\])+", path):
+        raise ValueError(f"unsupported JSON path: {path}")
     value = document
     for key, index in re.findall(r"\.([A-Za-z_]+)|\[(\d+)\]", path):
         value = value[key] if key else value[int(index)]

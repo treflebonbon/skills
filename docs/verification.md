@@ -44,11 +44,11 @@ npm run lint:sh
 
 リリースは release-please が自動で release PR を作り、人が[受入](../GLOSSARY.md)して merge する流れです。判断の経緯は [ADR-0001](adr/0001-automate-releases-with-release-please.md) にあります。
 
-1. `main` に merge（squash）されると、release-please が release PR（`chore(main): release <版>`）を作ります。版の更新と `CHANGELOG.md` の更新が含まれます。
+1. `main` に版へ影響する変更（`feat`、`fix`、破壊的変更）が merge（squash）されると、release-please が release PR（`chore(main): release <版>`）を作ります。版の更新と `CHANGELOG.md` の更新（初回は新規作成）が含まれます。`chore` や `docs` だけでは、release PR は作られません。
 2. release PR の head で、上の「受入で確認すること」を行い、結果を [Issue #540](https://github.com/treflebonbon/dotfiles/issues/540) に記録します。
 3. 受入が済んだら release PR を merge します（これがリリースです）。tag `v<版>` と GitHub release が自動で作られます。
 
-版は、1.0 になる前は `feat` で patch、破壊的変更で minor が上がります。PR タイトルは Conventional Commits にします（CI の `conventional-commits` が検査します）。版の場所 4 つ（`plugin.json`、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`、`package.json`）は release-please が更新するので、手で版を上げません。`tests/test_plugin.py` が、4 つが一致し、`release-please-config.json` が 4 つすべてを更新対象にしていることを検査します。
+版は、1.0 になる前は `feat` と `fix` で patch、破壊的変更で minor が上がります。PR タイトルは Conventional Commits にします（CI の `conventional-commits` が検査します）。版の場所 4 つ（`plugin.json`、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`、`package.json`）は release-please が更新するので、手で版を上げません。`tests/test_plugin.py` が、4 つが一致し、`release-please-config.json` が 4 つすべてを更新対象にしていることを検査します。
 
 release PR を作るには、リポジトリ設定「Allow GitHub Actions to create and approve pull requests」（Settings → Actions → General → Workflow permissions）が有効である必要があります。
 
