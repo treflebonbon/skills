@@ -70,11 +70,13 @@ class PluginPackageContractTest(unittest.TestCase):
     def test_every_manifest_and_package_uses_candidate_version(self):
         self.assertRegex(CANDIDATE_VERSION, r"^\d+\.\d+\.\d+$")
         claude_manifest = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())
-        self.assertEqual(claude_manifest["version"], CANDIDATE_VERSION)
+        with self.subTest(path=".claude-plugin/plugin.json"):
+            self.assertEqual(claude_manifest["version"], CANDIDATE_VERSION)
 
         marketplace = json.loads((ROOT / ".claude-plugin/marketplace.json").read_text())
         self.assertEqual(len(marketplace["plugins"]), 1)
-        self.assertEqual(marketplace["plugins"][0]["version"], CANDIDATE_VERSION)
+        with self.subTest(path=".claude-plugin/marketplace.json"):
+            self.assertEqual(marketplace["plugins"][0]["version"], CANDIDATE_VERSION)
 
         codex_marketplace = json.loads((ROOT / ".agents/plugins/marketplace.json").read_text())
         self.assertEqual(len(codex_marketplace["plugins"]), 1)
@@ -87,7 +89,8 @@ class PluginPackageContractTest(unittest.TestCase):
         self.assertEqual(codex_entry["category"], "Productivity")
 
         package = json.loads((ROOT / "package.json").read_text())
-        self.assertEqual(package["version"], CANDIDATE_VERSION)
+        with self.subTest(path="package.json"):
+            self.assertEqual(package["version"], CANDIDATE_VERSION)
 
     def test_formatter_dependencies_live_outside_the_plugin_root(self):
         package = json.loads((ROOT / "package.json").read_text())

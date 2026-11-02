@@ -48,7 +48,10 @@ npm run lint:sh
 
 ## 版と tag
 
-版は `plugin.json` を正とし、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`、`package.json` を同じ値にします。`tests/test_plugin.py` が、これらと README、本書の「候補版」の記述が `plugin.json` の版に揃っているかを検査します。版を上げるときは `plugin.json` から変更し、テストが失敗するファイルを順に直します。
+版は `plugin.json` を正とし、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`、`package.json` を同じ値にします。`tests/test_plugin.py` が、これらと README、本書の「候補版」の記述が `plugin.json` の版に揃っているかを検査します。版を上げるときは `plugin.json` から変更し、テストが失敗するファイルを直します。テストが示さない手順が 2 つあります。
+
+- `tests/test_plugin.py` の `PREVIOUS_CANDIDATE_VERSION` を、上げる前の版へ手で更新します。固定値なので、直し忘れてもテストは失敗しません。
+- 本書に、新しい版の見出し `## Candidate <版> の再受入境界` と、`候補版 \`<版>\``を含む節を書きます。上げる前の版の節は、見出しを`## Candidate <前の版> の受入境界`（「再」を付けない形）にして残します。テストが両方の見出しを検査します。
 
 受入した最終 source SHA に、人が tag（`v<版>`）を付けます。自動化（release-please や `cog bump`）は、版を上げる頻度が増えるか更新漏れが増えるまで導入しません。
 
