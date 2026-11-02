@@ -24,7 +24,8 @@ EXPECTED_SKILLS = {
     "ui-grill-with-docs",
     "worktree-gc",
 }
-CANDIDATE_VERSION = "0.2.3"
+# plugin.json is the single source of the version; the other manifests and the docs must follow it.
+CANDIDATE_VERSION = json.loads((ROOT / "plugin.json").read_text())["version"]
 PREVIOUS_CANDIDATE_VERSION = "0.2.2"
 RUN_PLUGIN_CLI_E2E = os.environ.get("TREFLEBONBON_PLUGIN_CLI_E2E") == "1"
 
@@ -67,13 +68,9 @@ class PluginPackageContractTest(unittest.TestCase):
             self.assertRegex(frontmatter.group(1), r"(?m)^description:\s*\S")
 
     def test_every_manifest_and_package_uses_candidate_version(self):
-        manifests = (
-            ROOT / "plugin.json",
-            ROOT / ".claude-plugin/plugin.json",
-        )
-        for path in manifests:
-            with self.subTest(path=path.relative_to(ROOT)):
-                self.assertEqual(json.loads(path.read_text())["version"], CANDIDATE_VERSION)
+        self.assertRegex(CANDIDATE_VERSION, r"^\d+\.\d+\.\d+$")
+        claude_manifest = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())
+        self.assertEqual(claude_manifest["version"], CANDIDATE_VERSION)
 
         marketplace = json.loads((ROOT / ".claude-plugin/marketplace.json").read_text())
         self.assertEqual(len(marketplace["plugins"]), 1)

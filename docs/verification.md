@@ -46,6 +46,12 @@ npm run lint:sh
 
 `tests/raw-codex/raw-managed-profile.bats` の「managed host grants and ancestor path rules stay scoped in raw namespace」は、Claude Code の worktree 隔離 session（Bats の一時 directory が `/tmp/nix-shell.*/` 配下）で失敗し、単独実行でも再現することを確認しました。sandbox 内の task が `mkdir: cannot create directory …/raw/home: Read-only file system` で終了します（confirmed）。原因の特定と、この環境の外で成功するかは未確認です。`npm test` の失敗にこのテスト 1 件だけが現れる場合は、環境依存の可能性が高い（推定）ので、通常の端末で単独実行して切り分けます。
 
+## 版と tag
+
+版は `plugin.json` を正とし、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`、`package.json` を同じ値にします。`tests/test_plugin.py` が、これらと README、本書の「候補版」の記述が `plugin.json` の版に揃っているかを検査します。版を上げるときは `plugin.json` から変更し、テストが失敗するファイルを順に直します。
+
+受入した最終 source SHA に、人が tag（`v<版>`）を付けます。自動化（release-please や `cog bump`）は、版を上げる頻度が増えるか更新漏れが増えるまで導入しません。
+
 ## git hook
 
 hook は `lefthook.yml` が定義し、`lefthook install` で入ります。hook は共有の Git dir に入るため、同じ repo の全 worktree に効きます。`shfmt`、`shellcheck`、`gitleaks`、`cog`、Bats は devShell が提供します。
