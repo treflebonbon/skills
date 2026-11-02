@@ -1,0 +1,11 @@
+root = true
+
+# shfmt reads this file when it is run without formatting flags.
+# Keep the sections apart: a brace pattern holding a "/" anchors its other patterns to the root.
+[bin/**]
+indent_style = space
+indent_size = 2
+
+[*.{sh,bats}]
+indent_style = space
+indent_size = 2
