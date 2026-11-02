@@ -24,7 +24,8 @@ pre-commit:
 pre-push:
   jobs:
     - name: tests
-      run: npm run test:python && bats tests/*.bats tests/cli/*.bats
+      # hook が設定する GIT_DIR と GIT_PREFIX は、テストの fixture の Git を実 repo へ向けてしまう。
+      run: unset GIT_DIR GIT_PREFIX; npm run test:python && bats tests/*.bats tests/cli/*.bats
 
 commit-msg:
   jobs:
