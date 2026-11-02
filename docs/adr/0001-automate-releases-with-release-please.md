@@ -1,0 +1,23 @@
+---
+status: accepted
+---
+
+# リリースの自動化に release-please と GITHUB_TOKEN を使う
+
+版は 4 か所（`plugin.json`、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`、`package.json`）にあり、tag と GitHub release は手作業だった。release-please が作る release PR を人が[受入](../../GLOSSARY.md)して merge する流れにし、版の更新と tag と release を自動にする。
+
+CI は、リリースの自動化（release-please）と PR タイトルの検査（`conventional-commits`）に限る。テスト（Bats など）は CI で回さず、ローカルの hook を関門にする。dotfiles の「Bats を CI で回さない」方針と同じ範囲に収まる。token は `GITHUB_TOKEN` を使う。
+
+## Considered Options
+
+- **GitHub App の token（`aiakos-inc`）:** 長期間有効な秘密鍵を repo の secret に持つ必要がある。鍵が漏れると、App のすべての installation（`contents`、`issues`、`pull_requests` などの write）に及ぶ。利点は、release PR で他の workflow が承認なしで走ることと、bot の名前で投稿されること。どちらも今は不要なので採用しない。release PR で `osv-scanner` の PR scan などを走らせたくなったら、導入する。
+- **`cog bump` と手動の tag:** CI は要らないが、tag と release の手作業が残る。
+- **手作業の wizard（対話式 script）:** 手順は確実になるが、毎回の手間は減らない。
+
+## Consequences
+
+- release PR を作るには、リポジトリ設定「Allow GitHub Actions to create and approve pull requests」を有効にする必要がある。この設定は `GITHUB_TOKEN` による PR の作成と承認の両方を許可する。skills の ruleset は必須の承認数が 0 なので、レビューの関門は弱まらない。承認を必須（1 以上）にするときは、この設定を見直す。
+- `GITHUB_TOKEN` が作った PR では、他の workflow が走らない。release PR は版と変更履歴の更新だけなので、問題にならない。
+- PR タイトルは Conventional Commits にする（squash merge では、タイトルが commit message になる）。形式が違うと、その変更は版の計算に入らない。
+- tag は、受入した commit ではなく、release PR の merge commit に付く。
+- 「候補版」の概念を廃止した。README と `docs/verification.md` に版の記述を置かず、テストも検査しない。

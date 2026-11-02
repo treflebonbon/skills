@@ -18,6 +18,21 @@ pre-commit:
         - "package.json"
     - name: gitleaks
       run: gitleaks protect --staged -v
+    # workflow の SHA 固定を先に直し、その結果を lint する（dotfiles と同じ順序）。
+    - name: workflows
+      group:
+        piped: true
+        jobs:
+          - name: pinact
+            run: pinact run {staged_files}
+            glob: ".github/workflows/*.{yaml,yml}"
+            stage_fixed: true
+          - name: actionlint
+            run: actionlint {staged_files}
+            glob: ".github/workflows/*.{yaml,yml}"
+          - name: ghalint
+            run: ghalint run {staged_files}
+            glob: ".github/workflows/*.{yaml,yml}"
 
 # 全 suite（npm test）の代わりに、sandbox に依存しない公開 suite だけを通す。
 # raw Codex・browser・Node の suite は、docs/verification.md の手順で別に実行する。

@@ -24,14 +24,21 @@ EXPECTED_SKILLS = {
     "ui-grill-with-docs",
     "worktree-gc",
 }
-# plugin.json is the single source of the version; the other manifests and the docs must follow it.
-CANDIDATE_VERSION = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))["version"]
-PREVIOUS_CANDIDATE_VERSION = "0.2.3"
+# plugin.json is the single source of the version; the other manifests must follow it.
+PLUGIN_VERSION = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))["version"]
 RUN_PLUGIN_CLI_E2E = os.environ.get("TREFLEBONBON_PLUGIN_CLI_E2E") == "1"
 
 
 def is_local_environment_name(name):
     return name == ".env" or name.startswith(".env.")
+
+
+def resolve_json_path(document, path):
+    # Only the "$.key" and "[index]" steps the release config uses.
+    value = document
+    for key, index in re.findall(r"\.([A-Za-z_]+)|\[(\d+)\]", path):
+        value = value[key] if key else value[int(index)]
+    return value
 
 
 def snapshot(root=ROOT):
@@ -67,19 +74,19 @@ class PluginPackageContractTest(unittest.TestCase):
             self.assertRegex(frontmatter.group(1), rf"(?m)^name: {re.escape(name)}$")
             self.assertRegex(frontmatter.group(1), r"(?m)^description:\s*\S")
 
-    def test_every_manifest_and_package_uses_candidate_version(self):
+    def test_every_manifest_and_package_uses_plugin_version(self):
         # SemVer core: ASCII digits only, no leading zeros.
-        self.assertRegex(CANDIDATE_VERSION, r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
+        self.assertRegex(PLUGIN_VERSION, r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
         claude_manifest = json.loads(
             (ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8")
         )
         with self.subTest(path=".claude-plugin/plugin.json"):
-            self.assertEqual(claude_manifest["version"], CANDIDATE_VERSION)
+            self.assertEqual(claude_manifest["version"], PLUGIN_VERSION)
 
         marketplace = json.loads((ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8"))
         self.assertEqual(len(marketplace["plugins"]), 1)
         with self.subTest(path=".claude-plugin/marketplace.json"):
-            self.assertEqual(marketplace["plugins"][0]["version"], CANDIDATE_VERSION)
+            self.assertEqual(marketplace["plugins"][0]["version"], PLUGIN_VERSION)
 
         codex_marketplace = json.loads((ROOT / ".agents/plugins/marketplace.json").read_text(encoding="utf-8"))
         self.assertEqual(len(codex_marketplace["plugins"]), 1)
@@ -93,7 +100,27 @@ class PluginPackageContractTest(unittest.TestCase):
 
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         with self.subTest(path="package.json"):
-            self.assertEqual(package["version"], CANDIDATE_VERSION)
+            self.assertEqual(package["version"], PLUGIN_VERSION)
+
+    def test_release_manifest_tracks_the_plugin_version(self):
+        manifest = json.loads((ROOT / ".release-please-manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest, {".": PLUGIN_VERSION})
+
+    def test_release_config_updates_every_version_location(self):
+        config = json.loads((ROOT / "release-please-config.json").read_text(encoding="utf-8"))
+        self.assertEqual(list(config["packages"]), ["."])
+        # The node strategy rewrites package.json itself; the other locations are extra files.
+        self.assertEqual(config["release-type"], "node")
+        extra_files = {entry["path"]: entry for entry in config["packages"]["."]["extra-files"]}
+        self.assertEqual(
+            set(extra_files),
+            {"plugin.json", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"},
+        )
+        for path, entry in extra_files.items():
+            with self.subTest(path=path):
+                self.assertEqual(entry["type"], "json")
+                document = json.loads((ROOT / path).read_text(encoding="utf-8"))
+                self.assertEqual(resolve_json_path(document, entry["jsonpath"]), PLUGIN_VERSION)
 
     def test_formatter_dependencies_live_outside_the_plugin_root(self):
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
@@ -163,16 +190,8 @@ class PluginPackageContractTest(unittest.TestCase):
                 )
                 self.assertNotRegex(text, r"(?m)^Codex: \$dogfood\b")
 
-    def test_verification_entrypoint_preserves_previous_candidate_evidence(self):
-        verification = (ROOT / "docs/verification.md").read_text(encoding="utf-8")
-        self.assertIn(f"Candidate {CANDIDATE_VERSION} の再受入境界", verification)
-        self.assertIn(f"候補版 `{CANDIDATE_VERSION}`", verification)
-        self.assertIn(f"Candidate {PREVIOUS_CANDIDATE_VERSION} の受入境界", verification)
-        self.assertIn(f"候補版 `{PREVIOUS_CANDIDATE_VERSION}`", verification)
-
     def test_readme_documents_all_skills_platforms_and_dependency_routes(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn(CANDIDATE_VERSION, readme)
         for name in EXPECTED_SKILLS:
             with self.subTest(skill=name):
                 self.assertIn(f"`{name}`", readme)
@@ -463,7 +482,7 @@ class OfficialPluginTest(unittest.TestCase):
         installed = Path(result["installedPath"])
         self.assertEqual(
             json.loads((installed / "plugin.json").read_text(encoding="utf-8"))["version"],
-            CANDIDATE_VERSION,
+            PLUGIN_VERSION,
         )
         installed_skills = {
             skill_file.parent.name
