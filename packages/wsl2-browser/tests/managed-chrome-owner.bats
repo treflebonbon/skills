@@ -164,7 +164,7 @@ MOCK
   [ "$status" -eq 0 ]
 }
 
-@test "Windows 照会の競合と不明応答で復旧が記録を解放しない" {
+@test "Windows 照会の失敗・競合・不明応答で復旧が記録を解放しない" {
   local token before state
   token="$(reserve playwright unsafe-probe)"
   owner run "$token" -- true
@@ -179,6 +179,18 @@ MOCK
     run owner status
     [ "$output" = "$before" ]
   done
+  cp "$PWCLI_POWERSHELL" "$BATS_TEST_TMPDIR/working-probe"
+  cat >"$PWCLI_POWERSHELL" <<'MOCK'
+#!/usr/bin/env bash
+printf '%s\n' fixture-inspection-failed >&2
+exit 42
+MOCK
+  run owner recover
+  [ "$status" -ne 0 ]
+  [[ "$output" == *fixture-inspection-failed* ]]
+  run owner status
+  [ "$output" = "$before" ]
+  cp "$BATS_TEST_TMPDIR/working-probe" "$PWCLI_POWERSHELL"
   printf '%s\n' absent >"$OWNER_PROBE_STATE"
   run owner recover
   [ "$status" -eq 0 ]
