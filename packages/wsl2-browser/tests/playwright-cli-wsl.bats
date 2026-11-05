@@ -111,6 +111,12 @@ printf '%s\n' "${PWCLI_FAKE_NETWORK_MODE:-mirrored}"
 EOF
   chmod +x "$FAKE_BIN/wslinfo"
 
+  cat >"$FAKE_BIN/wslpath" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$2"
+EOF
+  chmod +x "$FAKE_BIN/wslpath"
+
   cat >"$FAKE_BIN/powershell.exe" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$POWERSHELL_LOG"
@@ -224,7 +230,8 @@ EOF
   export PWCLI_UPSTREAM="$FAKE_BIN/playwright-cli-upstream"
   export PWCLI_WSLINFO="$FAKE_BIN/wslinfo"
   export PWCLI_POWERSHELL="$FAKE_BIN/powershell.exe"
-  export PWCLI_WINDOWS_SCRIPT="C:\\fake\\playwright-cli-windows.ps1"
+  export PWCLI_WINDOWS_SCRIPT="$WINDOWS_SCRIPT"
+  export PWCLI_WSLPATH="$FAKE_BIN/wslpath"
   export PWCLI_CURL="$FAKE_BIN/curl"
   export PWCLI_CDP_CLOSE="$FAKE_BIN/cdp-close"
   export PWCLI_FLOCK
@@ -257,7 +264,9 @@ EOF
 @test "Playwright and Dogfood callers racing use independent browser identities" {
   export PWCLI_TEST_WSL=1 DOGFOOD_TEST_WSL=1 DOGFOOD_TEST_ALLOW_CDP_ENDPOINT=1
   export DOGFOOD_CDP_ENDPOINT=http://127.0.0.1:19330
-  export DOGFOOD_POWERSHELL="$FAKE_BIN/powershell.exe" DOGFOOD_WINDOWS_SCRIPT='C:\fake\dogfood.ps1'
+  export DOGFOOD_POWERSHELL="$FAKE_BIN/powershell.exe"
+  export DOGFOOD_WINDOWS_SCRIPT="$PACKAGE_ROOT/libexec/dogfood-chrome-windows.ps1"
+  export DOGFOOD_WSLPATH="$FAKE_BIN/wslpath"
   export CALLER_RACE_DIR="$BATS_TEST_TMPDIR/race"
   mkdir -p "$CALLER_RACE_DIR"
   (

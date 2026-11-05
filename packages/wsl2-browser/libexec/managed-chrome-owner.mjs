@@ -170,24 +170,54 @@ const matching = (owner, token) => {
 const probe = async (owner) => {
   const prefix = owner.role === "dogfood" ? "DOGFOOD" : "PWCLI";
   const filename =
-    owner.role === "dogfood" ? "dogfood-chrome-windows.ps1" : "windows.ps1";
+    owner.role === "dogfood"
+      ? "dogfood-chrome-windows.ps1"
+      : "playwright-cli-windows.ps1";
   let script =
     process.env[`${prefix}_WINDOWS_SCRIPT`] ||
     fileURLToPath(new URL(filename, import.meta.url));
-  if (!/^[A-Za-z]:/u.test(script)) {
-    const converted = await exec(
-      process.env[`${prefix}_WSLPATH`] || "wslpath",
-      ["-w", script]
-    );
-    script = converted.stdout.trim();
-  }
-  const args = [
+  const isWindowsPath = /^[A-Za-z]:/u.test(script);
+  const powershell = process.env[`${prefix}_POWERSHELL`] || "powershell.exe";
+  const powershellOptions = [
     "-NoProfile",
     "-NonInteractive",
     "-WindowStyle",
     "Hidden",
     "-ExecutionPolicy",
     "Bypass",
+  ];
+  const wslpath = process.env[`${prefix}_WSLPATH`] || "wslpath";
+  try {
+    let available;
+    if (isWindowsPath) {
+      const result = await exec(
+        powershell,
+        [
+          ...powershellOptions,
+          "-Command",
+          `Test-Path -LiteralPath '${script.replaceAll("'", "''")}' -PathType Leaf`,
+        ],
+        { timeout: 15_000 }
+      );
+      available = result.stdout.trim() === "True";
+    } else {
+      available = (await fs.stat(script)).isFile();
+    }
+    if (!available) {
+      throw new Error("Not a regular file");
+    }
+  } catch (error) {
+    throw new Error(
+      `Windows script unavailable (${script}); ownership was preserved.`,
+      { cause: error }
+    );
+  }
+  if (!isWindowsPath) {
+    const converted = await exec(wslpath, ["-w", script]);
+    script = converted.stdout.trim();
+  }
+  const args = [
+    ...powershellOptions,
     "-File",
     script,
     "-Action",
@@ -204,11 +234,7 @@ const probe = async (owner) => {
   if (owner.role === "dogfood") {
     args.push("-RunId", owner.id);
   }
-  const result = await exec(
-    process.env[`${prefix}_POWERSHELL`] || "powershell.exe",
-    args,
-    { timeout: 15_000 }
-  );
+  const result = await exec(powershell, args, { timeout: 15_000 });
   const status = result.stdout.trim();
   if (
     status === "absent" ||
