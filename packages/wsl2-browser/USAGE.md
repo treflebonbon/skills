@@ -71,6 +71,18 @@ BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
 
 添付は同じ専用 profile を headless で再利用します。未認証なら明示的な認証手順へ戻り、通常 profile に切り替えません。
 
+### 共有添付ブラウザの復旧
+
+`close` 自体が所有権・mode・起動状態の不一致で失敗した場合は、エラーに表示される2つのコマンドを使います。
+
+1. 表示された `status` コマンドを WSL の shell で実行し、対象の所有者記録・profile を確認します。案内には実際の添付 identity、同じ package の所有権 CLI、同じ `BROWSER_OWNERSHIP_DIR` が含まれます。`status` は保存記録の表示で、生存確認ではありません。
+2. 対象を確認してから、表示された `recover` コマンドを明示的に実行します。Windows 側で Chrome の停止を確認でき、未確定の起動処理もない場合だけ対象記録を解放します。稼働中・競合・起動中・照会失敗・不明状態では記録を保持して拒否するため、原因を調べてください。記録を手作業で削除しません。
+3. 復旧に成功したら、上の `close` から始まる手動認証手順へ戻ります。`upload` / `comment` の再試行には、保存済みの画像・原稿・receipt と同じ request ID を使います。
+
+通常の `close` と明示的な `recover` は、停止確認後の所有者記録を解放します。認証 profile は保持します。エラーに復旧案内が出ただけでは、既存の記録は変更されません。
+
+### 画像の添付
+
 `upload` は指定した画像を GitHub の PR 本文に置いた placeholder へ反映します。明示依頼を受けてから実行してください。
 
 ```sh

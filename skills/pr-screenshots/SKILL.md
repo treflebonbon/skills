@@ -69,6 +69,8 @@ BROWSER_ATTACHMENTS="$("$SKILL_ROOT/scripts/browser-tool-path" browser-attachmen
 "$BROWSER_ATTACHMENTS" close
 ```
 
-認証不足で upload に失敗した後も、残った headless browser を最初の `close` で終了してから headed の認証へ進む。CLI は認証 profile や owner record を削除しない。
+認証不足で upload に失敗した後も、残った headless browser を最初の `close` で終了してから headed の認証へ進む。最初の `close` 自体が所有権・起動状態の不一致で失敗したら、[共有添付ブラウザの復旧](../../packages/wsl2-browser/USAGE.md#共有添付ブラウザの復旧)を参照し、エラーに表示される対象 identity の `status` / `recover` コマンドを案内する。明示的な復旧に成功した後、保存済みの画像・原稿・receipt と同じ request-id で再開する。
+
+通常の `close` と明示的な `recover` は、停止確認後の owner record を解放し、認証 profile を保持する。不明状態の記録は保持する。
 
 完了報告には対象 PR、コメント URL または失敗理由、変更前後の有無、残したファイルの絶対 path を含める。失敗した添付を完了扱いにしない。
