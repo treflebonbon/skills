@@ -176,12 +176,34 @@ const probe = async (owner) => {
   let script =
     process.env[`${prefix}_WINDOWS_SCRIPT`] ||
     fileURLToPath(new URL(filename, import.meta.url));
+  const isWindowsPath = /^[A-Za-z]:/u.test(script);
+  const powershell = process.env[`${prefix}_POWERSHELL`] || "powershell.exe";
+  const powershellOptions = [
+    "-NoProfile",
+    "-NonInteractive",
+    "-WindowStyle",
+    "Hidden",
+    "-ExecutionPolicy",
+    "Bypass",
+  ];
   const wslpath = process.env[`${prefix}_WSLPATH`] || "wslpath";
   try {
-    const localScript = /^[A-Za-z]:/u.test(script)
-      ? (await exec(wslpath, ["-u", script])).stdout.trim()
-      : script;
-    if (!(await fs.stat(localScript)).isFile()) {
+    let available;
+    if (isWindowsPath) {
+      const result = await exec(
+        powershell,
+        [
+          ...powershellOptions,
+          "-Command",
+          `Test-Path -LiteralPath '${script.replaceAll("'", "''")}' -PathType Leaf`,
+        ],
+        { timeout: 15_000 }
+      );
+      available = result.stdout.trim() === "True";
+    } else {
+      available = (await fs.stat(script)).isFile();
+    }
+    if (!available) {
       throw new Error("Not a regular file");
     }
   } catch (error) {
@@ -190,17 +212,12 @@ const probe = async (owner) => {
       { cause: error }
     );
   }
-  if (!/^[A-Za-z]:/u.test(script)) {
+  if (!isWindowsPath) {
     const converted = await exec(wslpath, ["-w", script]);
     script = converted.stdout.trim();
   }
   const args = [
-    "-NoProfile",
-    "-NonInteractive",
-    "-WindowStyle",
-    "Hidden",
-    "-ExecutionPolicy",
-    "Bypass",
+    ...powershellOptions,
     "-File",
     script,
     "-Action",
@@ -217,11 +234,7 @@ const probe = async (owner) => {
   if (owner.role === "dogfood") {
     args.push("-RunId", owner.id);
   }
-  const result = await exec(
-    process.env[`${prefix}_POWERSHELL`] || "powershell.exe",
-    args,
-    { timeout: 15_000 }
-  );
+  const result = await exec(powershell, args, { timeout: 15_000 });
   const status = result.stdout.trim();
   if (
     status === "absent" ||

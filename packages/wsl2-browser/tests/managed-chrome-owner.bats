@@ -11,19 +11,27 @@ setup() {
   export PWCLI_POWERSHELL="$BATS_TEST_TMPDIR/powershell.exe"
   export PWCLI_WSLPATH="$BATS_TEST_TMPDIR/wslpath"
   export OWNER_PROBE_ARGS="$BATS_TEST_TMPDIR/probe-args"
+  export OWNER_WINDOWS_CHECK="Test-Path -LiteralPath 'Z:$PWCLI_WINDOWS_SCRIPT' -PathType Leaf"
   touch "$PWCLI_WINDOWS_SCRIPT"
   printf '%s\n' absent >"$OWNER_PROBE_STATE"
   cat >"$PWCLI_POWERSHELL" <<'MOCK'
 #!/usr/bin/env bash
 printf '%s\n' "$@" >"$OWNER_PROBE_ARGS"
 while (($#)); do
-  if [[ "$1" == -File ]]; then
+  if [[ "$1" == -Command ]]; then
+    if [[ "$2" == "$OWNER_WINDOWS_CHECK" ]]; then
+      printf '%s\n' "${OWNER_WINDOWS_AVAILABLE:-True}"
+    else
+      printf '%s\n' False
+    fi
+    exit 0
+  elif [[ "$1" == -File ]]; then
     script="$2"
     break
   fi
   shift
 done
-if [[ ! -f "${script#Z:}" ]]; then
+if [[ "$script" != "${OWNER_NATIVE_WINDOWS_SCRIPT:-}" && ! -f "${script#Z:}" ]]; then
   printf '%s\n' fixture-script-missing
   exit 0
 fi
@@ -162,6 +170,46 @@ MOCK
   printf '%s\n' absent >"$OWNER_PROBE_STATE"
   run owner recover
   [ "$status" -eq 0 ]
+}
+
+@test "WSL から読めない Windows 資産も Windows 側で確認して実行する" {
+  export PWCLI_WINDOWS_SCRIPT="Q:\\unmounted\\Owner's script.ps1"
+  export DOGFOOD_WINDOWS_SCRIPT="$PWCLI_WINDOWS_SCRIPT"
+  export OWNER_NATIVE_WINDOWS_SCRIPT="$PWCLI_WINDOWS_SCRIPT"
+  export OWNER_WINDOWS_CHECK="Test-Path -LiteralPath 'Q:\\unmounted\\Owner''s script.ps1' -PathType Leaf"
+  export DOGFOOD_POWERSHELL="$PWCLI_POWERSHELL" DOGFOOD_WSLPATH="$PWCLI_WSLPATH"
+  cat >"$PWCLI_WSLPATH" <<'MOCK'
+#!/usr/bin/env bash
+printf '%s\n' fixture-wslpath-unavailable >&2
+exit 54
+MOCK
+  local role token before
+  for role in attachment dogfood; do
+    token="$(reserve "$role" native-script)"
+    owner run "$token" -- true
+    printf '%s\n' managed:headless:4242 >"$OWNER_PROBE_STATE"
+    run owner activate "$token"
+    [ "$status" -eq 0 ]
+    grep -Fxq -- "$PWCLI_WINDOWS_SCRIPT" "$OWNER_PROBE_ARGS"
+    before="$(owner status)"
+
+    export OWNER_WINDOWS_AVAILABLE=False
+    run owner recover
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Windows script unavailable"* ]]
+    run owner release "$token"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Windows script unavailable"* ]]
+    run owner status
+    [ "$output" = "$before" ]
+
+    export OWNER_WINDOWS_AVAILABLE=True
+    printf '%s\n' absent >"$OWNER_PROBE_STATE"
+    run owner recover
+    [ "$status" -eq 0 ]
+    run owner status
+    [ "$output" = null ]
+  done
 }
 
 @test "Windows 照会の失敗・競合・不明応答で復旧が記録を解放しない" {
