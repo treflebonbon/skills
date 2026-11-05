@@ -31,8 +31,10 @@ const root = path.resolve(
     )
 );
 const directory = path.join(root, "attachments");
-const owner = (...args) =>
-  run(process.env.MANAGED_CHROME_OWNER || "managed-chrome-owner", args);
+const ownerCommand =
+  process.env.MANAGED_CHROME_OWNER ||
+  fileURLToPath(new URL("../bin/managed-chrome-owner", import.meta.url));
+const owner = (...args) => run(ownerCommand, args);
 const github = (args) => run(process.env.BROWSER_ATTACHMENTS_GH || "gh", args);
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -74,6 +76,14 @@ if (!modulePath) {
 }
 const { chromium } = await import(modulePath);
 let allocation;
+const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
+const ownershipError = (message, cause) => {
+  const command = `BROWSER_OWNERSHIP_DIR=${quote(root)} ${quote(ownerCommand)} --identity ${quote(allocation.identity)}`;
+  return new Error(
+    `${message}\nInspect the recorded owner:\n${command} status\nExplicit recovery checks that Chrome has stopped and preserves the profile:\n${command} recover\nAfter recovery, resume close/auth and retry uploads or comments with the same request-id.`,
+    { cause }
+  );
+};
 const ps = async (action, mode) => {
   let script =
     process.env.PWCLI_WINDOWS_SCRIPT ||
@@ -100,7 +110,20 @@ const ps = async (action, mode) => {
   ];
 };
 const powershell = () => process.env.PWCLI_POWERSHELL || "powershell.exe";
-const scoped = (...args) => owner("--identity", allocation.identity, ...args);
+const inspect = async () => {
+  try {
+    return await run(powershell(), await ps("Inspect"));
+  } catch (error) {
+    throw ownershipError(error.message, error);
+  }
+};
+const scoped = async (...args) => {
+  try {
+    return await owner("--identity", allocation.identity, ...args);
+  } catch (error) {
+    throw ownershipError(error.message, error);
+  }
+};
 const connect = async () => {
   for (let n = 0; n < 30; n += 1) {
     try {
@@ -111,7 +134,7 @@ const connect = async () => {
       await delay(200);
     }
   }
-  throw new Error(
+  throw ownershipError(
     "cdp-unavailable: dedicated attachment browser did not become reachable"
   );
 };
@@ -120,7 +143,7 @@ const ensure = (mode) =>
     const status = JSON.parse(await scoped("status"));
     if (status) {
       if (status.phase !== "active" || status.mode !== mode) {
-        throw new Error(
+        throw ownershipError(
           "ownership-conflict: attachment browser has a different mode or incomplete startup; preserve it and inspect status"
         );
       }
@@ -142,9 +165,9 @@ const ensure = (mode) =>
       allocation.endpoint
     );
     try {
-      const state = await run(powershell(), await ps("Inspect"));
+      const state = await inspect();
       if (state !== "absent") {
-        throw new Error(
+        throw ownershipError(
           "ownership-conflict: existing browser or endpoint has no matching attachment owner"
         );
       }
@@ -184,7 +207,7 @@ try {
           return;
         }
         if (status.phase !== "active") {
-          throw new Error(
+          throw ownershipError(
             "ownership-conflict: inspect incomplete startup before closing"
           );
         }
@@ -201,13 +224,13 @@ try {
           await browser.close();
         }
         for (let n = 0; n < 30; n += 1) {
-          if ((await run(powershell(), await ps("Inspect"))) === "absent") {
+          if ((await inspect()) === "absent") {
             await scoped("release", status.token);
             return;
           }
           await delay(200);
         }
-        throw new Error(
+        throw ownershipError(
           "close-unconfirmed: attachment browser ownership was preserved"
         );
       }
@@ -224,10 +247,10 @@ try {
             const existing = await ensure("headless");
             if (
               existing &&
-              (await run(powershell(), await ps("Inspect"))) !==
+              (await inspect()) !==
                 `managed:headless:${existing.browserPid}`
             ) {
-              throw new Error(
+              throw ownershipError(
                 "ownership-conflict: attachment browser identity changed"
               );
             }
@@ -250,9 +273,9 @@ try {
       const mode = command === "auth" ? "headed" : "headless";
       const existing = await ensure(mode);
       if (existing) {
-        const observed = await run(powershell(), await ps("Inspect"));
+        const observed = await inspect();
         if (observed !== `managed:${mode}:${existing.browserPid}`) {
-          throw new Error(
+          throw ownershipError(
             "ownership-conflict: attachment browser identity changed; consumer preserved"
           );
         }

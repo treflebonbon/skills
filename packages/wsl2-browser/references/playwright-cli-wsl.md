@@ -54,6 +54,8 @@ PR 添付用の共有 browser は専用 profile を使い、認証は利用者�
 "$BROWSER_BIN/browser-attachments" close
 ```
 
+最初の `close` 自体が所有権や起動状態の不一致で失敗した場合は、[共有添付ブラウザの復旧](../USAGE.md#共有添付ブラウザの復旧)に従い、エラーに表示される対象 identity の `status` / `recover` を使います。明示的な復旧に成功してから、同じ認証 profile で上の手順を再開します。
+
 画像 upload は明示依頼の後で `"$BROWSER_BIN/browser-attachments" upload` を使います。複数画像を一つの PR comment にまとめるときは `"$BROWSER_BIN/browser-attachments" comment` を使い、各画像用の `<!-- screenshot-N -->` placeholder を本文へ一度ずつ置いてください。同じ処理を再試行するときは同じ request ID を使います。comment は PR 本文を変更しません。
 
 ```sh
