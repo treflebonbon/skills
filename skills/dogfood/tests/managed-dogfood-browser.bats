@@ -42,6 +42,7 @@ STUB
   chmod +x "$BIN/wslpath"
   export DOGFOOD_PS_LOG="$LOG"
   export DOGFOOD_WINDOWS_SCRIPT="$BATS_TEST_TMPDIR/dogfood-windows.ps1"
+  touch "$DOGFOOD_WINDOWS_SCRIPT"
   export MANAGED_CHROME_OWNER="$PROJECT_ROOT/packages/wsl2-browser/bin/managed-chrome-owner"
   export DOGFOOD_PS_STATE="$BATS_TEST_TMPDIR/chrome-state"
 }

@@ -170,15 +170,28 @@ const matching = (owner, token) => {
 const probe = async (owner) => {
   const prefix = owner.role === "dogfood" ? "DOGFOOD" : "PWCLI";
   const filename =
-    owner.role === "dogfood" ? "dogfood-chrome-windows.ps1" : "windows.ps1";
+    owner.role === "dogfood"
+      ? "dogfood-chrome-windows.ps1"
+      : "playwright-cli-windows.ps1";
   let script =
     process.env[`${prefix}_WINDOWS_SCRIPT`] ||
     fileURLToPath(new URL(filename, import.meta.url));
-  if (!/^[A-Za-z]:/u.test(script)) {
-    const converted = await exec(
-      process.env[`${prefix}_WSLPATH`] || "wslpath",
-      ["-w", script]
+  const wslpath = process.env[`${prefix}_WSLPATH`] || "wslpath";
+  try {
+    const localScript = /^[A-Za-z]:/u.test(script)
+      ? (await exec(wslpath, ["-u", script])).stdout.trim()
+      : script;
+    if (!(await fs.stat(localScript)).isFile()) {
+      throw new Error("Not a regular file");
+    }
+  } catch (error) {
+    throw new Error(
+      `Windows script unavailable (${script}); ownership was preserved.`,
+      { cause: error }
     );
+  }
+  if (!/^[A-Za-z]:/u.test(script)) {
+    const converted = await exec(wslpath, ["-w", script]);
     script = converted.stdout.trim();
   }
   const args = [

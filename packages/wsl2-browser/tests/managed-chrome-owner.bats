@@ -7,14 +7,67 @@ setup() {
   export BROWSER_OWNERSHIP_DIR="$BATS_TEST_TMPDIR/ownership"
   export PWCLI_RUNTIME_DIR="$BATS_TEST_TMPDIR/runtime"
   export OWNER_PROBE_STATE="$BATS_TEST_TMPDIR/browser-state"
-  export PWCLI_WINDOWS_SCRIPT='C:\\mock.ps1'
+  export PWCLI_WINDOWS_SCRIPT="$BATS_TEST_TMPDIR/Windows script.ps1"
   export PWCLI_POWERSHELL="$BATS_TEST_TMPDIR/powershell.exe"
+  export PWCLI_WSLPATH="$BATS_TEST_TMPDIR/wslpath"
+  export OWNER_PROBE_ARGS="$BATS_TEST_TMPDIR/probe-args"
+  touch "$PWCLI_WINDOWS_SCRIPT"
   printf '%s\n' absent >"$OWNER_PROBE_STATE"
   cat >"$PWCLI_POWERSHELL" <<'MOCK'
 #!/usr/bin/env bash
+printf '%s\n' "$@" >"$OWNER_PROBE_ARGS"
+while (($#)); do
+  if [[ "$1" == -File ]]; then
+    script="$2"
+    break
+  fi
+  shift
+done
+if [[ ! -f "${script#Z:}" ]]; then
+  printf '%s\n' fixture-script-missing
+  exit 0
+fi
 cat "$OWNER_PROBE_STATE"
 MOCK
-  chmod +x "$PWCLI_POWERSHELL"
+  cat >"$PWCLI_WSLPATH" <<'MOCK'
+#!/usr/bin/env bash
+case "$1" in
+  -w) printf 'Z:%s\n' "$2" ;;
+  -u) printf '%s\n' "${2#Z:}" ;;
+  *) exit 1 ;;
+esac
+MOCK
+  chmod +x "$PWCLI_POWERSHELL" "$PWCLI_WSLPATH"
+}
+
+@test "既定の Windows 資産で各 role の直接 activate と recover が使える" {
+  unset PWCLI_WINDOWS_SCRIPT DOGFOOD_WINDOWS_SCRIPT
+  export DOGFOOD_POWERSHELL="$PWCLI_POWERSHELL" DOGFOOD_WSLPATH="$PWCLI_WSLPATH"
+  local role token script
+  for role in attachment playwright dogfood; do
+    script="$PROJECT_ROOT/libexec/playwright-cli-windows.ps1"
+    [[ "$role" == dogfood ]] && script="$PROJECT_ROOT/libexec/dogfood-chrome-windows.ps1"
+    token="$(owner --identity "$role" reserve --role "$role" --id "$role" --pid "$$" \
+      --mode headless --profile "$BATS_TEST_TMPDIR/profile" --endpoint http://127.0.0.1:9222)"
+    owner --identity "$role" run "$token" -- true
+    printf '%s\n' managed:headless:4242 >"$OWNER_PROBE_STATE"
+
+    run owner --identity "$role" activate "$token"
+    [ "$status" -eq 0 ]
+    grep -Fxq -- "Z:$script" "$OWNER_PROBE_ARGS"
+    run owner --identity "$role" status
+    [[ "$output" == *'"phase":"active"'* ]]
+
+    run owner --identity "$role" recover
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Chrome is still running"* ]]
+    printf '%s\n' absent >"$OWNER_PROBE_STATE"
+    run owner --identity "$role" recover
+    [ "$status" -eq 0 ]
+    grep -Fxq -- "Z:$script" "$OWNER_PROBE_ARGS"
+    run owner --identity "$role" status
+    [ "$output" = null ]
+  done
 }
 
 @test "Managed Chrome ownership is released only after the browser stops" {
@@ -33,6 +86,102 @@ MOCK
   [ "$status" -eq 0 ]
   run owner status
   [ "$output" = null ]
+}
+
+@test "欠落した明示 Windows 資産は記録と profile を保持して理由を示す" {
+  local token before missing
+  mkdir "$BATS_TEST_TMPDIR/profile"
+  printf '%s\n' authentication >"$BATS_TEST_TMPDIR/profile/authentication"
+  token="$(owner reserve --role playwright --id missing-script --pid "$$" --mode headless \
+    --profile "$BATS_TEST_TMPDIR/profile" --endpoint http://127.0.0.1:9222)"
+  owner run "$token" -- true
+  printf '%s\n' managed:headless:4242 >"$OWNER_PROBE_STATE"
+  owner activate "$token"
+  before="$(owner status)"
+
+  for missing in "$BATS_TEST_TMPDIR/missing script.ps1" "Z:$BATS_TEST_TMPDIR/missing script.ps1"; do
+    export PWCLI_WINDOWS_SCRIPT="$missing"
+    run owner recover
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Windows script unavailable"* ]]
+    [[ "$output" == *"$missing"* ]]
+    run owner activate "$token"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Windows script unavailable"* ]]
+    run owner status
+    [ "$status" -eq 0 ]
+    [ "$output" = "$before" ]
+    [ "$(cat "$BATS_TEST_TMPDIR/profile/authentication")" = authentication ]
+  done
+
+  export PWCLI_WINDOWS_SCRIPT="Z:$BATS_TEST_TMPDIR/Windows script.ps1"
+  run owner activate "$token"
+  [ "$status" -eq 0 ]
+  grep -Fxq -- "$PWCLI_WINDOWS_SCRIPT" "$OWNER_PROBE_ARGS"
+  printf '%s\n' absent >"$OWNER_PROBE_STATE"
+  run owner recover
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/profile/authentication")" = authentication ]
+}
+
+@test "欠落した既定 Windows 資産を直接呼出しで特定できる" {
+  local copy="$BATS_TEST_TMPDIR/package copy" token before
+  mkdir -p "$copy/bin" "$copy/libexec"
+  cp "$OWNER_CLI" "$copy/bin/managed-chrome-owner"
+  cp "$PROJECT_ROOT"/libexec/*.mjs "$copy/libexec/"
+  token="$(reserve attachment missing-default)"
+  owner run "$token" -- true
+  printf '%s\n' managed:headless:4242 >"$OWNER_PROBE_STATE"
+  owner activate "$token"
+  before="$(owner status)"
+  unset PWCLI_WINDOWS_SCRIPT
+
+  run "$copy/bin/managed-chrome-owner" recover
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Windows script unavailable"* ]]
+  [[ "$output" == *"$copy/libexec/playwright-cli-windows.ps1"* ]]
+  run "$copy/bin/managed-chrome-owner" status
+  [ "$status" -eq 0 ]
+  [ "$output" = "$before" ]
+
+  printf '%s\n' absent >"$OWNER_PROBE_STATE"
+  run owner recover
+  [ "$status" -eq 0 ]
+}
+
+@test "Dogfood の Windows 形式の明示上書きを既定資産より優先する" {
+  export DOGFOOD_WINDOWS_SCRIPT="Z:$PWCLI_WINDOWS_SCRIPT"
+  export DOGFOOD_POWERSHELL="$PWCLI_POWERSHELL" DOGFOOD_WSLPATH="$PWCLI_WSLPATH"
+  local token
+  token="$(reserve dogfood override-script)"
+  owner run "$token" -- true
+  printf '%s\n' managed:headless:4242 >"$OWNER_PROBE_STATE"
+  run owner activate "$token"
+  [ "$status" -eq 0 ]
+  grep -Fxq -- "$DOGFOOD_WINDOWS_SCRIPT" "$OWNER_PROBE_ARGS"
+  printf '%s\n' absent >"$OWNER_PROBE_STATE"
+  run owner recover
+  [ "$status" -eq 0 ]
+}
+
+@test "Windows 照会の競合と不明応答で復旧が記録を解放しない" {
+  local token before state
+  token="$(reserve playwright unsafe-probe)"
+  owner run "$token" -- true
+  printf '%s\n' managed:headless:4242 >"$OWNER_PROBE_STATE"
+  owner activate "$token"
+  before="$(owner status)"
+  for state in port-conflict:5150 profile-conflict:4242 unknown ''; do
+    printf '%s\n' "$state" >"$OWNER_PROBE_STATE"
+    run owner recover
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Chrome state is unconfirmed"* ]]
+    run owner status
+    [ "$output" = "$before" ]
+  done
+  printf '%s\n' absent >"$OWNER_PROBE_STATE"
+  run owner recover
+  [ "$status" -eq 0 ]
 }
 
 owner() {
