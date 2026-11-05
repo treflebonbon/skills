@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.7](https://github.com/treflebonbon/skills/compare/v0.2.6...v0.2.7) (2026-11-05)
+
+
+### Bug Fixes
+
+* separate repository guidance from plugin rules ([#16](https://github.com/treflebonbon/skills/issues/16)) ([5858e08](https://github.com/treflebonbon/skills/commit/5858e08be0cbf93c00e4eed0085e316729cd021c))
+
 ## [0.2.6](https://github.com/treflebonbon/skills/compare/v0.2.5...v0.2.6) (2026-11-05)
 
 

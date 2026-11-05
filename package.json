@@ -1,6 +1,6 @@
 {
   "name": "treflebonbon-skills",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "private": true,
   "scripts": {
     "format": "development/node_modules/.bin/oxfmt README.md docs/verification.md .agents/plugins/marketplace.json .claude-plugin/marketplace.json .claude-plugin/plugin.json plugin.json package.json development/package.json development/package-lock.json skills/worktree-gc/SKILL.md skills/worktree-gc/DEPENDENCIES.md skills/worktree-gc/references/glossary.md",
