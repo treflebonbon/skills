@@ -78,7 +78,13 @@ const { chromium } = await import(modulePath);
 let allocation;
 const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
 const ownershipError = (message, cause) => {
-  const command = `BROWSER_OWNERSHIP_DIR=${quote(root)} ${quote(ownerCommand)} --identity ${quote(allocation.identity)}`;
+  const environment = [
+    `BROWSER_OWNERSHIP_DIR=${quote(root)}`,
+    ...["PWCLI_POWERSHELL", "PWCLI_WINDOWS_SCRIPT", "PWCLI_WSLPATH"]
+      .filter((key) => process.env[key] !== undefined)
+      .map((key) => `${key}=${quote(process.env[key])}`),
+  ];
+  const command = `${environment.join(" ")} ${quote(ownerCommand)} --identity ${quote(allocation.identity)}`;
   return new Error(
     `${message}\nInspect the recorded owner:\n${command} status\nExplicit recovery checks that Chrome has stopped and preserves the profile:\n${command} recover\nAfter recovery, resume close/auth and retry uploads or comments with the same request-id.`,
     { cause }
@@ -165,10 +171,10 @@ const ensure = (mode) =>
       allocation.endpoint
     );
     try {
-      const state = await inspect();
+      const state = await run(powershell(), await ps("Inspect"));
       if (state !== "absent") {
-        throw ownershipError(
-          "ownership-conflict: existing browser or endpoint has no matching attachment owner"
+        throw new Error(
+          "ownership-conflict: existing browser or endpoint has no matching attachment owner; close the conflicting Chrome, then retry"
         );
       }
       await scoped(
@@ -244,14 +250,24 @@ try {
           repo: values.repo,
           requestId: values["request-id"],
           upload: async (image) => {
-            const existing = await ensure("headless");
-            if (
-              existing &&
-              (await inspect()) !==
-                `managed:headless:${existing.browserPid}`
-            ) {
-              throw ownershipError(
-                "ownership-conflict: attachment browser identity changed"
+            try {
+              const existing = await ensure("headless");
+              if (
+                existing &&
+                (await inspect()) !==
+                  `managed:headless:${existing.browserPid}`
+              ) {
+                throw ownershipError(
+                  "ownership-conflict: attachment browser identity changed"
+                );
+              }
+            } catch (error) {
+              if (error.message.startsWith("ownership-conflict:")) {
+                throw error;
+              }
+              throw new Error(
+                `ownership-conflict: attachment browser preflight failed: ${error.message}`,
+                { cause: error }
               );
             }
             const browser = await connect();

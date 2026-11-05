@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -17,8 +17,9 @@ const fixture = async (t) => {
   const ownership = path.join(temporary, "owner's state");
   const profile = path.join(temporary, "profile");
   const state = path.join(temporary, "browser-state");
-  const powershell = path.join(temporary, "powershell");
-  const wslpath = path.join(temporary, "wslpath");
+  const powershell = path.join(temporary, "PowerShell's fixture");
+  const wslpath = path.join(temporary, "wslpath's fixture");
+  const windowsScript = path.join(temporary, "Windows script's fixture.ps1");
   const playwright = path.join(temporary, "playwright.mjs");
   const ownerCommand = path.join(temporary, "owner's cli");
   const ownerCalls = path.join(temporary, "owner-calls");
@@ -31,6 +32,7 @@ const fixture = async (t) => {
   await writeFile(ownerCalls, "");
   await writeFile(image, "fixture-image");
   await writeFile(body, "fixture-comment\n<!-- screenshot-1 -->\n");
+  await writeFile(windowsScript, "# fixture script\n");
   await writeFile(
     powershell,
     `#!/usr/bin/env node
@@ -44,11 +46,13 @@ if(args[args.indexOf("-Action")+1]==="Start"){
 `,
     { mode: 0o700 },
   );
-  await writeFile(wslpath, '#!/usr/bin/env node\nconsole.log(process.argv[3]);\n', { mode: 0o700 });
+  await writeFile(wslpath, `#!/usr/bin/env node
+if(process.argv[2]!=="-w"||process.argv[3]!==process.env.PWCLI_WINDOWS_SCRIPT)throw new Error("Unexpected Windows script path");
+console.log(process.argv[3]);\n`, { mode: 0o700 });
   await writeFile(playwright, `import fs from "node:fs";
 export const chromium={connectOverCDP:async()=>{
   if(!fs.readFileSync(process.env.FIXTURE_STATE,"utf8").startsWith("managed:"))throw new Error("Unexpected CDP connection");
-  return {close:async()=>{},contexts:()=>[{newPage:async()=>({goto:async()=>{}})}],
+  return {close:async()=>{},contexts:()=>[{newPage:async()=>({goto:async()=>{},url:()=>"https://github.com/login",close:async()=>{}})}],
     newBrowserCDPSession:async()=>({send:async(method)=>{
       if(method!=="Browser.close")throw new Error("Unexpected CDP command");
       fs.writeFileSync(process.env.FIXTURE_STATE,"absent\\n");
@@ -65,7 +69,9 @@ else process.stdout.write(JSON.stringify({number:42,base:{repo:{full_name:"owner
     ownerCommand,
     `#!/usr/bin/env node
 const args=process.argv.slice(2);
-require("node:fs").appendFileSync(process.env.FIXTURE_OWNER_CALLS,(args[0]==="--identity"?args[2]:args[0])+"\\n");
+const action=args[0]==="--identity"?args[2]:args[0];
+require("node:fs").appendFileSync(process.env.FIXTURE_OWNER_CALLS,action+"\\n");
+if(process.env.FIXTURE_OWNER_FAILURE===action){console.error("fixture-owner-"+action+"-failed");process.exit(42);}
 const result=require("node:child_process").spawnSync(${JSON.stringify(owner)},args,{stdio:"inherit"});process.exit(result.status??1);\n`,
     { mode: 0o700 },
   );
@@ -75,7 +81,7 @@ const result=require("node:child_process").spawnSync(${JSON.stringify(owner)},ar
     MANAGED_CHROME_OWNER: ownerCommand,
     PWCLI_POWERSHELL: powershell,
     PWCLI_WSLPATH: wslpath,
-    PWCLI_WINDOWS_SCRIPT: path.join(packageRoot, "libexec/playwright-cli-windows.ps1"),
+    PWCLI_WINDOWS_SCRIPT: windowsScript,
     BROWSER_ATTACHMENTS_PLAYWRIGHT: playwright,
     BROWSER_ATTACHMENTS_GH: github,
     FIXTURE_STATE: state,
@@ -137,11 +143,16 @@ test("終了済み Chrome の close は同じ identity の実行可能な復旧�
   const commands = result.stderr.split("\n").filter((line) => line.startsWith("BROWSER_OWNERSHIP_DIR="));
   assert.equal(commands.length, 2, "status と recover の案内を表示する");
   assert.ok(commands.every((command) => command.includes("--identity") && command.includes(scenario.identity)));
+  const cleanEnvironment = { BROWSER_OWNERSHIP_DIR: path.join(scenario.ownership, "wrong") };
+  for (const key of ["PWCLI_POWERSHELL", "PWCLI_WINDOWS_SCRIPT", "PWCLI_WSLPATH"]) {
+    assert.ok(commands.every((command) => command.includes(`${key}=`)), "Windows 照会の上書き設定を案内に含める");
+    cleanEnvironment[key] = undefined;
+  }
   assert.ok(scenario.ownerStatus() === before, "案内だけでは所有者記録を変更しない");
-  const status = scenario.execute("sh", ["-c", commands[0]], { BROWSER_OWNERSHIP_DIR: path.join(scenario.ownership, "wrong") });
+  const status = scenario.execute("sh", ["-c", commands[0]], cleanEnvironment);
   assert.equal(status.status, 0);
   assert.ok(status.stdout.trim() === before, "引用符を含むパスで同じ記録を照会する");
-  const recover = scenario.execute("sh", ["-c", commands[1]], { BROWSER_OWNERSHIP_DIR: path.join(scenario.ownership, "wrong") });
+  const recover = scenario.execute("sh", ["-c", commands[1]], cleanEnvironment);
   assert.equal(recover.status, 0);
   assert.equal(scenario.ownerStatus(), "null");
   assert.equal(scenario.attachment("close").status, 0);
@@ -244,4 +255,62 @@ test("起動未完了の close も案内を示し、生存中の予約は明示�
   assert.equal(recovery.status, 1);
   assert.ok(recovery.stderr.includes("live startup reservation"));
   assert.ok(scenario.ownerStatus() === before);
+});
+
+for (const [stage, reason] of [
+  ["status", "fixture-owner-status-failed"],
+  ["inspect", "fixture-inspection-failed"],
+]) {
+  test(`コメントの ${stage} 事前確認が失敗しても同じ request-id で再試行できる`, async (t) => {
+    const scenario = await fixture(t);
+    const before = scenario.ownerStatus();
+    const request = ["comment", "--repo", "owner/repo", "--pr", "42", "--image", scenario.image,
+      "--body-file", scenario.body, "--request-id", "preflight-original"];
+    if (stage === "status") scenario.environment.FIXTURE_OWNER_FAILURE = "status";
+    else await writeFile(scenario.state, "query-failed\n");
+    const failed = scenario.attachment(...request);
+    assert.equal(failed.status, 1);
+    assert.ok(failed.stderr.includes(reason), "意図した事前確認の失敗を報告する");
+    const directory = path.join(scenario.ownership, "attachments");
+    const receipts = (await readdir(directory)).filter((name) => name.startsWith("comment-") && name.endsWith(".json"));
+    assert.equal(receipts.length, 1);
+    const receipt = path.join(directory, receipts[0]);
+    assert.equal(JSON.parse(await readFile(receipt, "utf8")).phase, "ready", "送信前の失敗は再試行可能な状態へ戻す");
+    assert.match(failed.stderr, /^browser-attachments: ownership-conflict:/m);
+    assert.ok(scenario.ownerStatus() === before);
+    delete scenario.environment.FIXTURE_OWNER_FAILURE;
+    await writeFile(scenario.state, "absent\n");
+    const recover = failed.stderr.split("\n").find((line) => line.startsWith("BROWSER_OWNERSHIP_DIR=") && line.endsWith(" recover"));
+    assert.ok(recover);
+    assert.equal(scenario.execute("sh", ["-c", recover]).status, 0);
+    assert.equal(scenario.attachment("close").status, 0);
+    const retried = scenario.attachment(...request);
+    assert.equal(retried.status, 1);
+    assert.ok(retried.stderr.includes("authentication-required:"), "同じ依頼で事前確認を通過して認証確認まで進む");
+    assert.ok(!retried.stderr.includes("upload-unconfirmed:"));
+    const saved = JSON.parse(await readFile(receipt, "utf8"));
+    assert.equal(saved.phase, "ready");
+    assert.deepEqual(saved.assets, []);
+    assert.equal(scenario.attachment("close").status, 0);
+  });
+}
+
+test("所有者記録がない競合や照会失敗は復旧コマンドを案内せず原因解消後に再試行できる", async (t) => {
+  const scenario = await fixture(t);
+  scenario.owner("--identity", scenario.identity, "recover");
+  const other = scenario.otherStatus();
+  for (const state of ["port-conflict:5150", "profile-conflict:4242", "unknown", "query-failed"]) {
+    await writeFile(scenario.state, state + "\n");
+    const failed = scenario.attachment("auth");
+    assert.equal(failed.status, 1);
+    assert.ok(failed.stderr.includes(state === "query-failed" ? "fixture-inspection-failed" : "no matching attachment owner"));
+    assert.equal(failed.stderr.split("\n").filter((line) => line.startsWith("BROWSER_OWNERSHIP_DIR=")).length, 0, "解放対象の記録がない場合は recover を案内しない");
+    assert.equal(scenario.ownerStatus(), "null", "一時予約だけを通常の release で取り消す");
+    assert.ok(scenario.otherStatus() === other);
+    assert.equal(await readFile(scenario.state, "utf8"), state + "\n");
+  }
+  assert.ok(!(await readFile(scenario.ownerCalls, "utf8")).split("\n").some((action) => ["run", "recover"].includes(action)));
+  await writeFile(scenario.state, "absent\n");
+  assert.equal(scenario.attachment("auth").status, 0);
+  assert.equal(scenario.attachment("close").status, 0);
 });
