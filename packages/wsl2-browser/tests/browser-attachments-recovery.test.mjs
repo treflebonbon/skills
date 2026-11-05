@@ -129,39 +129,39 @@ const result=require("node:child_process").spawnSync(${JSON.stringify(owner)},ar
 };
 
 test("終了済み Chrome の close は同じ identity の実行可能な復旧コマンドを示す", async (t) => {
-  const f = await fixture(t);
-  const before = f.ownerStatus();
-  const result = f.attachment("close");
+  const scenario = await fixture(t);
+  const before = scenario.ownerStatus();
+  const result = scenario.attachment("close");
   assert.equal(result.status, 1);
   assert.ok(result.stderr.includes("The requested Chrome is not running; ownership was preserved."));
   const commands = result.stderr.split("\n").filter((line) => line.startsWith("BROWSER_OWNERSHIP_DIR="));
   assert.equal(commands.length, 2, "status と recover の案内を表示する");
-  assert.ok(commands.every((command) => command.includes("--identity") && command.includes(f.identity)));
-  assert.ok(f.ownerStatus() === before, "案内だけでは所有者記録を変更しない");
-  const status = f.execute("sh", ["-c", commands[0]], { BROWSER_OWNERSHIP_DIR: path.join(f.ownership, "wrong") });
+  assert.ok(commands.every((command) => command.includes("--identity") && command.includes(scenario.identity)));
+  assert.ok(scenario.ownerStatus() === before, "案内だけでは所有者記録を変更しない");
+  const status = scenario.execute("sh", ["-c", commands[0]], { BROWSER_OWNERSHIP_DIR: path.join(scenario.ownership, "wrong") });
   assert.equal(status.status, 0);
   assert.ok(status.stdout.trim() === before, "引用符を含むパスで同じ記録を照会する");
-  const recover = f.execute("sh", ["-c", commands[1]], { BROWSER_OWNERSHIP_DIR: path.join(f.ownership, "wrong") });
+  const recover = scenario.execute("sh", ["-c", commands[1]], { BROWSER_OWNERSHIP_DIR: path.join(scenario.ownership, "wrong") });
   assert.equal(recover.status, 0);
-  assert.equal(f.ownerStatus(), "null");
-  assert.equal(f.attachment("close").status, 0);
-  assert.equal(await readFile(path.join(f.profile, "authentication"), "utf8"), "fixture-authentication\n");
+  assert.equal(scenario.ownerStatus(), "null");
+  assert.equal(scenario.attachment("close").status, 0);
+  assert.equal(await readFile(path.join(scenario.profile, "authentication"), "utf8"), "fixture-authentication\n");
 });
 
 test("4つの添付操作が復旧案内だけでは記録と既存データを変更しない", async (t) => {
-  const f = await fixture(t);
-  const before = f.ownerStatus();
-  const other = f.otherStatus();
-  const inputs = new Map(await Promise.all([f.image, f.body, f.receipt, path.join(f.profile, "authentication")]
+  const scenario = await fixture(t);
+  const before = scenario.ownerStatus();
+  const other = scenario.otherStatus();
+  const inputs = new Map(await Promise.all([scenario.image, scenario.body, scenario.receipt, path.join(scenario.profile, "authentication")]
     .map(async (filename) => [filename, await readFile(filename, "utf8")])));
   const requests = [
     ["close"],
     ["auth"],
-    ["upload", "--repo", "owner/repo", "--pr", "42", "--image", f.image, "--placeholder", "PLACE", "--request-id", "upload-original"],
-    ["comment", "--repo", "owner/repo", "--pr", "42", "--image", f.image, "--body-file", f.body, "--request-id", "comment-original"],
+    ["upload", "--repo", "owner/repo", "--pr", "42", "--image", scenario.image, "--placeholder", "PLACE", "--request-id", "upload-original"],
+    ["comment", "--repo", "owner/repo", "--pr", "42", "--image", scenario.image, "--body-file", scenario.body, "--request-id", "comment-original"],
   ];
   for (const request of requests) {
-    const result = f.attachment(...request);
+    const result = scenario.attachment(...request);
     assert.equal(result.status, 1, `${request[0]} は失敗を報告する`);
     const reason = request[0] === "close"
       ? "The requested Chrome is not running; ownership was preserved."
@@ -170,27 +170,27 @@ test("4つの添付操作が復旧案内だけでは記録と既存データを�
         : "attachment browser identity changed";
     assert.ok(result.stderr.includes(reason), "意図した所有権の不一致で拒否する");
     assert.equal(result.stderr.split("\n").filter((line) => line.startsWith("BROWSER_OWNERSHIP_DIR=")).length, 2);
-    assert.ok(f.ownerStatus() === before, "対象の所有者記録を保持する");
-    assert.ok(f.otherStatus() === other, "別 identity を保持する");
+    assert.ok(scenario.ownerStatus() === before, "対象の所有者記録を保持する");
+    assert.ok(scenario.otherStatus() === other, "別 identity を保持する");
   }
-  assert.ok(!(await readFile(f.ownerCalls, "utf8")).split("\n").some((action) => ["recover", "release", "reserve", "run"].includes(action)), "案内は復旧を自動実行しない");
+  assert.ok(!(await readFile(scenario.ownerCalls, "utf8")).split("\n").some((action) => ["recover", "release", "reserve", "run"].includes(action)), "案内は復旧を自動実行しない");
   for (const [filename, content] of inputs) assert.ok(await readFile(filename, "utf8") === content, "既存データを保持する");
-  const commands = f.attachment("auth").stderr.split("\n").filter((line) => line.startsWith("BROWSER_OWNERSHIP_DIR="));
-  assert.equal(f.execute("sh", ["-c", commands[1]]).status, 0);
-  assert.equal(f.attachment("close").status, 0);
-  assert.equal(f.attachment("auth").status, 0, "明示的復旧後は通常の認証手順へ進める");
-  assert.ok(JSON.parse(f.ownerStatus()).mode === "headed");
-  assert.equal(f.attachment("close").status, 0);
-  assert.equal(f.ownerStatus(), "null");
-  assert.ok(f.otherStatus() === other);
+  const commands = scenario.attachment("auth").stderr.split("\n").filter((line) => line.startsWith("BROWSER_OWNERSHIP_DIR="));
+  assert.equal(scenario.execute("sh", ["-c", commands[1]]).status, 0);
+  assert.equal(scenario.attachment("close").status, 0);
+  assert.equal(scenario.attachment("auth").status, 0, "明示的復旧後は通常の認証手順へ進める");
+  assert.ok(JSON.parse(scenario.ownerStatus()).mode === "headed");
+  assert.equal(scenario.attachment("close").status, 0);
+  assert.equal(scenario.ownerStatus(), "null");
+  assert.ok(scenario.otherStatus() === other);
   for (const [filename, content] of inputs) assert.ok(await readFile(filename, "utf8") === content, "復旧後も元の依頼と認証 profile を保持する");
 });
 
 test("案内された recover は稼働中・競合・不明状態・照会失敗で記録を保持する", async (t) => {
-  const f = await fixture(t);
-  const before = f.ownerStatus();
-  const other = f.otherStatus();
-  const command = f.attachment("auth").stderr.split("\n").find((line) => line.startsWith("BROWSER_OWNERSHIP_DIR=") && line.endsWith(" recover"));
+  const scenario = await fixture(t);
+  const before = scenario.ownerStatus();
+  const other = scenario.otherStatus();
+  const command = scenario.attachment("auth").stderr.split("\n").find((line) => line.startsWith("BROWSER_OWNERSHIP_DIR=") && line.endsWith(" recover"));
   assert.ok(command);
   for (const [state, reason] of [
     ["managed:headless:4242", "Chrome is still running"],
@@ -200,48 +200,48 @@ test("案内された recover は稼働中・競合・不明状態・照会失�
     ["unknown", "Chrome state is unconfirmed"],
     ["query-failed", "fixture-inspection-failed"],
   ]) {
-    await writeFile(f.state, state + "\n");
-    const result = f.execute("sh", ["-c", command]);
+    await writeFile(scenario.state, state + "\n");
+    const result = scenario.execute("sh", ["-c", command]);
     assert.equal(result.status, 1);
     assert.ok(result.stderr.includes(reason));
-    assert.ok(f.ownerStatus() === before && f.otherStatus() === other, "解放拒否では両 identity を保持する");
+    assert.ok(scenario.ownerStatus() === before && scenario.otherStatus() === other, "解放拒否では両 identity を保持する");
   }
-  const failedInspection = f.attachment("upload", "--repo", "owner/repo", "--pr", "42", "--image", f.image, "--placeholder", "PLACE", "--request-id", "query-failed");
+  const failedInspection = scenario.attachment("upload", "--repo", "owner/repo", "--pr", "42", "--image", scenario.image, "--placeholder", "PLACE", "--request-id", "query-failed");
   assert.equal(failedInspection.status, 1);
   assert.equal(failedInspection.stderr.split("\n").filter((line) => line.startsWith("BROWSER_OWNERSHIP_DIR=")).length, 2);
-  await writeFile(f.state, "absent\n");
-  assert.equal(f.execute("sh", ["-c", command]).status, 0);
-  assert.equal(f.ownerStatus(), "null");
-  assert.ok(f.otherStatus() === other);
+  await writeFile(scenario.state, "absent\n");
+  assert.equal(scenario.execute("sh", ["-c", command]).status, 0);
+  assert.equal(scenario.ownerStatus(), "null");
+  assert.ok(scenario.otherStatus() === other);
 });
 
 test("既定の復旧案内は PATH 上の別コピーを使わず同梱 CLI に到達する", async (t) => {
-  const f = await fixture(t);
-  delete f.environment.MANAGED_CHROME_OWNER;
-  const bin = path.join(f.temporary, "bin");
-  const marker = path.join(f.temporary, "foreign-cli-called");
+  const scenario = await fixture(t);
+  delete scenario.environment.MANAGED_CHROME_OWNER;
+  const bin = path.join(scenario.temporary, "bin");
+  const marker = path.join(scenario.temporary, "foreign-cli-called");
   await mkdir(bin);
   await writeFile(path.join(bin, "managed-chrome-owner"), `#!/usr/bin/env node\nrequire("node:fs").writeFileSync(${JSON.stringify(marker)},"unexpected");process.exit(91);\n`, { mode: 0o700 });
-  f.environment.PATH = bin + path.delimiter + process.env.PATH;
-  const result = f.attachment("close");
+  scenario.environment.PATH = bin + path.delimiter + process.env.PATH;
+  const result = scenario.attachment("close");
   const commands = result.stderr.split("\n").filter((line) => line.startsWith("BROWSER_OWNERSHIP_DIR="));
   assert.equal(commands.length, 2);
-  assert.equal(f.execute("sh", ["-c", commands[0]]).status, 0);
+  assert.equal(scenario.execute("sh", ["-c", commands[0]]).status, 0);
   assert.equal(await stat(marker).then(() => true, () => false), false);
 });
 
 test("起動未完了の close も案内を示し、生存中の予約は明示的 recover でも保持する", async (t) => {
-  const f = await fixture(t);
-  f.owner("--identity", f.identity, "recover");
-  f.owner("--identity", f.identity, "reserve", "--role", "attachment", "--id", "starting", "--pid", String(process.pid), "--mode", "headed", "--profile", f.profile, "--endpoint", "http://127.0.0.1:9222");
-  const before = f.ownerStatus();
-  const result = f.attachment("close");
+  const scenario = await fixture(t);
+  scenario.owner("--identity", scenario.identity, "recover");
+  scenario.owner("--identity", scenario.identity, "reserve", "--role", "attachment", "--id", "starting", "--pid", String(process.pid), "--mode", "headed", "--profile", scenario.profile, "--endpoint", "http://127.0.0.1:9222");
+  const before = scenario.ownerStatus();
+  const result = scenario.attachment("close");
   assert.equal(result.status, 1);
   assert.ok(result.stderr.includes("incomplete startup"));
   const command = result.stderr.split("\n").find((line) => line.startsWith("BROWSER_OWNERSHIP_DIR=") && line.endsWith(" recover"));
   assert.ok(command);
-  const recovery = f.execute("sh", ["-c", command]);
+  const recovery = scenario.execute("sh", ["-c", command]);
   assert.equal(recovery.status, 1);
   assert.ok(recovery.stderr.includes("live startup reservation"));
-  assert.ok(f.ownerStatus() === before);
+  assert.ok(scenario.ownerStatus() === before);
 });
