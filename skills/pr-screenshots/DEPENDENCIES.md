@@ -7,7 +7,7 @@
 | PR とコメントの確認 | GitHub CLI `gh` と通常の認証設定 | `gh auth status` が成功しなければ添付を始めず、認証準備を案内する。token を表示する `gh auth token` は使わない |
 | 添付 CLI | Node.js 20.19 以降と、この plugin の `packages/wsl2-browser/bin/browser-attachments` | package の [準備手順](../../packages/wsl2-browser/USAGE.md) を案内して止める。Nix は不要 |
 | 画像添付用 browser | WSL2、mirrored networking、Windows interoperability、`wslinfo`、`powershell.exe`、`wslpath`、Windows Stable Chrome | `browser-attachments` を呼ばない。保存済み画像・原稿を保持し、手動添付の引き継ぎを案内する |
-| browser runtime | package の `wsl2-browser-prepare` で準備した固定 Playwright runtime。既定 cache は plugin 外 | 不足していれば package の準備手順を案内し、browser を起動しない |
+| browser runtime | package の `wsl2-browser-prepare --check` で検証する固定 Playwright runtime。既定 cache は plugin 外 | 検証に失敗したら画像・原稿を保持して package の準備手順を案内し、browser を起動しない |
 | 新しい画像の撮影 | 公式配布元から別途導入した第三者 `playwright-cli` skill。撮影には package 内 `bin/playwright-cli` を使う | 撮影が不可欠なら処理を止めて導入方法を案内する。既存画像を使える場合はその依頼で撮影を追加しない |
 
 `gh` の CLI 認証と共有添付 browser の GitHub 認証は別々に必要です。browser 認証は専用 profile で人間が手動設定します。認証情報の複製や自動 login、通常利用の Chrome profile の再利用はしません。
@@ -18,10 +18,13 @@
 
 ```bash
 SKILL_ROOT=/absolute/path/to/skills/pr-screenshots
-"$SKILL_ROOT/scripts/browser-tool-path" wsl2-browser-prepare
+BROWSER_PREPARE="$("$SKILL_ROOT/scripts/browser-tool-path" wsl2-browser-prepare)"
+"$BROWSER_PREPARE" --check
 ```
 
-`wsl2-browser-prepare` は Node.js と npm を使って固定 runtime を plugin root の外に準備します。runtime は配布物へ書き込みません。初回準備が必要な場合は、人間が [package の手順](../../packages/wsl2-browser/USAGE.md) に沿って行います。
+`--check` は準備済み runtime の整合性を確認して絶対 path を返します。未準備や不一致では失敗し、依存を導入・変更しません。`--help` は使い方の表示だけです。
+
+引数なしの `wsl2-browser-prepare` は Node.js と npm を使って固定 runtime を plugin root の外に準備します。runtime は配布物へ書き込みません。初回準備が必要な場合は、人間が [package の手順](../../packages/wsl2-browser/USAGE.md) に沿って行います。
 
 添付時は、同じ helper で `browser-attachments` の実体を得て使います。
 

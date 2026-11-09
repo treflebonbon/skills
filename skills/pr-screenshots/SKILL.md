@@ -17,7 +17,11 @@ disable-model-invocation: true
 ```bash
 SKILL_ROOT=/absolute/path/to/skills/pr-screenshots
 BROWSER_ATTACHMENTS="$("$SKILL_ROOT/scripts/browser-tool-path" browser-attachments)"
+BROWSER_PREPARE="$("$SKILL_ROOT/scripts/browser-tool-path" wsl2-browser-prepare)"
+"$BROWSER_PREPARE" --check
 ```
+
+`--check` は固定 runtime の準備済み状態を検査し、成功時にその絶対 path を返す。依存の導入や browser 起動は行わない。失敗したら画像・原稿を保持し、[準備手順](DEPENDENCIES.md#準備)を案内して止める。引数なしの `wsl2-browser-prepare` は依存を導入するため、状態確認には使わない。CLI の使い方は [package の使用手順](../../packages/wsl2-browser/USAGE.md)で確認する。
 
 この helper は package に同梱した `packages/wsl2-browser/bin/browser-attachments` を返す。現在の作業 directory、dotfiles checkout、`~/.local/bin`、Nix PATH にある別コピーを代用しない。画面撮影が必要なときだけ、公式配布元から別途導入した `playwright-cli` skill を明示的に使う。第三者 skill が必要な `playwright-cli` CLI も `scripts/browser-tool-path playwright-cli` で絶対 path を得て伝える。
 

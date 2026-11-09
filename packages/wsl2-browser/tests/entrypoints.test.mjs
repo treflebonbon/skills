@@ -63,11 +63,11 @@ const writeFakeNpm = async (temporary) => {
   return { npmBin, npmCalls };
 };
 
-const snapshot = async (directory) => {
+const snapshot = async (directory, includeDependencies = false) => {
   const files = new Map();
   const visit = async (current) => {
     for (const entry of await readdir(current, { withFileTypes: true })) {
-      if (entry.name === "node_modules") continue;
+      if (!includeDependencies && entry.name === "node_modules") continue;
       const filename = path.join(current, entry.name);
       if (entry.isDirectory()) {
         await visit(filename);
@@ -145,6 +145,104 @@ test("WSL metadata commands reach the pinned CLI before Windows setup", async ()
     });
     assert.equal(cli.status, 0, cli.stderr ?? cli.error?.message);
     assert.equal(await readFile(calls, "utf8"), "upstream:--help\n");
+  } finally {
+    await rm(temporary, { force: true, recursive: true });
+  }
+});
+
+test("prepare help and invalid arguments never install a runtime", async () => {
+  const temporary = await temporaryDirectory("wsl2-browser-prepare-help.");
+  const { npmBin, npmCalls } = await writeFakeNpm(temporary);
+  const deps = path.join(temporary, "cache", "runtime");
+  const environment = {
+    ...process.env,
+    PATH: `${npmBin}:${process.env.PATH}`,
+    NPM_CALLS: npmCalls,
+    WSL2_BROWSER_DEPS_DIR: deps,
+  };
+
+  try {
+    for (const args of [["--help"], ["-h"]]) {
+      const help = spawnSync(entry("wsl2-browser-prepare"), args, {
+        cwd: temporary,
+        encoding: "utf8",
+        env: environment,
+      });
+      assert.equal(help.status, 0, help.stderr);
+      assert.match(help.stdout, /Usage: wsl2-browser-prepare/u);
+      assert.equal(await stat(npmCalls).then(() => true, () => false), false);
+      assert.equal(await stat(path.dirname(deps)).then(() => true, () => false), false);
+    }
+
+    for (const args of [["--unknown"], ["--help", "extra"], ["--check", "extra"]]) {
+      const invalid = spawnSync(entry("wsl2-browser-prepare"), args, {
+        cwd: temporary,
+        encoding: "utf8",
+        env: environment,
+      });
+      assert.notEqual(invalid.status, 0);
+      assert.match(invalid.stderr, /Usage: wsl2-browser-prepare/u);
+      assert.equal(await stat(npmCalls).then(() => true, () => false), false);
+      assert.equal(await stat(path.dirname(deps)).then(() => true, () => false), false);
+    }
+  } finally {
+    await rm(temporary, { force: true, recursive: true });
+  }
+});
+
+test("prepare check reports readiness without installing or changing a runtime", async () => {
+  const temporary = await temporaryDirectory("wsl2-browser-prepare-check.");
+  const { npmBin, npmCalls } = await writeFakeNpm(temporary);
+  const deps = path.join(temporary, "cache", "runtime");
+  const environment = {
+    ...process.env,
+    PATH: `${npmBin}:${process.env.PATH}`,
+    NPM_CALLS: npmCalls,
+    WSL2_BROWSER_DEPS_DIR: deps,
+  };
+
+  try {
+    const missing = spawnSync(entry("wsl2-browser-prepare"), ["--check"], {
+      cwd: temporary,
+      encoding: "utf8",
+      env: environment,
+    });
+    assert.notEqual(missing.status, 0);
+    assert.match(missing.stderr, /is not prepared/u);
+    assert.equal(await stat(npmCalls).then(() => true, () => false), false);
+    assert.equal(await stat(path.dirname(deps)).then(() => true, () => false), false);
+
+    const prepared = spawnSync(entry("wsl2-browser-prepare"), [], {
+      cwd: temporary,
+      encoding: "utf8",
+      env: environment,
+    });
+    assert.equal(prepared.status, 0, prepared.stderr);
+    const before = await snapshot(deps, true);
+    const npmBefore = await readFile(npmCalls);
+
+    const ready = spawnSync(entry("wsl2-browser-prepare"), ["--check"], {
+      cwd: temporary,
+      encoding: "utf8",
+      env: environment,
+    });
+    assert.equal(ready.status, 0, ready.stderr);
+    assert.equal(ready.stdout, `${deps}\n`);
+    assert.deepEqual(await snapshot(deps, true), before);
+    assert.deepEqual(await readFile(npmCalls), npmBefore);
+
+    const marker = path.join(deps, ".wsl2-browser-runtime.json");
+    await writeFile(marker, "{}\n");
+    const invalidBefore = await snapshot(deps, true);
+    const invalid = spawnSync(entry("wsl2-browser-prepare"), ["--check"], {
+      cwd: temporary,
+      encoding: "utf8",
+      env: environment,
+    });
+    assert.notEqual(invalid.status, 0);
+    assert.match(invalid.stderr, /does not match this package lock/u);
+    assert.deepEqual(await snapshot(deps, true), invalidBefore);
+    assert.deepEqual(await readFile(npmCalls), npmBefore);
   } finally {
     await rm(temporary, { force: true, recursive: true });
   }
