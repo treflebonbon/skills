@@ -173,6 +173,85 @@ export const uploadEvidence = async (
   }
 };
 
+export const attachEvidenceToPullRequestBody = async ({
+  repo,
+  pr,
+  image,
+  placeholder,
+  requestId,
+  directory,
+  github,
+  withUploadContext,
+}) => {
+  const imageBytes = await fs.readFile(image);
+  const key = digest(`${repo.toLowerCase()}#${pr}:${requestId}`);
+  const filename = path.join(directory, `${key}.json`);
+  const signature = digest(`${digest(imageBytes)}:${placeholder}`);
+  return withBrowserLock(
+    path.join(directory, `${key}.lock`),
+    async () => {
+      let receipt = await fs
+        .readFile(filename, "utf-8")
+        .then(JSON.parse)
+        .catch((error) => {
+          if (error.code !== "ENOENT") {
+            throw error;
+          }
+          return null;
+        });
+      if (receipt && receipt.signature !== signature) {
+        throw new Error(
+          "request-conflict: request-id was already used with different content"
+        );
+      }
+      if (receipt?.phase === "authentication-required") {
+        receipt = null;
+      }
+      if (receipt && !receipt.asset) {
+        throw new Error(
+          "upload-unconfirmed: previous request has no confirmed asset; inspect it before requesting another upload"
+        );
+      }
+      const save = async (value) => {
+        const temporary = `${filename}.${process.pid}.tmp`;
+        await fs.writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
+        await fs.rename(temporary, filename);
+      };
+      if (!receipt) {
+        await withUploadContext(async (context) => {
+          await save({ phase: "uploading", signature });
+          try {
+            const result = await uploadEvidence(context, { image, pr, repo });
+            receipt = { phase: "uploaded", signature, ...result };
+            await save(receipt);
+          } catch (error) {
+            if (error.message.startsWith("authentication-required")) {
+              await save({ phase: "authentication-required", signature });
+            }
+            throw error;
+          }
+        });
+      }
+      await publishEvidence({
+        asset: receipt.asset,
+        directory,
+        github,
+        placeholder,
+        pr,
+        repo,
+      });
+      receipt = { ...receipt, phase: "published" };
+      await save(receipt);
+      return {
+        asset: receipt.asset,
+        finished: receipt.finished,
+        requestId,
+        started: receipt.started,
+      };
+    }
+  );
+};
+
 export const commentEvidence = async ({
   repo,
   pr,

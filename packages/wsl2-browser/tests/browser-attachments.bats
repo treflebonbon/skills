@@ -48,6 +48,90 @@ upload() {
   [ -z "$(find "$BROWSER_OWNERSHIP_DIR" -name '*.json' -print)" ]
 }
 
+@test "upload CLI preserves its arguments, browser lifecycle and result" {
+  export BROWSER_ATTACHMENTS_GH="$BATS_TEST_TMPDIR/github"
+  export PR_BODY_FIXTURE="$BATS_TEST_TMPDIR/pr-body.md"
+  export GH_CALLS="$BATS_TEST_TMPDIR/github-calls"
+  export CONNECTION_LOG="$BATS_TEST_TMPDIR/connections"
+  export EXPECTED_IMAGE="$BATS_TEST_TMPDIR/image.png"
+  printf 'Before\nPLACE\nAfter\n' >"$PR_BODY_FIXTURE"
+  cat >"$BROWSER_ATTACHMENTS_GH" <<'JS'
+#!/usr/bin/env node
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+fs.appendFileSync(process.env.GH_CALLS, `${JSON.stringify(args)}\n`);
+if (args[0] !== 'pr' || args[args.indexOf('--repo') + 1] !== 'owner/repo' || args[2] !== '42') {
+  throw new Error(`unexpected PR target: ${args.join(' ')}`);
+}
+if (args[1] === 'view') {
+  process.stdout.write(JSON.stringify({body: fs.readFileSync(process.env.PR_BODY_FIXTURE, 'utf8')}));
+} else if (args[1] === 'edit') {
+  fs.copyFileSync(args[args.indexOf('--body-file') + 1], process.env.PR_BODY_FIXTURE);
+} else {
+  throw new Error(`unexpected GitHub command: ${args.join(' ')}`);
+}
+JS
+  chmod +x "$BROWSER_ATTACHMENTS_GH"
+  cat >"$BROWSER_ATTACHMENTS_PLAYWRIGHT" <<'JS'
+import fs from 'node:fs';
+let uploads = 0;
+export const chromium = {
+  connectOverCDP: async () => {
+    fs.appendFileSync(process.env.CONNECTION_LOG, 'connect\n');
+    let text = '';
+    const textarea = {waitFor: async () => {}, inputValue: async () => text};
+    const input = {
+      waitFor: async () => {},
+      setInputFiles: async image => {
+        if (image !== process.env.EXPECTED_IMAGE) throw new Error(`wrong image: ${image}`);
+        uploads += 1;
+        text = `https://github.com/user-attachments/assets/cli-${uploads}`;
+      },
+    };
+    const editor = {
+      locator: selector => selector === 'textarea[name="pull_request[body]"]' ? textarea : input,
+      getByText: () => ({click: async () => {}}),
+    };
+    const container = {
+      locator: selector => selector === 'summary.timeline-comment-action'
+        ? {click: async () => {}}
+        : editor.locator(selector),
+      getByText: editor.getByText,
+    };
+    const page = {
+      goto: async () => {},
+      url: () => 'https://github.com/owner/repo/pull/42',
+      locator: () => ({first: () => container}),
+      close: async () => {},
+    };
+    return {
+      contexts: () => [{newPage: async () => page}],
+      close: async () => fs.appendFileSync(process.env.CONNECTION_LOG, 'close\n'),
+    };
+  },
+};
+JS
+  run node "$ATTACHMENTS" upload --repo owner/repo --pr 42 \
+    --image "$EXPECTED_IMAGE" --placeholder PLACE --request-id cli-request
+  [ "$status" -eq 0 ]
+  local cli_output="$output"
+  run node --input-type=module - "$cli_output" <<'JS'
+import assert from 'node:assert/strict';
+const result = JSON.parse(process.argv[2]);
+assert.deepEqual(Object.keys(result).sort(), ['asset', 'finished', 'requestId', 'started']);
+assert.equal(result.asset, 'https://github.com/user-attachments/assets/cli-1');
+assert.equal(result.requestId, 'cli-request');
+assert.ok(Number.isFinite(result.started));
+assert.ok(Number.isFinite(result.finished));
+assert.ok(result.started <= result.finished);
+JS
+  [ "$status" -eq 0 ]
+  [[ "$(cat "$PR_BODY_FIXTURE")" == *'![Evidence](https://github.com/user-attachments/assets/cli-1)'* ]]
+  [[ "$(cat "$PR_BODY_FIXTURE")" != *PLACE* ]]
+  [[ "$(cat "$CONNECTION_LOG")" == $'connect\nclose' ]]
+  [ "$(wc -l <"$GH_CALLS")" -eq 3 ]
+}
+
 @test "comment command filters large paginated history and posts two images only once" {
   export BROWSER_ATTACHMENTS_GH="$BATS_TEST_TMPDIR/github"
   export COMMENT_FIXTURE="$BATS_TEST_TMPDIR/comments.json"

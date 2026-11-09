@@ -1,5 +1,302 @@
 #!/usr/bin/env bats
 
+@test "PR body attachment publishes the confirmed asset and deduplicates concurrent requests" {
+  run node --input-type=module - "$BATS_TEST_DIRNAME/../libexec/pr-evidence.mjs" "$BATS_TEST_TMPDIR" <<'JS'
+import assert from 'node:assert/strict';
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
+const { attachEvidenceToPullRequestBody } = await import(process.argv[2]);
+const directory = process.argv[3];
+const image = path.join(directory, 'image.png');
+await writeFile(image, 'image bytes');
+let body = 'Before\nPLACE';
+let uploads = 0;
+let edits = 0;
+let connections = 0;
+const github = async (args) => {
+  if (args[1] === 'view') return JSON.stringify({ body });
+  if (args[1] === 'edit') {
+    edits += 1;
+    body = await readFile(args.at(-1), 'utf8');
+    return '';
+  }
+  throw new Error(`unexpected GitHub command: ${args.join(' ')}`);
+};
+const withUploadContext = async (action) => {
+  connections += 1;
+  let text = '';
+  const textarea = { waitFor: async () => {}, inputValue: async () => text };
+  const input = {
+    waitFor: async () => {},
+    setInputFiles: async (filename) => {
+      assert.equal(filename, image);
+      await delay(40);
+      uploads += 1;
+      text = 'https://github.com/user-attachments/assets/confirmed';
+    },
+  };
+  const editor = {
+    locator: (selector) => {
+      if (selector === 'textarea[name="pull_request[body]"]') return textarea;
+      if (selector === 'input[type=file]') return input;
+      throw new Error(`unexpected editor selector: ${selector}`);
+    },
+    getByText: (value, options) => {
+      assert.equal(value, 'Edit');
+      assert.deepEqual(options, { exact: true });
+      return { click: async () => {} };
+    },
+  };
+  const container = {
+    locator: (selector) => {
+      if (selector === 'summary.timeline-comment-action') return { click: async () => {} };
+      return editor.locator(selector);
+    },
+    getByText: editor.getByText,
+  };
+  const page = {
+    goto: async () => {},
+    url: () => 'https://github.com/owner/repo/pull/42',
+    locator: (selector) => {
+      assert.equal(selector, '.js-comment-container');
+      return { first: () => container };
+    },
+    close: async () => {},
+  };
+  return action({ newPage: async () => page });
+};
+const options = {
+  repo: 'owner/repo', pr: 42, image, placeholder: 'PLACE', requestId: 'same-request',
+  directory, github, withUploadContext,
+};
+const results = await Promise.all([
+  attachEvidenceToPullRequestBody(options),
+  attachEvidenceToPullRequestBody(options),
+]);
+assert.equal(uploads, 1);
+assert.equal(connections, 1);
+assert.equal(edits, 1);
+assert.ok(!body.includes('PLACE'));
+assert.ok(body.includes('![Evidence](https://github.com/user-attachments/assets/confirmed)'));
+const differentImage = path.join(directory, 'different.png');
+await writeFile(differentImage, 'different image bytes');
+await assert.rejects(
+  attachEvidenceToPullRequestBody({ ...options, image: differentImage }),
+  /request-conflict:/
+);
+await assert.rejects(
+  attachEvidenceToPullRequestBody({ ...options, placeholder: 'OTHER' }),
+  /request-conflict:/
+);
+assert.equal(uploads, 1);
+assert.equal(edits, 1);
+for (const result of results) {
+  assert.equal(result.asset, 'https://github.com/user-attachments/assets/confirmed');
+  assert.equal(result.requestId, 'same-request');
+  assert.ok(Number.isFinite(result.started));
+  assert.ok(Number.isFinite(result.finished));
+  assert.ok(result.started <= result.finished);
+}
+JS
+  [ "$status" -eq 0 ]
+}
+
+@test "PR body attachment resumes before-send failures and blocks uncertain uploads" {
+  run node --input-type=module - "$BATS_TEST_DIRNAME/../libexec/pr-evidence.mjs" "$BATS_TEST_TMPDIR" <<'JS'
+import assert from 'node:assert/strict';
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+const { attachEvidenceToPullRequestBody } = await import(process.argv[2]);
+const directory = process.argv[3];
+const image = path.join(directory, 'image.png');
+await writeFile(image, 'image bytes');
+let body = 'CONNECT_PLACE\nAUTH_PLACE\nUNCERTAIN_PLACE';
+let failConnection = true;
+let needsAuthentication = false;
+let uncertainUpload = false;
+let connections = 0;
+let uploadAttempts = 0;
+const github = async (args) => {
+  if (args[1] === 'view') return JSON.stringify({ body });
+  if (args[1] === 'edit') {
+    body = await readFile(args.at(-1), 'utf8');
+    return '';
+  }
+  throw new Error(`unexpected GitHub command: ${args.join(' ')}`);
+};
+const makeContext = () => {
+  let text = '';
+  const textarea = { waitFor: async () => {}, inputValue: async () => text };
+  const input = {
+    waitFor: async () => {},
+    setInputFiles: async () => {
+      uploadAttempts += 1;
+      if (uncertainUpload) throw new Error('connection lost after send');
+      text = `https://github.com/user-attachments/assets/${uploadAttempts}`;
+    },
+  };
+  const editor = {
+    locator: (selector) => {
+      if (selector === 'textarea[name="pull_request[body]"]') return textarea;
+      if (selector === 'input[type=file]') return input;
+      throw new Error(`unexpected editor selector: ${selector}`);
+    },
+    getByText: () => ({ click: async () => {} }),
+  };
+  const container = {
+    locator: (selector) => selector === 'summary.timeline-comment-action'
+      ? { click: async () => {} }
+      : editor.locator(selector),
+    getByText: editor.getByText,
+  };
+  const page = {
+    goto: async () => {},
+    url: () => needsAuthentication
+      ? 'https://github.com/login'
+      : 'https://github.com/owner/repo/pull/42',
+    locator: () => ({ first: () => container }),
+    close: async () => {},
+  };
+  return { newPage: async () => page };
+};
+const withUploadContext = async (action) => {
+  connections += 1;
+  if (failConnection) {
+    failConnection = false;
+    throw new Error('cdp-unavailable: browser is not connected');
+  }
+  return action(makeContext());
+};
+const options = (placeholder, requestId) => ({
+  repo: 'owner/repo', pr: 42, image, placeholder, requestId, directory, github, withUploadContext,
+});
+await assert.rejects(
+  attachEvidenceToPullRequestBody(options('CONNECT_PLACE', 'connect-request')),
+  /cdp-unavailable:/
+);
+const connected = await attachEvidenceToPullRequestBody(options('CONNECT_PLACE', 'connect-request'));
+assert.equal(connected.requestId, 'connect-request');
+needsAuthentication = true;
+await assert.rejects(
+  attachEvidenceToPullRequestBody(options('AUTH_PLACE', 'auth-request')),
+  /authentication-required:/
+);
+needsAuthentication = false;
+const authenticated = await attachEvidenceToPullRequestBody(options('AUTH_PLACE', 'auth-request'));
+assert.equal(authenticated.requestId, 'auth-request');
+uncertainUpload = true;
+await assert.rejects(
+  attachEvidenceToPullRequestBody(options('UNCERTAIN_PLACE', 'uncertain-request')),
+  /upload-failed:/
+);
+const afterUncertainFailure = { connections, uploadAttempts };
+await assert.rejects(
+  attachEvidenceToPullRequestBody(options('UNCERTAIN_PLACE', 'uncertain-request')),
+  /upload-unconfirmed:/
+);
+assert.equal(connections, afterUncertainFailure.connections);
+assert.equal(uploadAttempts, afterUncertainFailure.uploadAttempts);
+assert.ok(body.includes('![Evidence](https://github.com/user-attachments/assets/1)'));
+assert.ok(body.includes('![Evidence](https://github.com/user-attachments/assets/2)'));
+assert.ok(body.includes('UNCERTAIN_PLACE'));
+JS
+  [ "$status" -eq 0 ]
+}
+
+@test "PR body attachment reuses a confirmed asset after publish failure and preserves concurrent updates" {
+  run node --input-type=module - "$BATS_TEST_DIRNAME/../libexec/pr-evidence.mjs" "$BATS_TEST_TMPDIR" <<'JS'
+import assert from 'node:assert/strict';
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
+const { attachEvidenceToPullRequestBody } = await import(process.argv[2]);
+const directory = process.argv[3];
+const images = Object.fromEntries(await Promise.all(
+  ['fail', 'a', 'b'].map(async (name) => {
+    const image = path.join(directory, `${name}.png`);
+    await writeFile(image, `${name} image bytes`);
+    return [name, image];
+  })
+));
+let body = 'FAIL_PLACE\nA_PLACE\nB_PLACE';
+let failNextEdit = true;
+let connections = 0;
+let uploads = 0;
+const github = async (args) => {
+  if (args[1] === 'view') {
+    const snapshot = body;
+    await delay(40);
+    return JSON.stringify({ body: snapshot });
+  }
+  if (args[1] === 'edit') {
+    const updated = await readFile(args.at(-1), 'utf8');
+    if (failNextEdit) {
+      failNextEdit = false;
+      throw new Error('temporary edit failure');
+    }
+    body = updated;
+    return '';
+  }
+  throw new Error(`unexpected GitHub command: ${args.join(' ')}`);
+};
+const withUploadContext = async (action) => {
+  connections += 1;
+  let text = '';
+  const textarea = { waitFor: async () => {}, inputValue: async () => text };
+  const input = {
+    waitFor: async () => {},
+    setInputFiles: async (image) => {
+      uploads += 1;
+      const name = path.basename(image, '.png');
+      text = `https://github.com/user-attachments/assets/${name}`;
+    },
+  };
+  const editor = {
+    locator: (selector) => selector === 'textarea[name="pull_request[body]"]'
+      ? textarea
+      : input,
+    getByText: () => ({ click: async () => {} }),
+  };
+  const container = {
+    locator: (selector) => selector === 'summary.timeline-comment-action'
+      ? { click: async () => {} }
+      : editor.locator(selector),
+    getByText: editor.getByText,
+  };
+  const page = {
+    goto: async () => {},
+    url: () => 'https://github.com/owner/repo/pull/42',
+    locator: () => ({ first: () => container }),
+    close: async () => {},
+  };
+  return action({ newPage: async () => page });
+};
+const attach = (name, placeholder, requestId) => attachEvidenceToPullRequestBody({
+  repo: 'owner/repo', pr: 42, image: images[name], placeholder, requestId,
+  directory, github, withUploadContext,
+});
+await assert.rejects(attach('fail', 'FAIL_PLACE', 'failed-publish'), /temporary edit failure/);
+const beforeRetry = { connections, uploads };
+const resumed = await attach('fail', 'FAIL_PLACE', 'failed-publish');
+assert.equal(resumed.asset, 'https://github.com/user-attachments/assets/fail');
+assert.equal(resumed.requestId, 'failed-publish');
+assert.deepEqual({ connections, uploads }, beforeRetry);
+const [a, b] = await Promise.all([
+  attach('a', 'A_PLACE', 'request-a'),
+  attach('b', 'B_PLACE', 'request-b'),
+]);
+assert.equal(a.asset, 'https://github.com/user-attachments/assets/a');
+assert.equal(b.asset, 'https://github.com/user-attachments/assets/b');
+assert.equal(uploads, 3);
+assert.ok(body.includes('/assets/fail'));
+assert.ok(body.includes('/assets/a'));
+assert.ok(body.includes('/assets/b'));
+assert.ok(!body.includes('_PLACE'));
+JS
+  [ "$status" -eq 0 ]
+}
+
 @test "PR evidence preserves both concurrent updates to one PR" {
   run node --input-type=module - "$BATS_TEST_DIRNAME/../libexec/pr-evidence.mjs" "$BATS_TEST_TMPDIR" <<'JS'
 import assert from 'node:assert/strict';
