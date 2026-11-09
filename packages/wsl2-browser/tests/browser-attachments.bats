@@ -74,6 +74,7 @@ JS
   chmod +x "$BROWSER_ATTACHMENTS_GH"
   cat >"$BROWSER_ATTACHMENTS_PLAYWRIGHT" <<'JS'
 import fs from 'node:fs';
+import path from 'node:path';
 let uploads = 0;
 export const chromium = {
   connectOverCDP: async () => {
@@ -83,7 +84,10 @@ export const chromium = {
     const input = {
       waitFor: async () => {},
       setInputFiles: async image => {
-        if (image !== process.env.EXPECTED_IMAGE) throw new Error(`wrong image: ${image}`);
+        if (path.basename(image) !== path.basename(process.env.EXPECTED_IMAGE) ||
+            fs.readFileSync(image, 'utf8') !== fs.readFileSync(process.env.EXPECTED_IMAGE, 'utf8')) {
+          throw new Error(`wrong image payload: ${image}`);
+        }
         uploads += 1;
         text = `https://github.com/user-attachments/assets/cli-${uploads}`;
       },

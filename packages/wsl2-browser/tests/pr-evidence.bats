@@ -33,7 +33,8 @@ const withUploadContext = async (action) => {
   const input = {
     waitFor: async () => {},
     setInputFiles: async (filename) => {
-      assert.equal(filename, image);
+      assert.equal(path.basename(filename), path.basename(image));
+      assert.equal(await readFile(filename, 'utf8'), 'image bytes');
       await delay(40);
       uploads += 1;
       text = 'https://github.com/user-attachments/assets/confirmed';
@@ -207,6 +208,157 @@ assert.ok(body.includes('![Evidence](https://github.com/user-attachments/assets/
 assert.ok(body.includes('![Evidence](https://github.com/user-attachments/assets/2)'));
 assert.ok(body.includes('UNCERTAIN_PLACE'));
 JS
+  [ "$status" -eq 0 ]
+}
+
+@test "PR body attachment uploads the signed image snapshot after the original changes" {
+  run node --input-type=module - "$BATS_TEST_DIRNAME/../libexec/pr-evidence.mjs" "$BATS_TEST_TMPDIR" <<'JS'
+import assert from 'node:assert/strict';
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+const { attachEvidenceToPullRequestBody } = await import(process.argv[2]);
+const directory = process.argv[3];
+const image = path.join(directory, 'image.png');
+const signedBytes = Buffer.from('signed image bytes');
+await writeFile(image, signedBytes);
+let body = 'PLACE';
+let uploadedName;
+let uploadedBytes;
+const github = async (args) => {
+  assert.equal(args[0], 'pr');
+  assert.equal(args[2], '42');
+  assert.equal(args[args.indexOf('--repo') + 1], 'owner/repo');
+  if (args[1] === 'view') return JSON.stringify({ body });
+  if (args[1] === 'edit') {
+    body = await readFile(args.at(-1), 'utf8');
+    return '';
+  }
+  throw new Error(`unexpected GitHub command: ${args.join(' ')}`);
+};
+const withUploadContext = async (action) => {
+  await writeFile(image, 'replacement bytes');
+  const textarea = { waitFor: async () => {}, inputValue: async () => '' };
+  const input = {
+    waitFor: async () => {},
+    setInputFiles: async (filename) => {
+      uploadedName = path.basename(filename);
+      uploadedBytes = await readFile(filename);
+      textarea.inputValue = async () => 'https://github.com/user-attachments/assets/signed';
+    },
+  };
+  const editor = {
+    locator: (selector) => selector.includes('textarea') ? textarea : input,
+    getByText: () => ({ click: async () => {} }),
+  };
+  const container = {
+    locator: (selector) => selector === 'summary.timeline-comment-action'
+      ? { click: async () => {} }
+      : editor.locator(selector),
+    getByText: editor.getByText,
+  };
+  const page = {
+    goto: async () => {},
+    url: () => 'https://github.com/owner/repo/pull/42',
+    locator: () => ({ first: () => container }),
+    close: async () => {},
+  };
+  return action({ newPage: async () => page });
+};
+await attachEvidenceToPullRequestBody({
+  repo: 'owner/repo', pr: 42, image, placeholder: 'PLACE', requestId: 'signed-bytes',
+  directory, github, withUploadContext,
+});
+assert.equal(uploadedName, 'image.png');
+assert.deepEqual(uploadedBytes, signedBytes);
+assert.ok(body.includes('![Evidence](https://github.com/user-attachments/assets/signed)'));
+JS
+  if [ "$status" -ne 0 ]; then printf '%s\n' "$output"; fi
+  [ "$status" -eq 0 ]
+}
+
+@test "PR body attachment can retry the same request after failures before sending" {
+  run node --input-type=module - "$BATS_TEST_DIRNAME/../libexec/pr-evidence.mjs" "$BATS_TEST_TMPDIR" <<'JS'
+import assert from 'node:assert/strict';
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+const { attachEvidenceToPullRequestBody } = await import(process.argv[2]);
+const directory = process.argv[3];
+const image = path.join(directory, 'image.png');
+await writeFile(image, 'image bytes');
+let body = '';
+let failStage;
+let sends = 0;
+const github = async (args) => {
+  assert.equal(args[0], 'pr');
+  assert.equal(args[2], '42');
+  assert.equal(args[args.indexOf('--repo') + 1], 'owner/repo');
+  if (args[1] === 'view') return JSON.stringify({ body });
+  if (args[1] === 'edit') {
+    body = await readFile(args.at(-1), 'utf8');
+    return '';
+  }
+  throw new Error(`unexpected GitHub command: ${args.join(' ')}`);
+};
+const withUploadContext = async (action) => {
+  let text = '';
+  const textarea = { waitFor: async () => {}, inputValue: async () => text };
+  const input = {
+    waitFor: async () => {
+      if (failStage === 'input') throw new Error('input wait failed');
+    },
+    setInputFiles: async () => {
+      sends += 1;
+      text = `https://github.com/user-attachments/assets/${sends}`;
+    },
+  };
+  const editor = {
+    locator: (selector) => selector.includes('textarea') ? textarea : input,
+    getByText: (value) => ({ click: async () => {
+      if (value === 'Edit' && failStage === 'edit') throw new Error('edit click failed');
+    } }),
+  };
+  const container = {
+    locator: (selector) => selector === 'summary.timeline-comment-action'
+      ? { click: async () => {} }
+      : editor.locator(selector),
+    getByText: editor.getByText,
+  };
+  const page = {
+    goto: async () => { if (failStage === 'goto') throw new Error('goto failed'); },
+    url: () => 'https://github.com/owner/repo/pull/42',
+    locator: () => ({ first: () => container }),
+    close: async () => {},
+  };
+  return action({
+    newPage: async () => {
+      if (failStage === 'newPage') throw new Error('newPage failed');
+      return page;
+    },
+  });
+};
+for (const [stage, expected] of [
+  ['newPage', /newPage failed/],
+  ['goto', /upload-failed:/],
+  ['edit', /upload-failed:/],
+  ['input', /upload-failed:/],
+]) {
+  const placeholder = `PLACE_${stage}`;
+  const requestId = `retry-${stage}`;
+  body += `${placeholder}\n`;
+  const options = {
+    repo: 'owner/repo', pr: 42, image, placeholder, requestId,
+    directory, github, withUploadContext,
+  };
+  failStage = stage;
+  await assert.rejects(attachEvidenceToPullRequestBody(options), expected);
+  assert.equal(sends, ['newPage', 'goto', 'edit', 'input'].indexOf(stage));
+  failStage = undefined;
+  const resumed = await attachEvidenceToPullRequestBody(options);
+  assert.equal(resumed.requestId, requestId);
+  assert.equal(sends, ['newPage', 'goto', 'edit', 'input'].indexOf(stage) + 1);
+}
+JS
+  if [ "$status" -ne 0 ]; then printf '%s\n' "$output"; fi
   [ "$status" -eq 0 ]
 }
 

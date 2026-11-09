@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { once } from "node:events";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -104,7 +105,7 @@ export const publishEvidence = ({
 
 export const uploadEvidence = async (
   context,
-  { repo, pr, image, comment = false }
+  { repo, pr, image, comment = false, onBeforeSend }
 ) => {
   const page = await context.newPage();
   let sent = false;
@@ -140,6 +141,7 @@ export const uploadEvidence = async (
     const input = body.locator("input[type=file]");
     await input.waitFor({ state: "attached", timeout: 30_000 });
     const started = Date.now();
+    await onBeforeSend?.();
     sent = true;
     await input.setInputFiles(image);
     let asset;
@@ -218,19 +220,32 @@ export const attachEvidenceToPullRequestBody = async ({
         await fs.rename(temporary, filename);
       };
       if (!receipt) {
-        await withUploadContext(async (context) => {
-          await save({ phase: "uploading", signature });
-          try {
-            const result = await uploadEvidence(context, { image, pr, repo });
-            receipt = { phase: "uploaded", signature, ...result };
-            await save(receipt);
-          } catch (error) {
-            if (error.message.startsWith("authentication-required")) {
-              await save({ phase: "authentication-required", signature });
+        const snapshotDirectory = await fs.mkdtemp(
+          path.join(os.tmpdir(), "pr-evidence-")
+        );
+        const snapshotImage = path.join(snapshotDirectory, path.basename(image));
+        try {
+          await fs.writeFile(snapshotImage, imageBytes, { mode: 0o600 });
+          await withUploadContext(async (context) => {
+            try {
+              const result = await uploadEvidence(context, {
+                image: snapshotImage,
+                onBeforeSend: () => save({ phase: "uploading", signature }),
+                pr,
+                repo,
+              });
+              receipt = { phase: "uploaded", signature, ...result };
+              await save(receipt);
+            } catch (error) {
+              if (error.message.startsWith("authentication-required")) {
+                await save({ phase: "authentication-required", signature });
+              }
+              throw error;
             }
-            throw error;
-          }
-        });
+          });
+        } finally {
+          await fs.rm(snapshotDirectory, { recursive: true, force: true });
+        }
       }
       await publishEvidence({
         asset: receipt.asset,
