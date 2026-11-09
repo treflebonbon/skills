@@ -54,6 +54,9 @@ const writeFakeNpm = async (temporary) => {
     "  await fs.writeFile(path.join(cli, 'package.json'), JSON.stringify({version:'0.1.22'}));",
     "  await fs.writeFile(path.join(cli, 'playwright-cli.js'), \"process.stdout.write('pinned-cli:' + process.argv.slice(2).join(' '));\\n\");",
     "  await fs.writeFile(path.join(core, '../package.json'), JSON.stringify({version:'1.64.0-alpha-1790635538000'}));",
+    "  await fs.writeFile(" +
+      "path.join(core, \"../index.mjs\"), " +
+      "\"export const chromium = {};\\n\");",
     "  await fs.writeFile(path.join(core, 'coreBundle.js'), 'throw new Error(`Socket directory path is too long (${Buffer.byteLength(dir)} bytes); set PWTEST_SOCKETS_DIR to a shorter location.`);\\n');",
     "  await fs.writeFile(path.join(program, 'program.js'), 'const toolText = await runInSessionOrStop(newEntry, clientInfo, { _: [\\\"goto\\\", ...params.length ? params : [\\\"about:blank\\\"]] }, output);\\n');",
     "  await fs.writeFile(process.env.NPM_CALLS, JSON.stringify({args, skip:process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD, prefix}));",
@@ -191,7 +194,9 @@ test("prepare help and invalid arguments never install a runtime", async () => {
 });
 
 test("prepare check reports readiness without installing or changing a runtime", async () => {
-  const temporary = await temporaryDirectory("wsl2-browser-prepare-check.");
+  const temporary = path.resolve(
+    await temporaryDirectory("wsl2-browser-prepare-check."),
+  );
   const { npmBin, npmCalls } = await writeFakeNpm(temporary);
   const deps = path.join(temporary, "cache", "runtime");
   const environment = {
@@ -231,18 +236,51 @@ test("prepare check reports readiness without installing or changing a runtime",
     assert.deepEqual(await snapshot(deps, true), before);
     assert.deepEqual(await readFile(npmCalls), npmBefore);
 
-    const marker = path.join(deps, ".wsl2-browser-runtime.json");
-    await writeFile(marker, "{}\n");
-    const invalidBefore = await snapshot(deps, true);
-    const invalid = spawnSync(entry("wsl2-browser-prepare"), ["--check"], {
-      cwd: temporary,
-      encoding: "utf8",
-      env: environment,
-    });
-    assert.notEqual(invalid.status, 0);
-    assert.match(invalid.stderr, /does not match this package lock/u);
-    assert.deepEqual(await snapshot(deps, true), invalidBefore);
-    assert.deepEqual(await readFile(npmCalls), npmBefore);
+    const failures = [
+      [
+        "marker mismatch", ".wsl2-browser-runtime.json",
+        "{}\n", /does not match this package lock/u,
+      ],
+      [
+        "invalid marker JSON", ".wsl2-browser-runtime.json",
+        "{\n", /runtime marker is invalid/u,
+      ],
+      [
+        "installed manifest mismatch",
+        "node_modules/playwright-core/package.json",
+        JSON.stringify({ version: "0.0.0" }),
+        /packages do not match the package lock/u,
+      ],
+      [
+        "installed patch mismatch",
+        "node_modules/playwright-core/lib/coreBundle.js",
+        "unpatched\n", /patches do not match this package/u,
+      ],
+      [
+        "missing attachment entrypoint",
+        "node_modules/playwright-core/index.mjs",
+        null, /ENOENT:.*index\.mjs/u,
+      ],
+    ];
+    for (const [name, relative, value, message] of failures) {
+      const filename = path.join(deps, relative);
+      const original = await readFile(filename);
+      if (value === null) await rm(filename);
+      else await writeFile(filename, value);
+      const invalidBefore = await snapshot(deps, true);
+      const invalid = spawnSync(
+        entry("wsl2-browser-prepare"), ["--check"],
+        { cwd: temporary, encoding: "utf8", env: environment },
+      );
+      assert.equal(invalid.status, 1, `${name}: ${invalid.stderr}`);
+      assert.match(invalid.stderr, message, name);
+      assert.deepEqual(
+        await snapshot(deps, true), invalidBefore, name,
+      );
+      assert.deepEqual(await readFile(npmCalls), npmBefore, name);
+      await writeFile(filename, original);
+    }
+    assert.deepEqual(await snapshot(deps, true), before);
   } finally {
     await rm(temporary, { force: true, recursive: true });
   }

@@ -238,7 +238,17 @@ export const attachEvidenceToPullRequestBody = async ({
               await save(receipt);
             } catch (error) {
               if (error.message.startsWith("authentication-required")) {
-                await save({ phase: "authentication-required", signature });
+                try {
+                  await save({
+                    phase: "authentication-required", signature,
+                  });
+                } catch (saveError) {
+                  throw new AggregateError(
+                    [error, saveError],
+                    `${error.message}; receipt-save-failed: ` +
+                      saveError.message
+                  );
+                }
               }
               throw error;
             }

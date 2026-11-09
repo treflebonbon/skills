@@ -651,3 +651,48 @@ assert.equal(result.reused,false);assert.equal(posts,1);assert.equal(selected,1)
 JS
   [ "$status" -eq 0 ]
 }
+
+@test "PR body attachment reports both auth and save errors" {
+  local module="$BATS_TEST_DIRNAME/../libexec/pr-evidence.mjs"
+  run node --input-type=module - "$module" "$BATS_TEST_TMPDIR" <<"JS"
+import assert from "node:assert/strict";
+import { mkdir, rename, writeFile } from "node:fs/promises";
+import path from "node:path";
+const { attachEvidenceToPullRequestBody } =
+  await import(process.argv[2]);
+const base = process.argv[3];
+const directory = path.join(base, "receipts");
+const image = path.join(base, "image.png");
+await mkdir(directory);
+await writeFile(image, "image bytes");
+let closed = 0;
+const page = {
+  goto: async (url) => {
+    assert.equal(url, "https://github.com/owner/repo/pull/42");
+  },
+  url: () => "https://github.com/login",
+  close: async () => { closed += 1; },
+};
+await assert.rejects(
+  attachEvidenceToPullRequestBody({
+    repo: "owner/repo", pr: 42, image,
+    placeholder: "PLACE", requestId: "auth-save-failure",
+    directory,
+    github: async () => assert.fail("must not publish"),
+    withUploadContext: async (action) => {
+      await rename(directory, path.join(base, "old-receipts"));
+      await writeFile(directory, "blocked");
+      return action({ newPage: async () => page });
+    },
+  }),
+  (error) => {
+    assert.match(error.message, /authentication-required:/u);
+    assert.match(error.message, /receipt-save-failed:.*ENOTDIR/u);
+    return true;
+  },
+);
+assert.equal(closed, 1);
+JS
+  if [ "$status" -ne 0 ]; then printf "%s\n" "$output"; fi
+  [ "$status" -eq 0 ]
+}

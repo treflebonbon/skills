@@ -161,6 +161,9 @@ const readRuntime = async () => {
   ) {
     fail("The cached Playwright runtime patches do not match this package.");
   }
+  await fs.readFile(
+    path.join(runtimeDir, "node_modules/playwright-core/index.mjs"),
+  );
   return runtimeDir;
 };
 
