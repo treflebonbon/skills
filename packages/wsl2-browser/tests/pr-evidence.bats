@@ -15,6 +15,9 @@ let uploads = 0;
 let edits = 0;
 let connections = 0;
 const github = async (args) => {
+  assert.equal(args[0], 'pr');
+  assert.equal(args[2], '42');
+  assert.equal(args[args.indexOf('--repo') + 1], 'owner/repo');
   if (args[1] === 'view') return JSON.stringify({ body });
   if (args[1] === 'edit') {
     edits += 1;
@@ -118,6 +121,9 @@ let uncertainUpload = false;
 let connections = 0;
 let uploadAttempts = 0;
 const github = async (args) => {
+  assert.equal(args[0], 'pr');
+  assert.equal(args[2], '42');
+  assert.equal(args[args.indexOf('--repo') + 1], 'owner/repo');
   if (args[1] === 'view') return JSON.stringify({ body });
   if (args[1] === 'edit') {
     body = await readFile(args.at(-1), 'utf8');
@@ -224,6 +230,9 @@ let failNextEdit = true;
 let connections = 0;
 let uploads = 0;
 const github = async (args) => {
+  assert.equal(args[0], 'pr');
+  assert.equal(args[2], '42');
+  assert.equal(args[args.indexOf('--repo') + 1], 'owner/repo');
   if (args[1] === 'view') {
     const snapshot = body;
     await delay(40);
