@@ -237,7 +237,10 @@ export const attachEvidenceToPullRequestBody = async ({
               receipt = { phase: "uploaded", signature, ...result };
               await save(receipt);
             } catch (error) {
-              if (error.message.startsWith("authentication-required")) {
+              if (
+                typeof error?.message === "string" &&
+                error.message.startsWith("authentication-required")
+              ) {
                 try {
                   await save({
                     phase: "authentication-required", signature,

@@ -696,3 +696,36 @@ JS
   if [ "$status" -ne 0 ]; then printf "%s\n" "$output"; fi
   [ "$status" -eq 0 ]
 }
+
+@test "PR body attachment preserves non-Error page creation failures" {
+  run node --input-type=module - "$BATS_TEST_DIRNAME/../libexec/pr-evidence.mjs" "$BATS_TEST_TMPDIR" <<'JS'
+import assert from 'node:assert/strict';
+import { writeFile } from 'node:fs/promises';
+import path from 'node:path';
+const { attachEvidenceToPullRequestBody } = await import(process.argv[2]);
+const directory = process.argv[3];
+const image = path.join(directory, 'image.png');
+await writeFile(image, 'image bytes');
+const failures = [new Error('newPage failed'), 'newPage failed', null, { message: 42 }];
+for (const [index, failure] of failures.entries()) {
+  let pages = 0;
+  await assert.rejects(
+    attachEvidenceToPullRequestBody({
+      repo: 'owner/repo', pr: 42, image, directory,
+      placeholder: 'PLACE', requestId: `page-failure-${index}`,
+      github: async () => assert.fail('must not publish'),
+      withUploadContext: async (action) => action({
+        newPage: async () => { pages += 1; throw failure; },
+      }),
+    }),
+    (error) => {
+      assert.equal(error, failure);
+      return true;
+    },
+  );
+  assert.equal(pages, 1);
+}
+JS
+  if [ "$status" -ne 0 ]; then printf '%s\n' "$output"; fi
+  [ "$status" -eq 0 ]
+}
