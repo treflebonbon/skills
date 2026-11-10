@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.8](https://github.com/treflebonbon/skills/compare/v0.2.7...v0.2.8) (2026-11-10)
+
+
+### Bug Fixes
+
+* **wsl2-browser:** harden evidence uploads and runtime checks ([#18](https://github.com/treflebonbon/skills/issues/18)) ([a20f784](https://github.com/treflebonbon/skills/commit/a20f78482e91981550fef857844e7b7ac68e31d4))
+
 ## [0.2.7](https://github.com/treflebonbon/skills/compare/v0.2.6...v0.2.7) (2026-11-05)
 
 
