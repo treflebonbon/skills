@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const packageRoot = await fs.realpath(
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."),
@@ -161,6 +161,9 @@ const readRuntime = async () => {
   ) {
     fail("The cached Playwright runtime patches do not match this package.");
   }
+  await import(pathToFileURL(
+    path.join(runtimeDir, "node_modules/playwright-core/index.mjs"),
+  ));
   return runtimeDir;
 };
 

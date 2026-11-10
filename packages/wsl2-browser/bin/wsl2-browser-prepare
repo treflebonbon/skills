@@ -2,5 +2,25 @@
 
 set -euo pipefail
 
+usage() {
+	printf '%s\n' \
+		'Usage: wsl2-browser-prepare [--check | --help]' \
+		'  No arguments: prepare the pinned runtime in the external cache.' \
+		'  --check: verify an existing runtime and print its path without installing.' \
+		'  -h, --help: show this help without preparing a runtime.'
+}
+
+if [[ $# -eq 0 ]]; then
+	action=prepare
+elif [[ $# -eq 1 && "$1" == --check ]]; then
+	action=require
+elif [[ $# -eq 1 && ("$1" == --help || "$1" == -h) ]]; then
+	usage
+	exit 0
+else
+	usage >&2
+	exit 2
+fi
+
 package_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
-exec node "$package_root/libexec/runtime-path.mjs" prepare
+exec node "$package_root/libexec/runtime-path.mjs" "$action"

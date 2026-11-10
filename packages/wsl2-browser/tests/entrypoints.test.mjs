@@ -54,6 +54,11 @@ const writeFakeNpm = async (temporary) => {
     "  await fs.writeFile(path.join(cli, 'package.json'), JSON.stringify({version:'0.1.22'}));",
     "  await fs.writeFile(path.join(cli, 'playwright-cli.js'), \"process.stdout.write('pinned-cli:' + process.argv.slice(2).join(' '));\\n\");",
     "  await fs.writeFile(path.join(core, '../package.json'), JSON.stringify({version:'1.64.0-alpha-1790635538000'}));",
+    "  await fs.writeFile(" +
+      "path.join(core, \"../index.mjs\"), " +
+      "\"import playwright from './index.js';\\nexport const chromium = playwright.chromium;\\n\");",
+    "  await fs.writeFile(path.join(core, '../index.js'), \"require('./lib/bootstrap'); module.exports = { chromium: {} };\\n\");",
+    "  await fs.writeFile(path.join(core, 'bootstrap.js'), 'module.exports = {};\\n');",
     "  await fs.writeFile(path.join(core, 'coreBundle.js'), 'throw new Error(`Socket directory path is too long (${Buffer.byteLength(dir)} bytes); set PWTEST_SOCKETS_DIR to a shorter location.`);\\n');",
     "  await fs.writeFile(path.join(program, 'program.js'), 'const toolText = await runInSessionOrStop(newEntry, clientInfo, { _: [\\\"goto\\\", ...params.length ? params : [\\\"about:blank\\\"]] }, output);\\n');",
     "  await fs.writeFile(process.env.NPM_CALLS, JSON.stringify({args, skip:process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD, prefix}));",
@@ -63,11 +68,11 @@ const writeFakeNpm = async (temporary) => {
   return { npmBin, npmCalls };
 };
 
-const snapshot = async (directory) => {
+const snapshot = async (directory, includeDependencies = false) => {
   const files = new Map();
   const visit = async (current) => {
     for (const entry of await readdir(current, { withFileTypes: true })) {
-      if (entry.name === "node_modules") continue;
+      if (!includeDependencies && entry.name === "node_modules") continue;
       const filename = path.join(current, entry.name);
       if (entry.isDirectory()) {
         await visit(filename);
@@ -145,6 +150,151 @@ test("WSL metadata commands reach the pinned CLI before Windows setup", async ()
     });
     assert.equal(cli.status, 0, cli.stderr ?? cli.error?.message);
     assert.equal(await readFile(calls, "utf8"), "upstream:--help\n");
+  } finally {
+    await rm(temporary, { force: true, recursive: true });
+  }
+});
+
+test("prepare help and invalid arguments never install a runtime", async () => {
+  const temporary = await temporaryDirectory("wsl2-browser-prepare-help.");
+  const { npmBin, npmCalls } = await writeFakeNpm(temporary);
+  const deps = path.join(temporary, "cache", "runtime");
+  const environment = {
+    ...process.env,
+    PATH: `${npmBin}:${process.env.PATH}`,
+    NPM_CALLS: npmCalls,
+    WSL2_BROWSER_DEPS_DIR: deps,
+  };
+
+  try {
+    for (const args of [["--help"], ["-h"]]) {
+      const help = spawnSync(entry("wsl2-browser-prepare"), args, {
+        cwd: temporary,
+        encoding: "utf8",
+        env: environment,
+      });
+      assert.equal(help.status, 0, help.stderr);
+      assert.match(help.stdout, /Usage: wsl2-browser-prepare/u);
+      assert.equal(await stat(npmCalls).then(() => true, () => false), false);
+      assert.equal(await stat(path.dirname(deps)).then(() => true, () => false), false);
+    }
+
+    for (const args of [["--unknown"], ["--help", "extra"], ["--check", "extra"]]) {
+      const invalid = spawnSync(entry("wsl2-browser-prepare"), args, {
+        cwd: temporary,
+        encoding: "utf8",
+        env: environment,
+      });
+      assert.notEqual(invalid.status, 0);
+      assert.match(invalid.stderr, /Usage: wsl2-browser-prepare/u);
+      assert.equal(await stat(npmCalls).then(() => true, () => false), false);
+      assert.equal(await stat(path.dirname(deps)).then(() => true, () => false), false);
+    }
+  } finally {
+    await rm(temporary, { force: true, recursive: true });
+  }
+});
+
+test("prepare check reports readiness without installing or changing a runtime", async () => {
+  const temporary = path.resolve(
+    await temporaryDirectory("wsl2-browser-prepare-check."),
+  );
+  const { npmBin, npmCalls } = await writeFakeNpm(temporary);
+  const deps = path.join(temporary, "cache", "runtime");
+  const environment = {
+    ...process.env,
+    PATH: `${npmBin}:${process.env.PATH}`,
+    NPM_CALLS: npmCalls,
+    WSL2_BROWSER_DEPS_DIR: deps,
+  };
+
+  try {
+    const missing = spawnSync(entry("wsl2-browser-prepare"), ["--check"], {
+      cwd: temporary,
+      encoding: "utf8",
+      env: environment,
+    });
+    assert.notEqual(missing.status, 0);
+    assert.match(missing.stderr, /is not prepared/u);
+    assert.equal(await stat(npmCalls).then(() => true, () => false), false);
+    assert.equal(await stat(path.dirname(deps)).then(() => true, () => false), false);
+
+    const prepared = spawnSync(entry("wsl2-browser-prepare"), [], {
+      cwd: temporary,
+      encoding: "utf8",
+      env: environment,
+    });
+    assert.equal(prepared.status, 0, prepared.stderr);
+    const before = await snapshot(deps, true);
+    const npmBefore = await readFile(npmCalls);
+
+    const ready = spawnSync(entry("wsl2-browser-prepare"), ["--check"], {
+      cwd: temporary,
+      encoding: "utf8",
+      env: environment,
+    });
+    assert.equal(ready.status, 0, ready.stderr);
+    assert.equal(ready.stdout, `${deps}\n`);
+    assert.deepEqual(await snapshot(deps, true), before);
+    assert.deepEqual(await readFile(npmCalls), npmBefore);
+
+    const failures = [
+      [
+        "marker mismatch", ".wsl2-browser-runtime.json",
+        "{}\n", /does not match this package lock/u,
+      ],
+      [
+        "invalid marker JSON", ".wsl2-browser-runtime.json",
+        "{\n", /runtime marker is invalid/u,
+      ],
+      [
+        "installed manifest mismatch",
+        "node_modules/playwright-core/package.json",
+        JSON.stringify({ version: "0.0.0" }),
+        /packages do not match the package lock/u,
+      ],
+      [
+        "installed patch mismatch",
+        "node_modules/playwright-core/lib/coreBundle.js",
+        "unpatched\n", /patches do not match this package/u,
+      ],
+      [
+        "missing attachment entrypoint",
+        "node_modules/playwright-core/index.mjs",
+        null, /Cannot find module.*index\.mjs/u,
+      ],
+      [
+        "missing attachment CommonJS entrypoint",
+        "node_modules/playwright-core/index.js",
+        null, /Cannot find module.*index\.js/u,
+      ],
+      [
+        "missing attachment transitive dependency",
+        "node_modules/playwright-core/lib/bootstrap.js",
+        null, /Cannot find module.*bootstrap/u,
+      ],
+    ];
+    for (const [name, relative, value, message] of failures) {
+      const filename = path.join(deps, relative);
+      const original = await readFile(filename);
+      if (value === null) await rm(filename);
+      else await writeFile(filename, value);
+      const invalidBefore = await snapshot(deps, true);
+      for (const args of [["--check"], []]) {
+        const invalid = spawnSync(
+          entry("wsl2-browser-prepare"), args,
+          { cwd: temporary, encoding: "utf8", env: environment },
+        );
+        assert.equal(invalid.status, 1, `${name} ${args}: ${invalid.stderr}`);
+        assert.match(invalid.stderr, message, name);
+        assert.deepEqual(
+          await snapshot(deps, true), invalidBefore, name,
+        );
+        assert.deepEqual(await readFile(npmCalls), npmBefore, name);
+      }
+      await writeFile(filename, original);
+    }
+    assert.deepEqual(await snapshot(deps, true), before);
   } finally {
     await rm(temporary, { force: true, recursive: true });
   }

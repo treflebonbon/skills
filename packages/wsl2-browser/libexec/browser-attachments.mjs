@@ -9,10 +9,9 @@ import { parseArgs, promisify } from "node:util";
 
 import {
   withBrowserLock,
-  publishEvidence,
+  attachEvidenceToPullRequestBody,
   uploadEvidence,
   commentEvidence,
-  digest,
 } from "./pr-evidence.mjs";
 
 const exec = promisify(execFile);
@@ -195,11 +194,6 @@ const ensure = (mode) =>
       throw error;
     }
   });
-const save = async (filename, receipt) => {
-  const temporary = `${filename}.${process.pid}.tmp`;
-  await fs.writeFile(temporary, JSON.stringify(receipt), { mode: 0o600 });
-  await fs.rename(temporary, filename);
-};
 try {
   const located = await owner("locate", "--role", "attachment");
   const fields = located.split("\t");
@@ -309,77 +303,24 @@ try {
         );
         return;
       }
-      const image = await fs.readFile(values.image[0]);
-      const key = digest(
-        `${values.repo.toLowerCase()}#${values.pr}:${values["request-id"]}`
-      );
-      const filename = path.join(directory, `${key}.json`);
-      await withBrowserLock(path.join(directory, `${key}.lock`), async () => {
-        const signature = digest(`${digest(image)}:${values.placeholder}`);
-        let receipt = await fs
-          .readFile(filename, "utf-8")
-          .then(JSON.parse)
-          .catch((error) => {
-            if (error.code !== "ENOENT") {
-              throw error;
-            }
-            return null;
-          });
-        if (receipt && receipt.signature !== signature) {
-          throw new Error(
-            "request-conflict: request-id was already used with different content"
-          );
-        }
-        if (receipt?.phase === "authentication-required") {
-          receipt = null;
-        }
-        if (receipt && !receipt.asset) {
-          throw new Error(
-            "upload-unconfirmed: previous request has no confirmed asset; inspect it before requesting another upload"
-          );
-        }
-        if (!receipt) {
-          receipt = { phase: "uploading", signature };
+      const result = await attachEvidenceToPullRequestBody({
+        directory,
+        github,
+        image: values.image[0],
+        placeholder: values.placeholder,
+        pr: values.pr,
+        repo: values.repo,
+        requestId: values["request-id"],
+        withUploadContext: async (action) => {
           const browser = await connect();
-          await save(filename, receipt);
           try {
-            const result = await uploadEvidence(browser.contexts()[0], {
-              image: values.image[0],
-              pr: values.pr,
-              repo: values.repo,
-            });
-            receipt = { phase: "uploaded", signature, ...result };
-            await save(filename, receipt);
-          } catch (error) {
-            if (error.message.startsWith("authentication-required")) {
-              await save(filename, {
-                phase: "authentication-required",
-                signature,
-              });
-            }
-            throw error;
+            return await action(browser.contexts()[0]);
           } finally {
             await browser.close();
           }
-        }
-        await publishEvidence({
-          asset: receipt.asset,
-          directory,
-          github,
-          placeholder: values.placeholder,
-          pr: values.pr,
-          repo: values.repo,
-        });
-        await save(filename, { ...receipt, phase: "published" });
-        console.log(
-          JSON.stringify({
-            asset: receipt.asset,
-            finished: receipt.finished,
-            requestId: values["request-id"],
-            started: receipt.started,
-          })
-        );
+        },
       });
+      console.log(JSON.stringify(result));
     },
     ["upload", "comment"].includes(command)
   );

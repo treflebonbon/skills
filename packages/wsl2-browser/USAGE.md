@@ -6,7 +6,13 @@
 
 必要なものは Node.js 20.19 以上、runtime 準備用の npm、Bash、`git`、`curl`、`flock`、`sha256sum`、`wslinfo`、`powershell.exe`、`wslpath`、Windows 側の Stable Chrome です。GitHub の添付 upload/comment には `gh` も使います。WSL2 の networking mode は `mirrored` にします。設定後に `wsl.exe --shutdown` を実行して WSL を再起動し、`wslinfo --networking-mode` で確認してください。Windows interoperability と PowerShell が使えない場合、managed browser は起動しません。
 
-固定依存を package 外の cache に準備します。
+まず準備済み runtime を、依存を導入・変更せず確認できます。成功時は検証した runtime の絶対 path を表示し、未準備や不一致では非0で終了します。
+
+```sh
+/absolute/path/to/skills/packages/wsl2-browser/bin/wsl2-browser-prepare --check
+```
+
+初回の準備が必要なら、固定依存を package 外の cache に準備します。
 
 ```sh
 /absolute/path/to/skills/packages/wsl2-browser/bin/wsl2-browser-prepare
@@ -21,7 +27,7 @@
 | `bin/playwright-cli` | Playwright CLI。WSL2 の `open` は headless 既定の Managed Playwright Chrome を使います。非 WSL2 では固定版の上流 CLI に委譲します。 |
 | `bin/browser-attachments` | 共有添付ブラウザの手動認証、終了、画像 upload、コメント投稿です。WSL2 mirrored networking と Windows interop が必要です。 |
 | `bin/managed-chrome-owner` | browser identity ごとの所有状態を照会・復旧する入口です。 |
-| `bin/wsl2-browser-prepare` | 固定 lock の Playwright CLI runtime を外部 cache へ準備します。 |
+| `bin/wsl2-browser-prepare` | 引数なしで固定 runtime を外部 cache へ準備します。`--check` は既存 runtime の検証、`--help` は使い方の表示だけを行います。 |
 
 CLI と補助資産はすべてこの package から解決します。どの作業 directory から起動しても同じ entrypoint と資産を使えます。
 
