@@ -56,7 +56,9 @@ const writeFakeNpm = async (temporary) => {
     "  await fs.writeFile(path.join(core, '../package.json'), JSON.stringify({version:'1.64.0-alpha-1790635538000'}));",
     "  await fs.writeFile(" +
       "path.join(core, \"../index.mjs\"), " +
-      "\"export const chromium = {};\\n\");",
+      "\"import playwright from './index.js';\\nexport const chromium = playwright.chromium;\\n\");",
+    "  await fs.writeFile(path.join(core, '../index.js'), \"require('./lib/bootstrap'); module.exports = { chromium: {} };\\n\");",
+    "  await fs.writeFile(path.join(core, 'bootstrap.js'), 'module.exports = {};\\n');",
     "  await fs.writeFile(path.join(core, 'coreBundle.js'), 'throw new Error(`Socket directory path is too long (${Buffer.byteLength(dir)} bytes); set PWTEST_SOCKETS_DIR to a shorter location.`);\\n');",
     "  await fs.writeFile(path.join(program, 'program.js'), 'const toolText = await runInSessionOrStop(newEntry, clientInfo, { _: [\\\"goto\\\", ...params.length ? params : [\\\"about:blank\\\"]] }, output);\\n');",
     "  await fs.writeFile(process.env.NPM_CALLS, JSON.stringify({args, skip:process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD, prefix}));",
@@ -259,7 +261,17 @@ test("prepare check reports readiness without installing or changing a runtime",
       [
         "missing attachment entrypoint",
         "node_modules/playwright-core/index.mjs",
-        null, /ENOENT:.*index\.mjs/u,
+        null, /Cannot find module.*index\.mjs/u,
+      ],
+      [
+        "missing attachment CommonJS entrypoint",
+        "node_modules/playwright-core/index.js",
+        null, /Cannot find module.*index\.js/u,
+      ],
+      [
+        "missing attachment transitive dependency",
+        "node_modules/playwright-core/lib/bootstrap.js",
+        null, /Cannot find module.*bootstrap/u,
       ],
     ];
     for (const [name, relative, value, message] of failures) {
@@ -268,16 +280,18 @@ test("prepare check reports readiness without installing or changing a runtime",
       if (value === null) await rm(filename);
       else await writeFile(filename, value);
       const invalidBefore = await snapshot(deps, true);
-      const invalid = spawnSync(
-        entry("wsl2-browser-prepare"), ["--check"],
-        { cwd: temporary, encoding: "utf8", env: environment },
-      );
-      assert.equal(invalid.status, 1, `${name}: ${invalid.stderr}`);
-      assert.match(invalid.stderr, message, name);
-      assert.deepEqual(
-        await snapshot(deps, true), invalidBefore, name,
-      );
-      assert.deepEqual(await readFile(npmCalls), npmBefore, name);
+      for (const args of [["--check"], []]) {
+        const invalid = spawnSync(
+          entry("wsl2-browser-prepare"), args,
+          { cwd: temporary, encoding: "utf8", env: environment },
+        );
+        assert.equal(invalid.status, 1, `${name} ${args}: ${invalid.stderr}`);
+        assert.match(invalid.stderr, message, name);
+        assert.deepEqual(
+          await snapshot(deps, true), invalidBefore, name,
+        );
+        assert.deepEqual(await readFile(npmCalls), npmBefore, name);
+      }
       await writeFile(filename, original);
     }
     assert.deepEqual(await snapshot(deps, true), before);
