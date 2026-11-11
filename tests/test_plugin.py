@@ -249,7 +249,7 @@ class PluginPackageContractTest(unittest.TestCase):
         self.assertIn("ast-grep 0.42.1", studio)
         self.assertIn("npm install --global @ast-grep/cli@0.42.1", studio)
         self.assertIn("ソースコードを読んで調査を続けます", studio)
-        self.assertIn("構文抽出 helper 自体も実行していません", studio)
+        self.assertIn("TypeScript の構文から証拠を抽出する経路だけで Bun", studio)
 
         dogfood_dependencies = (
             ROOT / "skills/dogfood/references/dependencies.md"
