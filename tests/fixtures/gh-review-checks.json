@@ -1,0 +1,39 @@
+{
+  "checks": {
+    "data": {
+      "repository": {
+        "object": {
+          "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "statusCheckRollup": {
+            "contexts": {
+              "pageInfo": {"hasNextPage": false, "endCursor": null},
+              "nodes": [
+                {"__typename": "CheckRun", "name": "CI", "status": "COMPLETED", "conclusion": "SUCCESS", "detailsUrl": "https://github.com/owner/repo/actions/runs/1"}
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "comments": {
+    "data": {
+      "repository": {
+        "pullRequest": {
+          "headRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "comments": {
+            "pageInfo": {"hasNextPage": false, "endCursor": null},
+            "nodes": [
+              {
+                "author": {"login": "coderabbitai"},
+                "url": "https://github.com/owner/repo/pull/42#issuecomment-1",
+                "updatedAt": "2026-11-11T00:00:00Z",
+                "body": "<!-- pre_merge_checks_walkthrough_start -->\n| Check name | Status | Explanation |\n| --- | --- | --- |\n| Docstring Coverage | ![Warning](https://storage.googleapis.com/coderabbit_public_assets/pre-merge-checks-warning.svg) | Docstring coverage is 0.00%. Required: 80.00%. |\n<!-- pre_merge_checks_walkthrough_end -->\nReviewing files that changed from the base of the PR and between bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb and aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa."
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
