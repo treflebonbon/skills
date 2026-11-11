@@ -76,6 +76,42 @@ query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
 }
 """.strip()
 
+CHECKS_QUERY = """
+query ReviewQualityChecks($owner: String!, $repo: String!, $head: String!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    object(expression: $head) {
+      ... on Commit {
+        oid
+        statusCheckRollup {
+          contexts(first: 100, after: $cursor) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              __typename
+              ... on CheckRun { name status conclusion detailsUrl }
+              ... on StatusContext { context state targetUrl }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+""".strip()
+
+QUALITY_COMMENTS_QUERY = """
+query ReviewQualityComments($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      headRefOid
+      comments(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes { body updatedAt url author { login } }
+      }
+    }
+  }
+}
+""".strip()
+
 REPLY_MUTATION = """
 mutation($threadId: ID!, $body: String!) {
   addPullRequestReviewThreadReply(
@@ -210,7 +246,127 @@ def plain_body(body: str) -> str:
     return "".join(parts)
 
 
-def inspect(repo: str, pr: int, no_diff: bool = False, plain: bool = False) -> None:
+def combined_status(statuses: list[str]) -> str:
+    """失敗、実行中、判定不能の順に優先し、空の結果を成功扱いしない。"""
+    if not statuses:
+        return "unknown"
+    for status in ("failed", "pending", "unknown"):
+        if status in statuses:
+            return status
+    return "passed" if all(status == "passed" for status in statuses) else "unknown"
+
+
+def github_check(item: dict[str, Any]) -> dict[str, Any]:
+    """GitHub の CheckRun と従来の commit status を共通の検査状態に変換する。"""
+    if item.get("__typename") == "CheckRun":
+        if item.get("status") in {"QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"}:
+            status = "pending"
+        elif item.get("status") == "COMPLETED":
+            status = {
+                "SUCCESS": "passed", "FAILURE": "failed", "TIMED_OUT": "failed",
+                "CANCELLED": "failed", "ACTION_REQUIRED": "failed", "STARTUP_FAILURE": "failed",
+            }.get(item.get("conclusion"), "unknown")
+        else:
+            status = "unknown"
+        return {"name": item.get("name"), "status": status, "url": item.get("detailsUrl")}
+    status = {"SUCCESS": "passed", "FAILURE": "failed", "ERROR": "failed",
+              "PENDING": "pending", "EXPECTED": "pending"}.get(item.get("state"), "unknown")
+    return {"name": item.get("context"), "status": status, "url": item.get("targetUrl")}
+
+
+def fetch_github_checks(repo: str, head: str) -> dict[str, Any]:
+    """固定した commit の全ページを取得し、後続ページの失敗も集計する。"""
+    owner, name = split_repo(repo)
+    items: list[dict[str, Any]] = []
+    cursor = None
+    while True:
+        args = ["api", "graphql", "-f", f"query={CHECKS_QUERY}", "-f", f"owner={owner}",
+                "-f", f"repo={name}", "-f", f"head={head}"]
+        if cursor:
+            args.extend(["-f", f"cursor={cursor}"])
+        commit = run_gh_json(args)["data"]["repository"]["object"]
+        rollup = (commit or {}).get("statusCheckRollup")
+        if not commit or commit.get("oid") != head or not rollup:
+            return {"status": "unknown", "items": items, "reason": "対象 commit の検査結果がありません"}
+        connection = rollup["contexts"]
+        items.extend(github_check(item) for item in connection.get("nodes") or [])
+        page = connection["pageInfo"]
+        if not page["hasNextPage"]:
+            return {"status": combined_status([item["status"] for item in items]), "items": items}
+        cursor = page["endCursor"]
+
+
+def fetch_coderabbit_checks(repo: str, pr: int, head: str) -> dict[str, Any]:
+    """最新の公式サマリーを全ページから探し、対象 HEAD の既知形式だけを判定する。"""
+    owner, name = split_repo(repo)
+    comments = []
+    cursor = None
+    while True:
+        args = ["api", "graphql", "-f", f"query={QUALITY_COMMENTS_QUERY}", "-f", f"owner={owner}",
+                "-f", f"repo={name}", "-F", f"number={pr}"]
+        if cursor:
+            args.extend(["-f", f"cursor={cursor}"])
+        pull = run_gh_json(args)["data"]["repository"]["pullRequest"]
+        if not pull or pull.get("headRefOid") != head:
+            return {"status": "unknown", "reason": "取得中に PR の HEAD が変わりました", "items": []}
+        connection = pull["comments"]
+        for comment in connection.get("nodes") or []:
+            if ((comment.get("author") or {}).get("login") in {"coderabbitai", "coderabbitai[bot]"}
+                    and "<!-- pre_merge_checks_walkthrough_start -->" in (comment.get("body") or "")):
+                comments.append(comment)
+        page = connection["pageInfo"]
+        if not page["hasNextPage"]:
+            break
+        cursor = page["endCursor"]
+    if not comments:
+        return {"status": "unknown", "reason": "CodeRabbit の pre-merge サマリーがありません", "items": []}
+    comment = max(comments, key=lambda item: item.get("updatedAt") or "")
+    body = comment.get("body") or ""
+    heads = set(re.findall(r"^Reviewing files that changed from the base of the PR and between "
+                           r"[0-9a-f]{40} and ([0-9a-f]{40})\.$", body, re.MULTILINE))
+    heads.update(re.findall(r'^<!-- change_assessment_commit:"([0-9a-f]{40})" -->$', body, re.MULTILINE))
+    reviewed_head = next(iter(heads)) if len(heads) == 1 else None
+    result: dict[str, Any] = {"url": comment.get("url"), "reviewed_head": reviewed_head, "items": []}
+    if reviewed_head != head:
+        return {**result, "status": "unknown", "reason": "CodeRabbit の判定対象 HEAD を確認できません"}
+    blocks = re.findall(r"^<!-- pre_merge_checks_walkthrough_start -->\s*\n(.*?)"
+                        r"^<!-- pre_merge_checks_walkthrough_end -->\s*$", body, re.MULTILINE | re.DOTALL)
+    if len(blocks) != 1:
+        return {**result, "status": "unknown", "reason": "CodeRabbit のサマリー形式を確認できません"}
+    in_table = False
+    for line in blocks[0].splitlines():
+        row = line.strip()
+        if not row or ("|" not in row and re.match(r"</?(?:details|summary|dl|dd)\b", row)):
+            in_table = False
+            continue
+        if not in_table and "|" not in row:
+            continue
+        # 区切り不足の行も残し、読み取れた成功行だけで判定しない。
+        in_table = True
+        cells = row.removeprefix("|").removesuffix("|").split("|")
+        name = cells[0].strip()
+        cell = cells[1].strip() if len(cells) > 1 else ""
+        if ((name.lower() == "check name" and cell.strip().lower() == "status")
+                or (re.fullmatch(r"[-: ]+", name) and re.fullmatch(r"[-: ]+", cell))):
+            continue
+        badge = re.fullmatch(r"!\[([^]]+)\]\([^)]+\)", cell) if name else None
+        status = {"passed": "passed", "warning": "failed", "failed": "failed", "error": "failed",
+                  "pending": "pending", "running": "pending"}.get(badge[1].lower() if badge else "", "unknown")
+        result["items"].append({"name": name, "status": status})
+    # 新しい表形式の項目を読み落とした場合も、既知の項目だけで成功にしない。
+    counts = re.findall(r'<img\b[^>]*\balt=["\'](Passed|Failed)["\'][^>]*>.*?'
+                        r'</picture>\s*</sup>\s*(\d+)', blocks[0].split("</summary>", 1)[0], re.DOTALL)
+    if counts and (
+        sum(int(count) for _, count in counts) != len(result["items"])
+        or sum(int(count) for kind, count in counts if kind == "Failed")
+        != sum(item["status"] == "failed" for item in result["items"])
+    ):
+        return {**result, "status": "unknown", "reason": "CodeRabbit の件数と検査項目が一致しません"}
+    return {**result, "status": combined_status([item["status"] for item in result["items"]])}
+
+
+def inspect(repo: str, pr: int, no_diff: bool = False, plain: bool = False, checks: bool = False) -> None:
+    """従来の PR スナップショットに、指定時だけ対象 HEAD の検査結果を加える。"""
     metadata = json.loads(
         run_gh(
             [
@@ -232,12 +388,20 @@ def inspect(repo: str, pr: int, no_diff: bool = False, plain: bool = False) -> N
             for comment in comments:
                 comment["body"] = plain_body(comment.get("body") or "")
         thread["comments"] = {"nodes": comments}
+    check_report = {}
+    if checks:
+        head = metadata["headRefOid"]
+        github = fetch_github_checks(repo, head)
+        coderabbit = fetch_coderabbit_checks(repo, pr, head)
+        check_report = {"checks": {"head": head, "status": combined_status([github["status"], coderabbit["status"]]),
+                                   "github": github, "coderabbit": coderabbit}}
     print(
         json.dumps(
             {
                 "pull_request": metadata,
                 **({} if no_diff else {"diff": diff}),
                 "review_threads": threads,
+                **check_report,
             },
             ensure_ascii=False,
         )
@@ -444,6 +608,7 @@ def reply_resolve(
 
 
 def parse_args() -> argparse.Namespace:
+    """PR の参照引数を解析し、返信では commit と説明のみのどちらか一方を必須にする。"""
     parser = argparse.ArgumentParser(prog="gh-review-thread")
     subparsers = parser.add_subparsers(dest="command", required=True)
     inspect_parser = subparsers.add_parser("inspect")
@@ -456,6 +621,9 @@ def parse_args() -> argparse.Namespace:
         "--plain",
         action="store_true",
         help="strip known review-bot HTML and badges from comment bodies",
+    )
+    inspect_parser.add_argument(
+        "--checks", action="store_true", help="対象 HEAD の GitHub / CodeRabbit 検査結果を集計する"
     )
     reply_parser = subparsers.add_parser(
         "reply-resolve",
@@ -482,13 +650,14 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """引数と認証を確認し、読み取りまたは検証済みの返信・resolve を実行する。"""
     args = parse_args()
     if args.pr < 1:
         fail("--pr must be a positive integer", 2)
     split_repo(args.repo)
     run_gh(["auth", "status"])
     if args.command == "inspect":
-        inspect(args.repo, args.pr, args.no_diff, args.plain)
+        inspect(args.repo, args.pr, args.no_diff, args.plain, args.checks)
     elif args.command == "reply-resolve":
         reply_resolve(
             args.repo,

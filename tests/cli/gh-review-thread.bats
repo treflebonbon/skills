@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
 
+# gh の API 応答を再現し、ページングや検査状態を CLI の公開入口で検証する。
 setup() {
   PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
   SCRIPT="$PROJECT_ROOT/bin/gh-review-thread"
@@ -21,6 +22,20 @@ case "$*" in
   ;;
 "pr diff 42 --repo owner/repo --patch")
   printf '%s\n' 'diff --git a/a.txt b/a.txt'
+  ;;
+*"query ReviewQualityChecks"*)
+  if [[ "$*" == *"cursor=NEXT"* ]]; then
+    jq '.checks_next' "$MOCK_CHECKS_FILE"
+  else
+    jq '.checks' "$MOCK_CHECKS_FILE"
+  fi
+  ;;
+*"query ReviewQualityComments"*)
+  if [[ "$*" == *"cursor=NEXT"* ]]; then
+    jq '.comments_next' "$MOCK_CHECKS_FILE"
+  else
+    jq '.comments' "$MOCK_CHECKS_FILE"
+  fi
   ;;
 *"reviewThreads(first:"*)
   printf '%s\n' '{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[{"id":"PRRT_1","isResolved":false,"isOutdated":false,"path":"a.txt","line":3,"diffSide":"RIGHT","startLine":null,"startDiffSide":null,"originalLine":3,"originalStartLine":null,"resolvedBy":null,"comments":{"nodes":[{"id":"PRRC_1","body":"Please fix","createdAt":"2026-07-31T00:00:00Z","updatedAt":"2026-07-31T00:00:00Z","author":{"login":"reviewer"}}]}}]}}}}}'
@@ -100,6 +115,280 @@ EOF
   grep -Fq 'pr view 42 --repo owner/repo' "$MOCK_LOG"
   grep -Fq 'pr diff 42 --repo owner/repo --patch' "$MOCK_LOG"
   grep -Fq 'api graphql' "$MOCK_LOG"
+}
+
+@test "inspect checks reports a CodeRabbit warning when GitHub checks pass" {
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" \
+    MOCK_CHECKS_FILE="$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '
+    .checks.head == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    and .checks.status == "failed"
+    and .checks.github.status == "passed"
+    and .checks.coderabbit.status == "failed"
+    and .checks.coderabbit.items[0].name == "Docstring Coverage"
+  ' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks includes a warning row that omits its leading pipe without summary counters" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+      sub("\\| Docstring Coverage"; "| Title | ![Passed](passed.svg) |\nDocstring Coverage")' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '
+    .checks.status == "failed"
+    and .checks.coderabbit.items[1] == {name: "Docstring Coverage", status: "failed"}
+  ' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks never passes a table with unparsed or unnamed rows" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  for row in 'Unparsed check' '| | ![Passed](passed.svg) |'; do
+    jq --arg row "$row" '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+        (sub("Warning"; "Passed") |
+         sub("<!-- pre_merge_checks_walkthrough_end -->";
+             $row + "\n<!-- pre_merge_checks_walkthrough_end -->"))' \
+      "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+    run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+      "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+    [ "$status" -eq 0 ]
+    run jq -e '.checks.status == "unknown" and .checks.coderabbit.items[-1].status == "unknown"' <<<"$output"
+    [ "$status" -eq 0 ]
+  done
+}
+
+@test "inspect checks verifies the current head from CodeRabbit summary metadata" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+      sub("Reviewing files.*";
+          "<!-- change_assessment_commit:\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" -->")' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '
+    .checks.status == "failed"
+    and .checks.coderabbit.reviewed_head == .pull_request.headRefOid
+    and .checks.coderabbit.items[0].status == "failed"
+  ' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks rejects stale or conflicting summary commit metadata" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  for mode in stale conflicting; do
+    jq --arg mode "$mode" '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+        if $mode == "stale" then
+          sub("Reviewing files.*";
+              "<!-- change_assessment_commit:\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\" -->")
+        else
+          . + "\n<!-- change_assessment_commit:\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\" -->"
+        end' \
+      "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+    run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+      "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+    [ "$status" -eq 0 ]
+    run jq -e '
+      .checks.status == "unknown"
+      and .checks.coderabbit.status == "unknown"
+      and .checks.coderabbit.reason == "CodeRabbit の判定対象 HEAD を確認できません"
+    ' <<<"$output"
+    [ "$status" -eq 0 ]
+  done
+}
+
+@test "inspect checks passes when the current head has successful GitHub and CodeRabbit results" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+      (sub("Warning"; "Passed") | sub("checks-warning"; "checks-passed") | sub("0[.]00%"; "100.00%"))' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.status == "passed" and .checks.coderabbit.reviewed_head == .pull_request.headRefOid' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks treats an unrecognized CodeRabbit table row as unknown" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+      (sub("Warning"; "Passed") | sub("checks-warning"; "checks-passed") |
+       sub("<!-- pre_merge_checks_walkthrough_end -->";
+           "| Future check | new-format | No known verdict |\n<!-- pre_merge_checks_walkthrough_end -->"))' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.status == "unknown" and .checks.coderabbit.items[1].status == "unknown"' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks reports a running GitHub check as pending" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.checks.data.repository.object.statusCheckRollup.contexts.nodes[0] |=
+        (.status = "IN_PROGRESS" | .conclusion = null)
+      | .comments.data.repository.pullRequest.comments.nodes = []' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.status == "pending" and .checks.github.status == "pending"' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks treats a stale CodeRabbit review as unknown" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+      sub("and aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; "and cccccccccccccccccccccccccccccccccccccccc")' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.status == "unknown" and .checks.coderabbit.reviewed_head == "cccccccccccccccccccccccccccccccccccccccc"' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks reports missing or nonofficial CodeRabbit summaries as unknown" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.comments.nodes[0].author.login = "other-user"' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.status == "unknown" and .checks.coderabbit.items == []' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks never passes after the PR head changes while reading comments" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.headRefOid = "cccccccccccccccccccccccccccccccccccccccc"' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.status == "unknown" and .checks.coderabbit.status == "unknown"' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks includes a failing commit status on a later checks page" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.checks_next = .checks
+      | .checks.data.repository.object.statusCheckRollup.contexts.pageInfo = {hasNextPage:true,endCursor:"NEXT"}
+      | .checks_next.data.repository.object.statusCheckRollup.contexts.nodes =
+        [{"__typename":"StatusContext","context":"external-quality","state":"FAILURE","targetUrl":"https://example.com/check"}]' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.github.status == "failed" and .checks.github.items[1].name == "external-quality"' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks uses the latest CodeRabbit summary even on a later comments page" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments_next = .comments
+      | .comments.data.repository.pullRequest.comments.pageInfo = {hasNextPage:true,endCursor:"NEXT"}
+      | .comments_next.data.repository.pullRequest.comments.nodes[0] |=
+        (.updatedAt = "2026-11-11T00:01:00Z" | .url = "https://github.com/owner/repo/pull/42#issuecomment-2"
+         | .body |= (sub("Warning"; "Passed") | sub("checks-warning"; "checks-passed") | sub("0[.]00%"; "100.00%")))' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.status == "passed" and (.checks.coderabbit.url | endswith("issuecomment-2"))' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks keeps a warning whose check name resembles the table header" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+      (sub("Docstring Coverage"; "Check name") |
+       sub("<!-- pre_merge_checks_walkthrough_end -->";
+           "| Title check | ![Passed](https://example.com/passed.svg) | Valid title |\n<!-- pre_merge_checks_walkthrough_end -->"))' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.status == "failed" and .checks.coderabbit.items[0].name == "Check name"' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks does not accept a partial badge match as a successful verdict" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+      sub("!\\[Warning\\]\\([^)]*\\)"; "unsupported ![Passed](https://example.com/passed.svg) suffix")' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.status == "unknown" and .checks.coderabbit.items[0].status == "unknown"' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks treats a skipped GitHub check as unknown" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.checks.data.repository.object.statusCheckRollup.contexts.nodes[0].conclusion = "SKIPPED"
+      | .comments.data.repository.pullRequest.comments.nodes[0].body |=
+        (sub("Warning"; "Passed") | sub("checks-warning"; "checks-passed") | sub("0[.]00%"; "100.00%"))' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.status == "unknown" and .checks.github.status == "unknown" and .checks.coderabbit.status == "passed"' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks rejects a summary whose counters disagree with the parsed rows" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+      (sub("Warning"; "Passed") | sub("checks-warning"; "checks-passed") |
+       sub("<!-- pre_merge_checks_walkthrough_start -->";
+           "<!-- pre_merge_checks_walkthrough_start -->\n<summary>Pre-merge checks: <sup><picture><img alt=\"Failed\" src=\"https://example.com/failed.svg\"></picture></sup> 1</summary>"))' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.status == "unknown" and .checks.coderabbit.status == "unknown"' <<<"$output"
+  [ "$status" -eq 0 ]
 }
 
 @test "reply-resolve publishes a verified reply before resolving the thread" {

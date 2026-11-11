@@ -26,3 +26,51 @@ jobs:
       - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  typescript-evidence:
+    name: TypeScript evidence (Bun ${{ matrix.bun_version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - bun_version: "1.4.4"
+            mode: supported
+          - bun_version: "1.2.14"
+            mode: unsupported
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        id: bun
+        with:
+          bun-version: ${{ matrix.bun_version }}
+      - name: Bun の版を確認
+        env:
+          EXPECTED_BUN_VERSION: ${{ matrix.bun_version }}
+        run: test "$(bun --version)" = "$EXPECTED_BUN_VERSION"
+      - name: ast-grep を固定版で導入
+        if: matrix.mode == 'supported'
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ast-grep" @ast-grep/cli@0.42.1
+          echo "$RUNNER_TEMP/ast-grep/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: 対応版で構文抽出を確認
+        if: matrix.mode == 'supported'
+        run: |
+          test "$(ast-grep --version)" = "ast-grep 0.42.1"
+          python3 -B tests/helpers/rop-typescript-evidence.py \
+            skills/domain-modeling-studio/scripts/extract-typescript.ts -v
+      - name: 旧版の拒否を確認
+        if: matrix.mode == 'unsupported'
+        env:
+          TYPESCRIPT_EVIDENCE_OLD_BUN: ${{ steps.bun.outputs.bun-path }}
+        run: |
+          test -x "$TYPESCRIPT_EVIDENCE_OLD_BUN"
+          test "$("$TYPESCRIPT_EVIDENCE_OLD_BUN" --version)" = "1.2.14"
+          python3 -B tests/helpers/rop-typescript-evidence.py \
+            skills/domain-modeling-studio/scripts/extract-typescript.ts \
+            SyntaxEvidence.test_unsupported_bun_is_explicit_before_scanning -v

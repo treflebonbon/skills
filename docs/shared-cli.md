@@ -38,11 +38,23 @@ environment = git_environment()
 | --- | --- | --- |
 | `git-push-topic` | Git、Bash、GitHub CLI `gh` と、その通常の認証設定（`origin` の PR を読める権限） | 引数なしで現在 branch と `origin` の default branch を確認する。detached HEAD・default branch・default branch 不明時は拒否し、topic branch だけ `git push -u origin HEAD` する。force option は受け付けない。push の前に default branch の tip を fetch し（祖先判定に必要な履歴を取得し、ローカルの Git metadata を更新する）、HEAD が tip と同一またはその祖先（default の先に commit がない）なら拒否する。同じ head branch の merge 済み PR を `origin` の repository に固定して全件取得し、HEAD が旧 head を含み merge 結果を含まない（merge 済み branch の続き）場合も拒否する。merge 結果を含む同名 branch と、旧 head を含まない同名 branch は通す。この clone に存在しない commit は HEAD の履歴に含まれ得ないため、祖先ではないものとして扱い通す。fetch・shallow repository・祖先判定の失敗（commit が無い場合を除く）・`gh`・PR 取得（上限 1000 件で打ち切りの可能性があるとき）のいずれかで判定できなければ拒否する。追加の検査は topic branch の経路だけで、`git-push-reviewed` は実行しない。 |
 | `git-push-reviewed` | Git、Bash | 隣接する `git-push-topic` を絶対 path で読み込む実行可能 entrypoint で、別実装を持たない。起動 basename を保ち、現在 branch が `origin` の default branch と一致する場合に限り通常 push を行う。呼び出し前に必要な人間の承認は caller が確認する。 |
-| `gh-review-thread` | Python 3.9+、GitHub CLI `gh` と、その通常の認証設定 | `inspect` は PR / review thread を読む。`reply-resolve` は対象 PR、thread、commit、返信内容を検証してから返信し、その後に resolve する。返信に失敗した場合は resolve しない。 |
+| `gh-review-thread` | Python 3.9+、GitHub CLI `gh` と、その通常の認証設定 | `inspect` は PR / review thread を読む。`--checks` を加えると対象 HEAD の GitHub 検査と CodeRabbit の pre-merge 判定を集計する。`reply-resolve` は対象 PR、thread、commit、返信内容を検証してから返信し、その後に resolve する。返信に失敗した場合は resolve しない。 |
 | `orca-send` | Python 3.9+、選択済み Orca CLI | UTF-8 本文ファイルを最大 8 KiB まで読み、空本文・NUL・不正 UTF-8・重複 body 引数を拒否する。`--body` は shell を通さず literal のまま一度だけ渡す。本文は Orca CLI の argv に入るため、同一 host 上の process から見える可能性がある。 |
 | `codex-reviewer` | Bash、Python 3.9+、Git、Codex CLI | linked worktree だけを受け入れ、`-C <root>` で起動する。worktree 固有 Git dir と common Git dir だけを、選択した既存 profile の read-only filesystem 許可として渡す。 |
 
 `git-push-topic` と `git-push-reviewed` は実際の push を行う入口であり、検証では mock のみを使う。`gh-review-thread reply-resolve` と `orca-send` も外部への書込みを行うため、skill とその利用者が通常の承認契約を確認してから実行する。
+
+## PR の検査結果を確認する
+
+`gh-review-thread inspect --repo OWNER/REPO --pr NUMBER --checks --no-diff` は、従来の出力に `checks` を追加します。オプションなしの出力形式と返信・resolve の挙動は従来どおりです。
+
+`checks.head` は確認対象の commit、`checks.status` は `passed`・`failed`・`pending`・`unknown` のいずれかです。GitHub の各検査は `checks.github`、CodeRabbit のサマリー URL・判定対象 HEAD・検査別の結果は `checks.coderabbit` に残ります。警告・失敗があれば `failed`、実行中の検査があれば `pending`、全てが成功したときに `passed` になります。検査がない、GitHub の検査がスキップされた、または CodeRabbit のサマリーが存在しない・古い・未対応形式である場合は `unknown` とします。集約では失敗、実行中、判定不能の順に優先します。
+
+検査とサマリーは全ページを取得します。CodeRabbit は公式 bot の最新の更新済みコメントから既知の pre-merge テーブルを読みます。同じコメント内のレビュー範囲文、または HTML メタデータ `change_assessment_commit` の完全な SHA を対象 HEAD と照合し、記載が矛盾する場合は `unknown` とします。取得中に PR の HEAD が変わった場合も `unknown` とします。
+
+表の行頭・行末の `|` は省略できます。表内の区切り不足や名前のない行も判定対象に残し、`unknown` とします。件数表示がない場合も、読み取れた成功行だけで `passed` にはしません。
+
+`inspect` の終了コード0は取得成功を示します。自動判断では `checks.status` を評価し、従来の `review_threads` にある未解決スレッドも確認します。
 
 ## `codex-reviewer` の read-only 起動
 
