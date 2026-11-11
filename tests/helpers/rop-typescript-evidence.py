@@ -56,6 +56,25 @@ class SyntaxEvidence(unittest.TestCase):
         self.assertIn('PATH', result['reason'])
         self.assertEqual(result['nodes'], [])
 
+    @unittest.skipUnless(os.environ.get('TYPESCRIPT_EVIDENCE_OLD_BUN'),
+                         'set TYPESCRIPT_EVIDENCE_OLD_BUN to an unsupported Bun binary')
+    def test_unsupported_bun_is_explicit_before_scanning(self):
+        self.stub_ast_grep(0, '[]')
+        output = self.root / 'unsupported.json'
+        proc = subprocess.run(
+            [os.environ['TYPESCRIPT_EVIDENCE_OLD_BUN'], 'run', '--config=/dev/null',
+             '--no-env-file', str(script), '--repo-root', str(self.root),
+             '--output', str(output), 'main.ts'],
+            cwd=self.root, env={**os.environ, 'PATH': str(self.bin)},
+            capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        result = json.loads(output.read_text())
+        self.assertEqual(result['status'], 'unavailable')
+        self.assertIn('Bun 1.4.4 or newer is required', result['reason'])
+        self.assertEqual(result['files'], [])
+        self.assertEqual(result['nodes'], [])
+
     def test_no_matches_is_success_not_failure(self):
         self.stub_ast_grep(0, '[]')
         result = self.scan(path=self.bin)
@@ -125,9 +144,13 @@ class SyntaxEvidence(unittest.TestCase):
         (nested / 'directory').mkdir(parents=True)
         (nested / 'entry.ts').write_text('work();\n')
         (self.root / 'directory-link').symlink_to(nested / 'directory')
-        result = self.scan(['directory-link/../entry.ts'], path=self.bin)
-        self.assertEqual(result['status'], 'ok')
-        self.assertEqual(result['files'][0]['path'], 'nested/entry.ts')
+        for shadow in (False, True):
+            with self.subTest(root_entry_exists=shadow):
+                if shadow:
+                    (self.root / 'entry.ts').write_text('wrong();\n')
+                result = self.scan(['directory-link/../entry.ts'], path=self.bin)
+                self.assertEqual(result['status'], 'ok')
+                self.assertEqual(result['files'][0]['path'], 'nested/entry.ts')
 
         for name, reason in [('.', 'Expected a .ts or .tsx file'),
                              ('other.rs', 'Expected a .ts or .tsx file'), ('missing.ts', 'ENOENT')]:

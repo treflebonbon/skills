@@ -4,7 +4,7 @@
 
 ドメインモデルを文書化する手順では、別途導入した `domain-modeling` skill が必要です。この package には `ui-grill-with-docs` も含まれています。内容と使い方は[隣接する skill](../../ui-grill-with-docs/SKILL.md)を参照してください。記録済みの外部 skill 集合は [`mattpocock/skills` の commit `49dd158d1076134a641b33efb035946536778336`](https://github.com/mattpocock/skills/tree/49dd158d1076134a641b33efb035946536778336) です。第三者 skill は利用する runtime の公式導入経路から取得し、この package には同梱しません。
 
-TypeScript の構文から証拠を抽出する経路だけで Bun と `ast-grep` CLI を使います。Bun は[公式手順](https://bun.com/docs/installation)で導入し、`ast-grep` は公式 [Quick Start](https://ast-grep.github.io/guide/quick-start) の npm package [`@ast-grep/cli`](https://www.npmjs.com/package/@ast-grep/cli) から、例えば `npm install --global @ast-grep/cli@0.42.1` で導入できます。構文抽出のテストでは Bun 1.4.4 と `ast-grep 0.42.1` を使用しました。配布先での plugin 導入と呼び出しはリリースごとの受入で確認します。
+TypeScript の構文から証拠を抽出する経路だけで Bun 1.4.4 以上と `ast-grep` CLI を使います。Bun は[公式手順](https://bun.com/docs/installation)で導入し、`ast-grep` は公式 [Quick Start](https://ast-grep.github.io/guide/quick-start) の npm package [`@ast-grep/cli`](https://www.npmjs.com/package/@ast-grep/cli) から、例えば `npm install --global @ast-grep/cli@0.42.1` で導入できます。Bun 1.2.14 ではシンボリックリンクに続く `..` の解決が異なるため、正しい解決を確認した 1.4.4 を最低バージョンとし、未対応の版では helper が `unavailable` を返します。Bun 1.2.14 の拒否と、Bun 1.4.4・`ast-grep 0.42.1` での構文抽出を回帰テストで確認しています。配布先での plugin 導入と呼び出しはリリースごとの受入で確認します。
 
 Bun が使えない場合は、起動できなかった理由を記録し、ソースコードを読んで調査を続けます。`ast-grep` が使えない場合や抽出に失敗した場合は、helper が出力する `unavailable` または `failed` とその理由を使います。不足した証拠のために挙動を確定できない場合は、未解決事項を追記します。
 

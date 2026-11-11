@@ -30,6 +30,7 @@ const languages = new Map([
   [".tsx", "Tsx"],
 ]);
 const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+const minimumBunVersion = "1.4.4";
 
 type SyntaxNode = {
   path: string;
@@ -74,6 +75,14 @@ function collect(repoRoot: string, files: string[]): Evidence {
     files: [],
     nodes: [],
   };
+  // Bun 1.2.14 はシンボリックリンクに続く .. を先に正規化する。
+  if (!Bun.semver?.satisfies(Bun.version, `>=${minimumBunVersion}`)) {
+    return {
+      ...result,
+      status: "unavailable",
+      reason: `Bun ${minimumBunVersion} or newer is required (found ${Bun.version})`,
+    };
+  }
   const executable = Bun.which("ast-grep");
   if (!executable) {
     return { ...result, status: "unavailable", reason: "ast-grep is not on PATH" };
