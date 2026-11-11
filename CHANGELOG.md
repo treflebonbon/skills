@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.9](https://github.com/treflebonbon/skills/compare/v0.2.8...v0.2.9) (2026-11-11)
+
+
+### Features
+
+* add review provenance and docstring diagnostics ([#24](https://github.com/treflebonbon/skills/issues/24)) ([87c8d73](https://github.com/treflebonbon/skills/commit/87c8d73be61e0eba5affe01da4d84e9fed9a0e5a))
+* verify Bun compatibility and inspect PR quality checks ([#21](https://github.com/treflebonbon/skills/issues/21)) ([5cbffbd](https://github.com/treflebonbon/skills/commit/5cbffbdb0f0a71c34b8948b8b222638c49c908f8))
+* verify native skill session evidence ([#22](https://github.com/treflebonbon/skills/issues/22)) ([96b0020](https://github.com/treflebonbon/skills/commit/96b0020e61372acd9e653345a105113b9490d4a4))
+
+
+### Bug Fixes
+
+* bind native session evidence to verified installations ([#25](https://github.com/treflebonbon/skills/issues/25)) ([c2e64a2](https://github.com/treflebonbon/skills/commit/c2e64a281652fcac27d57a2af60c4c30e873f4af))
+* include fixtures in installed CLI smoke tests ([#26](https://github.com/treflebonbon/skills/issues/26)) ([a956923](https://github.com/treflebonbon/skills/commit/a956923a74e8e46a5708bc6914bc6bb823e31a30))
+
 ## [0.2.8](https://github.com/treflebonbon/skills/compare/v0.2.7...v0.2.8) (2026-11-10)
 
 
