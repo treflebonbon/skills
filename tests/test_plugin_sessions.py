@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import signal
+import shlex
 import time
 import unittest
 
@@ -72,19 +73,34 @@ class PluginSessionCliTest(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.base = Path(self.temporary.name)
 
-    def check(self, events, *, inventory=None, runtime="agy", exit_code=0, command=None):
+    def check(self, events, *, inventory=None, runtime="agy", exit_code=0, command=None,
+              open_stdin=False, installed_root="/installed/plugin"):
         """Submit an on-disk case through the same public check CLI as operators."""
         case = self.base / "case"
         case.mkdir(exist_ok=True)
         log = case / "events.jsonl"
         log.write_text("".join(json.dumps(e) + "\n" for e in events))
-        (self.base / "inventory.json").write_text(json.dumps(inventory or {}))
+        (case / "inventory.json").write_text(json.dumps(
+            (inventory or {}) | {"cwd": str(case), "installed_root": installed_root}
+        ))
         invocation = ("$" if runtime == "codex" else "/") + NAMESPACE + " 受入確認"
         native_command = [runtime, "exec", "--ephemeral", invocation] if runtime == "codex" else [runtime, "-p", invocation]
         (case / "process.json").write_text(json.dumps({
             "runtime": runtime, "skill": "rop", "command": command or native_command, "exit_code": exit_code,
         }))
-        result = subprocess.run([sys.executable, "-I", str(CLI), "check", str(case)], capture_output=True, text=True)
+        args = [sys.executable, "-I", str(CLI), "check", str(case)]
+        if open_stdin:
+            with subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, text=True) as process:
+                try:
+                    process.wait(timeout=2)
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                    stdout, stderr = process.communicate()
+                result = subprocess.CompletedProcess(args, process.returncode, stdout, stderr)
+        else:
+            result = subprocess.run(args, capture_output=True, text=True, timeout=5)
         self.assertTrue(result.stdout, result.stderr)
         return result.returncode, json.loads(result.stdout)
 
@@ -177,6 +193,77 @@ class PluginSessionCliTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("resource_not_read", record["reasons"])
 
+    def test_non_string_commands_do_not_read_stdin_or_prove_reads(self):
+        """Malformed tool commands must return JSON even when stdin stays open."""
+        self.assert_read_baseline_passes("codex")
+        for command in (None, 42, [], {}):
+            with self.subTest(command=command):
+                events = native_events("codex")
+                events[2]["item"]["command"] = command
+                code, record = self.check(events, runtime="codex", inventory=native_inventory("codex"),
+                                          open_stdin=True)
+                self.assertEqual(code, 1)
+                self.assertIn("resource_not_read", record["reasons"])
+
+    def test_newline_separators_are_not_successful_file_reads(self):
+        """Outer shell text and wrapped bodies must preserve command boundaries."""
+        self.assert_read_baseline_passes("codex")
+        for command in (f"cat --\n{RESOURCE}", f"/bin/bash -lc {shlex.quote('cat --' + chr(10) + RESOURCE)}"):
+            with self.subTest(command=command):
+                events = native_events("codex")
+                events[2]["item"]["command"] = command
+                code, record = self.check(events, runtime="codex", inventory=native_inventory("codex"))
+                self.assertEqual(code, 1)
+                self.assertIn("resource_not_read", record["reasons"])
+
+    def test_claude_short_resume_flag_does_not_prove_a_fresh_session(self):
+        self.assert_read_baseline_passes("claude")
+        code, record = self.check(native_events("claude"), runtime="claude",
+                                  inventory=native_inventory("claude"),
+                                  command=["claude", "-r", "saved-id", "-p", "/" + NAMESPACE + " 確認"])
+        self.assertEqual(code, 1)
+        self.assertIn("official_invocation_missing", record["reasons"])
+
+    def test_reads_of_both_files_from_another_installation_do_not_pass(self):
+        """A matching skill suffix cannot replace the independently verified root."""
+        for runtime in ("claude", "codex", "agy"):
+            self.assert_read_baseline_passes(runtime)
+            with self.subTest(runtime=runtime):
+                code, record = self.check(
+                    native_events(runtime, SKILL.replace("/installed", "/other"),
+                                  RESOURCE.replace("/installed", "/other")),
+                    runtime=runtime, inventory=native_inventory(runtime),
+                )
+                self.assertEqual(code, 1)
+                self.assertIn("skill_not_read", record["reasons"])
+
+    def test_missing_or_invalid_installed_root_is_unconfirmed(self):
+        """Read events cannot establish their own trusted installation root."""
+        self.assert_read_baseline_passes()
+        for root in (None, "", "relative/plugin", "/installed/../plugin", 42):
+            with self.subTest(root=root):
+                code, record = self.check(native_events("agy"), inventory=native_inventory("agy"),
+                                          installed_root=root)
+                self.assertEqual(code, 1)
+                self.assertEqual(record["status"], "unconfirmed")
+                self.assertEqual(record["reasons"], ["installed_root_unconfirmed"])
+                self.assertIsNone(record["skill_path"])
+
+    def test_run_rejects_invalid_or_duplicate_root_arguments_before_launch(self):
+        """Root declarations must identify one absolute installation per runtime."""
+        self.assert_read_baseline_passes()
+        for roots in (("unknown=/installed/plugin",), ("agy=relative",),
+                      ("agy=/installed/plugin", "agy=/other/plugin")):
+            with self.subTest(roots=roots):
+                output = self.base / "invalid-roots"
+                command = [sys.executable, "-I", str(CLI), "run", "--output-dir", str(output)]
+                for root in roots:
+                    command.extend(["--installed-root", root])
+                result = subprocess.run(command, capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(json.loads(result.stdout)["reasons"], ["invalid_installed_root"])
+                self.assertFalse(output.exists())
+
     def test_lexical_aliases_of_the_skill_file_are_not_separate_resources(self):
         """Dot segments and repeated separators must not turn one file into two."""
         for runtime in ("claude", "codex", "agy"):
@@ -253,9 +340,10 @@ class PluginSessionCliTest(unittest.TestCase):
                 "#!" + sys.executable + "\n"
                 "import json, pathlib, sys\n"
                 f"data = json.loads({json.dumps(data)!r})\n"
-                f"with open({str(calls)!r}, 'a') as output: output.write(json.dumps(sys.argv) + '\\n')\n"
+                f"with open({str(calls)!r}, 'a') as output: output.write(json.dumps({{'argv': sys.argv, 'cwd': str(pathlib.Path.cwd())}}) + '\\n')\n"
                 "if '--version' in sys.argv: print('fixture-cli 1.0')\n"
-                "elif 'plugin' in sys.argv or '/skills' in sys.argv: print(json.dumps(data['inventory']))\n"
+                "elif 'plugin' in sys.argv or '/skills' in sys.argv:\n"
+                " print(json.dumps(data['inventory'] if pathlib.Path.cwd().name == 'rop' else {}))\n"
                 "else:\n"
                 " for event in data['events']: print(json.dumps(event))\n"
             )
@@ -263,8 +351,10 @@ class PluginSessionCliTest(unittest.TestCase):
             path.write_text(script)
             path.chmod(0o755)
         output = self.base / "sessions"
+        root_arguments = [argument for runtime in ("claude", "codex", "agy")
+                          for argument in ("--installed-root", runtime + "=/installed/plugin")]
         result = subprocess.run(
-            [sys.executable, "-I", str(CLI), "run", "--output-dir", str(output), "--skill", "rop"],
+            [sys.executable, "-I", str(CLI), "run", "--output-dir", str(output), "--skill", "rop", *root_arguments],
             env=os.environ | {"PATH": str(clients) + os.pathsep + os.environ["PATH"]},
             capture_output=True, text=True,
         )
@@ -272,7 +362,8 @@ class PluginSessionCliTest(unittest.TestCase):
         report = json.loads(result.stdout)
         self.assertEqual(result.returncode, 0, report)
         self.assertEqual(report["passed"], 3)
-        commands = [json.loads(line) for line in calls.read_text().splitlines()]
+        call_records = [json.loads(line) for line in calls.read_text().splitlines()]
+        commands = [call["argv"] for call in call_records]
         prompts = [argument for command in commands for argument in command if "受入確認" in argument]
         self.assertEqual(len(prompts), 3)
         self.assertEqual({prompt.split(" ", 1)[0] for prompt in prompts},
@@ -280,6 +371,18 @@ class PluginSessionCliTest(unittest.TestCase):
         self.assertEqual(json.loads((output / "summary.json").read_text()), report)
         for runtime in ("claude", "codex", "agy"):
             self.assertTrue((output / runtime / "rop/events.jsonl").is_file())
+            case = output / runtime / "rop"
+            snapshot = json.loads((case / "inventory.json").read_text())
+            self.assertEqual(snapshot["cwd"], str(case))
+            self.assertEqual(snapshot["installed_root"], "/installed/plugin")
+            if runtime != "claude":
+                inventory_calls = [call for call in call_records if Path(call["argv"][0]).name == runtime
+                                   and ("plugin" in call["argv"] or "/skills" in call["argv"])]
+                self.assertEqual([call["cwd"] for call in inventory_calls], [str(case)])
+            checked = subprocess.run([sys.executable, "-I", str(CLI), "check", str(case)],
+                                     cwd=self.base, env=os.environ | {"PATH": ""},
+                                     capture_output=True, text=True)
+            self.assertEqual(checked.returncode, 0, checked.stderr + checked.stdout)
 
     def test_missing_clients_fail_all_33_cases_without_model_calls(self):
         """The default matrix stays exhaustive when prerequisites are missing."""

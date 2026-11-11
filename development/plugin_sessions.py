@@ -20,6 +20,9 @@ RUNTIMES = ("claude", "codex", "agy")
 def codex_read(command):
     """Accept only a direct cat command, never arbitrary successful shell text."""
     def words(script):
+        """Reject malformed input and shell separators before whitespace normalization."""
+        if not isinstance(script, str) or "\n" in script or "\r" in script:
+            return []
         lexer = shlex.shlex(script, posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
         lexer.commenters = ""
@@ -44,6 +47,8 @@ def official_invocation(command, runtime, skill):
     continuation_flags = ("resume", "--resume", "--continue", "--conversation")
     if runtime != "codex":
         continuation_flags += ("-c",)
+    if runtime == "claude":
+        continuation_flags += ("-r",)
     if Path(command[0]).name != runtime or any(arg in command for arg in continuation_flags):
         return False
     prefix = ("$" if runtime == "codex" else "/") + f"treflebonbon-skills:{skill} "
@@ -51,6 +56,14 @@ def official_invocation(command, runtime, skill):
         return len(command) > 2 and command[1] == "exec" and "--ephemeral" in command and command[-1].startswith(prefix)
     flags = [index for index, arg in enumerate(command) if arg in ("-p", "--print")]
     return len(flags) == 1 and flags[0] + 1 < len(command) and command[flags[0] + 1].startswith(prefix)
+
+
+def absolute_path(value):
+    """Normalize evidence lexically without consulting the checking host's filesystem."""
+    if not isinstance(value, str):
+        return None
+    path = PurePosixPath(value)
+    return str(path) if path.is_absolute() and ".." not in path.parts else None
 
 
 def check_case(runtime, skill, events, inventory, process):
@@ -107,14 +120,10 @@ def check_case(runtime, skill, events, inventory, process):
                 complete = event.get("result", {}).get("status") == "SUCCESS"
         if isinstance(session_id, str) and session_id:
             session_ids.add(session_id)
-    reads = list(dict.fromkeys(
-        str(PurePosixPath(path)) for path in reads
-        if isinstance(path, str) and PurePosixPath(path).is_absolute()
-        and ".." not in PurePosixPath(path).parts
-    ))
-    suffix = f"/skills/{skill}/SKILL.md"
-    skill_paths = [path for path in reads if path.endswith(suffix)]
-    skill_path = skill_paths[0] if len(skill_paths) == 1 else None
+    reads = list(dict.fromkeys(path for value in reads if (path := absolute_path(value))))
+    installed_root = absolute_path(inventory.get("installed_root"))
+    expected_skill = str(PurePosixPath(installed_root) / "skills" / skill / "SKILL.md") if installed_root else None
+    skill_path = expected_skill if expected_skill in reads else None
     resources = [
         path for path in reads
         if skill_path and path != skill_path
@@ -131,14 +140,18 @@ def check_case(runtime, skill, events, inventory, process):
         reasons.append("process_failed")
     if not complete:
         reasons.append("incomplete_session")
-    if not skill_path:
+    if installed_root and not skill_path:
         reasons.append("skill_not_read")
-    if not resources:
+    if installed_root and not resources:
         reasons.append("resource_not_read")
+    status = "failed" if reasons else "passed" if installed_root else "unconfirmed"
+    if not installed_root:
+        reasons.append("installed_root_unconfirmed")
     return {
         "runtime": runtime, "skill": skill,
         "session_id": session_id,
-        "status": "failed" if reasons else "passed", "reasons": reasons,
+        "status": status, "reasons": reasons,
+        "installed_root": installed_root,
         "observed_read_paths": reads,
         "skill_path": skill_path, "resource_paths": resources,
         "dependencies_status": "unconfirmed", "auxiliary_status": "unconfirmed",
@@ -155,7 +168,7 @@ def read_case(directory):
         if type(process.get("exit_code")) is not int:
             raise ValueError("invalid_exit_code")
         events = [json.loads(line) for line in (directory / "events.jsonl").read_text().splitlines() if line.strip()]
-        inventory = json.loads((directory.parent / "inventory.json").read_text())
+        inventory = json.loads((directory / "inventory.json").read_text())
         return check_case(runtime, skill, events, inventory, process)
     except (OSError, ValueError, TypeError, AttributeError, KeyError):
         return {"status": "unconfirmed", "reasons": ["invalid_evidence"]}
@@ -169,13 +182,13 @@ def write_json(path, value):
         output.write("\n")
 
 
-def inventory_for(runtime, executable):
-    """Read native inventory without persisting unrelated installed plugins."""
+def inventory_for(runtime, executable, case):
+    """Read native inventory in the session's cwd without unrelated plugins."""
     if runtime == "claude":
         return {}  # Each session's init event supplies the actual skill inventory.
     command = ([executable, "plugin", "list", "--json"] if runtime == "codex" else
                [executable, "--print", "/skills", "--output-format", "json"])
-    result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    result = subprocess.run(command, cwd=case, capture_output=True, text=True, timeout=30)
     if result.returncode:
         raise ValueError("inventory_unavailable")
     document = json.loads(result.stdout)
@@ -247,6 +260,13 @@ def capture_session(command, directory, timeout):
 
 def run_sessions(args):
     """Run selected native sessions, retaining failures instead of skipping cases."""
+    roots = {}
+    for specification in args.installed_root or []:
+        runtime, separator, value = specification.partition("=")
+        root = absolute_path(value)
+        if not separator or runtime not in RUNTIMES or not root or runtime in roots:
+            raise ValueError("invalid_installed_root")
+        roots[runtime] = root
     output = args.output_dir.resolve()
     if output == ROOT or ROOT in output.parents:
         raise ValueError("output_inside_payload")
@@ -260,7 +280,6 @@ def run_sessions(args):
         directory = output / runtime
         directory.mkdir(mode=0o700)
         executable = shutil.which(runtime)
-        inventory = {}
         failure = None
         try:
             if not executable:
@@ -269,15 +288,21 @@ def run_sessions(args):
             if version.returncode:
                 raise ValueError("version_unavailable")
             versions[runtime] = {"path": executable, "version": version.stdout.strip()[:256]}
-            inventory = inventory_for(runtime, executable)
         except (OSError, ValueError, TypeError, AttributeError, subprocess.TimeoutExpired):
             failure = "cli_or_inventory_unavailable"
-        write_json(directory / "inventory.json", inventory)
         for skill in dict.fromkeys(args.skill or SKILLS):
             case = directory / skill
             case.mkdir(mode=0o700)
-            if failure:
-                record = {"runtime": runtime, "skill": skill, "status": "unconfirmed", "reasons": [failure]}
+            inventory = {"cwd": str(case), "installed_root": roots.get(runtime)}
+            case_failure = failure
+            if not case_failure:
+                try:
+                    inventory.update(inventory_for(runtime, executable, case))
+                except (OSError, ValueError, TypeError, AttributeError, subprocess.TimeoutExpired):
+                    case_failure = "cli_or_inventory_unavailable"
+            write_json(case / "inventory.json", inventory)
+            if case_failure:
+                record = {"runtime": runtime, "skill": skill, "status": "unconfirmed", "reasons": [case_failure]}
             else:
                 command = session_command(runtime, executable, skill, args.timeout)
                 code = capture_session(command, case, args.timeout)
@@ -310,6 +335,8 @@ def main():
     run.add_argument("--output-dir", type=Path, required=True)
     run.add_argument("--runtime", choices=RUNTIMES, action="append")
     run.add_argument("--skill", choices=SKILLS, action="append")
+    run.add_argument("--installed-root", action="append", metavar="RUNTIME=PATH",
+                     help="導入確認で得た plugin の絶対パス（runtime ごとに1件）")
     run.add_argument("--timeout", type=int, default=240)
     args = parser.parse_args()
     try:
@@ -320,7 +347,7 @@ def main():
         else:
             record = read_case(args.case)
     except (OSError, ValueError, TypeError, AttributeError) as error:
-        reason = str(error) if str(error) in {"output_exists", "output_inside_payload", "invalid_timeout"} else "execution_unconfirmed"
+        reason = str(error) if str(error) in {"output_exists", "output_inside_payload", "invalid_timeout", "invalid_installed_root"} else "execution_unconfirmed"
         record = {"status": "unconfirmed", "reasons": [reason]}
     print(json.dumps(record, ensure_ascii=False, indent=2))
     return 0 if record["status"] == "passed" else 1
