@@ -152,6 +152,21 @@ class PluginSessionCliTest(unittest.TestCase):
                 self.assertEqual(code, 1)
                 self.assertIn("resource_not_read", record["reasons"])
 
+    def test_shell_punctuation_and_expansions_are_not_literal_read_paths(self):
+        """Adjacent operators and expansions must not turn failed reads into proof."""
+        self.assert_read_baseline_passes("codex")
+        for command in (
+            f"cat -- {RESOURCE};true", f"cat -- {RESOURCE}&true",
+            "cat -- /installed/plugin/skills/rop/$REFERENCE",
+            "cat -- /installed/plugin/skills/rop/references/*.md",
+        ):
+            with self.subTest(command=command):
+                events = native_events("codex")
+                events[2]["item"]["command"] = command
+                code, record = self.check(events, runtime="codex", inventory=native_inventory("codex"))
+                self.assertEqual(code, 1)
+                self.assertIn("resource_not_read", record["reasons"])
+
     def test_resources_from_another_plugin_root_do_not_pass(self):
         self.assert_read_baseline_passes()
         events = native_events("agy")
@@ -266,7 +281,7 @@ class PluginSessionCliTest(unittest.TestCase):
         self.assertEqual(sentinel.read_text(), "keep this evidence")
 
     def test_truncated_events_are_unconfirmed_and_do_not_echo_the_input(self):
-        self.check(native_events("agy"), inventory=native_inventory("agy"))
+        self.assert_read_baseline_passes()
         (self.base / "case/events.jsonl").write_text('{"credential":"do-not-echo')
         result = subprocess.run([sys.executable, "-I", str(CLI), "check", str(self.base / "case")],
                                 capture_output=True, text=True)

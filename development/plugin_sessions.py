@@ -19,14 +19,22 @@ RUNTIMES = ("claude", "codex", "agy")
 
 def codex_read(command):
     """Accept only a direct cat command, never arbitrary successful shell text."""
-    argv = shlex.split(command)
+    def words(script):
+        lexer = shlex.shlex(script, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        return list(lexer)
+
+    argv = words(command)
     if len(argv) == 3 and Path(argv[0]).name in ("bash", "sh", "zsh") and argv[1] in ("-lc", "-c"):
-        argv = shlex.split(argv[2])
+        argv = words(argv[2])
     if len(argv) == 3 and argv[:2] == ["cat", "--"]:
-        return argv[2]
-    if len(argv) == 2 and argv[0] == "cat":
-        return argv[1]
-    return None
+        path = argv[2]
+    elif len(argv) == 2 and argv[0] == "cat":
+        path = argv[1]
+    else:
+        return None
+    return None if any(char in path for char in "$`*?[]{}") else path
 
 
 def official_invocation(command, runtime, skill):
