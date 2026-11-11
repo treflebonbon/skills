@@ -133,6 +133,62 @@ EOF
   [ "$status" -eq 0 ]
 }
 
+@test "inspect checks preserves the provider state behind an unknown GitHub result" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.checks.data.repository.object.statusCheckRollup.contexts.nodes[0].conclusion = "NEUTRAL"
+      | .comments.data.repository.pullRequest.comments.nodes[0].body |= sub("Warning"; "Passed")' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '
+    .checks.status == "unknown"
+    and .checks.github.items[0].source == {type: "CheckRun", status: "COMPLETED", conclusion: "NEUTRAL"}
+  ' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks timestamps the completed observation in UTC" {
+  started="$(date +%s)"
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" \
+    MOCK_CHECKS_FILE="$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run python3 - "$started" "$output" <<'PY'
+from datetime import datetime, timezone
+import json
+import sys
+value = datetime.fromisoformat(json.loads(sys.argv[2])["checks"]["observed_at"].replace("Z", "+00:00"))
+assert value.tzinfo == timezone.utc
+assert int(sys.argv[1]) <= value.timestamp() <= datetime.now(timezone.utc).timestamp()
+PY
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks explains summary head evidence without inventing the evaluation head" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.comments.nodes[0].body +=
+      "\n<!-- change_assessment_commit:\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" -->"' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '.checks.coderabbit |
+    (.head_evidence | sort_by(.source)) == [
+      {source: "change_assessment_commit", head: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      {source: "review_range", head: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+    ]
+    and .reviewed_head == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    and has("evaluated_head") and .evaluated_head == null
+  ' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
 @test "inspect checks includes a warning row that omits its leading pipe without summary counters" {
   fixture="$BATS_TEST_TMPDIR/checks.json"
   jq '.comments.data.repository.pullRequest.comments.nodes[0].body |=
@@ -309,7 +365,11 @@ EOF
     "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
 
   [ "$status" -eq 0 ]
-  run jq -e '.checks.github.status == "failed" and .checks.github.items[1].name == "external-quality"' <<<"$output"
+  run jq -e '
+    .checks.github.status == "failed"
+    and .checks.github.items[1].name == "external-quality"
+    and .checks.github.items[1].source == {type: "StatusContext", state: "FAILURE"}
+  ' <<<"$output"
   [ "$status" -eq 0 ]
 }
 

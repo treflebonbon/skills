@@ -42,6 +42,21 @@ npm run lint:sh
 
 `tests/raw-codex/raw-managed-profile.bats` の「managed host grants and ancestor path rules stay scoped in raw namespace」は、Claude Code の worktree 隔離 session（Bats の一時 directory が `/tmp/nix-shell.*/` 配下）で失敗し、単独実行でも再現することを確認しました。sandbox 内の task が `mkdir: cannot create directory …/raw/home: Read-only file system` で終了します（confirmed）。原因の特定と、この環境の外で成功するかは未確認です。`npm test` の失敗にこのテスト 1 件だけが現れる場合は、環境依存の可能性が高い（推定）ので、通常の端末で単独実行して切り分けます。
 
+## 変更した Python 関数の docstring 診断
+
+`npm run report:docstrings` は、比較元の commit とステージ済みの内容（index）を比べ、構文が変わった Python 関数の docstring 有無を JSON で表示します。JSON だけを取得するときは `--silent` を使います。
+
+```sh
+npm run --silent report:docstrings
+npm run --silent report:docstrings -- --base origin/main
+```
+
+既定の比較元は `HEAD` です。`--base REF` は指定した commit 自体と index を比較し、merge-base を自動計算しません。作業ツリーの未ステージ変更は含めず、ソースを実行したりファイルや index を変更したりしません。Git hook の `GIT_INDEX_FILE` は、現在の worktree の Git dir 内にある通常ファイルだけを受け付けます。これにより部分 commit 用の index も診断できます。
+
+対象は `.py` と、一般的な Python / PyPy の shebang を持つ拡張子なしのファイルです。関数名はクラス・入れ子の所属を含め、`path`・`name`・`line`・`has_docstring` を列挙します。`head` と `base` は完全な SHA、`source` は `index`、`missing_docstrings` は docstring が空または存在しない関数の件数です。コメント・整形だけの変更や完全削除した関数は列挙しません。入れ子関数の変更は、それを含む関数の構文変更としても表示されます。
+
+docstring の不足は診断だけなので終了コード0です。比較元不明・Git の管理情報不正・対象 Python の構文不正など、診断できない場合は非0で終了します。この診断は説明の要否や品質を判断せず、CodeRabbit の複雑度・coverage の計算も再現しません。結果を見て、説明が必要な関数を人または実装者が判断します。
+
 ## リリース
 
 リリースは release-please が自動で release PR を作り、人が[受入](../GLOSSARY.md)して merge する流れです。判断の経緯は [ADR-0001](adr/0001-automate-releases-with-release-please.md) にあります。
@@ -62,6 +77,7 @@ hook は `lefthook.yml` が定義し、`lefthook install` で入ります。hook
 | ---------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | pre-commit | `format`               | `npm run format:check`。oxfmt が無ければ `npm ci --prefix development` を促して失敗します。新しい clone や worktree では先に導入します。                                                                                                                                                                                                           |
 | pre-commit | `shell`                | `npm run lint:sh`。`bin/**`、`tests/cli/git-push-topic.bats`、`.editorconfig`、`package.json` を変更したときだけ動きます。                                                                                                                                                                                                                         |
+| pre-commit | `docstrings`           | `npm run --silent report:docstrings`。変更した Python 関数の docstring 有無を JSON で表示します。説明不足だけでは止めず、比較元不明・構文不正など診断不能の場合は失敗します。                                                                                                                                                                      |
 | pre-commit | `workflows`            | `.github/workflows/*.{yaml,yml}` を変更したときだけ、`pinact`（action の SHA 固定）、`actionlint`、`ghalint` を順に実行します。                                                                                                                                                                                                                    |
 | pre-commit | `gitleaks`             | staged の変更に秘密情報がないことを確認します。                                                                                                                                                                                                                                                                                                    |
 | pre-push   | `tests`                | `npm run test:python` と公開 Bats（`tests/*.bats` と `tests/cli/*.bats`）。実測で約 2 分半です。raw Codex・browser・Node の suite は含みません（前節の sandbox 依存の失敗を避けるためです）。全 suite は `npm test` で別に実行します。hook が設定する `GIT_DIR` と `GIT_PREFIX` は、テストの fixture の Git が実 repo を向くため外して実行します。 |

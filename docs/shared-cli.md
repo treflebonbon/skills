@@ -52,6 +52,10 @@ environment = git_environment()
 
 検査とサマリーは全ページを取得します。CodeRabbit は公式 bot の最新の更新済みコメントから既知の pre-merge テーブルを読みます。同じコメント内のレビュー範囲文、または HTML メタデータ `change_assessment_commit` の完全な SHA を対象 HEAD と照合し、記載が矛盾する場合は `unknown` とします。取得中に PR の HEAD が変わった場合も `unknown` とします。
 
+`checks.observed_at` は GitHub と CodeRabbit の取得が完了した時刻を UTC で示します。複数回の取得を一つの時点のスナップショットとする保証はありません。GitHub の各項目は、正規化した `status` に加え、API が返した状態を `source` に保持します。`CheckRun` は `type`・`status`・`conclusion`、`StatusContext` は `type`・`state` です。例えば `NEUTRAL` は元の値を残し、集計では従来どおり `unknown` とします。
+
+CodeRabbit の `head_evidence` は、サマリーで見つけた HEAD を `{source, head}` の配列で示します。`source` は `review_range` または `change_assessment_commit` です。根拠が一つの SHA で一致すると `reviewed_head` に入り、不明・矛盾時は `null` になります。これはサマリーの対象 HEAD です。対応する形式では個別の pre-merge 検査の評価 SHA が公開されていないため、`evaluated_head` は `null` とし、サマリーの SHA から推定しません。サマリーが存在しない場合なども、これらの項目を空配列または `null` で残します。
+
 表の行頭・行末の `|` は省略できます。表内の区切り不足や名前のない行も判定対象に残し、`unknown` とします。件数表示がない場合も、読み取れた成功行だけで `passed` にはしません。
 
 `inspect` の終了コード0は取得成功を示します。自動判断では `checks.status` を評価し、従来の `review_threads` にある未解決スレッドも確認します。
