@@ -330,18 +330,22 @@ class PluginSessionCliTest(unittest.TestCase):
         self.assertEqual(code, 0, record)
 
     def test_run_uses_native_names_and_writes_checkable_evidence(self):
-        """External client fixtures exercise launch arguments and persisted results."""
+        """Native client fixtures require scoped inventory and replayable read evidence."""
         clients = self.base / "clients"
         clients.mkdir()
         calls = self.base / "calls.jsonl"
         for runtime in ("claude", "codex", "agy"):
-            data = {"events": native_events(runtime), "inventory": native_inventory(runtime)}
+            data = {"runtime": runtime, "events": native_events(runtime), "inventory": native_inventory(runtime)}
             script = (
                 "#!" + sys.executable + "\n"
                 "import json, pathlib, sys\n"
                 f"data = json.loads({json.dumps(data)!r})\n"
                 f"with open({str(calls)!r}, 'a') as output: output.write(json.dumps({{'argv': sys.argv, 'cwd': str(pathlib.Path.cwd())}}) + '\\n')\n"
                 "if '--version' in sys.argv: print('fixture-cli 1.0')\n"
+                "elif data['runtime'] == 'codex' and 'plugin' in sys.argv and not any(\n"
+                " sys.argv[index:index+2] == ['--marketplace', 'treflebonbon'] for index in range(len(sys.argv))):\n"
+                " print('fixture: unrelated marketplace unavailable', file=sys.stderr)\n"
+                " sys.exit(1)\n"
                 "elif 'plugin' in sys.argv or '/skills' in sys.argv:\n"
                 " print(json.dumps(data['inventory'] if pathlib.Path.cwd().name == 'rop' else {}))\n"
                 "else:\n"
@@ -379,6 +383,10 @@ class PluginSessionCliTest(unittest.TestCase):
                 inventory_calls = [call for call in call_records if Path(call["argv"][0]).name == runtime
                                    and ("plugin" in call["argv"] or "/skills" in call["argv"])]
                 self.assertEqual([call["cwd"] for call in inventory_calls], [str(case)])
+                if runtime == "codex":
+                    arguments = inventory_calls[0]["argv"]
+                    self.assertIn("--marketplace", arguments)
+                    self.assertEqual(arguments[arguments.index("--marketplace") + 1], "treflebonbon")
             checked = subprocess.run([sys.executable, "-I", str(CLI), "check", str(case)],
                                      cwd=self.base, env=os.environ | {"PATH": ""},
                                      capture_output=True, text=True)

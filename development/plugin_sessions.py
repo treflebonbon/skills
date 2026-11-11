@@ -186,7 +186,7 @@ def inventory_for(runtime, executable, case):
     """Read native inventory in the session's cwd without unrelated plugins."""
     if runtime == "claude":
         return {}  # Each session's init event supplies the actual skill inventory.
-    command = ([executable, "plugin", "list", "--json"] if runtime == "codex" else
+    command = ([executable, "plugin", "list", "--marketplace", "treflebonbon", "--json"] if runtime == "codex" else
                [executable, "--print", "/skills", "--output-format", "json"])
     result = subprocess.run(command, cwd=case, capture_output=True, text=True, timeout=30)
     if result.returncode:

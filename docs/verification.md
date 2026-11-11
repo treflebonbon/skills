@@ -76,7 +76,7 @@ npm run test:plugin-sessions -- run --output-dir /absolute/path/outside-plugin/s
 
 `--installed-root RUNTIME=PATH` は runtime ごとに1件指定し、例のパスを独立した導入確認で得た値に置き換えます。`skills/` を含む plugin root を指定し、読込 event から逆算した値や cache の配置の推測は使いません。導入先の symlink と実体に別名がある場合は、導入確認で対応を確認した実読込側のパスを使います。この入力は呼出し側の確認結果であり、この CLI が source・version・hash の一致を保証するものではありません。未指定なら、他の条件が揃っても `installed_root_unconfirmed` で未確認にします。
 
-各 case と同じ cwd で native inventory を取得し、その case の `inventory.json` に cwd と確認済み root を保存します。Claude の対象 skill の一覧は session の init を使います。実行した case の `process.json` に正式な呼出し command と終了コード、`events.jsonl` に native event、`stderr.log` に分離した診断を保存します。CLI や inventory が不足して起動しない case は `result.json` に未確認を記録します。directory は0700、保存ファイルは0600です。`summary.json` に CLI の版と実体、session ID、実読込 path、成功・失敗・未確認を集約します。原本には tool の出力が含まれるため、共有前に資格情報や利用者内容が混ざっていないことを確認します。
+各 case と同じ cwd で native inventory を取得し、その case の `inventory.json` に cwd と確認済み root を保存します。Codex は `plugin list --marketplace treflebonbon --json` で対象 marketplace の導入状態を取得します。Claude の対象 skill の一覧は session の init を使います。実行した case の `process.json` に正式な呼出し command と終了コード、`events.jsonl` に native event、`stderr.log` に分離した診断を保存します。CLI や inventory が不足して起動しない case は `result.json` に未確認を記録します。directory は0700、保存ファイルは0600です。`summary.json` に CLI の版と実体、session ID、実読込 path、成功・失敗・未確認を集約します。原本には tool の出力が含まれるため、共有前に資格情報や利用者内容が混ざっていないことを確認します。
 
 ```sh
 npm run test:plugin-sessions -- check /absolute/path/outside-plugin/session-report/agy/pr-screenshots
