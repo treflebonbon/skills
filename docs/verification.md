@@ -22,7 +22,7 @@ validator は manifest の受理、mock/fixture は指定分岐の挙動、公�
 
 ## 再実行する品質入口
 
-開発依存として Node.js 20.19+、npm、Python 3、Bats Core 1.x、`jq` を用意します。`npm run lint:sh` には `shfmt` と `shellcheck` も要ります。
+開発依存として Node.js 20.19+、npm、Python 3、Bats Core 1.x、`jq` を用意します。TypeScript evidence の Bats は `npm test` と pre-push で実行され、Bun 1.4.4 以上を必要とします。旧版の拒否も確認する場合は、`TYPESCRIPT_EVIDENCE_OLD_BUN` に Bun 1.2.14 の実行ファイルの絶対パスを指定します。`npm run lint:sh` には `shfmt` と `shellcheck` も要ります。
 
 ```sh
 npm ci --prefix development
