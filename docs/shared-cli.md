@@ -50,7 +50,9 @@ environment = git_environment()
 
 `checks.head` は確認対象の commit、`checks.status` は `passed`・`failed`・`pending`・`unknown` のいずれかです。GitHub の各検査は `checks.github`、CodeRabbit のサマリー URL・判定対象 HEAD・検査別の結果は `checks.coderabbit` に残ります。警告・失敗があれば `failed`、実行中の検査があれば `pending`、全てが成功したときに `passed` になります。検査がない、GitHub の検査がスキップされた、または CodeRabbit のサマリーが存在しない・古い・未対応形式である場合は `unknown` とします。集約では失敗、実行中、判定不能の順に優先します。
 
-検査とサマリーは全ページを取得します。CodeRabbit は公式 bot の最新の更新済みコメントから既知の pre-merge テーブルを読み、記載された判定対象 HEAD を照合します。取得中に PR の HEAD が変わった場合も `unknown` とします。
+検査とサマリーは全ページを取得します。CodeRabbit は公式 bot の最新の更新済みコメントから既知の pre-merge テーブルを読みます。同じコメント内のレビュー範囲文、または HTML メタデータ `change_assessment_commit` の完全な SHA を対象 HEAD と照合し、記載が矛盾する場合は `unknown` とします。取得中に PR の HEAD が変わった場合も `unknown` とします。
+
+表の行頭・行末の `|` は省略できます。表内の区切り不足や名前のない行も判定対象に残し、`unknown` とします。件数表示がない場合も、読み取れた成功行だけで `passed` にはしません。
 
 `inspect` の終了コード0は取得成功を示します。自動判断では `checks.status` を評価し、従来の `review_threads` にある未解決スレッドも確認します。
 

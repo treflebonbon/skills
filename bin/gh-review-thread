@@ -322,21 +322,34 @@ def fetch_coderabbit_checks(repo: str, pr: int, head: str) -> dict[str, Any]:
         return {"status": "unknown", "reason": "CodeRabbit の pre-merge サマリーがありません", "items": []}
     comment = max(comments, key=lambda item: item.get("updatedAt") or "")
     body = comment.get("body") or ""
-    match = re.search(r"^Reviewing files that changed from the base of the PR and between "
-                      r"[0-9a-f]{40} and ([0-9a-f]{40})\.$", body, re.MULTILINE)
-    result: dict[str, Any] = {"url": comment.get("url"), "reviewed_head": match[1] if match else None, "items": []}
-    if not match or match[1] != head:
+    heads = set(re.findall(r"^Reviewing files that changed from the base of the PR and between "
+                           r"[0-9a-f]{40} and ([0-9a-f]{40})\.$", body, re.MULTILINE))
+    heads.update(re.findall(r'^<!-- change_assessment_commit:"([0-9a-f]{40})" -->$', body, re.MULTILINE))
+    reviewed_head = next(iter(heads)) if len(heads) == 1 else None
+    result: dict[str, Any] = {"url": comment.get("url"), "reviewed_head": reviewed_head, "items": []}
+    if reviewed_head != head:
         return {**result, "status": "unknown", "reason": "CodeRabbit の判定対象 HEAD を確認できません"}
     blocks = re.findall(r"^<!-- pre_merge_checks_walkthrough_start -->\s*\n(.*?)"
                         r"^<!-- pre_merge_checks_walkthrough_end -->\s*$", body, re.MULTILINE | re.DOTALL)
     if len(blocks) != 1:
         return {**result, "status": "unknown", "reason": "CodeRabbit のサマリー形式を確認できません"}
-    for name, cell in re.findall(r"^\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|", blocks[0], re.MULTILINE):
-        name = name.strip()
+    in_table = False
+    for line in blocks[0].splitlines():
+        row = line.strip()
+        if not row or ("|" not in row and re.match(r"</?(?:details|summary|dl|dd)\b", row)):
+            in_table = False
+            continue
+        if not in_table and "|" not in row:
+            continue
+        # 区切り不足の行も残し、読み取れた成功行だけで判定しない。
+        in_table = True
+        cells = row.removeprefix("|").removesuffix("|").split("|")
+        name = cells[0].strip()
+        cell = cells[1].strip() if len(cells) > 1 else ""
         if ((name.lower() == "check name" and cell.strip().lower() == "status")
                 or (re.fullmatch(r"[-: ]+", name) and re.fullmatch(r"[-: ]+", cell))):
             continue
-        badge = re.fullmatch(r"!\[([^]]+)\]\([^)]+\)", cell.strip())
+        badge = re.fullmatch(r"!\[([^]]+)\]\([^)]+\)", cell) if name else None
         status = {"passed": "passed", "warning": "failed", "failed": "failed", "error": "failed",
                   "pending": "pending", "running": "pending"}.get(badge[1].lower() if badge else "", "unknown")
         result["items"].append({"name": name, "status": status})

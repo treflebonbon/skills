@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
 
+# gh の API 応答を再現し、ページングや検査状態を CLI の公開入口で検証する。
 setup() {
   PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
   SCRIPT="$PROJECT_ROOT/bin/gh-review-thread"
@@ -130,6 +131,85 @@ EOF
     and .checks.coderabbit.items[0].name == "Docstring Coverage"
   ' <<<"$output"
   [ "$status" -eq 0 ]
+}
+
+@test "inspect checks includes a warning row that omits its leading pipe without summary counters" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+      sub("\\| Docstring Coverage"; "| Title | ![Passed](passed.svg) |\nDocstring Coverage")' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '
+    .checks.status == "failed"
+    and .checks.coderabbit.items[1] == {name: "Docstring Coverage", status: "failed"}
+  ' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks never passes a table with unparsed or unnamed rows" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  for row in 'Unparsed check' '| | ![Passed](passed.svg) |'; do
+    jq --arg row "$row" '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+        (sub("Warning"; "Passed") |
+         sub("<!-- pre_merge_checks_walkthrough_end -->";
+             $row + "\n<!-- pre_merge_checks_walkthrough_end -->"))' \
+      "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+    run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+      "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+    [ "$status" -eq 0 ]
+    run jq -e '.checks.status == "unknown" and .checks.coderabbit.items[-1].status == "unknown"' <<<"$output"
+    [ "$status" -eq 0 ]
+  done
+}
+
+@test "inspect checks verifies the current head from CodeRabbit summary metadata" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  jq '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+      sub("Reviewing files.*";
+          "<!-- change_assessment_commit:\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" -->")' \
+    "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+  run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+    "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+  [ "$status" -eq 0 ]
+  run jq -e '
+    .checks.status == "failed"
+    and .checks.coderabbit.reviewed_head == .pull_request.headRefOid
+    and .checks.coderabbit.items[0].status == "failed"
+  ' <<<"$output"
+  [ "$status" -eq 0 ]
+}
+
+@test "inspect checks rejects stale or conflicting summary commit metadata" {
+  fixture="$BATS_TEST_TMPDIR/checks.json"
+  for mode in stale conflicting; do
+    jq --arg mode "$mode" '.comments.data.repository.pullRequest.comments.nodes[0].body |=
+        if $mode == "stale" then
+          sub("Reviewing files.*";
+              "<!-- change_assessment_commit:\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\" -->")
+        else
+          . + "\n<!-- change_assessment_commit:\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\" -->"
+        end' \
+      "$PROJECT_ROOT/tests/fixtures/gh-review-checks.json" >"$fixture"
+
+    run env PATH="$MOCK_BIN:$PATH" MOCK_LOG="$MOCK_LOG" MOCK_CHECKS_FILE="$fixture" \
+      "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
+
+    [ "$status" -eq 0 ]
+    run jq -e '
+      .checks.status == "unknown"
+      and .checks.coderabbit.status == "unknown"
+      and .checks.coderabbit.reason == "CodeRabbit の判定対象 HEAD を確認できません"
+    ' <<<"$output"
+    [ "$status" -eq 0 ]
+  done
 }
 
 @test "inspect checks passes when the current head has successful GitHub and CodeRabbit results" {
