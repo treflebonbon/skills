@@ -55,6 +55,8 @@ npm run --silent report:docstrings -- --base origin/main
 
 対象は `.py` と、一般的な Python / PyPy の shebang を持つ拡張子なしのファイルです。関数名はクラス・入れ子の所属を含め、`path`・`name`・`line`・`has_docstring` を列挙します。`head` と `base` は完全な SHA、`source` は `index`、`missing_docstrings` は docstring が空または存在しない関数の件数です。コメント・整形だけの変更や完全削除した関数は列挙しません。入れ子関数の変更は、それを含む関数の構文変更としても表示されます。
 
+shebang の認識は Python / PyPy の直接指定（例: `#!/usr/bin/python3`）、`env python3`、`env -S python3 ...` の形に限ります。`env -S -u PYTHONPATH python3` のように Python の前に別のオプションが入る拡張子なしファイルは対象外です。`.py` は shebang に関係なく対象になります。
+
 docstring の不足は診断だけなので終了コード0です。比較元不明・Git の管理情報不正・対象 Python の構文不正など、診断できない場合は非0で終了します。この診断は説明の要否や品質を判断せず、CodeRabbit の複雑度・coverage の計算も再現しません。結果を見て、説明が必要な関数を人または実装者が判断します。
 
 ## リリース
