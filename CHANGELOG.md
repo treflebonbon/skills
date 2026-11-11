@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.10](https://github.com/treflebonbon/skills/compare/v0.2.9...v0.2.10) (2026-11-11)
+
+
+### Bug Fixes
+
+* scope Codex inventory to the plugin marketplace ([#27](https://github.com/treflebonbon/skills/issues/27)) ([d08e04b](https://github.com/treflebonbon/skills/commit/d08e04ba58ec80a0e960d7350bc46f73633f04d3))
+
 ## [0.2.9](https://github.com/treflebonbon/skills/compare/v0.2.8...v0.2.9) (2026-11-11)
 
 
