@@ -608,6 +608,7 @@ def reply_resolve(
 
 
 def parse_args() -> argparse.Namespace:
+    """PR の参照引数を解析し、返信では commit と説明のみのどちらか一方を必須にする。"""
     parser = argparse.ArgumentParser(prog="gh-review-thread")
     subparsers = parser.add_subparsers(dest="command", required=True)
     inspect_parser = subparsers.add_parser("inspect")
