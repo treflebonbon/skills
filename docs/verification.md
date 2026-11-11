@@ -40,6 +40,33 @@ npm run lint:sh
 
 `tests/raw-codex/raw-managed-profile.bats` の「managed host grants and ancestor path rules stay scoped in raw namespace」は、Claude Code の worktree 隔離 session（Bats の一時 directory が `/tmp/nix-shell.*/` 配下）で失敗し、単独実行でも再現することを確認しました。sandbox 内の task が `mkdir: cannot create directory …/raw/home: Read-only file system` で終了します（confirmed）。原因の特定と、この環境の外で成功するかは未確認です。`npm test` の失敗にこのテスト 1 件だけが現れる場合は、環境依存の可能性が高い（推定）ので、通常の端末で単独実行して切り分けます。
 
+## 実セッションの opt-in 検査
+
+Python 3.9+ と Linux、macOS、WSL2 の通常認証済み CLI で、導入済み plugin の新規セッションを検査します。先に各 CLI の管理画面・一覧で、受入対象の source SHA・version・payload hash と導入内容の一致を確認してください。この入口は plugin の導入や更新、認証値の取得・複製を行いません。実行前後の配布物不変性と品質 suite は、上の独立した境界で確認します。
+
+```sh
+npm run test:plugin-sessions -- run --output-dir /absolute/path/outside-plugin/session-report
+```
+
+`run` は実モデルを呼びます。出力先は plugin 外の未作成 directory を指定します。省略時は3 CLI × 全11 skill を実行し、欠けた CLI や inventory 取得失敗をスキップ扱いしません。`--runtime agy --skill pr-screenshots` のように範囲を絞れます（両 flag は複数指定可能）。モデルは各 CLI の通常設定を使い、各 session の上限は既定240秒、`--timeout` で変更できます。既存 session の resume、権限回避 flag、共有設定の変更は行いません。
+
+各 case の `process.json` に正式な呼出し command と終了コード、`events.jsonl` に native event、`stderr.log` に分離した診断を保存します。directory は0700、保存ファイルは0600です。`summary.json` に CLI の版と実体、session ID、実読込 path、成功・失敗・未確認を集約します。原本には tool の出力が含まれるため、共有前に資格情報や利用者内容が混ざっていないことを確認します。
+
+```sh
+npm run test:plugin-sessions -- check /absolute/path/outside-plugin/session-report/agy/pr-screenshots
+```
+
+`check` は保存済み case と親 directory の `inventory.json` を読み、モデルを呼ばずに JSON を返します。終了コードの手入力は不要です。`status: passed` のときだけ終了コード0を返し、失敗・未確認は1です。判定には以下をすべて要求します。
+
+- native inventory に対象 skill があること。Claude は session の init、Codex は enabled な plugin inventory と skill の実読込、Antigravity は `/skills` の一覧で確認します。
+- 記録された command が名前空間付きの正式名を明示し、resume を使っていないこと。
+- CLI の終了コード0、native completion の成功、1件の session ID が揃うこと。`run` はさらに全 case の ID の重複を検査します。1件だけを再判定する `check` は、他 case の ID を照合しません。
+- `SKILL.md` と、その同じ directory 配下の同梱 reference・依存文書・helper source の成功読込があること。
+
+Claude の Read は対応する tool result、Antigravity の read_file は完了時の読込結果、Codex は単独の `cat -- <絶対 path>`（または単独の `cat <絶対 path>`）の正常終了を判定します。Codex の shell 連結・変数・pipe・`sed`・出力の自己申告は読込証拠にしません。未知・途中切れの event は成功にせず、元ログを残します。
+
+この成功は skill と同梱資源の読込に限ります。`dependencies_status` と `auxiliary_status` は `unconfirmed` として残し、第三者依存 skill の導入・補助 CLI の実行・本来の業務 workflow・App/IDE・browser の動作を成功扱いしません。prompt は検出・読込だけに限定し、Git 操作・外部書込・削除・子 agent 起動を要求しません。CLI の既存 permission profile と hooks は引き続き適用されます。
+
 ## リリース
 
 リリースは release-please が自動で release PR を作り、人が[受入](../GLOSSARY.md)して merge する流れです。判断の経緯は [ADR-0001](adr/0001-automate-releases-with-release-please.md) にあります。
