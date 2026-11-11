@@ -478,6 +478,7 @@ class OfficialPluginTest(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("codex"), "Codex CLI が必要")
     def test_codex_installs_rop_from_the_local_marketplace(self):
+        """公式導入物で共用 CLI の回帰テストと全 skill の内容一致を確認する。"""
         self.command("codex", "plugin", "marketplace", "add", str(ROOT), "--json")
         result = json.loads(self.command(
             "codex", "plugin", "add", "treflebonbon-skills@treflebonbon", "--json"
@@ -520,6 +521,7 @@ class OfficialPluginTest(unittest.TestCase):
             for name in ("bin", "contracts", "lib", "packages", "share", "skills"):
                 os.symlink(installed / name, cli_root / name, target_is_directory=True)
             shutil.copytree(ROOT / "tests/cli", cli_root / "tests/cli")
+            shutil.copytree(ROOT / "tests/fixtures", cli_root / "tests/fixtures")
             suites = sorted((cli_root / "tests/cli").glob("*.bats"))
             result = subprocess.run(
                 [bats, *map(str, suites)],
