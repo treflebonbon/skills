@@ -238,6 +238,7 @@ class PluginPackageContractTest(unittest.TestCase):
                 self.assertIn(detail, readme)
 
     def test_optional_ast_grep_and_xvfb_dependencies_are_route_scoped(self):
+        """任意ツールの導入元・版・利用経路と、利用できない場合の代替手順が文書に揃うことを検証する。"""
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("ast-grep", readme)
         self.assertIn("0.42.1", readme)

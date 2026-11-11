@@ -54,6 +54,7 @@ type Evidence = {
   nodes: SyntaxNode[];
 };
 
+/** UTF-8 のバイト位置より前にある LF を数え、1始まりの行番号を返す。 */
 function lineAt(contents: Buffer, offset: number) {
   let line = 1;
   for (
@@ -66,6 +67,11 @@ function lineAt(contents: Buffer, offset: number) {
   return line;
 }
 
+/**
+ * 明示された TypeScript ファイルを実行せず、構文ノードとソースの hash を収集する。
+ * 依存条件の不足は unavailable、抽出異常は failed とし、失敗した batch のノードを破棄する。
+ * ast-grep の走査には全ファイルで共有する30秒の期限を適用する。
+ */
 function collect(repoRoot: string, files: string[]): Evidence {
   const result: Evidence = {
     schema_version: 1,
@@ -237,6 +243,10 @@ function collect(repoRoot: string, files: string[]): Evidence {
 const usage =
   "Usage: extract-typescript.ts --repo-root ROOT --output FILE source.ts [source.tsx ...]";
 
+/**
+ * CLI 引数を検証し、抽出結果を JSON に保存して status と保存先を表示する。
+ * 引数不備は終了コード2とし、抽出できない理由は JSON に残してソース読解への切り替えを支える。
+ */
 function main() {
   let args;
   try {

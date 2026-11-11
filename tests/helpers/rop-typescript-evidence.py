@@ -25,6 +25,7 @@ class SyntaxEvidence(unittest.TestCase):
         (self.root / 'main.ts').write_text('const value = work();\n')
 
     def scan(self, files=('main.ts',), path=None):
+        """対象 repo を cwd にして Bun を起動し、保存した JSON と表示した status の一致を検証する。"""
         output = self.root / 'report/evidence.json'
         env = os.environ.copy()
         if path is not None:
@@ -84,6 +85,7 @@ class SyntaxEvidence(unittest.TestCase):
         self.assertEqual(len(result['files'][0]['sha256']), 64)
 
     def test_nearest_parent_handles_equal_spans_siblings_and_files(self):
+        """同一範囲のノードは親を共有し、兄弟や別ファイルを誤って親にしないことを保証する。"""
         source = 'x' * 100
         spans = [(0, 100), (0, 80), (0, 80), (5, 20), (20, 40), (25, 40), (80, 100)]
         matches = [{'ruleId': 'call_expression', 'text': source[lo:hi],
@@ -97,6 +99,7 @@ class SyntaxEvidence(unittest.TestCase):
                          [None, 0, 0, 1, 1, 4, 0, None, 7, 7, 8, 8, 11, 7])
 
     def test_command_and_json_failures_are_recorded(self):
+        """ツールの異常終了と不正な JSON を、理由付きの失敗と空のノード列として扱う。"""
         for status, stdout, stderr, reason in [
             (2, '', 'bad rules', 'bad rules'),
             (0, 'invalid JSON', '', 'SyntaxError'),
@@ -122,6 +125,7 @@ class SyntaxEvidence(unittest.TestCase):
         self.assertEqual(result['nodes'], [])
 
     def test_mismatched_source_and_parser_error_are_rejected(self):
+        """構文エラー、ソース不一致、不正なバイト範囲を理由付きで拒否することを検証する。"""
         for match, reason in [
             ({'ruleId': 'ERROR'}, 'syntax error (ERROR)'),
             ({'ruleId': 'call_expression', 'text': 'other()',
@@ -137,6 +141,7 @@ class SyntaxEvidence(unittest.TestCase):
                 self.assertEqual(result['nodes'], [])
 
     def test_directories_outside_root_and_other_languages_are_not_scanned(self):
+        """リンクの実体を解決してから親を辿り、repo 外・非対応形式・存在しない入力を拒否する。"""
         (self.root / 'other.rs').write_text('fn main() {}')
         self.stub_ast_grep(0, '[]')
         self.assertEqual(self.scan(path=self.bin)['status'], 'ok')
@@ -170,6 +175,7 @@ class SyntaxEvidence(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which('ast-grep'), 'native ast-grep is not installed')
     def test_native_ts_tsx_unicode_and_source_containment(self):
+        """実物の ast-grep で TS/TSX を抽出し、Unicode の範囲と親子関係を元ソースに照合する。"""
         (self.root / 'main.ts').write_text('''class Label { catchTag() { return "plain"; } }
 export const run = () => { const 日本語 = new Label().catchTag(); return Fx.catchTag(load(日本語), "Missing", () => backup()); };
 ''' + f'longCall("{"🦊" * 200}");\n', encoding='utf-8')
@@ -204,6 +210,7 @@ export const run = () => { const 日本語 = new Label().catchTag(); return Fx.c
 
     @unittest.skipUnless(shutil.which('ast-grep'), 'native ast-grep is not installed')
     def test_native_missing_tokens_discard_partial_batch(self):
+        """TS/TSX の補完された欠落トークンも検出し、先行ファイルの抽出結果ごと破棄する。"""
         for extension in ['ts', 'tsx']:
             for contents in ['const a = (1;', 'function f() { return 1;', 'foo(']:
                 with self.subTest(extension=extension, contents=contents):
@@ -216,6 +223,7 @@ export const run = () => { const 日本語 = new Label().catchTag(); return Fx.c
 
     @unittest.skipUnless(shutil.which('ast-grep'), 'native ast-grep is not installed')
     def test_native_valid_empty_syntax_is_not_a_missing_token(self):
+        """正常な空ソース・空リテラル・空要素を、構文の欠落として誤検出しないことを保証する。"""
         for contents in ['', '// comment\n', 'const a = ""; const b = ``; const c = [];',
                          'function f() {}', 'const View = () => <><p />{null}</>;']:
             with self.subTest(contents=contents):
@@ -225,6 +233,7 @@ export const run = () => { const 日本語 = new Label().catchTag(); return Fx.c
 
     @unittest.skipUnless(shutil.which('ast-grep'), 'native ast-grep is not installed')
     def test_effect_checkout_fixture_reports_recovery_and_error_mapping_evidence(self):
+        """Effect の fixture から、復旧とエラー変換をソース読解するための呼び出し証拠を抽出する。"""
         fixture = script.parent.parent / 'tests' / 'fixtures' / 'effect-checkout.ts.fixture'
         (self.root / 'checkout.ts').write_text(fixture.read_text())
         result = self.scan(['checkout.ts'])
