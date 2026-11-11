@@ -86,6 +86,12 @@ class PluginSessionCliTest(unittest.TestCase):
         self.assertTrue(result.stdout, result.stderr)
         return result.returncode, json.loads(result.stdout)
 
+    def assert_read_baseline_passes(self, runtime="agy"):
+        """Keep the successful side of each refusal boundary explicit."""
+        code, record = self.check(native_events(runtime), runtime=runtime,
+                                  inventory=native_inventory(runtime))
+        self.assertEqual(code, 0, record)
+
     def test_exit_zero_without_reads_fails_but_successful_native_reads_pass(self):
         inventory = {"status": "SUCCESS", "response": "treflebonbon-skills:rop\tROP"}
         completion = {"event": "result", "result": {"status": "SUCCESS"}}
@@ -111,11 +117,13 @@ class PluginSessionCliTest(unittest.TestCase):
                 self.assertEqual(record["resource_paths"], [RESOURCE])
 
     def test_unknown_skill_inventory_does_not_pass_on_read_evidence(self):
+        self.assert_read_baseline_passes()
         code, record = self.check(native_events("agy"), inventory={"status": "SUCCESS", "response": "other\tOther"})
         self.assertEqual(code, 1)
         self.assertIn("skill_not_detected", record["reasons"])
 
     def test_failed_or_missing_resource_read_does_not_pass(self):
+        self.assert_read_baseline_passes()
         events = native_events("agy")
         events[2]["step_update"]["tool_info"]["output"] = "Error: file not found"
         code, record = self.check(events, inventory=native_inventory("agy"))
@@ -123,6 +131,7 @@ class PluginSessionCliTest(unittest.TestCase):
         self.assertIn("resource_not_read", record["reasons"])
 
     def test_successful_reads_do_not_hide_process_or_native_failure(self):
+        self.assert_read_baseline_passes()
         code, record = self.check(native_events("agy"), inventory=native_inventory("agy"), exit_code=7)
         self.assertEqual(code, 1)
         self.assertIn("process_failed", record["reasons"])
@@ -134,6 +143,7 @@ class PluginSessionCliTest(unittest.TestCase):
 
     def test_echo_and_masked_cat_failures_are_not_read_evidence(self):
         """A successful shell process cannot substitute for a successful file read."""
+        self.assert_read_baseline_passes("codex")
         for command in (f"echo 'cat -- {RESOURCE}'", f"cat -- {RESOURCE} || true"):
             with self.subTest(command=command):
                 events = native_events("codex")
@@ -143,6 +153,7 @@ class PluginSessionCliTest(unittest.TestCase):
                 self.assertIn("resource_not_read", record["reasons"])
 
     def test_resources_from_another_plugin_root_do_not_pass(self):
+        self.assert_read_baseline_passes()
         events = native_events("agy")
         events[2] = agy_read("/other/plugin/skills/rop/references/rust.md")
         code, record = self.check(events, inventory=native_inventory("agy"))
@@ -156,18 +167,21 @@ class PluginSessionCliTest(unittest.TestCase):
         self.assertEqual(record["auxiliary_status"], "unconfirmed")
 
     def test_missing_session_id_is_not_evidence_of_a_fresh_session(self):
+        self.assert_read_baseline_passes()
         events = native_events("agy")[1:]
         code, record = self.check(events, inventory=native_inventory("agy"))
         self.assertEqual(code, 1)
         self.assertIn("session_id_missing_or_ambiguous", record["reasons"])
 
     def test_multiple_session_ids_are_not_one_fresh_session(self):
+        self.assert_read_baseline_passes()
         events = native_events("agy") + [{"event": "init", "conversation_id": "different-session"}]
         code, record = self.check(events, inventory=native_inventory("agy"))
         self.assertEqual(code, 1)
         self.assertIn("session_id_missing_or_ambiguous", record["reasons"])
 
     def test_reading_files_without_official_invocation_does_not_pass(self):
+        self.assert_read_baseline_passes()
         code, record = self.check(native_events("agy"), inventory=native_inventory("agy"),
                                   command=["agy", "-p", "/rop 受入確認"])
         self.assertEqual(code, 1)

@@ -40,6 +40,8 @@ npm run lint:sh
 
 `tests/raw-codex/raw-managed-profile.bats` の「managed host grants and ancestor path rules stay scoped in raw namespace」は、Claude Code の worktree 隔離 session（Bats の一時 directory が `/tmp/nix-shell.*/` 配下）で失敗し、単独実行でも再現することを確認しました。sandbox 内の task が `mkdir: cannot create directory …/raw/home: Read-only file system` で終了します（confirmed）。原因の特定と、この環境の外で成功するかは未確認です。`npm test` の失敗にこのテスト 1 件だけが現れる場合は、環境依存の可能性が高い（推定）ので、通常の端末で単独実行して切り分けます。
 
+同じ失敗が Nix shell 配下の一時 directory で起きた場合は、`TMPDIR` だけを Nix shell 外の書込み可能な directory に変えて、この1件を再実行します。WSL2 の通常セッションではこの変更で成功したことを確認しました（confirmed）。fixture の保管先を変える切り分けであり、権限と host 非公開の検査は同じものを実行します。単独実行が通ったら、その `TMPDIR` と同じ HEAD で全 `npm test` を実行します。
+
 ## 実セッションの opt-in 検査
 
 Python 3.9+ と Linux、macOS、WSL2 の通常認証済み CLI で、導入済み plugin の新規セッションを検査します。先に各 CLI の管理画面・一覧で、受入対象の source SHA・version・payload hash と導入内容の一致を確認してください。この入口は plugin の導入や更新、認証値の取得・複製を行いません。実行前後の配布物不変性と品質 suite は、上の独立した境界で確認します。
