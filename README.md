@@ -80,7 +80,9 @@ agy plugin list --json
 | --------------- | ----------------------------------- |
 | Claude Code     | `/treflebonbon-skills:<skill-name>` |
 | Codex           | `$treflebonbon-skills:<skill-name>` |
-| Antigravity CLI | `/<skill-name>`                     |
+| Antigravity CLI | `/treflebonbon-skills:<skill-name>` |
+
+Antigravity CLI では `/skills` 一覧に表示される名前空間付きの正式名を使います。1.5.5 の headless 経路では、短い `/pr-screenshots` と `/ui-grill-with-docs` は明示起動専用 skill を展開できませんでした。短い名前をモデルが解釈できることと、CLI が skill を明示展開することを区別します。
 
 Claude Code の plugin manifest と Codex の plugin package は公式仕様に従います。Agent Skills の core frontmatter を使い、`ui-grill-with-docs` と `pr-screenshots` の明示起動条件は維持しています。Claude Code では `disable-model-invocation: true`、Codex では各 `agents/openai.yaml` の `policy.allow_implicit_invocation: false` を使います。これらの runtime 固有 metadata を core upload validator の成功と混同しません。Antigravity CLI の strict validator による manifest 検証と、manual-only の実効制御は別の確認項目です。
 
@@ -137,6 +139,8 @@ npm run lint
 ```
 
 `npm test` は Python suite、dogfood・domain-modeling-studio・WSL2 browser package の nested Node suite、dogfood・WSL2 browser package・raw-Codex の Bats fixture、および公開 root / CLI の Bats suite（`tests/*.bats`、`tests/cli/*.bats`）を実行します。実 browser を使う dogfood / WSL2 browser suite は通常テストに含めません。`npm run test:plugin-cli` は Claude Code、Codex、Antigravity CLI がすべて必要な隔離 HOME での公式導入 smoke test です。CLI が不足する必須実行では skip を成功と扱わず、[検証記録](docs/verification.md)へ未確認として残します。公式実 session の11 skill × 3 runtime の証跡と最終 version/source SHA/hash は plugin 外の採用記録に保管し、この README に自己参照として埋め込みません。
+
+実モデルを使う33件の新規 session は `npm run test:plugin-sessions -- run --output-dir <plugin 外の未作成 directory>` で明示的に実行します。既存の通常認証・設定で導入済み skill を呼び出し、実ツールの読込記録を判定します。保存済みの1件は `npm run test:plugin-sessions -- check <case directory>` で再判定できます。通常の `npm test` はこの CLI の fixture 検査だけを実行します。必要条件と未確認の扱いは[実セッション検査](docs/verification.md#実セッションの-opt-in-検査)を参照してください。
 
 ## 公式仕様と配布元
 

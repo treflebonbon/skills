@@ -10,6 +10,7 @@
     "test:node": "node --test skills/dogfood/tests/runtime.test.mjs && npm --prefix skills/domain-modeling-studio test && npm --prefix packages/wsl2-browser test",
     "test:bats": "bats skills/dogfood/tests/dogfood.bats skills/dogfood/tests/dogfood-results.bats skills/dogfood/tests/managed-dogfood-browser.bats packages/wsl2-browser/tests/*.bats tests/raw-codex/*.bats tests/*.bats tests/cli/*.bats",
     "test:plugin-cli": "TREFLEBONBON_PLUGIN_CLI_E2E=1 python3 -B -m unittest tests.test_plugin.OfficialPluginTest -v",
+    "test:plugin-sessions": "python3 -I development/plugin_sessions.py",
     "lint:sh": "shfmt -d bin tests/cli/git-push-topic.bats && shfmt -f bin | xargs shellcheck -s bash -S warning",
     "lint": "agy plugin validate . --strict --json && claude plugin validate ."
   },
