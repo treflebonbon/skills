@@ -125,7 +125,7 @@ raw Codex isolation の準備条件は [raw Codex 隔離手順](docs/raw-codex-i
 
 ## 検証入口
 
-開発には Node.js 20.19+、npm、Python 3、Bats Core 1.x、`jq` が必要です。`npm run lint` には Antigravity CLI `agy` と Claude Code CLI `claude` も必要です。`npm run format:check` の対象は配布 metadata、README、verification entrypoint、worktree-gc の変更文書です。移管済み全 skill source の一括 reformat 結果を示すものではありません。
+開発には Node.js 20.19+、npm、Python 3、Bun、Bats Core 1.x、`jq` が必要です。`npm run lint` には Antigravity CLI `agy` と Claude Code CLI `claude` も必要です。`npm run format:check` の対象は配布 metadata、README、verification entrypoint、worktree-gc の変更文書です。移管済み全 skill source の一括 reformat 結果を示すものではありません。
 
 この repository の開発用指示は `AGENTS.override.md` に置き、Claude Code は `CLAUDE.md` から同じ内容を読みます。Codex が自動で読む[正式なファイル名](https://learn.chatgpt.com/docs/agent-configuration/agents-md#how-codex-discovers-guidance)を使い、Antigravity が plugin の規則候補として検査する root `AGENTS.md` と区別します。開発用指示を利用者の作業へ適用する `rules/` には置きません。
 

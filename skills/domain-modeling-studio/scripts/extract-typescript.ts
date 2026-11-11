@@ -83,6 +83,7 @@ function collect(repoRoot: string, files: string[]): Evidence {
     const root = realpathSync.native(repoRoot);
     const sources = [];
     for (const name of new Set(files)) {
+      // Preserve .. until realpath resolves any preceding symlink.
       const source = realpathSync.native(isAbsolute(name) ? name : root + sep + name);
       const path = relative(root, source);
       if (path === ".." || path.startsWith(".." + sep) || isAbsolute(path)) {

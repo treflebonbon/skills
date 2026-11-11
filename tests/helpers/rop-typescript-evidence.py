@@ -32,7 +32,7 @@ class SyntaxEvidence(unittest.TestCase):
         proc = subprocess.run(
             [bun, 'run', '--config=/dev/null', '--no-env-file', str(script),
              '--repo-root', str(self.root), '--output', str(output), *files],
-            cwd=self.root, env=env, capture_output=True, text=True,
+            cwd=self.root, env=env, capture_output=True, text=True, timeout=45,
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         result = json.loads(output.read_text())
@@ -90,6 +90,18 @@ class SyntaxEvidence(unittest.TestCase):
                 self.assertIn(reason, result['reason'])
                 self.assertEqual(result['nodes'], [])
 
+    def test_timeout_is_recorded_as_a_failed_scan(self):
+        sleep = shutil.which('sleep')
+        self.assertIsNotNone(sleep)
+        stub = self.bin / 'ast-grep'
+        stub.write_text(f'#!/bin/sh\nexec {shlex.quote(sleep)} 40\n')
+        stub.chmod(0o755)
+
+        result = self.scan(path=self.bin)
+        self.assertEqual(result['status'], 'failed')
+        self.assertIn('exceeded 30 seconds', result['reason'])
+        self.assertEqual(result['nodes'], [])
+
     def test_mismatched_source_and_parser_error_are_rejected(self):
         for match, reason in [
             ({'ruleId': 'ERROR'}, 'syntax error (ERROR)'),
@@ -109,6 +121,14 @@ class SyntaxEvidence(unittest.TestCase):
         (self.root / 'other.rs').write_text('fn main() {}')
         self.stub_ast_grep(0, '[]')
         self.assertEqual(self.scan(path=self.bin)['status'], 'ok')
+        nested = self.root / 'nested'
+        (nested / 'directory').mkdir(parents=True)
+        (nested / 'entry.ts').write_text('work();\n')
+        (self.root / 'directory-link').symlink_to(nested / 'directory')
+        result = self.scan(['directory-link/../entry.ts'], path=self.bin)
+        self.assertEqual(result['status'], 'ok')
+        self.assertEqual(result['files'][0]['path'], 'nested/entry.ts')
+
         for name, reason in [('.', 'Expected a .ts or .tsx file'),
                              ('other.rs', 'Expected a .ts or .tsx file'), ('missing.ts', 'ENOENT')]:
             with self.subTest(name=name):
