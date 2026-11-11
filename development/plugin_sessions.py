@@ -108,7 +108,7 @@ def check_case(runtime, skill, events, inventory, process):
         if isinstance(session_id, str) and session_id:
             session_ids.add(session_id)
     reads = list(dict.fromkeys(
-        path for path in reads
+        str(PurePosixPath(path)) for path in reads
         if isinstance(path, str) and PurePosixPath(path).is_absolute()
         and ".." not in PurePosixPath(path).parts
     ))
@@ -233,6 +233,8 @@ def capture_session(command, directory, timeout):
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
+                pass
+            finally:
                 try:
                     os.killpg(process.pid, signal.SIGKILL)
                 except ProcessLookupError:

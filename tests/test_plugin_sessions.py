@@ -4,6 +4,8 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import signal
+import time
 import unittest
 
 
@@ -30,11 +32,11 @@ def agy_read(path):
     }
 
 
-def native_events(runtime):
+def native_events(runtime, skill_path=SKILL, resource_path=RESOURCE):
     """Return literal native event shapes at the CLI process boundary."""
     if runtime == "claude":
         events = [{"type": "system", "subtype": "init", "skills": [NAMESPACE], "session_id": "claude-session"}]
-        for index, path in enumerate((SKILL, RESOURCE)):
+        for index, path in enumerate((skill_path, resource_path)):
             events += [
                 {"type": "assistant", "message": {"content": [{
                     "type": "tool_use", "id": str(index), "name": "Read",
@@ -50,9 +52,9 @@ def native_events(runtime):
             {"type": "item.completed", "item": {
                 "type": "command_execution", "command": f"/bin/bash -lc 'cat -- {path}'",
                 "exit_code": 0, "aggregated_output": "public skill",
-            }} for path in (SKILL, RESOURCE)
+            }} for path in (skill_path, resource_path)
         ] + [{"type": "turn.completed"}]
-    return [AGY_INIT, agy_read(SKILL), agy_read(RESOURCE),
+    return [AGY_INIT, agy_read(skill_path), agy_read(resource_path),
             {"event": "result", "result": {"status": "SUCCESS"}}]
 
 
@@ -175,6 +177,34 @@ class PluginSessionCliTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("resource_not_read", record["reasons"])
 
+    def test_lexical_aliases_of_the_skill_file_are_not_separate_resources(self):
+        """Dot segments and repeated separators must not turn one file into two."""
+        for runtime in ("claude", "codex", "agy"):
+            self.assert_read_baseline_passes(runtime)
+            for alias in (
+                "/installed/plugin/skills/rop/./SKILL.md",
+                "/installed/plugin/skills//rop//SKILL.md",
+            ):
+                with self.subTest(runtime=runtime, alias=alias):
+                    code, record = self.check(
+                        native_events(runtime, resource_path=alias), runtime=runtime,
+                        inventory=native_inventory(runtime),
+                    )
+                    self.assertEqual(code, 1)
+                    self.assertIn("resource_not_read", record["reasons"])
+
+    def test_lexical_aliases_of_distinct_files_are_normalized(self):
+        """Offline checking normalizes names without consulting the host filesystem."""
+        for runtime in ("claude", "codex", "agy"):
+            with self.subTest(runtime=runtime):
+                code, record = self.check(
+                    native_events(runtime, "/installed/plugin/skills/rop/./SKILL.md",
+                                  "/installed/plugin/skills/rop/./references//rust.md"),
+                    runtime=runtime, inventory=native_inventory(runtime),
+                )
+                self.assertEqual(code, 0, record)
+                self.assertEqual(record["observed_read_paths"], [SKILL, RESOURCE])
+
     def test_unchecked_dependencies_are_explicit_even_when_reads_pass(self):
         code, record = self.check(native_events("agy"), inventory=native_inventory("agy"))
         self.assertEqual(code, 0)
@@ -290,31 +320,69 @@ class PluginSessionCliTest(unittest.TestCase):
         self.assertNotIn("do-not-echo", result.stdout + result.stderr)
 
     def test_timeout_keeps_evidence_and_marks_the_case_failed(self):
-        clients = self.base / "clients"
-        clients.mkdir()
-        script = (
-            "#!" + sys.executable + "\nimport json, sys, time\n"
-            f"events = json.loads({json.dumps(native_events('agy'))!r})\n"
-            f"inventory = json.loads({json.dumps(native_inventory('agy'))!r})\n"
-            "if '--version' in sys.argv: print('fixture 1.0')\n"
-            "elif '/skills' in sys.argv: print(json.dumps(inventory))\n"
-            "else:\n"
-            " for event in events: print(json.dumps(event), flush=True)\n"
-            " time.sleep(60)\n"
-        )
-        client = clients / "agy"
-        client.write_text(script)
-        client.chmod(0o755)
-        output = self.base / "timeout"
-        result = subprocess.run(
-            [sys.executable, "-I", str(CLI), "run", "--runtime", "agy", "--skill", "rop",
-             "--timeout", "1", "--output-dir", str(output)],
-            env=os.environ | {"PATH": str(clients)}, capture_output=True, text=True, timeout=15,
-        )
-        self.assertEqual(result.returncode, 1)
-        record = json.loads(result.stdout)["cases"][0]
-        self.assertIn("process_failed", record["reasons"])
-        self.assertEqual(json.loads((output / "agy/rop/process.json").read_text())["exit_code"], 124)
-        self.assertEqual((output.stat().st_mode & 0o777), 0o700)
-        self.assertEqual(((output / "agy/rop/events.jsonl").stat().st_mode & 0o777), 0o600)
-        self.assertTrue((output / "agy/rop/stderr.log").exists())
+        """Timeouts stop ordinary children and children that ignore SIGTERM."""
+        def running(pid):
+            """A zombie has terminated even if the host has not reaped it yet."""
+            result = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)],
+                                    capture_output=True, text=True)
+            self.assertFalse(result.stderr, result.stderr)
+            self.assertIn(result.returncode, (0, 1))
+            state = result.stdout.strip()
+            return bool(state) and not state.startswith("Z")
+
+        for ignore_term in (False, True):
+            with self.subTest(ignore_term=ignore_term):
+                base = self.base / str(ignore_term)
+                clients = base / "clients"
+                clients.mkdir(parents=True)
+                ready, pid_file = base / "ready", base / "child.json"
+                worker = base / "worker.py"
+                worker.write_text(
+                    "import pathlib, signal, time\n"
+                    + ("signal.signal(signal.SIGTERM, signal.SIG_IGN)\n" if ignore_term else "")
+                    + f"pathlib.Path({str(ready)!r}).touch()\ntime.sleep(60)\n"
+                )
+                script = (
+                    "#!" + sys.executable + "\nimport json, os, pathlib, subprocess, sys, time\n"
+                    f"events = json.loads({json.dumps(native_events('agy'))!r})\n"
+                    f"inventory = json.loads({json.dumps(native_inventory('agy'))!r})\n"
+                    "if '--version' in sys.argv: print('fixture 1.0')\n"
+                    "elif '/skills' in sys.argv: print(json.dumps(inventory))\n"
+                    "else:\n"
+                    f" child = subprocess.Popen([sys.executable, {str(worker)!r}])\n"
+                    f" pathlib.Path({str(pid_file)!r}).write_text(json.dumps({{'pid': child.pid, 'group': os.getpgrp()}}))\n"
+                    f" while not pathlib.Path({str(ready)!r}).exists(): time.sleep(0.01)\n"
+                    " for event in events: print(json.dumps(event), flush=True)\n"
+                    " time.sleep(60)\n"
+                )
+                client = clients / "agy"
+                client.write_text(script)
+                client.chmod(0o755)
+                output = base / "timeout"
+                try:
+                    result = subprocess.run(
+                        [sys.executable, "-I", str(CLI), "run", "--runtime", "agy", "--skill", "rop",
+                         "--timeout", "2", "--output-dir", str(output)],
+                        env=os.environ | {"PATH": str(clients)}, capture_output=True, text=True, timeout=15,
+                    )
+                    self.assertTrue(ready.exists(), result.stderr)
+                    self.assertEqual(result.returncode, 1)
+                    record = json.loads(result.stdout)["cases"][0]
+                    self.assertIn("process_failed", record["reasons"])
+                    self.assertEqual(json.loads((output / "agy/rop/process.json").read_text())["exit_code"], 124)
+                    child = json.loads(pid_file.read_text())
+                    deadline = time.monotonic() + 1
+                    while running(child["pid"]) and time.monotonic() < deadline:
+                        time.sleep(0.02)
+                    self.assertFalse(running(child["pid"]), "owned child survived the timeout")
+                    self.assertEqual((output.stat().st_mode & 0o777), 0o700)
+                    self.assertEqual(((output / "agy/rop/events.jsonl").stat().st_mode & 0o777), 0o600)
+                    self.assertTrue((output / "agy/rop/stderr.log").exists())
+                finally:
+                    if pid_file.exists():
+                        child = json.loads(pid_file.read_text())
+                        if running(child["pid"]):
+                            try:
+                                os.killpg(child["group"], signal.SIGKILL)
+                            except ProcessLookupError:
+                                pass
