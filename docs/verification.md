@@ -44,6 +44,23 @@ npm run lint:sh
 
 同じ失敗が Nix shell 配下の一時 directory で起きた場合は、`TMPDIR` だけを Nix shell 外の書込み可能な directory に変えて、この1件を再実行します。WSL2 の通常セッションではこの変更で成功したことを確認しました（confirmed）。fixture の保管先を変える切り分けであり、権限と host 非公開の検査は同じものを実行します。単独実行が通ったら、その `TMPDIR` と同じ HEAD で全 `npm test` を実行します。
 
+## 変更した Python 関数の docstring 診断
+
+`npm run report:docstrings` は、比較元の commit とステージ済みの内容（index）を比べ、構文が変わった Python 関数の docstring 有無を JSON で表示します。JSON だけを取得するときは `--silent` を使います。
+
+```sh
+npm run --silent report:docstrings
+npm run --silent report:docstrings -- --base origin/main
+```
+
+既定の比較元は `HEAD` です。`--base REF` は指定した commit 自体と index を比較し、merge-base を自動計算しません。作業ツリーの未ステージ変更は含めず、ソースを実行したりファイルや index を変更したりしません。Git hook の `GIT_INDEX_FILE` は、現在の worktree の Git dir 内にある通常ファイルだけを受け付けます。これにより部分 commit 用の index も診断できます。
+
+対象は `.py` と、一般的な Python / PyPy の shebang を持つ拡張子なしのファイルです。関数名はクラス・入れ子の所属を含め、`path`・`name`・`line`・`has_docstring` を列挙します。`head` と `base` は完全な SHA、`source` は `index`、`missing_docstrings` は docstring が空または存在しない関数の件数です。コメント・整形だけの変更や完全削除した関数は列挙しません。入れ子関数の変更は、それを含む関数の構文変更としても表示されます。
+
+shebang の認識は Python / PyPy の直接指定（例: `#!/usr/bin/python3`）、`env python3`、`env -S python3 ...` の形に限ります。`env -S -u PYTHONPATH python3` のように Python の前に別のオプションが入る拡張子なしファイルは対象外です。`.py` は shebang に関係なく対象になります。
+
+docstring の不足は診断だけなので終了コード0です。比較元不明・Git の管理情報不正・対象 Python の構文不正など、診断できない場合は非0で終了します。この診断は説明の要否や品質を判断せず、CodeRabbit の複雑度・coverage の計算も再現しません。結果を見て、説明が必要な関数を人または実装者が判断します。
+
 ## 実セッションの opt-in 検査
 
 Python 3.9+ と Linux、macOS、WSL2 の通常認証済み CLI で、導入済み plugin の新規セッションを検査します。先に各 CLI の管理画面・一覧で、受入対象の source SHA・version・payload hash と導入内容の一致を確認してください。この入口は plugin の導入や更新、認証値の取得・複製を行いません。実行前後の配布物不変性と品質 suite は、上の独立した境界で確認します。
@@ -91,6 +108,7 @@ hook は `lefthook.yml` が定義し、`lefthook install` で入ります。hook
 | ---------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | pre-commit | `format`               | `npm run format:check`。oxfmt が無ければ `npm ci --prefix development` を促して失敗します。新しい clone や worktree では先に導入します。                                                                                                                                                                                                           |
 | pre-commit | `shell`                | `npm run lint:sh`。`bin/**`、`tests/cli/git-push-topic.bats`、`.editorconfig`、`package.json` を変更したときだけ動きます。                                                                                                                                                                                                                         |
+| pre-commit | `docstrings`           | `npm run --silent report:docstrings`。変更した Python 関数の docstring 有無を JSON で表示します。説明不足だけでは止めず、比較元不明・構文不正など診断不能の場合は失敗します。                                                                                                                                                                      |
 | pre-commit | `workflows`            | `.github/workflows/*.{yaml,yml}` を変更したときだけ、`pinact`（action の SHA 固定）、`actionlint`、`ghalint` を順に実行します。                                                                                                                                                                                                                    |
 | pre-commit | `gitleaks`             | staged の変更に秘密情報がないことを確認します。                                                                                                                                                                                                                                                                                                    |
 | pre-push   | `tests`                | `npm run test:python` と公開 Bats（`tests/*.bats` と `tests/cli/*.bats`）。実測で約 2 分半です。raw Codex・browser・Node の suite は含みません（前節の sandbox 依存の失敗を避けるためです）。全 suite は `npm test` で別に実行します。hook が設定する `GIT_DIR` と `GIT_PREFIX` は、テストの fixture の Git が実 repo を向くため外して実行します。 |

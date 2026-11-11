@@ -16,6 +16,8 @@ pre-commit:
         - "tests/cli/git-push-topic.bats"
         - ".editorconfig"
         - "package.json"
+    - name: docstrings
+      run: npm run --silent report:docstrings
     - name: gitleaks
       run: gitleaks protect --staged -v
     # workflow の SHA 固定を先に直し、その結果を lint する（dotfiles と同じ順序）。
