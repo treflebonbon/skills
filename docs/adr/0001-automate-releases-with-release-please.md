@@ -6,7 +6,7 @@ status: accepted
 
 版は 4 か所の manifest にあり（一覧は [検証手順](../verification.md#リリース)）、tag と GitHub release は手作業だった。release-please が作る release PR を人が[受入](../../GLOSSARY.md)して merge する流れにし、版の更新と tag と release を自動にする。
 
-CI は、リリースの自動化（release-please）と PR タイトルの検査（`conventional-commits`）に限る。テスト（Bats など）は CI で回さず、ローカルの hook を関門にする。dotfiles の「Bats を CI で回さない」方針と同じ範囲に収まる。token は `GITHUB_TOKEN` を使う。
+CI は、リリースの自動化（release-please）、PR タイトルの検査（`conventional-commits`）、TypeScript 構文抽出の Bun 互換性検査（`typescript-evidence`）を行う。Bun 移行の振り返りを受け、最低対応版での抽出成功と旧版の明示的拒否を実際のバイナリで継続して確認するため、互換性検査を追加した。Bats のテスト一式は引き続きローカルの hook と[検証手順](../verification.md)で確認する。token は `GITHUB_TOKEN` を使う。
 
 ## Considered Options
 
