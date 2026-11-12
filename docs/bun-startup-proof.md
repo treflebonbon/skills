@@ -22,7 +22,7 @@ Bun 1.4.4 / Linux x86_64 で、`tests/bun/orca-send.test.ts` の公開 CLI テ�
 
 Bun の[設定](https://bun.com/docs/runtime/bunfig)、[環境変数](https://bun.com/docs/runtime/environment-variables)、[auto-install](https://bun.com/docs/runtime/auto-install)を参照し、実物の Bun で上記の境界を確認する。起動フラグは `--config=絶対パス` のように値を連結して渡し、Bun にフラグとして解釈させる。
 
-この先行実証の採用方式は Linux x86_64 で確認した。macOS ARM64 の継続検査は後続の #31、namespace・process/lock・Nix の互換性は別の実証 ticket が担当する。Bun 1.4.4 を移行全体の確定下限とする判断は、それらの結果を待つ。通常 CI は fake CLI と loopback のみを使い、実モデルを呼ばない。
+この先行実証の採用方式は Linux x86_64 で確認した。#31 で追加する macOS ARM64・Linux aarch64 の標準 CI は、[検証記録の入口](verification.md#再実行する品質入口)にある同じ Bun fixture を各環境で実行し、対象 HEAD の job summary と log を証拠とする。CI の定義だけでは実測済みとせず、各 runner の結果を確認する。namespace・process/lock・Nix の互換性は別の実証 ticket が担当する。Bun 1.4.4 を移行全体の確定下限とする判断は、それらの結果を待つ。通常の Bun fixture は fake CLI と loopback のみを使い、実モデルを呼ばない。
 
 ## 呼び出し元と配布
 
