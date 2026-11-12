@@ -329,3 +329,16 @@ test("公開 help も Python 版の引数説明を維持する", () => {
   expect(result.status).toBe(0);
   expect(result.stdout).toBe(expected.help);
 });
+
+test("親 directory が symlink でも実体の package root から起動する", () => {
+  const f = fixture();
+  const link = join(f.directory, "linked-bin");
+  symlinkSync(join(root, "bin"), link);
+  const result = spawnSync(join(link, "orca-send"), ["--help"], {
+    encoding: "utf8",
+    timeout: 10000,
+  });
+  expect(result.stderr).toBe("");
+  expect(result.status).toBe(0);
+  expect(result.stdout).toContain("UTF-8本文ファイル");
+});

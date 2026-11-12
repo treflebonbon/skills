@@ -7,5 +7,6 @@ while [[ -L "$source_path" ]]; do
   source_path="$(readlink -- "$source_path")"
   [[ "$source_path" = /* ]] || source_path="$source_dir/$source_path"
 done
-package_root="$(cd -- "$(dirname -- "$source_path")/.." && pwd -P)"
+source_dir="$(cd -- "$(dirname -- "$source_path")" && pwd -P)"
+package_root="$(cd -- "$source_dir/.." && pwd -P)"
 exec "$package_root/lib/bun/run" run "$package_root/lib/bun/orca-send.ts" "$@"

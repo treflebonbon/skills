@@ -17,7 +17,7 @@ Bun 1.4.4 / Linux x86_64 で、`tests/bun/orca-send.test.ts` の公開 CLI テ�
 - Python のない PATH で送信でき、選択した fake CLI に本文と native argv がそのまま届く。
 - 合成 cwd の bunfig・dotenv・tsconfig・package.json、HOME と XDG の global bunfig、環境の BUN_OPTIONS・NODE_OPTIONS・NODE_PATH・BASH_ENV を配置する。対照の無保護な Bun 起動では preload の marker と loopback HTTP request を検出し、公開入口ではいずれも起きず、正常送信が成功する。
 - 不足する bare import は auto-install の代わりに明示的なエラーで拒否する。合成 registry への通信は0件で、正常な CLI の成功例と対比する。
-- 空白を含む配置先と入口の symlink を使う。実行前後で配布する bin/lib のファイル集合・mode・symlink・SHA-256 を照合し、cache・lock・node_modules などを追加しないことを検査する。
+- 空白を含む配置先、入口自身と親 directory の symlink を使う。実行前後で配布する bin/lib のファイル集合・mode・symlink・SHA-256 を照合し、cache・lock・node_modules などを追加しないことを検査する。
 - 子 CLI の cwd、HOME、XDG_CONFIG_HOME と合成の公開環境値が保持されることを検査する。
 
 Bun の[設定](https://bun.com/docs/runtime/bunfig)、[環境変数](https://bun.com/docs/runtime/environment-variables)、[auto-install](https://bun.com/docs/runtime/auto-install)を参照し、実物の Bun で上記の境界を確認する。起動フラグは `--config=絶対パス` のように値を連結して渡し、Bun にフラグとして解釈させる。
