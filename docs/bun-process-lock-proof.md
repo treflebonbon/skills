@@ -6,7 +6,7 @@
 
 **process 置換の旧契約を満たす方式は未確定であり、#33 は完了扱いにしない。** Bun を経由する `process.execve` の経路は PID・TTY・終了状態を維持するが、継承可能な FD と signal mask に旧 Python と異なる挙動がある。`spawn` は PID と親子関係が変わる。fixture が成功しても、この不適合を解消した証拠にはならない。
 
-lock は既存の `peer-request.sh` と同じ Perl の `flock(2)` を、Bun が開いた FD の open file description に適用する方式を検査した。Linux の合成入力で保持・競合・解放を確認したが、process 置換と対応 OS 全体の採用を決めたものではない。新規 native helper・FFI・Node-API 拡張は採用していない。
+lock は既存の `peer-request.sh` と同じ Perl の `flock(2)` を、Bun が開いた FD の open file description に適用する方式を検査した。3環境の合成入力で保持・競合・解放を確認したが、process 置換と対応 OS 全体の採用を決めたものではない。新規 native helper・FFI・Node-API 拡張は採用していない。
 
 ## 比較対象と観測方法
 
@@ -52,13 +52,13 @@ POSIX `execve` が mask と非 CLOEXEC の FD を保持する境界は、[Linux 
 
 setup hook は75秒を上限とする。2回の compiler 各30秒と2回の版検出各5秒の合計70秒を外側でも確保するためで、各 subprocess の期限と通常テストの期限は維持する。
 
-| 環境                                                                     | 状態                                                    |
-| ------------------------------------------------------------------------ | ------------------------------------------------------- |
-| Linux / WSL2 x86_64、kernel 6.18.58.1-microsoft-standard-WSL2、Bun 1.4.4 | ローカルで確認済み                                      |
-| Linux x86_64 (`ubuntu-latest`)                                           | 初回 CI で93 pass。詳細は下記 CI 履歴                   |
-| Linux aarch64                                                            | 初回 CI は setup timeout で18件未実行。修正後の実測待ち |
-| macOS aarch64                                                            | 初回 CI で93 pass。詳細は下記 CI 履歴                   |
-| raw namespace / Nix closure                                              | 未実証。後続の隔離実証と区別する                        |
+| 環境                                                                     | 状態                                     |
+| ------------------------------------------------------------------------ | ---------------------------------------- |
+| Linux / WSL2 x86_64、kernel 6.18.58.1-microsoft-standard-WSL2、Bun 1.4.4 | ローカルで確認済み                       |
+| Linux x86_64 (`ubuntu-latest`)                                           | 修正後 CI で93 pass / 0 fail / skip なし |
+| Linux aarch64                                                            | 修正後 CI で93 pass / 0 fail / skip なし |
+| macOS aarch64                                                            | 修正後 CI で93 pass / 0 fail / skip なし |
+| raw namespace / Nix closure                                              | 未実証。後続の隔離実証と区別する         |
 
 ```sh
 npm ci --prefix development
@@ -79,9 +79,19 @@ Linux aarch64 は最初のコンパイル中、setup hook の既定5秒で子 pr
 
 コンパイルを6秒遅らせるローカル対照でも約5秒で同じ hook timeout を再現し、hook の上限を75秒にすると18 pass / 0 fail になった。各 child の期限は変更せず、全テストの期限を一括で緩めない。準備時間・終了 status / signal の記録も追加した。修正後の3環境の結果は、該当 head の job log と [PR #59](https://github.com/treflebonbon/skills/pull/59) で確認する。
 
+修正後の [run 43263328778](https://github.com/treflebonbon/skills/actions/runs/43263328778) は head `1034c003eb1ebc42c1aeb1492fd6a33a9a49a8b3` / checkout `e51bc4301b83d4f388f278aacc34abc9c21927ca` を検査し、コード CI の5 job と3環境の全93件が成功した。各環境で今回の process / lock 18件も全件実行し、skip はない。Bun は3環境とも1.4.4。
+
+| runner             | OS / kernel / host architecture  | Node.js  | compiler                                       | 準備 ms | Bun suite                 |
+| ------------------ | -------------------------------- | -------- | ---------------------------------------------- | ------- | ------------------------- |
+| `ubuntu-latest`    | linux 7.0.0-1019-azure / x86_64  | v24.22.2 | cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0            | 438     | 93 pass / 0 fail / 0 skip |
+| `ubuntu-24.04-arm` | linux 7.0.0-1017-azure / aarch64 | v22.23.4 | cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0     | 350     | 93 pass / 0 fail / 0 skip |
+| `macos-15`         | darwin 24.6.0 / arm64            | v22.23.4 | Apple clang version 17.0.0 (clang-1700.0.13.5) | 436     | 93 pass / 0 fail / 0 skip |
+
+呼出し直前の FD 9 は Linux の両環境で CLOEXEC あり、macOS ではなしだった。3環境で同じ元の FD の identity と block 済み SIGUSR1 を観測し、置換後には FD 消失・mask 解除となった。C source の SHA-256 は3環境共通で `999b6c812cb784ac7a3db170cecc512b6935889454377ae86c233e55b98f5281`。準備時間はこの run の実測であり、compiler が常に同じ時間で終わるという保証ではない。
+
 ## 残る判断と後続への条件
 
-#33 は open のまま `ready-for-human` とし、後続の blocking links を維持する。採用可能な方式が必要範囲で1つも確定していないため、Linux の部分成功や suite の成功で依存を解除しない。
+#33 は open のまま `ready-for-human` とし、後続の blocking links を維持する。採用可能な方式が必要範囲で1つも確定していないため、3環境の suite の成功だけで依存を解除しない。
 
 推奨は公開互換性を維持し、必要な継承 FD を Bun 起動前に識別して保持する方式と、mask を維持する native 方式の追加実証を判断すること。Bun 内で単に `execve(2)` を呼ぶことだけで解消すると仮定しない。新しい helper を加える場合は、ビルド・配布・runtime の準備、内部 FD の漏洩防止、失敗時の状態、3環境での実証を含めて判断し、成功前には採用しない。
 
