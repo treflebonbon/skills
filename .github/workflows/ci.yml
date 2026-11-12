@@ -4,10 +4,9 @@ on:
   pull_request:
     branches:
       - main
-    # edited: a PR title fixed after opening is checked again.
+    # タイトル・本文の編集は pr-title.yml で検査する。
     types:
       - opened
-      - edited
       - synchronize
       - reopened
 
@@ -16,17 +15,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  conventional-commits:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   bun-cli:
     name: Bun CLI と型検査 (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
