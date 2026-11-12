@@ -48,7 +48,9 @@ POSIX `execve` が mask と非 CLOEXEC の FD を保持する境界は、[Linux 
 
 ## 準備・対応環境・再実行
 
-既存の Bun 1.4.4、Node.js、開発依存に加え、観測用 C fixture のため `cc`・POSIX header・導入済み Node.js の Node-API header、lock の実証に Perl / `Fcntl` を必要とする。追加の npm package、FFI、通常利用時の自動 install / build は導入しない。C observer と観測用 addon は一時 directory に build し、終了時に削除する。payload に生成物を置かない。source / binary の hash と compiler / Node.js の版・header path はテスト末尾の JSON に記録する。
+既存の Bun 1.4.4、Node.js、開発依存に加え、観測用 C fixture のため `cc`・POSIX header・導入済み Node.js の Node-API header、lock の実証に Perl / `Fcntl` を必要とする。追加の npm package、FFI、通常利用時の自動 install / build は導入しない。C observer と観測用 addon は一時 directory に build し、終了時に削除する。payload に生成物を置かない。source / binary の hash と compiler / Node.js の版・header path・準備時間はテスト末尾の JSON に記録する。
+
+setup hook は75秒を上限とする。2回の compiler 各30秒と2回の版検出各5秒の合計70秒を外側でも確保するためで、各 subprocess の期限と通常テストの期限は維持する。
 
 | 環境                                                                     | 状態                                          |
 | ------------------------------------------------------------------------ | --------------------------------------------- |
@@ -65,6 +67,16 @@ npm test
 ```
 
 ローカル検証は `~/runtime/skill-harness.md` の保護された実行境界から開始する。CI は既存の3環境の `npm run test:bun` に自動で含まれる。共通 task runner・tsconfig・workflow は変更しない。末尾の `boundary: "process-lock"` の JSON は実測値と採用未決を記録し、成功・失敗・skip はテスト結果で判断する。
+
+## CI の実測履歴
+
+初回の [run 43260194670](https://github.com/treflebonbon/skills/actions/runs/43260194670) は head `b3c7975015410f99a4f8741a8c3e53587bf3ae44` / checkout `78d57762308955397d5655d3b788a4ca88c15123` を検査した。Linux x86_64 と macOS aarch64 は各93 pass / 0 fail / skip なしだった。Node.js は順に24.22.2 / 22.23.4、compiler は Ubuntu GCC15.2.0 / Apple clang17.0.0。C source の SHA-256 は両方 `999b6c812cb784ac7a3db170cecc512b6935889454377ae86c233e55b98f5281`。
+
+Linux の呼出し直前の FD 9 は CLOEXEC あり、macOS ではなしだった。両方で同じ FD の identity と block 済み SIGUSR1 を呼出し直前に観測し、置換後の FD 消失と mask の解除を確認した。local Linux の flag の変化を macOS へ転用しない。
+
+Linux aarch64 は最初のコンパイル中、setup hook の既定5秒で子 process が停止した。75 pass / 1 fail で、今回の18件は未実行だった。初回の ARM の JSON に build / processExecve がないことも成功として扱わない。
+
+コンパイルを6秒遅らせるローカル対照でも約5秒で同じ hook timeout を再現し、hook の上限を75秒にすると18 pass / 0 fail になった。各 child の期限は変更せず、全テストの期限を一括で緩めない。準備時間・終了 status / signal の記録も追加した。修正後の3環境の結果は、該当 head の job log と [PR #59](https://github.com/treflebonbon/skills/pull/59) で確認する。
 
 ## 残る判断と後続への条件
 

@@ -33,6 +33,7 @@ type Report = {
 };
 
 beforeAll(() => {
+  const buildStarted = performance.now();
   const build = spawnSync(
     "cc",
     [
@@ -49,7 +50,7 @@ beforeAll(() => {
   );
   if (build.error || build.status !== 0)
     throw new Error(
-      `process の観測用 fixture をビルドできません: ${build.error?.message ?? build.stderr}`,
+      `process の観測用 fixture をビルドできません (status=${build.status}, signal=${build.signal}): ${build.error?.message ?? build.stderr}`,
     );
   const compiler = spawnSync("cc", ["--version"], { encoding: "utf8", timeout: 5_000 });
   if (compiler.error || compiler.status !== 0) throw new Error("C compiler の版を記録できません");
@@ -88,7 +89,7 @@ beforeAll(() => {
   );
   if (snapshotBuild.error || snapshotBuild.status !== 0)
     throw new Error(
-      `観測用 Node-API snapshot をビルドできません: ${snapshotBuild.error?.message ?? snapshotBuild.stderr}`,
+      `観測用 Node-API snapshot をビルドできません (status=${snapshotBuild.status}, signal=${snapshotBuild.signal}): ${snapshotBuild.error?.message ?? snapshotBuild.stderr}`,
     );
   const hash = (path: string | URL) =>
     createHash("sha256").update(fs.readFileSync(path)).digest("hex");
@@ -99,8 +100,10 @@ beforeAll(() => {
     snapshotHash: hash(snapshot),
     node: installation.version,
     headerDirectory,
+    durationMs: Math.round(performance.now() - buildStarted),
   };
-});
+  // 2回の compile 各30秒と版検出2回各5秒の上限を外側でも確保する。
+}, 75_000);
 afterAll(() => {
   console.log(
     JSON.stringify({
