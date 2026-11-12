@@ -406,6 +406,7 @@ describe("Node-API 候補の契約", () => {
     test(`保持 parent の移動後に rollback 宛先が ${replacement} へ置換されても残す`, () => {
       const root = fixture();
       const outside = fixture();
+      fs.writeFileSync(join(outside, "file"), "outside control");
       const parent = openParent(root, "nested/file");
       const made = fs.lstatSync(join(root, "nested", "file"), { bigint: true });
       try {
@@ -428,7 +429,7 @@ describe("Node-API 候補の契約", () => {
         expect(removeCreated(parent, made)).toBe(false);
         expect(fs.lstatSync(path, { bigint: true }).ino).toBe(observed.ino);
         expect(fs.readFileSync(original, "utf8")).toBe("inside🙂\n");
-        expect(fs.readFileSync(join(outside, "nested", "file"), "utf8")).toBe("inside🙂\n");
+        expect(fs.readFileSync(join(outside, "file"), "utf8")).toBe("outside control");
       } finally {
         closeParent(parent);
       }

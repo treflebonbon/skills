@@ -4,21 +4,24 @@
 
 ## 採用方式と現在の判定
 
-採用候補は、同じ process 内で `openat`・`mkdirat`・`renameat`・`linkat`・`unlinkat`・`fstatat` を呼ぶ6操作の Node-API helper。6操作の追加実証と compiler / header の要件はユーザー承認済み。各 component を保持 directory FD から操作し、Bun の `fstat`・read・write・`fchmod`・`fsync`・close と組み合わせる。process 全体の cwd 変更や、実 path を解決し直す fallback は使わない。
+採用する方式は、同じ process 内で `openat`・`mkdirat`・`renameat`・`linkat`・`unlinkat`・`fstatat` を呼ぶ6操作の Node-API helper。6操作の追加実証と compiler / header の要件はユーザー承認済み。各 component を保持 directory FD から操作し、Bun の `fstat`・read・write・`fchmod`・`fsync`・close と組み合わせる。process 全体の cwd 変更や、実 path を解決し直す fallback は使わない。
 
-| 環境                                 | Bun   | 6操作の判定                                 | 根拠                                    |
-| ------------------------------------ | ----- | ------------------------------------------- | --------------------------------------- |
-| Linux x86_64 / WSL2 kernel 6.18.58.1 | 1.4.4 | ローカル実証成功・採用判断は3環境の結果待ち | 関連52件と型検査が成功                  |
-| Linux arm64                          | 1.4.4 | 未確認（6操作の CI 待ち）                   | 5操作の旧 run と区別する                |
-| macOS arm64                          | 1.4.4 | 未確認（6操作の CI 待ち）                   | rollback も skip せず同じ契約を実行する |
+| 環境・job                                                                                                         | Bun / Node.js / compiler             | 判定             | 実測結果                         |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ---------------- | -------------------------------- |
+| Linux x86_64 / WSL2 kernel 6.18.58.1                                                                              | 1.4.4 / 24.22.1 / GCC 15.3.0         | 採用可・条件付き | 関連52件成功、syscall trace 取得 |
+| [Linux x86_64 / Ubuntu 26.04.1](https://github.com/treflebonbon/skills/actions/runs/43197000329/job/131110394280) | 1.4.4 / 24.22.2 / GCC 15.2.0         | 採用可・条件付き | 75 pass / 0 fail / 0 skip        |
+| [Linux arm64 / Ubuntu 24.04.5](https://github.com/treflebonbon/skills/actions/runs/43197000329/job/131110394266)  | 1.4.4 / 22.23.4 / GCC 13.3.0         | 採用可・条件付き | 75 pass / 0 fail / 0 skip        |
+| [macOS 15.8.2 / arm64](https://github.com/treflebonbon/skills/actions/runs/43197000329/job/131110394023)          | 1.4.4 / 22.23.4 / Apple clang 17.0.0 | 採用可・条件付き | 75 pass / 0 fail / 0 skip        |
 
-必要な3環境の全契約と制約が確定するまで #32 を完了扱いにしない。後続の #38・#44 の blocking link は維持する。fixture 末尾の `fullContract: "see-test-results"` は契約の判定をテスト結果で確認するという意味で、単独の成功宣言ではない。`adoption: "not-decided"` も実測だけで採用を自動決定しないことを表す。
+[6操作の CI run 43197000329](https://github.com/treflebonbon/skills/actions/runs/43197000329) は全6 job 成功。PR head は `9826e0dc46ba939ed407f4c77149988cfdd0bc9c`、checkout source は `9c3c0216ace142544f87590ecde4dca08bc988ba`。C source の SHA-256 は3環境共通で `e6143d1f0b81216ab2cfce4febb6a000c3d969746fe05f32142b933f165029c2` だった。Linux CI kernel は x86_64 が7.0.0-1019-azure、arm64 が7.0.0-1017-azure。macOS は Darwin24.6.0。各環境で Node-API 6 の compile・load と、rollback を含む全契約を実行した。
+
+条件は後述の source build・明示的な準備・payload 外の生成物・検証した Bun / OS / architecture に限定する。必要な3環境で採用可能な方式と制約が確定し、#32 の実証条件を満たした。issue の close は PR の merge 時とし、それまで #38・#44 の blocking link は維持する。fixture の `fullContract: "see-test-results"` と `adoption: "not-decided"` は実測だけで採用を自動決定しないことを表し、この記録での条件付き採用判定を取り消す意味ではない。
 
 ## FD と metadata の境界
 
 [C helper](../tests/fixtures/bun-file-safety-native.c) は Node-API の C header と POSIX libc のみを使う。Bun から渡された数値 FD を同じ process 内で扱い、開いた FD は `O_CLOEXEC` を付けて caller に所有権を渡す。caller が渡した parent を helper が閉じることはない。
 
-`fstatat` は `AT_SYMLINK_NOFOLLOW` を固定し、symlink 自体の device / inode を返す。対象を open して代用しないため、mode 0000 のファイルや FIFO の検査でも読取り権限やデータの読込みを必要としない。ID は `napi_create_bigint_uint64` で BigInt に渡し、Number への丸めを挟まない。必要な Node-API の版は6に固定する。構造体の layout はその OS の C header に任せ、TypeScript 側で offset を仮定しない。参照: [POSIX fstatat](https://pubs.opengroup.org/onlinepubs/9799919799/functions/fstatat.html)、[Node-API の BigInt](https://nodejs.org/docs/latest-v24.x/api/n-api.html#napi_create_bigint_uint64)。
+`fstatat` は `AT_SYMLINK_NOFOLLOW` を固定し、symlink 自体の device / inode を返す。対象を open して代用しないため、mode 0000 のファイルや FIFO の検査でも読取り権限やデータの読込みを必要としない。ID は `napi_create_bigint_uint64` で BigInt に渡し、Number への丸めを挟まない。必要な Node-API の版は6に固定する。構造体の layout はその OS の C header に任せ、TypeScript 側で offset を仮定しない。参照: [Linux fstatat](https://man7.org/linux/man-pages/man2/stat.2.html)、[Node-API の BigInt](https://nodejs.org/docs/latest-v24.x/api/n-api.html#napi_create_bigint_uint64)。
 
 component は Buffer の bytes を C へ渡す。有効な Unicode 文字列は TypeScript で UTF-8 化し、不正な surrogate は別名への暗黙変換を避けるため拒否する。C 境界でも Buffer 型・長さ・NUL・`/`・`.`・`..` と、FD / flags / mode の整数を検査する。Linux では `0xff` を含む実ファイル名、macOS では Unicode の Buffer 名を検査する。旧 raw の Git path は `os.fsdecode` を通るため、Git 出力の bytes 解析や保存済みデータの surrogateescape の扱いは #44 の入口側で引き継ぐ。
 
@@ -66,7 +69,17 @@ strace -f -yy -s 180 \
   lib/bun/run test tests/bun/file-safety.test.ts tests/bun/file-safety-native.test.ts
 ```
 
-6操作の trace と対象 commit は、実測後に追記する。
+commit `9826e0dc46ba939ed407f4c77149988cfdd0bc9c` の6操作を Linux 6.18.58.1-microsoft-standard-WSL2 / x86_64、Bun 1.4.4、strace 7.2 で実測し、52件が成功した。保持 FD を引数にする `openat`・`mkdirat`・`renameat`・`linkat`・`unlinkat` と、次の metadata 検査を確認した。
+
+```text
+newfstatat(<parent-fd pointing to moved>, "file", {st_mode=S_IFLNK|0777, ...}, AT_SYMLINK_NOFOLLOW) = 0
+newfstatat(<parent-fd pointing to moved>, "file", {st_mode=S_IFIFO|0644, ...}, AT_SYMLINK_NOFOLLOW) = 0
+newfstatat(<parent-fd pointing to moved>, "file", {st_mode=S_IFDIR|0755, ...}, AT_SYMLINK_NOFOLLOW) = 0
+openat(AT_FDCWD, "<private file>", O_RDONLY|O_CLOEXEC) = -1 EACCES
+newfstatat(<parent-fd>, "private", {st_mode=S_IFREG|000, ...}, AT_SYMLINK_NOFOLLOW) = 0
+```
+
+FD・絶対 path・付随 flag は短縮した抜粋。mode 0000 の対照 open は失敗し、その後の helper の metadata 検査は成功した。Bun 主 process の `chdir` / `fchdir` はなく、共用 Bash の path 計算用 subshell の `chdir` とは区別した。元 trace は `/tmp/codex/implement-32-fstatat.KbzKir/six-operations.strace`、SHA-256 は `2168ea5e4abfde418f50d871afaf8c90a2a4f2c83510506d05b5ccd56224398f`。恒久記録はこの抜粋・環境・対象 commit・再実行できる fixture とする。
 
 ## 初期候補の実測履歴
 
