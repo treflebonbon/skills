@@ -52,12 +52,13 @@ POSIX `execve` が mask と非 CLOEXEC の FD を保持する境界は、[Linux 
 
 setup hook は75秒を上限とする。2回の compiler 各30秒と2回の版検出各5秒の合計70秒を外側でも確保するためで、各 subprocess の期限と通常テストの期限は維持する。
 
-| 環境                                                                     | 状態                                          |
-| ------------------------------------------------------------------------ | --------------------------------------------- |
-| Linux / WSL2 x86_64、kernel 6.18.58.1-microsoft-standard-WSL2、Bun 1.4.4 | ローカルで確認済み                            |
-| Linux aarch64                                                            | fixture は共通 suite の対象だが、実行は未確認 |
-| macOS aarch64                                                            | fixture は共通 suite の対象だが、実行は未確認 |
-| raw namespace / Nix closure                                              | 未実証。後続の隔離実証と区別する              |
+| 環境                                                                     | 状態                                                    |
+| ------------------------------------------------------------------------ | ------------------------------------------------------- |
+| Linux / WSL2 x86_64、kernel 6.18.58.1-microsoft-standard-WSL2、Bun 1.4.4 | ローカルで確認済み                                      |
+| Linux x86_64 (`ubuntu-latest`)                                           | 初回 CI で93 pass。詳細は下記 CI 履歴                   |
+| Linux aarch64                                                            | 初回 CI は setup timeout で18件未実行。修正後の実測待ち |
+| macOS aarch64                                                            | 初回 CI で93 pass。詳細は下記 CI 履歴                   |
+| raw namespace / Nix closure                                              | 未実証。後続の隔離実証と区別する                        |
 
 ```sh
 npm ci --prefix development
