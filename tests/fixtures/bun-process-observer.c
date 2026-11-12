@@ -60,6 +60,31 @@ static void report(const char *event, int argc, char **argv) {
   fflush(stdout);
 }
 
+#ifdef PROCESS_SNAPSHOT_ADDON
+#include <node_api.h>
+
+static napi_value snapshot(napi_env env, napi_callback_info info) {
+  (void)info;
+  report("before-exec", 0, NULL);
+  napi_value result;
+  if (napi_get_undefined(env, &result) != napi_ok) {
+    napi_throw_error(env, NULL, "snapshot: undefined を作成できません");
+    return NULL;
+  }
+  return result;
+}
+
+NAPI_MODULE_INIT() {
+  napi_value function;
+  if (napi_create_function(env, "snapshot", NAPI_AUTO_LENGTH, snapshot, NULL, &function) != napi_ok ||
+      napi_set_named_property(env, exports, "snapshot", function) != napi_ok) {
+    napi_throw_error(env, NULL, "snapshot を export できません");
+    return NULL;
+  }
+  return exports;
+}
+#endif
+
 int main(int argc, char **argv) {
   struct rlimit core = {0, 0};
   if (setrlimit(RLIMIT_CORE, &core) < 0) die("setrlimit");

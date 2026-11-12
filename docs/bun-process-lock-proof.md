@@ -4,13 +4,13 @@
 
 [#33](https://github.com/treflebonbon/skills/issues/33) の実証用 fixture と比較記録。基準 source は `236b0f61d194c277f0bb4c79561939113ee6ea24`、Bun は1.4.4。Linux / WSL2 x86_64 で確認した。
 
-**process 置換の旧契約を満たす方式は未確定であり、#33 は完了扱いにしない。** `process.execve` は PID・TTY・終了状態を維持するが、継承可能な FD と signal mask に旧 Python と異なる挙動がある。`spawn` は PID と親子関係が変わる。fixture が成功しても、この不適合を解消した証拠にはならない。
+**process 置換の旧契約を満たす方式は未確定であり、#33 は完了扱いにしない。** Bun を経由する `process.execve` の経路は PID・TTY・終了状態を維持するが、継承可能な FD と signal mask に旧 Python と異なる挙動がある。`spawn` は PID と親子関係が変わる。fixture が成功しても、この不適合を解消した証拠にはならない。
 
 lock は既存の `peer-request.sh` と同じ Perl の `flock(2)` を、Bun が開いた FD の open file description に適用する方式を検査した。Linux の合成入力で保持・競合・解放を確認したが、process 置換と対応 OS 全体の採用を決めたものではない。新規 native helper・FFI・Node-API 拡張は採用していない。
 
 ## 比較対象と観測方法
 
-[Bun の実証用入口](../tests/fixtures/bun-process-lock.ts)を、[POSIX の観測用 C fixture](../tests/fixtures/bun-process-observer.c)から起動する。観測側が FD 9・`FD_CLOEXEC`・`SIGUSR1` の mask を設定し、置換前後の PID / PPID / PGID / SID、controlling TTY、foreground group、FD の device / inode、signal mask、argv を出力する。C fixture は OS の header を使う独立した観測側であり、Bun へロードする addon や製品の helper ではない。
+[Bun の実証用入口](../tests/fixtures/bun-process-lock.ts)を、[POSIX の観測用 C fixture](../tests/fixtures/bun-process-observer.c)から起動する。観測側が FD 9・`FD_CLOEXEC`・`SIGUSR1` の mask を設定し、置換前後の PID / PPID / PGID / SID、controlling TTY、foreground group、FD の device / inode、signal mask、argv を出力する。同じ C source から Node-API 6 の観測用 addon も build し、Bun 内で `process.execve` を呼ぶ直前の状態を読む。観測用 addon は状態を読み出すだけで、製品の execve / flock helper を提供・採用するものではない。
 
 既存の `bin/codex-reviewer` に、本物の Codex の代わりに同じ C observer を渡して[旧版の corpus](../tests/fixtures/bun-process-lock-python.json)を採取した。既存の Python 関数、Git metadata の検出、argv・環境の組立てと `os.execvpe` を実際に通している。source SHA・各関連ファイルの SHA-256・Python 版・OS / kernel・コマンドを保存した。通常の Bun suite から Python を起動しない。raw namespace、Nix、実モデルの起動はこの比較に含まない。
 
@@ -18,18 +18,20 @@ FD は「番号が開いている」だけでなく、置換前後の device / i
 
 ## process の結果
 
-| 境界                            | ローカルでの実測                                                                           | 判定                           |
-| ------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------ |
-| PID・親・process group・session | `process.execve` は置換前と一致し、`spawn` は別 PID / 親子関係になる                       | 置換と spawn を区別できる      |
-| argv・環境・終了                | 空引数、Unicode、shell 記号を literal に渡し、target の終了37を観測                        | 確認済み                       |
-| 継承可能 FD                     | 旧 reviewer と POSIX 対照は同じ FD 9 を維持。Bun の `process.execve` 後にはない            | 旧契約に不適合                 |
-| `FD_CLOEXEC`                    | CLOEXEC の FD は target に渡らない                                                         | 確認済み                       |
-| signal mask                     | 旧 reviewer / POSIX 対照は block 済み `SIGUSR1` を維持。Bun は解除する                     | 旧契約に不適合                 |
-| 起動失敗                        | `ENOENT`・`EACCES`・`ENOEXEC` を捕捉して終了1。signal による異常終了ではない               | Bun 1.4.4 / この環境で確認済み |
-| 対話 TTY                        | 実 PTY で stdin / stdout / stderr、controlling TTY と foreground group、Unicode 入力を観測 | 確認済み                       |
-| 中断・終了・timeout             | PTY の Ctrl-C は SIGINT / 130、SIGTERM と timeout は SIGTERM / 143                         | 確認済み                       |
+| 境界                            | ローカルでの実測                                                                                                  | 判定                           |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| PID・親・process group・session | `process.execve` は置換前と一致し、`spawn` は別 PID / 親子関係になる                                              | 置換と spawn を区別できる      |
+| argv・環境・終了                | 空引数、Unicode、shell 記号を literal に渡し、target の終了37を観測                                               | 確認済み                       |
+| 継承可能 FD                     | 旧 reviewer と POSIX 対照は同じ FD 9 を維持。Bun 内の呼出し直前にも同じ FD はあるが、既に CLOEXEC。置換後にはない | Bun を含む経路が旧契約に不適合 |
+| `FD_CLOEXEC`                    | CLOEXEC の FD は target に渡らない                                                                                | 確認済み                       |
+| signal mask                     | 旧 reviewer / POSIX 対照と Bun 内の呼出し直前は block 済み `SIGUSR1` を維持。`process.execve` 後は解除            | 旧契約に不適合                 |
+| 起動失敗                        | `ENOENT`・`EACCES`・`ENOEXEC` を捕捉して終了1。signal による異常終了ではない                                      | Bun 1.4.4 / この環境で確認済み |
+| 対話 TTY                        | 実 PTY で stdin / stdout / stderr、controlling TTY と foreground group、Unicode 入力を観測                        | 確認済み                       |
+| 中断・終了・timeout             | POSIX 対照と Bun の両方で、PTY の Ctrl-C は SIGINT / 130、SIGTERM と timeout は SIGTERM / 143                     | 確認済み                       |
 
 [Bun の導入時の説明](https://bun.com/blog/release-notes/bun-v1.3.14)には stdio 以外の FD の close-on-exec と signal mask のリセットが記載されている。一方、同資料の失敗時 abort という説明は今回の1.4.4の実測とは一致しない。版をまたいで転用せず、例外の捕捉を fixture で検査する。
+
+呼出し直前に FD 9 は元と同じ device / inode で開いているが、既に CLOEXEC だった。この実測だけで flag の変更を `process.execve` 呼出し自体に帰属させない。Bun の初期化と観測用 addon の load を含む経路を通った後の状態であり、将来の native 方式の判断にもこの区別を引き継ぐ。PTY の結果は process の終了に加えて terminal の出力終端を待って読む。
 
 POSIX `execve` が mask と非 CLOEXEC の FD を保持する境界は、[Linux の execve(2)](https://man7.org/linux/man-pages/man2/execve.2.html)も参照。API が存在することや終了コードだけの一致を、旧契約との互換性の根拠にしない。`spawn` による signal 転送の代替実装は今回採用していない。
 
@@ -46,7 +48,7 @@ POSIX `execve` が mask と非 CLOEXEC の FD を保持する境界は、[Linux 
 
 ## 準備・対応環境・再実行
 
-既存の Bun 1.4.4、Node.js、開発依存に加え、観測用 C fixture のため `cc` と POSIX header、lock の実証に Perl / `Fcntl` を必要とする。追加の npm package、FFI、通常利用時の自動 install / build は導入しない。C observer は一時 directory に build し、終了時に削除する。payload に生成物を置かない。source / binary の hash と compiler の版はテスト末尾の JSON に記録する。
+既存の Bun 1.4.4、Node.js、開発依存に加え、観測用 C fixture のため `cc`・POSIX header・導入済み Node.js の Node-API header、lock の実証に Perl / `Fcntl` を必要とする。追加の npm package、FFI、通常利用時の自動 install / build は導入しない。C observer と観測用 addon は一時 directory に build し、終了時に削除する。payload に生成物を置かない。source / binary の hash と compiler / Node.js の版・header path はテスト末尾の JSON に記録する。
 
 | 環境                                                                     | 状態                                          |
 | ------------------------------------------------------------------------ | --------------------------------------------- |

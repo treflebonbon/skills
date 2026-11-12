@@ -4,13 +4,14 @@ import { once } from "node:events";
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import { tmpdir, release } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
 import corpus from "../fixtures/bun-process-lock-python.json";
 
 const root = fs.mkdtempSync(join(tmpdir(), "bun-process-lock-"));
 const observer = join(root, "observer");
+const snapshot = join(root, "snapshot.node");
 const fixture = fileURLToPath(new URL("../fixtures/bun-process-lock.ts", import.meta.url));
 const runner = fileURLToPath(new URL("../../lib/bun/run", import.meta.url));
 const observerSource = new URL("../fixtures/bun-process-observer.c", import.meta.url);
@@ -52,12 +53,52 @@ beforeAll(() => {
     );
   const compiler = spawnSync("cc", ["--version"], { encoding: "utf8", timeout: 5_000 });
   if (compiler.error || compiler.status !== 0) throw new Error("C compiler の版を記録できません");
+  const node = spawnSync(
+    "node",
+    ["-p", "JSON.stringify({executable:process.execPath,version:process.version})"],
+    { encoding: "utf8", timeout: 5_000 },
+  );
+  if (node.error || node.status !== 0)
+    throw new Error("Node-API header の検出には Node.js が必要です");
+  const installation: { executable: string; version: string } = JSON.parse(node.stdout);
+  const headerDirectory = join(
+    dirname(fs.realpathSync(installation.executable)),
+    "../include/node",
+  );
+  const snapshotBuild = spawnSync(
+    "cc",
+    [
+      "-std=c11",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-DNAPI_VERSION=6",
+      "-DPROCESS_SNAPSHOT_ADDON",
+      ...(process.platform === "darwin"
+        ? ["-bundle", "-undefined", "dynamic_lookup"]
+        : ["-shared", "-fPIC"]),
+      "-I",
+      headerDirectory,
+      fileURLToPath(observerSource),
+      "-o",
+      snapshot,
+    ],
+    { encoding: "utf8", timeout: 30_000 },
+  );
+  if (snapshotBuild.error || snapshotBuild.status !== 0)
+    throw new Error(
+      `観測用 Node-API snapshot をビルドできません: ${snapshotBuild.error?.message ?? snapshotBuild.stderr}`,
+    );
   const hash = (path: string | URL) =>
     createHash("sha256").update(fs.readFileSync(path)).digest("hex");
   buildRecord = {
     compiler: compiler.stdout.split("\n")[0],
     sourceHash: hash(observerSource),
     binaryHash: hash(observer),
+    snapshotHash: hash(snapshot),
+    node: installation.version,
+    headerDirectory,
   };
 });
 afterAll(() => {
@@ -90,15 +131,17 @@ function run(mode: string, flags = "inherit", mask = "clear", target = observer)
   const result = spawnSync(observer, ["seed", join(root, "seed-fd"), flags, mask, ...command], {
     encoding: "utf8",
     timeout: 5_000,
-    env: { ...process.env, PROCESS_PROOF_MARKER: "literal🙂" },
+    env: { ...process.env, PROCESS_PROOF_MARKER: "literal🙂", PROCESS_PROOF_OBSERVER: snapshot },
   });
+  const records = result.stdout
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as Report);
   return {
     ...result,
-    reports: result.stdout
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => JSON.parse(line) as Report),
+    beforeExec: records.find((report) => report.event === "before-exec"),
+    reports: records.filter((report) => report.event !== "before-exec"),
   };
 }
 
@@ -142,8 +185,8 @@ test("POSIX 対照は旧 reviewer corpus と同じ FD 継承と signal mask を�
   }
 });
 
-test("process.execve は継承可能 FD と block 済み signal を失い、旧契約には不適合と判定する", () => {
-  const { reports } = run("execve", "inherit", "blocked");
+test("Bun 経路は継承可能 FD と block 済み signal を失い、旧契約には不適合と判定する", () => {
+  const { reports, beforeExec } = run("execve", "inherit", "blocked");
   const [before, after] = reports;
   expect(before!.fd9).not.toBeNull();
   expect(before!.usr1Blocked).toBe(1);
@@ -155,7 +198,19 @@ test("process.execve は継承可能 FD と block 済み signal を失い、旧�
     inheritedFdPreserved: after!.fd9 !== null,
     blockedSignalPreserved: after!.usr1Blocked === before!.usr1Blocked,
     pidPreserved: after!.pid === before!.pid,
+    beforeCall: beforeExec,
+    target: after,
   };
+});
+
+test("execve 呼出し直前の同一 process で FD の identity / flags と mask を観測する", () => {
+  const result = run("execve", "inherit", "blocked");
+  const [seed] = result.reports;
+  expect(result.beforeExec).toBeDefined();
+  expect(result.beforeExec!.pid).toBe(seed!.pid);
+  expect(result.beforeExec!.fd9?.dev).toBe(seed!.fd9!.dev);
+  expect(result.beforeExec!.fd9?.ino).toBe(seed!.fd9!.ino);
+  expect(result.beforeExec!.usr1Blocked).toBe(seed!.usr1Blocked);
 });
 
 test("process.execve でも CLOEXEC の FD は target に渡らない", () => {
@@ -194,6 +249,7 @@ async function pty(
 ) {
   let output = "";
   const decoder = new TextDecoder();
+  const terminalEnded = Promise.withResolvers<void>();
   let ready!: () => void;
   const started = new Promise<void>((resolve) => {
     ready = resolve;
@@ -212,6 +268,9 @@ async function pty(
           output += decoder.decode(bytes, { stream: true });
           if (output.includes('"event":"ready"')) ready();
         },
+        exit() {
+          terminalEnded.resolve();
+        },
       },
     },
   );
@@ -226,6 +285,17 @@ async function pty(
     if (action === "interrupt") child.terminal!.write("\x03");
     if (action === "terminate") child.kill("SIGTERM");
     const status = await child.exited;
+    let drainTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        terminalEnded.promise,
+        new Promise<never>((_resolve, reject) => {
+          drainTimer = setTimeout(() => reject(new Error("PTY の出力終端を確認できません")), 3_000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(drainTimer);
+    }
     const reports = output
       .split(/\r?\n/)
       .filter((line) => line.startsWith('{"event":'))
@@ -261,10 +331,12 @@ for (const [action, signal, status] of [
   ["timeout", "SIGTERM", 143],
 ] as const) {
   test(`process.execve は ${action} を target の signal と終了状態として観測できる`, async () => {
-    const result = await pty("execve", action);
-    expect(result.signal).toBe(signal);
-    expect(result.status).toBe(status);
-    expect(result.reports.map((report) => report.event)).toEqual(["seed", "ready"]);
+    for (const mode of ["posix-control", "execve"] as const) {
+      const result = await pty(mode, action);
+      expect(result.signal).toBe(signal);
+      expect(result.status).toBe(status);
+      expect(result.reports.map((report) => report.event)).toEqual(["seed", "ready"]);
+    }
   });
 }
 

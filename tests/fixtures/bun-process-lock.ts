@@ -5,6 +5,10 @@ import { createInterface } from "node:readline";
 
 const [mode, executable, ...arguments_] = process.argv.slice(2);
 if (!executable) throw new Error("観測用 executable が必要です");
+if ((mode === "execve" || mode === "execve-caught") && process.env.PROCESS_PROOF_OBSERVER) {
+  const observer = require(process.env.PROCESS_PROOF_OBSERVER) as { snapshot(): void };
+  observer.snapshot();
+}
 if (mode === "execve") {
   process.execve!(executable, [executable, ...arguments_], process.env);
 } else if (mode === "execve-caught") {
