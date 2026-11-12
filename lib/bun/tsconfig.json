@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "types": ["bun"],
+    "typeRoots": ["../../development/node_modules/@types"],
+    "skipLibCheck": true
+  },
+  "include": ["./**/*.ts", "../../tests/bun/**/*.ts"]
+}

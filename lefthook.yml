@@ -13,6 +13,7 @@ pre-commit:
       # lint:sh の対象と揃える。対象を広げるときはここも広げる。
       glob:
         - "bin/**"
+        - "lib/bun/run"
         - "tests/cli/git-push-topic.bats"
         - ".editorconfig"
         - "package.json"
@@ -42,7 +43,7 @@ pre-push:
   jobs:
     - name: tests
       # hook が設定する GIT_DIR と GIT_PREFIX は、テストの fixture の Git を実 repo へ向けてしまう。
-      run: unset GIT_DIR GIT_PREFIX; npm run test:python && bats tests/*.bats tests/cli/*.bats
+      run: unset GIT_DIR GIT_PREFIX; npm run typecheck && npm run test:bun && npm run test:python && bats tests/*.bats tests/cli/*.bats
 
 commit-msg:
   jobs:

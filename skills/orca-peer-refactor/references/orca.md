@@ -6,7 +6,7 @@
 
 以下の `ORCA` は選んだ実行ファイルへの置換用で、literal コマンドや shell 変数ではない。最初に版が一致する guide を読み、以降も同じ実行ファイルを使う。起動不能なら正確なエラーを報告し、別実行ファイルへ自動で切り替えない。
 
-Python の例は環境変数 `SKILL_DIR` にロード済み `SKILL.md` の親 directory、`ORCA_CLI` に選択済み実行ファイルを設定する。`SKILL_DIR` から package root を求め、package 内 helper の絶対 path を組み立てる。
+実行例では環境変数 `SKILL_DIR` にロード済み `SKILL.md` の親 directory の絶対 path、`ORCA_CLI` に選択済み実行ファイルを設定する。`SKILL_DIR` から package root を求め、package 内 helper の絶対 path を組み立てる。
 
 ```text
 ORCA skills get orca-cli --json
@@ -228,31 +228,22 @@ ordinary / nested worker の `check` は filter なしで whole FIFO を読む�
 
 <!-- literal-safe-example:start -->
 
-```python
-import os
-import subprocess
-from pathlib import Path
+`SKILL_DIR` は実際に読み込んだ `skills/orca-peer-refactor/SKILL.md` の親 directory、`ORCA_CLI` は選択済み Orca command、`ORCA_BODY_FILE` は UTF-8 本文ファイルの絶対 path に設定してから実行する。`SKILL_DIR` が未設定・空、または directory を解決できない場合は送信処理を実行せず非0の状態を返す。対話 Bash に貼り付ける場合も、条件ブロック全体を実行する。
 
-body_file = os.environ["ORCA_BODY_FILE"]  # UTF-8本文ファイルの絶対パス
-skill_dir = Path(os.environ["SKILL_DIR"]).resolve()
-plugin_root = skill_dir.parents[1]
-sender = str(plugin_root / "bin" / "orca-send")
-orca = os.environ["ORCA_CLI"]
-subprocess.run(
-    [
-        sender,
-        "--cli", orca,
-        "--body-file", body_file,
-        "--",
-        "--to", "run:<run-id>",
-        "--run", "<run-id>",
-        "--from", "<sender-handle>",
-        "--subject", "レビュー依頼",
-        "--type", "status",
-        "--json",
-    ],
-    check=True,
-)
+```bash
+if [[ -z "${SKILL_DIR:-}" ]]; then
+  printf '%s\n' 'SKILL_DIR に読み込み済み SKILL.md の親 directory を設定してください' >&2
+  false
+elif skill_dir="$(cd -- "$SKILL_DIR" && pwd -P)" &&
+  plugin_root="$(cd -- "$skill_dir/../.." && pwd -P)"; then
+  "$plugin_root/bin/orca-send" \
+    --cli "$ORCA_CLI" --body-file "$ORCA_BODY_FILE" -- \
+    --to 'run:<run-id>' --run '<run-id>' --from '<sender-handle>' \
+    --subject 'レビュー依頼' --type status --json
+else
+  printf '%s\n' 'SKILL_DIR から package root を解決できません' >&2
+  false
+fi
 ```
 
 <!-- literal-safe-example:end -->

@@ -1,0 +1,26 @@
+#!/bin/bash -p
+set -euo pipefail
+
+runtime_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+# Bun の起動前に除去する。TypeScript 内での除去では preload に間に合わない。
+unset "${!BUN_@}" "${!JSC_@}" NODE_OPTIONS NODE_PATH
+export BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo 'bun: Bun 1.4.4 以上が必要です' >&2
+  exit 2
+fi
+bun_version="$(bun --version)" || {
+  echo 'bun: Bun 1.4.4 以上が必要です' >&2
+  exit 2
+}
+if [[ ! "$bun_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] ||
+  ((BASH_REMATCH[1] < 1 || (BASH_REMATCH[1] == 1 && (BASH_REMATCH[2] < 4 || (BASH_REMATCH[2] == 4 && BASH_REMATCH[3] < 4))))); then
+  echo 'bun: Bun 1.4.4 以上が必要です' >&2
+  exit 2
+fi
+
+mode="$1"
+shift
+exec bun "$mode" --no-env-file --no-install --no-macros \
+  "--config=$runtime_root/bunfig.toml" "--tsconfig-override=$runtime_root/tsconfig.json" "$@"

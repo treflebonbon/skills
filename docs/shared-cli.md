@@ -1,6 +1,6 @@
 # 共用 CLI と Git context
 
-この package は、共用 CLI と Git metadata の読取りを所有する。実装は `bin/` と `lib/python/treflebonbon_skills/` にあり、dotfiles や Nix の checkout は参照しない。
+この package は、共用 CLI と Git metadata の読取りを所有する。実装は `bin/`、`lib/bun/` と `lib/python/treflebonbon_skills/` にあり、dotfiles や Nix の checkout は参照しない。
 
 ## package 内のパス
 
@@ -39,7 +39,7 @@ environment = git_environment()
 | `git-push-topic` | Git、Bash、GitHub CLI `gh` と、その通常の認証設定（`origin` の PR を読める権限） | 引数なしで現在 branch と `origin` の default branch を確認する。detached HEAD・default branch・default branch 不明時は拒否し、topic branch だけ `git push -u origin HEAD` する。force option は受け付けない。push の前に default branch の tip を fetch し（祖先判定に必要な履歴を取得し、ローカルの Git metadata を更新する）、HEAD が tip と同一またはその祖先（default の先に commit がない）なら拒否する。同じ head branch の merge 済み PR を `origin` の repository に固定して全件取得し、HEAD が旧 head を含み merge 結果を含まない（merge 済み branch の続き）場合も拒否する。merge 結果を含む同名 branch と、旧 head を含まない同名 branch は通す。この clone に存在しない commit は HEAD の履歴に含まれ得ないため、祖先ではないものとして扱い通す。fetch・shallow repository・祖先判定の失敗（commit が無い場合を除く）・`gh`・PR 取得（上限 1000 件で打ち切りの可能性があるとき）のいずれかで判定できなければ拒否する。追加の検査は topic branch の経路だけで、`git-push-reviewed` は実行しない。 |
 | `git-push-reviewed` | Git、Bash | 隣接する `git-push-topic` を絶対 path で読み込む実行可能 entrypoint で、別実装を持たない。起動 basename を保ち、現在 branch が `origin` の default branch と一致する場合に限り通常 push を行う。呼び出し前に必要な人間の承認は caller が確認する。 |
 | `gh-review-thread` | Python 3.9+、GitHub CLI `gh` と、その通常の認証設定 | `inspect` は PR / review thread を読む。`--checks` を加えると対象 HEAD の GitHub 検査と CodeRabbit の pre-merge 判定を集計する。`reply-resolve` は対象 PR、thread、commit、返信内容を検証してから返信し、その後に resolve する。返信に失敗した場合は resolve しない。 |
-| `orca-send` | Python 3.9+、選択済み Orca CLI | UTF-8 本文ファイルを最大 8 KiB まで読み、空本文・NUL・不正 UTF-8・重複 body 引数を拒否する。`--body` は shell を通さず literal のまま一度だけ渡す。本文は Orca CLI の argv に入るため、同一 host 上の process から見える可能性がある。 |
+| `orca-send` | Bash、Bun 1.4.4+、選択済み Orca CLI | UTF-8 本文ファイルを最大 8 KiB まで読み、空本文・NUL・不正 UTF-8・重複 body 引数を拒否する。`--body` は shell を通さず literal のまま一度だけ渡す。本文は Orca CLI の argv に入るため、同一 host 上の process から見える可能性がある。 |
 | `codex-reviewer` | Bash、Python 3.9+、Git、Codex CLI | linked worktree だけを受け入れ、`-C <root>` で起動する。worktree 固有 Git dir と common Git dir だけを、選択した既存 profile の read-only filesystem 許可として渡す。 |
 
 `git-push-topic` と `git-push-reviewed` は実際の push を行う入口であり、検証では mock のみを使う。`gh-review-thread reply-resolve` と `orca-send` も外部への書込みを行うため、skill とその利用者が通常の承認契約を確認してから実行する。
@@ -65,3 +65,11 @@ CodeRabbit の `head_evidence` は、サマリーで見つけた HEAD を `{sour
 通常起動は `dotfiles-secure`、先頭の `--peer` は `dotfiles-peer` profile を選択する。引数で `-C`、worktree、sandbox、profile、remote、権限変更を指定することはできない。`-c` / `--config` は model 関連 key だけを許可し、`--` の後は Codex に positional arguments として渡す。
 
 この launcher は linked worktree の正確な Git metadata に read-only access を加える。profile 欠損や実効性の preflight は行わず、Codex の起動失敗をそのまま返す。別 profile や通常起動へ切り替えない。profile の実効性は専用 auto の保護検証で別途確認する。Codex の秘密情報は隔離せず、`--peer` も秘密隔離を意味しない。
+
+## Bun CLI の起動
+
+`orca-send` は Bash の privileged mode（`#!/bin/bash -p`）から `lib/bun/run` を使う。`BASH_ENV` と exported shell function を起動前に読み込ませず、symlink の実体から package root を解決する。呼び出し方と選択済み Orca CLI への native 引数は従来どおりである。
+
+共用起動は `BUN_*`・`JSC_*`・`NODE_OPTIONS`・`NODE_PATH` を除去してから Bun を起動し、package の bunfig と tsconfig を絶対パスで指定する。dotenv、auto-install、macro、transpiler cache と crash report upload を無効にする。これらの runtime 設定は子 CLI にも引き継がれない。`PATH`、`HOME`、`XDG_CONFIG_HOME`、proxy や認証用の環境、cwd は保つ。Bun 自体と選択済み CLI、package payload は信頼済みの実体を使う。これはそれらの実体を隔離する sandbox ではない。
+
+最低版の基準は Bun 1.4.4 とし、実物の版が古い・不明・見つからない場合は開始前に終了コード2で拒否する。移行全体の最低版は残る実証を集約して確定する。[起動実証と比較データ](bun-startup-proof.md)に、確認環境・未確認範囲・後続移行の保存規約を記載する。

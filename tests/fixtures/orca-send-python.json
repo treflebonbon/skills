@@ -1,0 +1,258 @@
+{
+  "source": "fd2a50c558288b3661e5066b94b1196453ef9269:bin/orca-send",
+  "scenarios": [
+    {
+      "name": "literal UTF-8 and CRLF",
+      "body": "本文🙂\r\nliteral $HOME、$(touch /not-run)、`echo no`、\"引用\"、'引用'\n",
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "argv": [
+          "orchestration",
+          "send",
+          "--body",
+          "{{body}}",
+          "--to",
+          "dispatch:dispatch-1",
+          "--subject",
+          "status",
+          "--type",
+          "status",
+          "--json"
+        ]
+      }
+    },
+    {
+      "name": "exact 8 KiB",
+      "body": {
+        "repeat": "あ",
+        "count": 2730,
+        "suffix": "ab"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "argv": [
+          "orchestration",
+          "send",
+          "--body",
+          "{{body}}",
+          "--to",
+          "dispatch:dispatch-1",
+          "--subject",
+          "status",
+          "--type",
+          "status",
+          "--json"
+        ]
+      }
+    },
+    {
+      "name": "over 8 KiB",
+      "body": {
+        "repeat": "a",
+        "count": 8193,
+        "suffix": ""
+      },
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "orca-send: 本文は8 KiB以内にしてください\n",
+        "argv": null
+      }
+    },
+    {
+      "name": "empty",
+      "body": "",
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "orca-send: 本文が空です\n",
+        "argv": null
+      }
+    },
+    {
+      "name": "whitespace",
+      "body": " \t\r\n\u001c ",
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "orca-send: 本文が空です\n",
+        "argv": null
+      }
+    },
+    {
+      "name": "NUL",
+      "body": "text\u0000",
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "orca-send: 本文にNUL文字は使えません\n",
+        "argv": null
+      }
+    },
+    {
+      "name": "invalid UTF-8",
+      "bodyBase64": "/w==",
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "orca-send: 本文ファイルをUTF-8として読み取れません\n",
+        "argv": null
+      }
+    },
+    {
+      "name": "UTF-8 BOM preserved",
+      "body": "﻿本文",
+      "expected": {
+        "status": 0,
+        "stdout": "",
+        "stderr": "",
+        "argv": [
+          "orchestration",
+          "send",
+          "--body",
+          "{{body}}",
+          "--to",
+          "dispatch:dispatch-1",
+          "--subject",
+          "status",
+          "--type",
+          "status",
+          "--json"
+        ]
+      }
+    },
+    {
+      "name": "unreadable",
+      "missing": true,
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "orca-send: 本文ファイルをUTF-8として読み取れません\n",
+        "argv": null
+      }
+    },
+    {
+      "name": "exit 37 and inherited streams",
+      "body": "本文",
+      "env": {
+        "ORCA_EXIT": "37",
+        "ORCA_STDOUT": "stdout\n",
+        "ORCA_STDERR": "stderr\n"
+      },
+      "expected": {
+        "status": 37,
+        "stdout": "stdout\n",
+        "stderr": "stderr\n",
+        "argv": [
+          "orchestration",
+          "send",
+          "--body",
+          "{{body}}",
+          "--to",
+          "dispatch:dispatch-1",
+          "--subject",
+          "status",
+          "--type",
+          "status",
+          "--json"
+        ]
+      }
+    },
+    {
+      "name": "child SIGTERM",
+      "body": "本文",
+      "env": {
+        "ORCA_SIGNAL": "TERM"
+      },
+      "expected": {
+        "status": 241,
+        "stdout": "",
+        "stderr": "",
+        "argv": [
+          "orchestration",
+          "send",
+          "--body",
+          "{{body}}",
+          "--to",
+          "dispatch:dispatch-1",
+          "--subject",
+          "status",
+          "--type",
+          "status",
+          "--json"
+        ]
+      }
+    },
+    {
+      "name": "duplicate --body",
+      "body": "本文",
+      "nativeArgs": ["--body"],
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "usage: orca-send [-h] --cli CLI --body-file BODY_FILE ...\norca-send: error: 本文は --body-file で一度だけ指定してください\n",
+        "argv": null
+      }
+    },
+    {
+      "name": "duplicate --body=duplicate",
+      "body": "本文",
+      "nativeArgs": ["--body=duplicate"],
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "usage: orca-send [-h] --cli CLI --body-file BODY_FILE ...\norca-send: error: 本文は --body-file で一度だけ指定してください\n",
+        "argv": null
+      }
+    },
+    {
+      "name": "duplicate --body-file",
+      "body": "本文",
+      "nativeArgs": ["--body-file"],
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "usage: orca-send [-h] --cli CLI --body-file BODY_FILE ...\norca-send: error: 本文は --body-file で一度だけ指定してください\n",
+        "argv": null
+      }
+    },
+    {
+      "name": "duplicate --body-file=duplicate",
+      "body": "本文",
+      "nativeArgs": ["--body-file=duplicate"],
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "usage: orca-send [-h] --cli CLI --body-file BODY_FILE ...\norca-send: error: 本文は --body-file で一度だけ指定してください\n",
+        "argv": null
+      }
+    },
+    {
+      "name": "duplicate -b",
+      "body": "本文",
+      "nativeArgs": ["-b"],
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "usage: orca-send [-h] --cli CLI --body-file BODY_FILE ...\norca-send: error: 本文は --body-file で一度だけ指定してください\n",
+        "argv": null
+      }
+    },
+    {
+      "name": "duplicate -b=duplicate",
+      "body": "本文",
+      "nativeArgs": ["-b=duplicate"],
+      "expected": {
+        "status": 2,
+        "stdout": "",
+        "stderr": "usage: orca-send [-h] --cli CLI --body-file BODY_FILE ...\norca-send: error: 本文は --body-file で一度だけ指定してください\n",
+        "argv": null
+      }
+    }
+  ],
+  "help": "usage: orca-send [-h] --cli CLI --body-file BODY_FILE ...\n\nUTF-8本文ファイルを選択済みOrca CLIから文字どおり送信します。\n\npositional arguments:\n  native_args           -- の後に渡す native send 引数\n\noptions:\n  -h, --help            show this help message and exit\n  --cli CLI             このsessionで選択したOrca実行ファイル\n  --body-file BODY_FILE\n                        送信本文のUTF-8ファイル\n\n本文は8 KiB以内の公開情報に限ります。本文をargvに渡すため、同一ホストのプロセスから見える可能性があります。\n"
+}
