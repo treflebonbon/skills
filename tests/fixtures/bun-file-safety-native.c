@@ -40,7 +40,22 @@ static int component(napi_env env, napi_value value, char *result, size_t capaci
   return 1;
 }
 
-enum operation { OPEN, MKDIR, RENAME, LINK, UNLINK };
+static napi_value identity(napi_env env, const struct stat *status) {
+  napi_value result, dev, ino;
+  _Static_assert(sizeof(status->st_dev) <= sizeof(uint64_t), "device ID exceeds uint64_t");
+  _Static_assert(sizeof(status->st_ino) <= sizeof(uint64_t), "inode exceeds uint64_t");
+  if (napi_create_object(env, &result) != napi_ok ||
+      napi_create_bigint_uint64(env, (uint64_t)status->st_dev, &dev) != napi_ok ||
+      napi_create_bigint_uint64(env, (uint64_t)status->st_ino, &ino) != napi_ok ||
+      napi_set_named_property(env, result, "dev", dev) != napi_ok ||
+      napi_set_named_property(env, result, "ino", ino) != napi_ok) {
+    napi_throw_error(env, NULL, "stat metadata の返却に失敗しました");
+    return NULL;
+  }
+  return result;
+}
+
+enum operation { OPEN, MKDIR, RENAME, LINK, UNLINK, STAT };
 
 static napi_value call_at(napi_env env, napi_callback_info info) {
   napi_value values[5], result;
@@ -50,7 +65,7 @@ static napi_value call_at(napi_env env, napi_callback_info info) {
   char name[4096], other_name[4096];
   if (napi_get_cb_info(env, info, &count, values, NULL, &data) != napi_ok) return NULL;
   enum operation operation = (enum operation)(uintptr_t)data;
-  size_t required = operation == UNLINK ? 2 : operation == MKDIR ? 3 : 4;
+  size_t required = operation == UNLINK || operation == STAT ? 2 : operation == MKDIR ? 3 : 4;
   if (count != required) {
     napi_throw_type_error(env, NULL, "Node-API 操作の引数の数が不正です");
     return NULL;
@@ -71,6 +86,12 @@ static napi_value call_at(napi_env env, napi_callback_info info) {
     case RENAME: value = renameat(fd, name, other_fd, other_name); break;
     case LINK: value = linkat(fd, name, other_fd, other_name, 0); break;
     case UNLINK: value = unlinkat(fd, name, 0); break;
+    case STAT: {
+      struct stat status;
+      value = fstatat(fd, name, &status, AT_SYMLINK_NOFOLLOW);
+      if (value == 0) return identity(env, &status);
+      break;
+    }
     default: napi_throw_error(env, NULL, "未対応の Node-API 操作です"); return NULL;
   }
   if (value < 0) value = -errno;
@@ -82,12 +103,12 @@ static napi_value call_at(napi_env env, napi_callback_info info) {
 }
 
 static napi_value initialize(napi_env env, napi_value exports) {
-  const char *names[] = {"openat", "mkdirat", "renameat", "linkat", "unlinkat"};
-  napi_property_descriptor properties[5];
-  for (uintptr_t i = 0; i < 5; i++) {
+  const char *names[] = {"openat", "mkdirat", "renameat", "linkat", "unlinkat", "fstatat"};
+  napi_property_descriptor properties[6];
+  for (uintptr_t i = 0; i < 6; i++) {
     properties[i] = (napi_property_descriptor){names[i], NULL, call_at, NULL, NULL, NULL, napi_default, (void *)i};
   }
-  if (napi_define_properties(env, exports, 5, properties) != napi_ok) return NULL;
+  if (napi_define_properties(env, exports, 6, properties) != napi_ok) return NULL;
   return exports;
 }
 

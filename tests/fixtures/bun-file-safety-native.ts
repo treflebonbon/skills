@@ -22,7 +22,7 @@ const output = join(directory, "file-safety.node");
 const compileArguments = [
   "-std=c11",
   "-D_POSIX_C_SOURCE=200809L",
-  "-DNAPI_VERSION=3",
+  "-DNAPI_VERSION=6",
   "-O2",
   "-Wall",
   "-Wextra",
@@ -38,12 +38,14 @@ const compileArguments = [
 ];
 const hash = (path: string | URL) =>
   createHash("sha256").update(fs.readFileSync(path)).digest("hex");
+type FileIdentity = { dev: bigint; ino: bigint };
 type Addon = {
   openat(fd: number, name: Buffer, flags: number, mode: number): number;
   mkdirat(fd: number, name: Buffer, mode: number): number;
   renameat(fd: number, name: Buffer, otherFd: number, otherName: Buffer): number;
   linkat(fd: number, name: Buffer, otherFd: number, otherName: Buffer): number;
   unlinkat(fd: number, name: Buffer): number;
+  fstatat(fd: number, name: Buffer): FileIdentity | number;
 };
 let addon: Addon;
 export let nativeBuild: {
@@ -77,10 +79,13 @@ try {
   fs.rmSync(directory, { recursive: true, force: true });
 }
 
-function checked(result: number, syscall: string): number {
-  if (result >= 0) return result;
+function syscallError(result: number, syscall: string): never {
   const code = getSystemErrorName(result);
   throw Object.assign(new Error(`${code}: ${syscall}`), { code, errno: result, syscall });
+}
+function checked(result: number, syscall: string): number {
+  if (result < 0) syscallError(result, syscall);
+  return result;
 }
 type Component = string | Buffer;
 function componentBytes(name: Component): Buffer {
@@ -105,5 +110,10 @@ export const native = {
   },
   unlinkat: (fd: number, name: Component): void => {
     checked(addon.unlinkat(fd, componentBytes(name)), "unlinkat");
+  },
+  fstatat: (fd: number, name: Component): FileIdentity => {
+    const result = addon.fstatat(fd, componentBytes(name));
+    if (typeof result === "number") syscallError(result, "fstatat");
+    return result;
   },
 };

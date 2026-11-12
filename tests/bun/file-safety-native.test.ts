@@ -23,6 +23,26 @@ test("Bun で開いた directory FD を Node-API に渡し、戻った FD を Bu
   }
 });
 
+test("fstatat は読取り権限のないファイルを開かず device / inode を BigInt で返す", () => {
+  const root = fs.mkdtempSync(join(tmpdir(), "native-file-safety-"));
+  const path = join(root, "private");
+  fs.writeFileSync(path, "private bytes", { mode: 0o000 });
+  const parent = fs.openSync(root, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY);
+  try {
+    if (process.getuid!() !== 0)
+      expect(() => fs.closeSync(fs.openSync(path, fs.constants.O_RDONLY))).toThrow("EACCES");
+    const expected = fs.lstatSync(path, { bigint: true });
+    const observed = native.fstatat(parent, "private");
+    expect(observed).toEqual({ dev: expected.dev, ino: expected.ino });
+    expect(typeof observed.dev).toBe("bigint");
+    expect(typeof observed.ino).toBe("bigint");
+    expect(() => native.fstatat(parent, "missing")).toThrow("ENOENT: fstatat");
+  } finally {
+    fs.closeSync(parent);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("Node-API 境界で component と整数を検査し、閉じた FD は EBADF として返す", () => {
   const root = fs.mkdtempSync(join(tmpdir(), "native-file-safety-"));
   const parent = fs.openSync(root, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY);
@@ -33,6 +53,7 @@ test("Node-API 境界で component と整数を検査し、閉じた FD は EBAD
       (name: string) => native.renameat(parent, name, parent, "other"),
       (name: string) => native.linkat(parent, name, parent, "other"),
       (name: string) => native.unlinkat(parent, name),
+      (name: string) => native.fstatat(parent, name),
     ];
     for (const operation of operations) {
       for (const name of [
@@ -60,6 +81,7 @@ test("Node-API 境界で component と整数を検査し、閉じた FD は EBAD
     fs.rmSync(root, { recursive: true, force: true });
   }
   expect(() => native.mkdirat(parent, "closed", 0o700)).toThrow("EBADF: mkdirat");
+  expect(() => native.fstatat(parent, "closed")).toThrow("EBADF: fstatat");
 });
 
 test("Node-API の mkdir・rename・link・unlink が保持 FD の元 directory に作用する", () => {
@@ -104,6 +126,8 @@ test("component の bytes を保持し、不正な Unicode を別名へ変換し
     native.renameat(parent, name, parent, renamed);
     native.linkat(parent, renamed, parent, name);
     native.unlinkat(parent, renamed);
+    const expected = fs.lstatSync(Buffer.concat([Buffer.from(`${root}/`), name]), { bigint: true });
+    expect(native.fstatat(parent, name)).toEqual({ dev: expected.dev, ino: expected.ino });
     const fd = native.openat(parent, name, fs.constants.O_RDONLY);
     try {
       expect(fs.readFileSync(fd, "utf8")).toBe("original bytes");

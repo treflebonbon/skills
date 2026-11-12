@@ -1,13 +1,4 @@
-import {
-  closeSync,
-  constants,
-  fstatSync,
-  lstatSync,
-  openSync,
-  readFileSync,
-  unlinkSync,
-  type BigIntStats,
-} from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readFileSync, type BigIntStats } from "node:fs";
 import { native } from "./bun-file-safety-native.ts";
 
 export type Parent = { fd: number; leaf: string };
@@ -64,10 +55,11 @@ export function requirePrivateDirectory(fd: number, owner: number): void {
   }
 }
 
-export function removeCreated(parent: Parent, made: BigIntStats): boolean {
-  const current = lstatSync(descriptorPath(parent), { bigint: true });
+export function removeCreated(parent: Parent, made: Pick<BigIntStats, "dev" | "ino">): boolean {
+  if (parent.fd < 0) throw new Error("directory FD は閉じています");
+  const current = native.fstatat(parent.fd, parent.leaf);
   if (current.dev !== made.dev || current.ino !== made.ino) return false;
-  unlinkSync(descriptorPath(parent));
+  native.unlinkat(parent.fd, parent.leaf);
   return true;
 }
 export function closeParent(parent: Parent): void {

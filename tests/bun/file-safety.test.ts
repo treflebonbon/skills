@@ -140,8 +140,7 @@ afterAll(() => {
       fdAliasError: capability.fdAliasError,
       method: "node-api",
       nativeBuild,
-      fullContract:
-        capability.status === "available" ? "mixed:rollback-fd-path" : "partial:rollback-not-run",
+      fullContract: "see-test-results",
       adoption: "not-decided",
     }),
   );
@@ -383,28 +382,72 @@ describe("Node-API 候補の契約", () => {
     expect(fs.existsSync(join(root, "missing"))).toBe(false);
   });
 
-  test.skipIf(capability.status !== "available")(
-    "旧 FD path の rollback: 宛先 inode が置換されたら削除しない",
-    () => {
+  test("保持 FD の rollback は宛先 inode が置換されたら削除しない", () => {
+    const root = fixture();
+    const parent = openParent(root, "nested/file");
+    const path = join(root, "nested", "file");
+    const fd = openRelative(parent, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    const made = fs.fstatSync(fd, { bigint: true });
+    try {
+      fs.renameSync(join(root, "nested", "file"), join(root, "original"));
+      fs.writeFileSync(join(root, "nested", "file"), "new writer");
+      expect(removeCreated(parent, made)).toBe(false);
+      expect(fs.readFileSync(path, "utf8")).toBe("new writer");
+      const replacement = fs.lstatSync(path, { bigint: true });
+      expect(removeCreated(parent, replacement)).toBe(true);
+      expect(fs.existsSync(path)).toBe(false);
+    } finally {
+      fs.closeSync(fd);
+      closeParent(parent);
+    }
+  });
+
+  for (const replacement of ["symlink", "fifo", "directory"]) {
+    test(`保持 parent の移動後に rollback 宛先が ${replacement} へ置換されても残す`, () => {
       const root = fixture();
+      const outside = fixture();
       const parent = openParent(root, "nested/file");
-      const path = descriptorPath(parent);
-      const fd = fs.openSync(path, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-      const made = fs.fstatSync(fd, { bigint: true });
+      const made = fs.lstatSync(join(root, "nested", "file"), { bigint: true });
       try {
-        fs.renameSync(join(root, "nested", "file"), join(root, "original"));
-        fs.writeFileSync(join(root, "nested", "file"), "new writer");
+        swapAncestor(root, outside);
+        const path = join(root, "moved", "file");
+        const original = join(root, "original");
+        fs.renameSync(path, original);
+        if (replacement === "symlink") {
+          fs.symlinkSync(original, path);
+          // follow した stat は元 inode に一致する。lstat 相当の検査が必要。
+          expect(fs.statSync(path, { bigint: true }).ino).toBe(made.ino);
+        } else if (replacement === "fifo") {
+          expect(spawnSync("mkfifo", [path]).status).toBe(0);
+        } else fs.mkdirSync(path);
+        const observed = fs.lstatSync(path, { bigint: true });
+        expect(native.fstatat(parent.fd, parent.leaf)).toEqual({
+          dev: observed.dev,
+          ino: observed.ino,
+        });
         expect(removeCreated(parent, made)).toBe(false);
-        expect(fs.readFileSync(path, "utf8")).toBe("new writer");
-        const replacement = fs.lstatSync(path, { bigint: true });
-        expect(removeCreated(parent, replacement)).toBe(true);
-        expect(fs.existsSync(path)).toBe(false);
+        expect(fs.lstatSync(path, { bigint: true }).ino).toBe(observed.ino);
+        expect(fs.readFileSync(original, "utf8")).toBe("inside🙂\n");
+        expect(fs.readFileSync(join(outside, "nested", "file"), "utf8")).toBe("inside🙂\n");
       } finally {
-        fs.closeSync(fd);
         closeParent(parent);
       }
-    },
-  );
+    });
+  }
+
+  test("rollback は読取り権限を落とした同じ inode を FD 内から削除できる", () => {
+    const root = fixture();
+    const parent = openParent(root, "nested/file");
+    const path = join(root, "nested", "file");
+    try {
+      const made = fs.lstatSync(path, { bigint: true });
+      fs.chmodSync(path, 0o000);
+      expect(removeCreated(parent, made)).toBe(true);
+      expect(fs.existsSync(path)).toBe(false);
+    } finally {
+      closeParent(parent);
+    }
+  });
 
   test("閉じた parent を再利用して無関係な FD を参照しない", () => {
     const root = fixture();
