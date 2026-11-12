@@ -23,7 +23,7 @@ static void invalid(void) {
   exit(1);
 }
 
-static char *field(char **cursor, char *end) {
+static char *next_nul_field(char **cursor, char *end) {
   char *value = *cursor;
   char *zero = memchr(value, 0, (size_t)(end - value));
   if (!zero) invalid();
@@ -31,7 +31,7 @@ static char *field(char **cursor, char *end) {
   return value;
 }
 
-static long number(const char *value) {
+static long parse_nonnegative_integer(const char *value) {
   char *end;
   errno = 0;
   long result = strtol(value, &end, 10);
@@ -52,8 +52,8 @@ static const char *error_name(int error) {
 
 int main(int argc, char **argv) {
   if (argc != 3 || strncmp(argv[1], "/dev/fd/", 8)) invalid();
-  int descriptor = (int)number(argv[1] + 8);
-  preparation = (pid_t)number(argv[2]);
+  int descriptor = (int)parse_nonnegative_integer(argv[1] + 8);
+  preparation = (pid_t)parse_nonnegative_integer(argv[2]);
   if (descriptor < 3 || preparation <= 1) invalid();
   const int signals[] = {SIGINT, SIGTERM, SIGHUP};
   struct sigaction saved[3], action;
@@ -103,21 +103,21 @@ int main(int argc, char **argv) {
   if (failed || !WIFEXITED(status) || WEXITSTATUS(status)) invalid();
 
   char *cursor = buffer, *end = buffer + size;
-  if (strcmp(field(&cursor, end), "exec-proof-v1")) invalid();
-  char *mode = field(&cursor, end);
+  if (strcmp(next_nul_field(&cursor, end), "exec-proof-v1")) invalid();
+  char *mode = next_nul_field(&cursor, end);
   if (strcmp(mode, "reviewer") && strcmp(mode, "search")) invalid();
-  char *executable = field(&cursor, end);
-  long argument_count = number(field(&cursor, end));
+  char *executable = next_nul_field(&cursor, end);
+  long argument_count = parse_nonnegative_integer(next_nul_field(&cursor, end));
   if (!*executable || !argument_count) invalid();
   char **arguments = calloc((size_t)argument_count + 1, sizeof(char *));
   if (!arguments) invalid();
-  for (long i = 0; i < argument_count; i++) arguments[i] = field(&cursor, end);
-  long environment_count = number(field(&cursor, end));
+  for (long i = 0; i < argument_count; i++) arguments[i] = next_nul_field(&cursor, end);
+  long environment_count = parse_nonnegative_integer(next_nul_field(&cursor, end));
   char **environment = calloc((size_t)environment_count + 1, sizeof(char *));
   if (!environment) invalid();
   const char *path = "/bin:/usr/bin"; /* CPython posixpath.defpath */
   for (long i = 0; i < environment_count; i++) {
-    environment[i] = field(&cursor, end);
+    environment[i] = next_nul_field(&cursor, end);
     char *equals = strchr(environment[i], '=');
     if (!equals || equals == environment[i]) invalid();
     if (!strncmp(environment[i], "PATH=", 5)) path = environment[i] + 5;

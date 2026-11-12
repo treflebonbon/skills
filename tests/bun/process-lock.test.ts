@@ -362,6 +362,21 @@ test("Bash 単独の対照は execfail を使っても ENOEXEC の text を実�
   expect(result.stdout).toBe("FALLBACK\n");
 });
 
+test("同じ binary は mode 0600 で EACCES、0700 で実行できる", () => {
+  const target = join(root, "permission-boundary");
+  fs.copyFileSync(observer, target);
+  fs.chmodSync(target, 0o600);
+  const refused = run("launcher", "inherit", "clear", target);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("exec-error:EACCES");
+  expect(refused.reports.map((item) => item.event)).toEqual(["seed"]);
+  fs.chmodSync(target, 0o700);
+  const accepted = run("launcher", "inherit", "clear", target);
+  expect(accepted.status).toBe(37);
+  expect(accepted.stderr).toBe("");
+  expect(accepted.reports.map((item) => item.event)).toEqual(["seed", "target"]);
+});
+
 function prepared(mode: string, executable: string, arguments_: string[] = [], path?: string) {
   return spawnSync(entry, [runner, prepare, launcher, mode, executable, ...arguments_], {
     encoding: "utf8",
