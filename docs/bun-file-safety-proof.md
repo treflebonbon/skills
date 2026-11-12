@@ -95,7 +95,7 @@ strace -f -yy -s 180 \
 
 ビルド先は `tmpdir()` 配下の mode 0700 の作業 directory。保護されたローカル検証では `/tmp/codex/verification-env.*/tmp/`、CI では runner の一時領域を使う。payload の中に生成物を置かず、load 後は成功・失敗とも作成した directory を削除する。通常の runtime で自動 build / install する入口は追加していない。この fixture の source build には C compiler と Node.js header が必要であり、将来の配布方法は移植 ticket で別途決める。
 
-5操作だけでは、macOS で既存 rollback の symlink を辿らない device / inode 検査を置換できない。現時点ではその部分に旧 FD path が残り、Node-API 候補を全環境で採用可とはしていない。`fstatat` の追加を確認中であり、ファイルを開いて metadata 検査を代用することで拒否条件を変更しない。
+5操作だけでは、macOS で既存 rollback の symlink を辿らない device / inode 検査を置換できない。現時点ではその部分に旧 FD path が残り、Node-API 候補を全環境で採用可とはしていない。旧方式の機能判定が不適合なら、その rollback 1件だけを未実行として skip する。JSON は `fullContract: "partial:rollback-not-run"`、旧方式の rollback も走った場合は `"mixed:rollback-fd-path"` を記録し、Node-API 単独の全契約成功とは表示しない。`fstatat` の追加を確認中であり、ファイルを開いて metadata 検査を代用することで拒否条件を変更しない。
 
 公開 CLI・保存形式・Python の入口は変更していないため、この実証に伴う repo 外の呼び出し元の更新はない。今後入口を変更する ticket では、外部の対象と更新手順をその変更とともに報告する。
 

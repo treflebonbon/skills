@@ -140,7 +140,8 @@ afterAll(() => {
       fdAliasError: capability.fdAliasError,
       method: "node-api",
       nativeBuild,
-      fullContract: "see-test-results",
+      fullContract:
+        capability.status === "available" ? "mixed:rollback-fd-path" : "partial:rollback-not-run",
       adoption: "not-decided",
     }),
   );
@@ -382,25 +383,28 @@ describe("Node-API 候補の契約", () => {
     expect(fs.existsSync(join(root, "missing"))).toBe(false);
   });
 
-  test("作成後に宛先 inode が他 writer に置換されたら rollback で削除しない", () => {
-    const root = fixture();
-    const parent = openParent(root, "nested/file");
-    const path = descriptorPath(parent);
-    const fd = fs.openSync(path, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-    const made = fs.fstatSync(fd, { bigint: true });
-    try {
-      fs.renameSync(join(root, "nested", "file"), join(root, "original"));
-      fs.writeFileSync(join(root, "nested", "file"), "new writer");
-      expect(removeCreated(parent, made)).toBe(false);
-      expect(fs.readFileSync(path, "utf8")).toBe("new writer");
-      const replacement = fs.lstatSync(path, { bigint: true });
-      expect(removeCreated(parent, replacement)).toBe(true);
-      expect(fs.existsSync(path)).toBe(false);
-    } finally {
-      fs.closeSync(fd);
-      closeParent(parent);
-    }
-  });
+  test.skipIf(capability.status !== "available")(
+    "旧 FD path の rollback: 宛先 inode が置換されたら削除しない",
+    () => {
+      const root = fixture();
+      const parent = openParent(root, "nested/file");
+      const path = descriptorPath(parent);
+      const fd = fs.openSync(path, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+      const made = fs.fstatSync(fd, { bigint: true });
+      try {
+        fs.renameSync(join(root, "nested", "file"), join(root, "original"));
+        fs.writeFileSync(join(root, "nested", "file"), "new writer");
+        expect(removeCreated(parent, made)).toBe(false);
+        expect(fs.readFileSync(path, "utf8")).toBe("new writer");
+        const replacement = fs.lstatSync(path, { bigint: true });
+        expect(removeCreated(parent, replacement)).toBe(true);
+        expect(fs.existsSync(path)).toBe(false);
+      } finally {
+        fs.closeSync(fd);
+        closeParent(parent);
+      }
+    },
+  );
 
   test("閉じた parent を再利用して無関係な FD を参照しない", () => {
     const root = fixture();
