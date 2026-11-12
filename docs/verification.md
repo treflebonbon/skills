@@ -24,6 +24,10 @@ validator は manifest の受理、mock/fixture は指定分岐の挙動、公�
 
 開発依存として Node.js 20.19+、npm、Python 3、Bun 1.4.4+、Bats Core 1.x、`jq` を用意します。TypeScript evidence の Bats は `npm test` と pre-push で実行され、Bun 1.4.4 以上を必要とします。旧版の拒否も確認する場合は、`TYPESCRIPT_EVIDENCE_OLD_BUN` に Bun 1.2.14 の実行ファイルの絶対パスを指定します。`npm run lint:sh` には `shfmt` と `shellcheck` も要ります。
 
+`main` 向け PR では、`CI` workflow が `opened`・`synchronize`・`reopened` でコードを検査します。`PR タイトル` workflow は、この3イベントと `edited` で `conventional-commits` を実行します。タイトル・本文の編集ではコード CI を再実行せず、workflow ごとに concurrency group を分けるため、実行中のコード CI も取り消しません。
+
+PR の base branch だけを変えた場合も `edited` になるため、変更後のコード CI は push または reopen で起動します。
+
 CI の `bun-cli` は Bun 1.4.4 で型検査と `npm run test:bun` を実行します。次の標準 GitHub-hosted runner を使い、OS・host architecture・Bun の platform / architecture・版が期待値と一致しなければ fixture を始めず失敗します。runner の対応表は [GitHub の公式資料](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#standard-github-hosted-runners-for-public-repositories)を参照します。
 
 | 検証対象      | runner             | host architecture | Bun platform / architecture |
@@ -119,7 +123,7 @@ Claude の Read は対応する tool result、Antigravity の read_file は完�
 2. release PR の head で、上の「受入で確認すること」を行い、結果を [Issue #540](https://github.com/treflebonbon/dotfiles/issues/540) に記録します。
 3. 受入が済んだら release PR を merge します（これがリリースです）。tag `v<版>` と GitHub release が自動で作られます。
 
-版は、1.0 になる前は `feat` と `fix` で patch、破壊的変更で minor が上がります。PR タイトルは Conventional Commits にします（CI の `conventional-commits` が検査します）。版の場所 4 つ（`plugin.json`、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`、`package.json`）は release-please が更新するので、手で版を上げません。`tests/test_plugin.py` が、4 つが一致し、`release-please-config.json` が 4 つすべてを更新対象にしていることを検査します。
+版は、1.0 になる前は `feat` と `fix` で patch、破壊的変更で minor が上がります。PR タイトルは Conventional Commits にします（`PR タイトル` workflow の `conventional-commits` が検査します）。版の場所 4 つ（`plugin.json`、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`、`package.json`）は release-please が更新するので、手で版を上げません。`tests/test_plugin.py` が、4 つが一致し、`release-please-config.json` が 4 つすべてを更新対象にしていることを検査します。
 
 release PR を作るには、リポジトリ設定「Allow GitHub Actions to create and approve pull requests」（Settings → Actions → General → Workflow permissions）が有効である必要があります。
 
