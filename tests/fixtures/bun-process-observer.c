@@ -88,6 +88,7 @@ int main(int argc, char **argv) {
     return argc > 2 ? atoi(argv[2]) : 0;
   }
   if (!strcmp(argv[1], "interactive")) {
+    alarm(10);
     report("ready", argc, argv);
     char input[128];
     if (!fgets(input, sizeof(input), stdin)) die("stdin");

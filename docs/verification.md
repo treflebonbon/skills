@@ -46,6 +46,8 @@ CI の `bun-cli` は Bun 1.4.4 で型検査と `npm run test:bun` を実行し�
 
 安全なファイル操作の候補と採用条件は [Bun ファイル操作の実証](bun-file-safety-proof.md)に記録します。`tests/bun/file-safety.test.ts` の機能判定と、必要な契約テストの成功・失敗・skip を併せて確認します。不適合の判定や skip を、移植完了の証拠にはしません。
 
+process 置換・TTY・signal・FD と lock の比較は [Bun process / lock の実証](bun-process-lock-proof.md)に記録します。旧契約との不適合を検出するテストの成功は、方式の採用や後続 ticket の解禁を意味しません。
+
 CI の `typescript-evidence` は Bun 1.4.4 と `ast-grep 0.42.1` で抽出テストを実行し、別の Bun 1.2.14 ジョブで `unavailable` による拒否を確認します。対応版では実物の `ast-grep` の版を先に確認するため、ツール不足で native テストがスキップされた結果を成功扱いしません。旧版の拒否テストは専用ジョブで必ず実行します。
 
 ```sh
