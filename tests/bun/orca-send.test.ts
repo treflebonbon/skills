@@ -201,9 +201,9 @@ test("ambient 設定・preload・dotenv を無視し、payload と cwd を変更
     rmSync(marker);
     requests = 0;
     const before = payloadSnapshot(payload);
-    const result = spawnSync(
-      sender,
-      ["--cli", f.cli, "--body-file", f.body, "--", "--to", "dispatch:1"],
+    // HTTP サーバーのイベントループを止めず、応答を待たない通信も監視する。
+    const child = Bun.spawn(
+      [sender, "--cli", f.cli, "--body-file", f.body, "--", "--to", "dispatch:1"],
       {
         cwd,
         env: {
@@ -217,12 +217,14 @@ test("ambient 設定・preload・dotenv を無視し、payload と cwd を変更
           ENV_CAPTURE: join(f.directory, "env-capture"),
           ORCA_PUBLIC_FIXTURE: "public-fixture",
         },
-        encoding: "utf8",
+        stdout: "ignore",
+        stderr: "pipe",
         timeout: 10000,
       },
     );
-    expect(result.stderr).toBe("");
-    expect(result.status).toBe(0);
+    const [status, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+    expect(stderr).toBe("");
+    expect(status).toBe(0);
     expect(existsSync(marker)).toBe(false);
     expect(requests).toBe(0);
     expect(readFileSync(f.capture, "utf8")).toContain("dispatch:1\0");
@@ -234,7 +236,7 @@ test("ambient 設定・preload・dotenv を無視し、payload と cwd を変更
   } finally {
     server.stop(true);
   }
-});
+}, 15000);
 
 function payloadSnapshot(directory: string): Record<string, unknown> {
   return Object.fromEntries(

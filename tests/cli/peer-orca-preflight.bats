@@ -312,6 +312,32 @@ assert.deepEqual(argv, [
 JS
 }
 
+@test "the documented Bash sender refuses an unset or empty SKILL_DIR before selecting a package" {
+  local example="$BATS_TEST_TMPDIR/example.sh" outside="$BATS_TEST_TMPDIR/outside" marker="$BATS_TEST_TMPDIR/outside-called"
+  mkdir -p "$outside/skills/orca-peer-refactor" "$outside/bin"
+  awk '
+    $0 == "<!-- literal-safe-example:start -->" { example = 1; next }
+    example && $0 == "```bash" { code = 1; next }
+    code && $0 == "```" { exit }
+    code { print }
+  ' "$ORCA_DOC" >"$example"
+  [ -s "$example" ]
+  cat >"$outside/bin/orca-send" <<'SH'
+#!/bin/sh
+printf 'wrong package\n' > "$OUTSIDE_MARKER"
+SH
+  chmod +x "$outside/bin/orca-send"
+  cd "$outside/skills/orca-peer-refactor"
+  run env -u SKILL_DIR ORCA_CLI=unused ORCA_BODY_FILE=unused OUTSIDE_MARKER="$marker" bash "$example"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"SKILL_DIR"* ]]
+  [ ! -e "$marker" ]
+  run env SKILL_DIR= ORCA_CLI=unused ORCA_BODY_FILE=unused OUTSIDE_MARKER="$marker" bash "$example"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"SKILL_DIR"* ]]
+  [ ! -e "$marker" ]
+}
+
 @test "documented shell sends preserve file body text without shell expansion" {
   local example="$BATS_TEST_TMPDIR/send.sh" fake_cli="$BATS_TEST_TMPDIR/ORCA" body_file="$BATS_TEST_TMPDIR/task body.md"
   cat >"$body_file" <<'BODY'

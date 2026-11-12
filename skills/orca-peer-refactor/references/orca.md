@@ -6,7 +6,7 @@
 
 以下の `ORCA` は選んだ実行ファイルへの置換用で、literal コマンドや shell 変数ではない。最初に版が一致する guide を読み、以降も同じ実行ファイルを使う。起動不能なら正確なエラーを報告し、別実行ファイルへ自動で切り替えない。
 
-Python の例は環境変数 `SKILL_DIR` にロード済み `SKILL.md` の親 directory、`ORCA_CLI` に選択済み実行ファイルを設定する。`SKILL_DIR` から package root を求め、package 内 helper の絶対 path を組み立てる。
+実行例では環境変数 `SKILL_DIR` にロード済み `SKILL.md` の親 directory の絶対 path、`ORCA_CLI` に選択済み実行ファイルを設定する。`SKILL_DIR` から package root を求め、package 内 helper の絶対 path を組み立てる。
 
 ```text
 ORCA skills get orca-cli --json
@@ -228,9 +228,12 @@ ordinary / nested worker の `check` は filter なしで whole FIFO を読む�
 
 <!-- literal-safe-example:start -->
 
+`SKILL_DIR` は実際に読み込んだ `skills/orca-peer-refactor/SKILL.md` の親 directory、`ORCA_CLI` は選択済み Orca command、`ORCA_BODY_FILE` は UTF-8 本文ファイルの絶対 path に設定してから実行する。`SKILL_DIR` が未設定・空、または directory を解決できない場合は送信を始めず終了する。
+
 ```bash
-skill_dir="$(cd -- "$SKILL_DIR" && pwd -P)"
-plugin_root="$(cd -- "$skill_dir/../.." && pwd -P)"
+: "${SKILL_DIR:?SKILL_DIR に読み込み済み SKILL.md の親 directory を設定してください}"
+skill_dir="$(cd -- "$SKILL_DIR" && pwd -P)" || exit
+plugin_root="$(cd -- "$skill_dir/../.." && pwd -P)" || exit
 "$plugin_root/bin/orca-send" \
   --cli "$ORCA_CLI" --body-file "$ORCA_BODY_FILE" -- \
   --to 'run:<run-id>' --run '<run-id>' --from '<sender-handle>' \
