@@ -8,15 +8,21 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
 import corpus from "../fixtures/bun-process-lock-python.json";
+import launcherCorpus from "../fixtures/bun-exec-python.json";
 
 const root = fs.mkdtempSync(join(tmpdir(), "bun-process-lock-"));
 const observer = join(root, "observer");
 const snapshot = join(root, "snapshot.node");
+const launcher = join(root, "launcher");
+const entry = fileURLToPath(new URL("../fixtures/bun-exec-entry.sh", import.meta.url));
+const prepare = fileURLToPath(new URL("../fixtures/bun-exec-prepare.ts", import.meta.url));
+const launcherSource = new URL("../fixtures/bun-exec-launcher.c", import.meta.url);
 const fixture = fileURLToPath(new URL("../fixtures/bun-process-lock.ts", import.meta.url));
 const runner = fileURLToPath(new URL("../../lib/bun/run", import.meta.url));
 const observerSource = new URL("../fixtures/bun-process-observer.c", import.meta.url);
 let buildRecord: object | undefined;
 let execObservation: object | undefined;
+let launcherObservation: object | undefined;
 type Report = {
   event: string;
   pid: number;
@@ -27,6 +33,10 @@ type Report = {
   foreground: number;
   usr1Blocked: number;
   blocked: number[];
+  ignored: { int: number; pipe: number; xfsz: number };
+  gitMarker: string;
+  fd63: number;
+  fds: number[];
   fd9: { dev: string; ino: string; cloexec: number } | null;
   marker: string;
   argv: string[];
@@ -91,6 +101,24 @@ beforeAll(() => {
     throw new Error(
       `観測用 Node-API snapshot をビルドできません (status=${snapshotBuild.status}, signal=${snapshotBuild.signal}, error=${snapshotBuild.error?.message ?? "なし"})\nstdout: ${snapshotBuild.stdout ?? ""}\nstderr: ${snapshotBuild.stderr ?? ""}`,
     );
+  const launcherBuild = spawnSync(
+    "cc",
+    [
+      "-std=c11",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      fileURLToPath(launcherSource),
+      "-o",
+      launcher,
+    ],
+    { encoding: "utf8", timeout: 30_000 },
+  );
+  if (launcherBuild.error || launcherBuild.status !== 0)
+    throw new Error(
+      `実証用 launcher をビルドできません (status=${launcherBuild.status}, signal=${launcherBuild.signal}, error=${launcherBuild.error?.message ?? "なし"})\nstdout: ${launcherBuild.stdout ?? ""}\nstderr: ${launcherBuild.stderr ?? ""}`,
+    );
   const hash = (path: string | URL) =>
     createHash("sha256").update(fs.readFileSync(path)).digest("hex");
   buildRecord = {
@@ -98,12 +126,14 @@ beforeAll(() => {
     sourceHash: hash(observerSource),
     binaryHash: hash(observer),
     snapshotHash: hash(snapshot),
+    launcherSourceHash: hash(launcherSource),
+    launcherHash: hash(launcher),
     node: installation.version,
     headerDirectory,
     durationMs: Math.round(performance.now() - buildStarted),
   };
-  // 2回の compile 各30秒と版検出2回各5秒の上限を外側でも確保する。
-}, 75_000);
+  // 3回の compile 各30秒と版検出2回各5秒の上限を外側でも確保する。
+}, 105_000);
 afterAll(() => {
   console.log(
     JSON.stringify({
@@ -115,6 +145,12 @@ afterAll(() => {
       build: buildRecord,
       pythonCorpus: corpus.sourceRevision,
       processExecve: execObservation,
+      nativeLauncher: {
+        pythonCorpus: launcherCorpus.sourceRevision,
+        observation: launcherObservation,
+        results: "see-test-results",
+        adoption: "not-decided",
+      },
       lock: {
         mechanism: "Perl flock on a shared open file description",
         results: "see-test-results",
@@ -130,11 +166,30 @@ function run(mode: string, flags = "inherit", mask = "clear", target = observer)
   const command =
     mode === "posix-control"
       ? [target, "report", "37", "literal ; $() 🙂", ""]
-      : [runner, "run", fixture, mode, target, "report", "37", "literal ; $() 🙂", ""];
+      : mode === "launcher"
+        ? [
+            entry,
+            runner,
+            prepare,
+            launcher,
+            "reviewer",
+            target,
+            "--",
+            "report",
+            "37",
+            "literal ; $() 🙂",
+            "",
+          ]
+        : [runner, "run", fixture, mode, target, "report", "37", "literal ; $() 🙂", ""];
   const result = spawnSync(observer, ["seed", join(root, "seed-fd"), flags, mask, ...command], {
     encoding: "utf8",
     timeout: 5_000,
-    env: { ...process.env, PROCESS_PROOF_MARKER: "literal🙂", PROCESS_PROOF_OBSERVER: snapshot },
+    env: {
+      ...process.env,
+      PROCESS_PROOF_MARKER: "literal🙂",
+      GIT_PROOF_MARKER: "remove",
+      PROCESS_PROOF_OBSERVER: snapshot,
+    },
   });
   const records = result.stdout
     .trim()
@@ -246,8 +301,217 @@ test("実行権限のない file と不正な executable も失敗を捕捉で�
   }
 });
 
+test("専用 launcher は旧 reviewer corpus の PID・FD・mask・argv・env と Python の SIG_IGN を維持する", () => {
+  for (const item of launcherCorpus.cases) {
+    const result = run("launcher", item.flags, item.mask);
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(item.expected.exitCode);
+    expect(result.stderr).toBe("");
+    const [before, after] = result.reports;
+    expect(after!.pid).toBe(before!.pid);
+    expect(after!.ppid).toBe(before!.ppid);
+    expect(after!.pgid).toBe(before!.pgid);
+    expect(after!.sid).toBe(before!.sid);
+    expect(after!.blocked).toEqual(before!.blocked);
+    expect(after!.usr1Blocked).toBe(item.expected.usr1Blocked);
+    expect(after!.fd9).toEqual(item.expected.fdInherited ? before!.fd9 : null);
+    expect(after!.fds).toEqual(item.expected.fds);
+    expect(after!.ignored).toEqual(item.expected.ignored);
+    expect(after!.argv[0]).toBe("codex");
+    expect(after!.argv.slice(1)).toEqual(item.expected.literalTail);
+    expect(after!.marker).toBe(item.expected.marker);
+    expect(before!.gitMarker).toBe("remove");
+    expect(after!.gitMarker).toBe(item.expected.gitMarker);
+    if (item.mask === "blocked-ignored") launcherObservation = { seed: before, target: after };
+  }
+});
+
+test("呼出し元の FD 3・9・63 を保持し、準備 pipe の FD を target に漏らさない", () => {
+  const { status, reports } = run("launcher", "inherit-high", "blocked");
+  const [before, after] = reports;
+  expect(status).toBe(37);
+  expect(before!.fds).toEqual([3, 9, 63]);
+  expect(after!.fds).toEqual(before!.fds);
+});
+
+for (const item of launcherCorpus.errors) {
+  test(`専用 launcher は Python corpus と同じ ${item.expected.code} で ${item.name} を拒否する`, () => {
+    const target = item.name === "directory" ? root : join(root, `launcher-${item.name}`);
+    if (item.content !== null) fs.writeFileSync(target, item.content, { mode: item.mode! });
+    const result = run("launcher", "inherit", "clear", target);
+    expect(result.status).toBe(item.expected.exitCode);
+    expect(result.signal).toBeNull();
+    expect(result.stderr).toMatch(
+      new RegExp(
+        `^codex-reviewer: exec-error:${item.expected.code} errno=${item.expected.errno}\\n$`,
+      ),
+    );
+    expect(result.reports.map((item) => item.event)).toEqual(["seed"]);
+  });
+}
+
+test("Bash 単独の対照は execfail を使っても ENOEXEC の text を実行してしまう", () => {
+  const target = join(root, "bash-fallback");
+  fs.writeFileSync(target, 'printf "FALLBACK\\n"\nexit 37\n', { mode: 0o700 });
+  const result = spawnSync(
+    "/bin/bash",
+    ["-p", "-c", 'shopt -s execfail; exec "$1"; exit 1', "control", target],
+    { encoding: "utf8", timeout: 5_000 },
+  );
+  expect(result.status).toBe(37);
+  expect(result.stdout).toBe("FALLBACK\n");
+});
+
+function prepared(mode: string, executable: string, arguments_: string[] = [], path?: string) {
+  return spawnSync(entry, [runner, prepare, launcher, mode, executable, ...arguments_], {
+    encoding: "utf8",
+    timeout: 5_000,
+    cwd: root,
+    env: { ...process.env, ...(path === undefined ? {} : { EXEC_PROOF_TARGET_PATH: path }) },
+  });
+}
+
+test("PATH 探索は execvp の shell fallback を使わず、後続の実行可能 file を試す", () => {
+  const denied = join(root, "path-denied"),
+    valid = join(root, "path-valid");
+  fs.mkdirSync(denied);
+  fs.mkdirSync(valid);
+  fs.writeFileSync(join(denied, "probe"), "invalid\n", { mode: 0o700 });
+  fs.symlinkSync(observer, join(valid, "probe"));
+  const result = prepared("search", "probe", ["report", "37", ""], `${denied}:${valid}`);
+  expect(result.status).toBe(37);
+  expect(result.stderr).toBe("");
+  expect(JSON.parse(result.stdout).argv).toEqual(["probe", "report", "37", ""]);
+  const refused = prepared("search", "probe", [], denied);
+  expect(refused.status).toBe(1);
+  expect(refused.stdout).toBe("");
+  expect(refused.stderr).toContain("devshell-env: exec-error:ENOEXEC");
+});
+
+test("PATH 探索は最初の非 ENOENT/ENOTDIR エラーを報告する", () => {
+  const paths = ["path-access", "path-format", "path-absent"].map((name) => join(root, name));
+  for (const path of paths) fs.mkdirSync(path);
+  fs.writeFileSync(join(paths[0]!, "probe"), "denied\n", { mode: 0o600 });
+  fs.writeFileSync(join(paths[1]!, "probe"), "invalid\n", { mode: 0o700 });
+  for (const [order, error] of [
+    [paths, "EACCES"],
+    [[paths[1], paths[0], paths[2]], "ENOEXEC"],
+  ] as const) {
+    const result = prepared("search", "probe", [], order.join(":"));
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`exec-error:${error}`);
+  }
+});
+
+test("PATH の空要素は cwd、未指定は Python と同じ既定 path とし、slash のある名前は直接実行する", () => {
+  fs.symlinkSync(observer, join(root, "relative-probe"));
+  for (const [executable, path] of [
+    ["relative-probe", ""],
+    ["./relative-probe", "/missing"],
+  ]) {
+    const result = prepared("search", executable!, ["report", "37"], path);
+    expect(result.status).toBe(37);
+    expect(JSON.parse(result.stdout).argv[0]).toBe(executable);
+  }
+  const result = prepared("search-no-path", "true");
+  expect(result.status).toBe(0);
+  expect(result.stderr).toBe("");
+});
+
+test("shebang のある script は kernel の実行判定に従う", () => {
+  const target = join(root, "script");
+  fs.writeFileSync(target, "#!/bin/sh\nexit 37\n", { mode: 0o700 });
+  expect(prepared("reviewer", target).status).toBe(37);
+});
+
+test("準備・置換の実行前後で runner と fixture payload の bytes・mode・file inventory は不変", () => {
+  function digest() {
+    const hash = createHash("sha256");
+    function walk(directory: string) {
+      for (const name of fs.readdirSync(directory).sort()) {
+        const path = join(directory, name);
+        const state = fs.lstatSync(path);
+        hash.update(`${path}:${state.mode}\0`);
+        if (state.isSymbolicLink()) hash.update(fs.readlinkSync(path));
+        else if (state.isDirectory()) walk(path);
+        else hash.update(fs.readFileSync(path));
+      }
+    }
+    walk(dirname(runner));
+    walk(dirname(fixture));
+    return hash.digest("hex");
+  }
+  const before = digest();
+  expect(prepared("reviewer", observer).status).toBe(37);
+  expect(digest()).toBe(before);
+});
+
+test("pipe buffer より大きい準備結果も途中で切れず、空引数と Unicode を維持する", () => {
+  const marker = `${"x".repeat(64 * 1024)}🙂`;
+  const result = spawnSync(
+    entry,
+    [runner, prepare, launcher, "search", observer, "report", "37", ""],
+    {
+      encoding: "utf8",
+      timeout: 5_000,
+      env: { ...process.env, PROCESS_PROOF_MARKER: marker },
+    },
+  );
+  expect(result.status).toBe(37);
+  expect(result.stderr).toBe("");
+  const target = JSON.parse(result.stdout);
+  expect(createHash("sha256").update(target.marker).digest("hex")).toBe(
+    createHash("sha256").update(marker).digest("hex"),
+  );
+  expect(target.argv.at(-1)).toBe("");
+});
+
+for (const mode of ["prep-fail", "prep-partial", "prep-trailing", "prep-complete-fail"]) {
+  test(`${mode} では完全な frame の出力後であっても target を起動しない`, () => {
+    const result = prepared(mode, observer, ["report", "37"]);
+    expect(result.status).toBe(1);
+    expect(result.signal).toBeNull();
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("launcher: preparation failed\n");
+  });
+}
+
+test("準備中に親を SIGTERM 終了すると準備子も終了し、親が回収する", async () => {
+  const child = spawn(entry, [runner, prepare, launcher, "prep-hang", observer], {
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  const ended = once(child, "exit");
+  const lines = createInterface({ input: child.stderr });
+  let preparationPid: number | undefined;
+  const deadline = setTimeout(() => child.kill("SIGKILL"), 4_000);
+  try {
+    for await (const line of lines) {
+      if (line.startsWith("prep-ready:")) {
+        preparationPid = Number(line.slice("prep-ready:".length));
+        child.kill("SIGTERM");
+        break;
+      }
+    }
+    expect(await ended).toEqual([null, "SIGTERM"]);
+    expect(preparationPid).toBeGreaterThan(1);
+    expect(() => process.kill(preparationPid!, 0)).toThrow();
+  } finally {
+    clearTimeout(deadline);
+    lines.close();
+    if (child.exitCode === null && child.signalCode === null) {
+      child.kill("SIGKILL");
+      await ended;
+    }
+    if (preparationPid) {
+      try {
+        process.kill(preparationPid, "SIGKILL");
+      } catch {}
+    }
+  }
+});
+
 async function pty(
-  mode: "execve" | "posix-control",
+  mode: "execve" | "posix-control" | "launcher",
   action: "input" | "interrupt" | "terminate" | "timeout",
 ) {
   let output = "";
@@ -258,7 +522,12 @@ async function pty(
     ready = resolve;
   });
   const target = [observer, "interactive"];
-  const command = mode === "posix-control" ? target : [runner, "run", fixture, mode, ...target];
+  const command =
+    mode === "posix-control"
+      ? target
+      : mode === "launcher"
+        ? [entry, runner, prepare, launcher, "search", ...target]
+        : [runner, "run", fixture, mode, ...target];
   const child = Bun.spawn(
     [observer, "seed", join(root, "tty-fd"), "cloexec", "clear", ...command],
     {
@@ -313,8 +582,8 @@ async function pty(
   }
 }
 
-test("POSIX 対照と process.execve は controlling TTY・foreground group と対話入力を維持する", async () => {
-  for (const mode of ["posix-control", "execve"] as const) {
+test("POSIX 対照・Bun・専用 launcher は controlling TTY・foreground group と対話入力を維持する", async () => {
+  for (const mode of ["posix-control", "execve", "launcher"] as const) {
     const result = await pty(mode, "input");
     const [before, after, input] = result.reports;
     expect(result.status).toBe(37);
@@ -333,8 +602,8 @@ for (const [action, signal, status] of [
   ["terminate", "SIGTERM", 143],
   ["timeout", "SIGTERM", 143],
 ] as const) {
-  test(`process.execve は ${action} を target の signal と終了状態として観測できる`, async () => {
-    for (const mode of ["posix-control", "execve"] as const) {
+  test(`POSIX 対照・Bun・専用 launcher は ${action} を target の signal と終了状態として観測できる`, async () => {
+    for (const mode of ["posix-control", "execve", "launcher"] as const) {
       const result = await pty(mode, action);
       expect(result.signal).toBe(signal);
       expect(result.status).toBe(status);
@@ -344,16 +613,23 @@ for (const [action, signal, status] of [
 }
 
 const lockPath = join(root, "admission.lock");
-function contender() {
-  const result = spawnSync(observer, ["try-lock", lockPath], { encoding: "utf8", timeout: 5_000 });
+function contender(path = lockPath) {
+  const result = spawnSync(observer, ["try-lock", path], { encoding: "utf8", timeout: 5_000 });
   if (result.error) throw result.error;
   return { status: result.status, message: result.stdout.trim() };
 }
 
-function startLock(inherit = false) {
+function startLock(inherit = false, writeOnly = false, path = lockPath) {
   const child = spawn(
     runner,
-    ["run", fixture, "lock", observer, lockPath, inherit ? "inherit" : "cloexec"],
+    [
+      "run",
+      fixture,
+      writeOnly ? "lock-write" : "lock",
+      observer,
+      path,
+      inherit ? "inherit" : "cloexec",
+    ],
     { stdio: ["pipe", "pipe", "pipe"] },
   );
   const lines = createInterface({ input: child.stdout });
@@ -413,6 +689,29 @@ test("acquisition 子の終了後も親の FD が admission lock を保持し、
     expect(contender()).toEqual({ status: 0, message: "acquired" });
     holder.child.stdin.write("finish\n");
     expect(await holder.ended).toEqual([0, null]);
+  } finally {
+    await holder.stop();
+  }
+});
+
+test("Python と同じ append/write-only と umask で lock を作り、書込み専用の既存 file でも競合を拒否する", async () => {
+  const path = join(root, "write-admission.lock");
+  let holder = startLock(false, true, path);
+  try {
+    expect((await holder.next()).event).toBe("locked");
+    expect(fs.statSync(path).mode & 0o777).toBe(0o666 & ~process.umask());
+    expect(contender(path).status).toBe(73);
+  } finally {
+    await holder.stop();
+  }
+  fs.chmodSync(path, 0o200);
+  holder = startLock(false, true, path);
+  try {
+    expect((await holder.next()).event).toBe("locked");
+    expect(contender(path).status).toBe(73);
+    holder.child.stdin.write("close\n");
+    expect((await holder.next()).event).toBe("closed");
+    expect(contender(path).status).toBe(0);
   } finally {
     await holder.stop();
   }

@@ -43,7 +43,25 @@ static void report(const char *event, int argc, char **argv) {
       comma = 1;
     }
   }
-  printf("],\"fd9\":");
+  struct sigaction disposition;
+  printf("],\"ignored\":{");
+  const int signals[] = {SIGINT, SIGPIPE, SIGXFSZ};
+  const char *names[] = {"int", "pipe", "xfsz"};
+  for (int i = 0; i < 3; i++) {
+    if (sigaction(signals[i], NULL, &disposition) < 0) die("sigaction");
+    printf("%s\"%s\":%d", i ? "," : "", names[i], disposition.sa_handler == SIG_IGN);
+  }
+  printf("},\"gitMarker\":");
+  string(getenv("GIT_PROOF_MARKER") ? getenv("GIT_PROOF_MARKER") : "");
+  printf(",\"fds\":[");
+  comma = 0;
+  for (int fd = 3; fd < 128; fd++) {
+    if (fcntl(fd, F_GETFD) >= 0) {
+      printf("%s%d", comma ? "," : "", fd);
+      comma = 1;
+    }
+  }
+  printf("],\"fd63\":%d,\"fd9\":", fcntl(63, F_GETFD) >= 0);
   if (fstat(9, &state) == 0 && S_ISREG(state.st_mode)) {
     printf("{\"dev\":\"%llu\",\"ino\":\"%llu\",\"cloexec\":%d}",
            (unsigned long long)state.st_dev, (unsigned long long)state.st_ino,
@@ -100,10 +118,13 @@ int main(int argc, char **argv) {
     if (descriptor != 9) close(descriptor);
     if (fcntl(9, F_SETFD, !strcmp(argv[3], "cloexec") ? FD_CLOEXEC : 0) < 0)
       die("fcntl");
+    if (!strcmp(argv[3], "inherit-high") && (dup2(9, 3) < 0 || dup2(9, 63) < 0)) die("seed high fd");
     sigset_t mask;
     sigemptyset(&mask);
-    if (!strcmp(argv[4], "blocked")) sigaddset(&mask, SIGUSR1);
+    if (!strncmp(argv[4], "blocked", 7)) sigaddset(&mask, SIGUSR1);
     if (sigprocmask(SIG_SETMASK, &mask, NULL) < 0) die("seed mask");
+    if (signal(SIGINT, strstr(argv[4], "ignored") ? SIG_IGN : SIG_DFL) == SIG_ERR ||
+        signal(SIGPIPE, SIG_DFL) == SIG_ERR || signal(SIGXFSZ, SIG_DFL) == SIG_ERR) die("seed disposition");
     report("seed", 0, NULL);
     execvp(argv[5], &argv[5]);
     die("seed execvp");
@@ -126,7 +147,7 @@ int main(int argc, char **argv) {
   }
   if (!strcmp(argv[1], "try-lock")) {
     if (argc != 3) return 91;
-    int descriptor = open(argv[2], O_RDWR | O_CREAT, 0600);
+    int descriptor = open(argv[2], O_WRONLY | O_CREAT, 0600);
     if (descriptor < 0) die("lock open");
     if (flock(descriptor, LOCK_EX | LOCK_NB) == 0) {
       puts("acquired");

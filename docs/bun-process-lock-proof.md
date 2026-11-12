@@ -6,7 +6,9 @@
 
 **process 置換の旧契約を満たす方式は未確定であり、#33 は完了扱いにしない。** Bun を経由する `process.execve` の経路は PID・TTY・終了状態を維持するが、継承可能な FD と signal mask に旧 Python と異なる挙動がある。`spawn` は PID と親子関係が変わる。fixture が成功しても、この不適合を解消した証拠にはならない。
 
-lock は既存の `peer-request.sh` と同じ Perl の `flock(2)` を、Bun が開いた FD の open file description に適用する方式を検査した。3環境の合成入力で保持・競合・解放を確認したが、process 置換と対応 OS 全体の採用を決めたものではない。新規 native helper・FFI・Node-API 拡張は採用していない。
+追加候補として、Bun を準備用の子 process に限定し、同じ PID の専用 native launcher が `execve(2)` を直接呼ぶ fixture を加えた。Linux / WSL2 のローカルでは FD・mask・Python の signal disposition・TTY と拒否条件を比較した。新しい source の3環境 CI は下記の追加実証欄で区別する。製品の native helper、配布方式、公開入口は未採用のまま。
+
+lock は既存の `peer-request.sh` と同じ Perl の `flock(2)` を、Bun が開いた FD の open file description に適用する方式を検査した。3環境の合成入力で保持・競合・解放を確認したが、process 置換と対応 OS 全体の採用を決めたものではない。追加実証では、旧 Python の append/write-only・作成 mode と既存の書込み専用 file も検査する。
 
 ## 比較対象と観測方法
 
@@ -50,7 +52,7 @@ POSIX `execve` が mask と非 CLOEXEC の FD を保持する境界は、[Linux 
 
 既存の Bun 1.4.4、Node.js、開発依存に加え、観測用 C fixture のため `cc`・POSIX header・導入済み Node.js の Node-API header、lock の実証に Perl / `Fcntl` を必要とする。追加の npm package、FFI、通常利用時の自動 install / build は導入しない。C observer と観測用 addon は一時 directory に build し、終了時に削除する。payload に生成物を置かない。source / binary の hash と compiler / Node.js の版・header path・準備時間はテスト末尾の JSON に記録する。
 
-setup hook は75秒を上限とする。2回の compiler 各30秒と2回の版検出各5秒の合計70秒を外側でも確保するためで、各 subprocess の期限と通常テストの期限は維持する。
+追加候補を含む setup hook は105秒を上限とする。3回の compiler 各30秒と2回の版検出各5秒の合計100秒を外側でも確保するためで、各 subprocess の期限と通常テストの期限は維持する。以下の過去の CI 記録は、launcher 追加前の source に対するもの。
 
 | 環境                                                                     | 状態                                     |
 | ------------------------------------------------------------------------ | ---------------------------------------- |
@@ -93,6 +95,43 @@ Linux aarch64 は最初のコンパイル中、setup hook の既定5秒で子 pr
 
 #33 は open のまま `ready-for-human` とし、後続の blocking links を維持する。採用可能な方式が必要範囲で1つも確定していないため、3環境の suite の成功だけで依存を解除しない。
 
-推奨は公開互換性を維持し、必要な継承 FD を Bun 起動前に識別して保持する方式と、mask を維持する native 方式の追加実証を判断すること。Bun 内で単に `execve(2)` を呼ぶことだけで解消すると仮定しない。新しい helper を加える場合は、ビルド・配布・runtime の準備、内部 FD の漏洩防止、失敗時の状態、3環境での実証を含めて判断し、成功前には採用しない。
+現在の追加実証は、Bun の外に元の FD・mask を残す専用 launcher 方式を対象とする。Bun 内で単に `execve(2)` を呼ぶことだけで解消すると仮定しない。製品の helper を加える場合は、ビルド・配布・runtime の準備、内部 FD の漏洩防止、失敗時の状態、3環境での実証を含めて判断し、成功前には採用しない。
 
 lock の Perl 方式を後続で選ぶ場合も、隔離用 Nix closure の明示的な tool 選択と、親の保持範囲を同じ ticket で扱う。現在は実証 fixture と記録だけであり、公開入口を変更していない。repo 外の呼び出し元の更新はない。入口を切り替える ticket が、その時点の外部の対象と更新手順を報告する。
+
+## 専用 native launcher の追加実証
+
+[Bash の fixture 入口](../tests/fixtures/bun-exec-entry.sh)が、既存の `lib/bun/run` を使って [Bun の準備処理](../tests/fixtures/bun-exec-prepare.ts)を子として起動する。親は同じ PID の[専用 launcher](../tests/fixtures/bun-exec-launcher.c)に置換され、準備結果を pipe から読み、子の終了0を確認した後だけ target を `execve(2)` する。Bun は親の FD・mask に触れない。環境変数の値を launcher の argv に載せず、追加の pipe FD は target の起動前に閉じる。
+
+```mermaid
+flowchart LR
+  O[POSIX observer / FD・mask・disposition を設定] --> S[Bash の fixture 入口]
+  S -->|子 / 準備結果は専用 pipe| B[Bun / argv・env の準備]
+  S -->|同じ PID で exec| L[専用 native launcher]
+  B -->|frame と終了0を確認| L
+  L -->|execve を直接呼ぶ| T[C observer / target]
+```
+
+### 比較元と拒否条件
+
+[追加の Python corpus](../tests/fixtures/bun-exec-python.json)は head `f8598e7` の実 `bin/codex-reviewer` から採取した。入力は通常・block 済み SIGUSR1 と ignore 済み SIGINT・CLOEXEC・FD 3/9/63 の継承。基準 Python の3ファイルと観測 C の source hash、Python / OS の版を保存する。拒否 case は `with-env` と同じ `os.execvpe` primitive を Python stdlib から直接実行したものであり、`with-env` の Git / dotenv の準備全体を実行した証拠ではない。通常の Bun suite は保存済み JSON を読み、Python を起動しない。
+
+Bash 単独の `exec` は、`execfail` があっても shebang のない実行可能テキストを shell として実行する対照を置いた。専用 launcher は text・空 file・不正 binary を `ENOEXEC` として拒否し、ENOENT・EACCES・directory の拒否も Python corpus と比較する。PATH 探索は新しい env の PATH・空要素・未指定時の `/bin:/usr/bin`・slash の有無・最初の非 ENOENT/ENOTDIR エラーの保持を検査し、`execvp` の shell fallback を使わない。shebang のある script の判定は kernel に委ねる。
+
+Python は起動時に SIGPIPE / SIGXFSZ（定義される環境では SIGXFZ も）を ignore にする。観測側は SIGPIPE / SIGXFSZ を default に戻して seed し、launcher は旧 Python と同じ ignore 状態を設定する。親からの signal mask と SIGINT の ignore は維持する。単に「signal を変更しない」だけでは旧 Python と一致するという仮定を置かない。
+
+### 検査する境界
+
+- PID / PPID / PGID / SID、FD の identity と CLOEXEC、3/9/63 の継承と範囲3〜127の余分な FD、blocked mask、3種の signal disposition、空引数・Unicode・literal shell 記号、GIT_* 除去と marker を確認する。
+- 既存の PTY 対照に launcher を加え、TTY / foreground、入力、Ctrl-C・SIGTERM・timeout の終了を比較する。
+- 部分 frame・余分な field・準備の非0終了は、完全な frame が出力済みでも target を起動しない。pipe buffer より大きい準備結果も比較する。準備中の親の SIGTERM では子を終了させ、回収してから同じ signal で終了する。
+- `lib/bun/` と `tests/fixtures/` の bytes・mode・file inventory を実行前後で比較する。生成 binary はテストの一時領域だけに build する。これは今回の fixture の不変性検査であり、製品配布物の導入・受入の証拠ではない。
+- lock の追加 case は旧 Python と同じ O_WRONLY / O_APPEND / O_CREAT、0666 & ~umask を使う。Perl は書込み専用 FD を受け取り、競合・close 後の再取得を検査する。
+
+### 実証と採用を区別する条件
+
+追加候補のローカル実測は Linux / WSL2 x86_64・Bun 1.4.4。3環境の CI は、この変更を含む head の各 job log と JSON の `nativeLauncher` を確認する。過去の93件成功を追加候補の成功へ転用しない。
+
+この fixture は argv / env の transport と exec 境界を比較する。reviewer の Git context / policy、`with-env` の準備全体、`codex-inner` の chdir と開始記録、namespace 設定を移植・受入したものではない。caller ごとの追加段階の環境・signal への影響、通常利用時の native binary の事前ビルド・配布・hash 固定、Nix closure は未確定。namespace の範囲と #33 の AC も変更しない。
+
+エラー出力は実証用の prefix・errno 名/番号と終了1を比較する。Python の例外の repr・path・stderr の bytes 全体は再現していないため、公開 CLI の互換完了とはしない。prepare frame は16 MiBを上限とし、製品の ARG_MAX・準備中の SIGKILL 後の子 process の寿命・macOS の環境変数制約も、この実証だけで成立したと扱わない。追加 native helper と固定 pipe の方式は候補であり、製品への採用判断は別に残す。

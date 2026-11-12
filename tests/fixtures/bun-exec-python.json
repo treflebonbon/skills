@@ -1,0 +1,193 @@
+{
+  "sourceRevision": "f8598e7c516f8a64fec04596207f0907d0407132",
+  "sources": [
+    {
+      "path": "bin/codex-reviewer",
+      "sha256": "d2e7762ef3b4e33dc1778ffa17567090fd0b73d494ef08d5f5f4a19207a957b7"
+    },
+    {
+      "path": "lib/python/treflebonbon_skills/codex_reviewer.py",
+      "sha256": "72f03abf8bccde8b272f53f101fa6df25398d4745ecbb1c68d115c4b1719fff3"
+    },
+    {
+      "path": "lib/python/treflebonbon_skills/git_context.py",
+      "sha256": "986e2a6143cc467e760b7e931c93d3ab9126a6eda214192a372736502491de43"
+    }
+  ],
+  "observerSourceHash": "8e964a54668db2b1d2c4aa26c8b765dcbeb53be52325204bae1d92fdd75631cb",
+  "captured": {
+    "python": "3.14.7",
+    "os": "Linux",
+    "kernel": "6.18.58.1-microsoft-standard-WSL2",
+    "architecture": "x86_64"
+  },
+  "method": "実 bin/codex-reviewer を C observer の seed から起動し disposition を追加採取。拒否 case は with-env と同じ os.execvpe primitive を Python stdlib から直接実行。Git context / dotenv の再実装は含まない。",
+  "errorCommand": [
+    "python3",
+    "-I",
+    "-B",
+    "-c",
+    "import os,sys,json,errno\ntry:\n os.execvpe(sys.argv[1], [sys.argv[1]], {})\nexcept OSError as e:\n print(json.dumps(dict(code=errno.errorcode[e.errno],errno=e.errno)),file=sys.stderr)\n sys.exit(1)",
+    "<path>"
+  ],
+  "cases": [
+    {
+      "flags": "inherit",
+      "mask": "clear",
+      "expected": {
+        "exitCode": 37,
+        "signal": null,
+        "samePid": true,
+        "sameParent": true,
+        "sameGroup": true,
+        "sameSession": true,
+        "usr1Blocked": 0,
+        "fdInherited": true,
+        "fdCloexec": 0,
+        "fds": [9],
+        "ignored": {
+          "int": 0,
+          "pipe": 1,
+          "xfsz": 1
+        },
+        "gitMarker": "",
+        "marker": "literal🙂",
+        "literalTail": ["--", "report", "37", "literal ; $() 🙂", ""]
+      }
+    },
+    {
+      "flags": "inherit",
+      "mask": "blocked-ignored",
+      "expected": {
+        "exitCode": 37,
+        "signal": null,
+        "samePid": true,
+        "sameParent": true,
+        "sameGroup": true,
+        "sameSession": true,
+        "usr1Blocked": 1,
+        "fdInherited": true,
+        "fdCloexec": 0,
+        "fds": [9],
+        "ignored": {
+          "int": 1,
+          "pipe": 1,
+          "xfsz": 1
+        },
+        "gitMarker": "",
+        "marker": "literal🙂",
+        "literalTail": ["--", "report", "37", "literal ; $() 🙂", ""]
+      }
+    },
+    {
+      "flags": "cloexec",
+      "mask": "clear",
+      "expected": {
+        "exitCode": 37,
+        "signal": null,
+        "samePid": true,
+        "sameParent": true,
+        "sameGroup": true,
+        "sameSession": true,
+        "usr1Blocked": 0,
+        "fdInherited": false,
+        "fdCloexec": null,
+        "fds": [],
+        "ignored": {
+          "int": 0,
+          "pipe": 1,
+          "xfsz": 1
+        },
+        "gitMarker": "",
+        "marker": "literal🙂",
+        "literalTail": ["--", "report", "37", "literal ; $() 🙂", ""]
+      }
+    },
+    {
+      "flags": "inherit-high",
+      "mask": "blocked",
+      "expected": {
+        "exitCode": 37,
+        "signal": null,
+        "samePid": true,
+        "sameParent": true,
+        "sameGroup": true,
+        "sameSession": true,
+        "usr1Blocked": 1,
+        "fdInherited": true,
+        "fdCloexec": 0,
+        "fds": [3, 9, 63],
+        "ignored": {
+          "int": 0,
+          "pipe": 1,
+          "xfsz": 1
+        },
+        "gitMarker": "",
+        "marker": "literal🙂",
+        "literalTail": ["--", "report", "37", "literal ; $() 🙂", ""]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "name": "text",
+      "mode": 448,
+      "content": "printf \"UNEXPECTED_EXECUTION\\n\"\nexit 37\n",
+      "expected": {
+        "exitCode": 1,
+        "code": "ENOEXEC",
+        "errno": 8
+      }
+    },
+    {
+      "name": "empty",
+      "mode": 448,
+      "content": "",
+      "expected": {
+        "exitCode": 1,
+        "code": "ENOEXEC",
+        "errno": 8
+      }
+    },
+    {
+      "name": "binary",
+      "mode": 448,
+      "content": "\u0000invalid",
+      "expected": {
+        "exitCode": 1,
+        "code": "ENOEXEC",
+        "errno": 8
+      }
+    },
+    {
+      "name": "denied",
+      "mode": 384,
+      "content": "invalid\n",
+      "expected": {
+        "exitCode": 1,
+        "code": "EACCES",
+        "errno": 13
+      }
+    },
+    {
+      "name": "missing",
+      "mode": null,
+      "content": null,
+      "expected": {
+        "exitCode": 1,
+        "code": "ENOENT",
+        "errno": 2
+      }
+    },
+    {
+      "name": "directory",
+      "mode": null,
+      "content": null,
+      "expected": {
+        "exitCode": 1,
+        "code": "EACCES",
+        "errno": 13
+      }
+    }
+  ]
+}

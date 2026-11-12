@@ -23,13 +23,15 @@ if (mode === "execve") {
     stdio: ["inherit", "inherit", "inherit"],
   });
   process.exit(child.exitCode);
-} else if (mode === "lock") {
+} else if (mode === "lock" || mode === "lock-write") {
   const [path, inheritance] = arguments_;
   if (!path) throw new Error("lock path が必要です");
   let descriptor: number | undefined = fs.openSync(
     path,
-    fs.constants.O_RDWR | fs.constants.O_CREAT,
-    0o600,
+    mode === "lock-write"
+      ? fs.constants.O_WRONLY | fs.constants.O_APPEND | fs.constants.O_CREAT
+      : fs.constants.O_RDWR | fs.constants.O_CREAT,
+    mode === "lock-write" ? 0o666 : 0o600,
   );
   let child: ReturnType<typeof spawn> | undefined;
   try {
@@ -39,7 +41,7 @@ if (mode === "execve") {
       [
         "-MFcntl=:flock",
         "-e",
-        'open(my $fh, "+<&=", 3) or exit 2; flock($fh, LOCK_EX | LOCK_NB) or exit 1',
+        'open(my $fh, ">>&=", 3) or exit 2; flock($fh, LOCK_EX | LOCK_NB) or exit 1',
       ],
       { stdio: ["ignore", "ignore", "pipe", descriptor], encoding: "utf8", timeout: 5_000 },
     );
