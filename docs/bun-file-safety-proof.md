@@ -61,7 +61,7 @@ Bun 主 process の `chdir` / `fchdir` はなかった。共用 Bash 起動が�
 
 ```sh
 npm run typecheck
-lib/bun/run test tests/bun/file-safety.test.ts
+lib/bun/run test tests/bun/file-safety.test.ts tests/bun/file-safety-native.test.ts
 ```
 
 通常 CI の既存 `npm run test:bun` にも含まれる。末尾の `boundary: "file-safety"` の JSON に OS / kernel・architecture・Bun・checkout source・FD path の可否・契約の未実行を記録する。テストの失敗数・skip 数と併せて読み、JSON の機能判定だけで採用しない。
@@ -91,9 +91,23 @@ strace -f -yy -s 180 \
 
 [C helper](../tests/fixtures/bun-file-safety-native.c) は Node-API の C header と POSIX libc だけを使い、Bun から渡された数値 FD を同じ process で操作する。返す FD は `O_CLOEXEC` を付けて caller に所有権を渡し、Bun の `fstat`・read・write・close と組み合わせる。単一 component と非負の int を C 境界でも検査し、syscall 失敗は errno を TypeScript 側へ返す。Bun が開いた parent を helper が閉じることはない。
 
+component は Buffer の bytes を C へ渡す。有効な Unicode 文字列は TypeScript で UTF-8 化し、不正な surrogate は別名への暗黙変換を避けるため拒否する。旧 raw の Git path が `os.fsdecode` を通ることを踏まえ、Linux では `0xff` の実ファイル名、macOS では Unicode の Buffer 名を5操作で検査する。Buffer の NUL・`/`・`.`・`..` も C で拒否する。Git 出力の bytes 解析や旧データの surrogateescape を持つ path の移植は #44 の入口側で引き継ぎ、文字列だけの fixture をその代替にしない。
+
 [実証用 loader](../tests/fixtures/bun-file-safety-native.ts) は、導入済み Node.js の実行 path に対応する `include/node/node_api.h` と `cc` を要求する。自動 download・node-gyp・追加 npm package は使わず、不足やビルド失敗はテスト失敗とする。Linux は `-shared -fPIC`、macOS は `-bundle -undefined dynamic_lookup` で、その環境の `.node` を作る。Node.js の版・compiler の版・header path・compile 引数・C source と生成物の SHA-256 をテスト末尾の JSON に記録する。
 
 ビルド先は `tmpdir()` 配下の mode 0700 の作業 directory。保護されたローカル検証では `/tmp/codex/verification-env.*/tmp/`、CI では runner の一時領域を使う。payload の中に生成物を置かず、load 後は成功・失敗とも作成した directory を削除する。通常の runtime で自動 build / install する入口は追加していない。この fixture の source build には C compiler と Node.js header が必要であり、将来の配布方法は移植 ticket で別途決める。
+
+5操作の [CI run 43162060376](https://github.com/treflebonbon/skills/actions/runs/43162060376) は全6 job が成功した。PR head は `7c0dcc7813c49c2f454cf3091d5ec4704197786a`、checkout source は `12be806904a57386d4cb66b58d1c04187b2e88af`。C source の SHA-256 は3環境共通で `4f3f33580c47e1c4aa9a47b0455b4ae4271d1a4204e167d99af44c717b9db1be`。この run は Buffer 対応前の5操作を検査した。
+
+| 環境・job                                                                                                | Bun / Node.js / compiler             | 実測結果                  | Node-API 候補の判定                                                   |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------- | --------------------------------------------------------------------- |
+| [Linux x86_64](https://github.com/treflebonbon/skills/actions/runs/43162060376/job/130995331896)         | 1.4.4 / 24.22.2 / GCC 15.2.0         | 69 pass / 0 fail / 0 skip | 5操作は実証成功。全契約の採用は未確定（rollback は FD path との混在） |
+| [Linux arm64](https://github.com/treflebonbon/skills/actions/runs/43162060376/job/130995331779)          | 1.4.4 / 22.23.4 / GCC 13.3.0         | 69 pass / 0 fail / 0 skip | 5操作は実証成功。全契約の採用は未確定（rollback は FD path との混在） |
+| [macOS 15.8.2 / arm64](https://github.com/treflebonbon/skills/actions/runs/43162060376/job/130995331858) | 1.4.4 / 22.23.4 / Apple clang 17.0.0 | 68 pass / 0 fail / 1 skip | 5操作は実証成功。全契約は未完了（rollback 未実行）                    |
+
+Node-API の5操作を全環境で実測できたが、全契約の採用可とは判断していない。別の環境へ同じ binary を配布できるという結果でもなく、ABI・libc・配布する build の制約は実際の配布方法と併せて確認する。CI の header は Linux が `/usr/local/include/node`、macOS が Homebrew の `node@22` 配下だった。生成物の hash と絶対 path、compile 引数は各 job の JSON に残す。
+
+commit `7c0dcc7813c49c2f454cf3091d5ec4704197786a` の5操作を、上と同じ Linux x86_64 / Bun 1.4.4 / strace 7.2 で実測した。46テスト成功。旧方式の絶対 FD path と異なり、`openat(<parent-fd>, "component", ...)`、`mkdirat`、`renameat`、`linkat`、`unlinkat` の directory FD 引数が保持した元 directory を参照していた。`O_CLOEXEC`、排他的作成・link の `EEXIST` と、Bun 主 process の `chdir` / `fchdir` がないことも確認した。共用 Bash の path 計算用 subshell の `chdir` は主 process と区別した。元 trace は `/tmp/codex/implement-32.WZwqi8/native-committed.strace`、SHA-256 は `94ed034de1c3f71db388ec0f74a64aa974959594455f9eca8817e7742619a8b6`。Buffer 対応はこの commit の後に追加した変更であり、この trace の対象には含めない。
 
 5操作だけでは、macOS で既存 rollback の symlink を辿らない device / inode 検査を置換できない。現時点ではその部分に旧 FD path が残り、Node-API 候補を全環境で採用可とはしていない。旧方式の機能判定が不適合なら、その rollback 1件だけを未実行として skip する。JSON は `fullContract: "partial:rollback-not-run"`、旧方式の rollback も走った場合は `"mixed:rollback-fd-path"` を記録し、Node-API 単独の全契約成功とは表示しない。`fstatat` の追加を確認中であり、ファイルを開いて metadata 検査を代用することで拒否条件を変更しない。
 

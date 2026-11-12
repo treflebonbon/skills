@@ -39,11 +39,11 @@ const compileArguments = [
 const hash = (path: string | URL) =>
   createHash("sha256").update(fs.readFileSync(path)).digest("hex");
 type Addon = {
-  openat(fd: number, name: string, flags: number, mode: number): number;
-  mkdirat(fd: number, name: string, mode: number): number;
-  renameat(fd: number, name: string, otherFd: number, otherName: string): number;
-  linkat(fd: number, name: string, otherFd: number, otherName: string): number;
-  unlinkat(fd: number, name: string): number;
+  openat(fd: number, name: Buffer, flags: number, mode: number): number;
+  mkdirat(fd: number, name: Buffer, mode: number): number;
+  renameat(fd: number, name: Buffer, otherFd: number, otherName: Buffer): number;
+  linkat(fd: number, name: Buffer, otherFd: number, otherName: Buffer): number;
+  unlinkat(fd: number, name: Buffer): number;
 };
 let addon: Addon;
 export let nativeBuild: {
@@ -82,19 +82,28 @@ function checked(result: number, syscall: string): number {
   const code = getSystemErrorName(result);
   throw Object.assign(new Error(`${code}: ${syscall}`), { code, errno: result, syscall });
 }
+type Component = string | Buffer;
+function componentBytes(name: Component): Buffer {
+  if (typeof name !== "string") return name;
+  if (!name.isWellFormed()) throw new Error("有効な Unicode または Buffer が必要です");
+  return Buffer.from(name);
+}
 export const native = {
-  openat: (fd: number, name: string, flags: number, mode = 0o600): number =>
-    checked(addon.openat(fd, name, flags, mode), "openat"),
-  mkdirat: (fd: number, name: string, mode: number): void => {
-    checked(addon.mkdirat(fd, name, mode), "mkdirat");
+  openat: (fd: number, name: Component, flags: number, mode = 0o600): number =>
+    checked(addon.openat(fd, componentBytes(name), flags, mode), "openat"),
+  mkdirat: (fd: number, name: Component, mode: number): void => {
+    checked(addon.mkdirat(fd, componentBytes(name), mode), "mkdirat");
   },
-  renameat: (fd: number, name: string, otherFd: number, otherName: string): void => {
-    checked(addon.renameat(fd, name, otherFd, otherName), "renameat");
+  renameat: (fd: number, name: Component, otherFd: number, otherName: Component): void => {
+    checked(
+      addon.renameat(fd, componentBytes(name), otherFd, componentBytes(otherName)),
+      "renameat",
+    );
   },
-  linkat: (fd: number, name: string, otherFd: number, otherName: string): void => {
-    checked(addon.linkat(fd, name, otherFd, otherName), "linkat");
+  linkat: (fd: number, name: Component, otherFd: number, otherName: Component): void => {
+    checked(addon.linkat(fd, componentBytes(name), otherFd, componentBytes(otherName)), "linkat");
   },
-  unlinkat: (fd: number, name: string): void => {
-    checked(addon.unlinkat(fd, name), "unlinkat");
+  unlinkat: (fd: number, name: Component): void => {
+    checked(addon.unlinkat(fd, componentBytes(name)), "unlinkat");
   },
 };

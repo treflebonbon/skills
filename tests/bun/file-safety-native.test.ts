@@ -91,3 +91,37 @@ test("Node-API の mkdir・rename・link・unlink が保持 FD の元 directory 
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("component の bytes を保持し、不正な Unicode を別名へ変換して開かない", () => {
+  const root = fs.mkdtempSync(join(tmpdir(), "native-file-safety-"));
+  const parent = fs.openSync(root, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY);
+  const name = process.platform === "linux" ? Buffer.from([0xff]) : Buffer.from("名前🙂");
+  try {
+    fs.writeFileSync(Buffer.concat([Buffer.from(`${root}/`), name]), "original bytes");
+    fs.writeFileSync(join(root, "�"), "replacement path");
+    const renamed = Buffer.concat([name, Buffer.from("-renamed")]);
+    native.mkdirat(parent, Buffer.from("directory🙂"), 0o700);
+    native.renameat(parent, name, parent, renamed);
+    native.linkat(parent, renamed, parent, name);
+    native.unlinkat(parent, renamed);
+    const fd = native.openat(parent, name, fs.constants.O_RDONLY);
+    try {
+      expect(fs.readFileSync(fd, "utf8")).toBe("original bytes");
+    } finally {
+      fs.closeSync(fd);
+    }
+    expect(() => native.openat(parent, "\udcff", fs.constants.O_RDONLY)).toThrow(
+      "有効な Unicode または Buffer が必要です",
+    );
+    expect(() => native.openat(parent, Buffer.from("file\0suffix"), fs.constants.O_RDONLY)).toThrow(
+      "正規の単一 component が必要です",
+    );
+    expect(() => native.unlinkat(parent, Buffer.from("../outside"))).toThrow(
+      "正規の単一 component が必要です",
+    );
+    expect(fs.readFileSync(join(root, "�"), "utf8")).toBe("replacement path");
+  } finally {
+    fs.closeSync(parent);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

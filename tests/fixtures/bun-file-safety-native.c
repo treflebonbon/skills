@@ -22,15 +22,16 @@ static int integer(napi_env env, napi_value value, int *result) {
 
 static int component(napi_env env, napi_value value, char *result, size_t capacity) {
   size_t length;
-  if (napi_get_value_string_utf8(env, value, NULL, 0, &length) != napi_ok ||
+  void *bytes;
+  bool is_buffer;
+  if (napi_is_buffer(env, value, &is_buffer) != napi_ok || !is_buffer ||
+      napi_get_buffer_info(env, value, &bytes, &length) != napi_ok ||
       length == 0 || length >= capacity) {
     napi_throw_type_error(env, NULL, "正規の単一 component が必要です");
     return 0;
   }
-  if (napi_get_value_string_utf8(env, value, result, capacity, &length) != napi_ok) {
-    napi_throw_error(env, NULL, "component の変換に失敗しました");
-    return 0;
-  }
+  memcpy(result, bytes, length);
+  result[length] = '\0';
   if (memchr(result, '\0', length) || strchr(result, '/') ||
       strcmp(result, ".") == 0 || strcmp(result, "..") == 0) {
     napi_throw_type_error(env, NULL, "正規の単一 component が必要です");
