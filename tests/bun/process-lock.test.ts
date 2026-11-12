@@ -393,10 +393,13 @@ test("PATH 探索は execvp の shell fallback を使わず、後続の実行可
   fs.mkdirSync(valid);
   fs.writeFileSync(join(denied, "probe"), "invalid\n", { mode: 0o700 });
   fs.symlinkSync(observer, join(valid, "probe"));
-  const result = prepared("search", "probe", ["report", "37", ""], `${denied}:${valid}`);
-  expect(result.status).toBe(37);
-  expect(result.stderr).toBe("");
-  expect(JSON.parse(result.stdout).argv).toEqual(["probe", "report", "37", ""]);
+  for (const mode of [0o600, 0o700]) {
+    fs.chmodSync(join(denied, "probe"), mode);
+    const result = prepared("search", "probe", ["report", "37", ""], `${denied}:${valid}`);
+    expect(result.status).toBe(37);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout).argv).toEqual(["probe", "report", "37", ""]);
+  }
   const refused = prepared("search", "probe", [], denied);
   expect(refused.status).toBe(1);
   expect(refused.stdout).toBe("");

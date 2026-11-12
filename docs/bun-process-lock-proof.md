@@ -130,7 +130,7 @@ Python は起動時に SIGPIPE / SIGXFSZ（定義される環境では SIGXFZ �
 
 ### 実証と採用を区別する条件
 
-追加候補のローカル実測は Linux / WSL2 x86_64・Bun 1.4.4。3環境の CI は、この変更を含む head の各 job log と JSON の `nativeLauncher` を確認する。過去の93件成功を追加候補の成功へ転用しない。
+追加候補のローカル実測は Linux / WSL2 x86_64・Bun 1.4.4。3環境の CI は、この変更を含む head の各 job log と JSON の `nativeLauncher` を確認する。対象 head / checkout・OS / kernel / architecture・版・件数と source hash は [PR #59 の追加実証結果](https://github.com/treflebonbon/skills/pull/59)に記録する。過去の93件成功を追加候補の成功へ転用しない。
 
 この fixture は argv / env の transport と exec 境界を比較する。reviewer の Git context / policy、`with-env` の準備全体、`codex-inner` の chdir と開始記録、namespace 設定を移植・受入したものではない。caller ごとの追加段階の環境・signal への影響、通常利用時の native binary の事前ビルド・配布・hash 固定、Nix closure は未確定。namespace の範囲と #33 の AC も変更しない。
 
