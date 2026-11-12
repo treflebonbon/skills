@@ -5,14 +5,17 @@ if (requestedMode === "prep-hang") {
   setInterval(() => {}, 1_000);
 } else {
   const mode = requestedMode?.startsWith("search") ? "search" : "reviewer";
-  const targetEnvironment = { ...process.env };
-  if (targetEnvironment.EXEC_PROOF_TARGET_PATH !== undefined)
-    targetEnvironment.PATH = targetEnvironment.EXEC_PROOF_TARGET_PATH;
-  delete targetEnvironment.EXEC_PROOF_TARGET_PATH;
-  if (requestedMode === "search-no-path") delete targetEnvironment.PATH;
-  const environment = Object.entries(targetEnvironment)
-    .filter(([key]) => mode !== "reviewer" || !key.startsWith("GIT_"))
-    .map(([key, value]) => `${key}=${value}`);
+  const removed = [
+    "EXEC_PROOF_TARGET_PATH",
+    ...(mode === "reviewer"
+      ? Object.keys(process.env).filter((key) => key.startsWith("GIT_"))
+      : []),
+    ...(requestedMode === "search-no-path" ? ["PATH"] : []),
+  ];
+  const changed =
+    process.env.EXEC_PROOF_TARGET_PATH !== undefined && requestedMode !== "search-no-path"
+      ? [`PATH=${process.env.EXEC_PROOF_TARGET_PATH}`]
+      : [];
   const argv = [mode === "reviewer" ? "codex" : executable, ...arguments_];
   const fields = [
     "exec-proof-v1",
@@ -20,8 +23,10 @@ if (requestedMode === "prep-hang") {
     executable,
     String(argv.length),
     ...argv,
-    String(environment.length),
-    ...environment,
+    String(removed.length),
+    ...removed,
+    String(changed.length),
+    ...changed,
   ];
   if (requestedMode === "prep-fail") process.exit(17);
   if (requestedMode === "prep-partial") {

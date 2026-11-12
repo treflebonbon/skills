@@ -10,6 +10,7 @@
 /* 実証用。製品の入口・配布物としては採用していない。 */
 static pid_t preparation;
 static volatile sig_atomic_t interrupted;
+extern char **environ;
 
 static void interrupt(int number) {
   int saved_errno = errno;
@@ -48,6 +49,10 @@ static const char *error_name(int error) {
     case E2BIG: return "E2BIG";
     default: return "OTHER";
   }
+}
+
+static int same_key(const char *entry, const char *key, size_t length) {
+  return !strncmp(entry, key, length) && entry[length] == '=';
 }
 
 int main(int argc, char **argv) {
@@ -112,17 +117,39 @@ int main(int argc, char **argv) {
   char **arguments = calloc((size_t)argument_count + 1, sizeof(char *));
   if (!arguments) invalid();
   for (long i = 0; i < argument_count; i++) arguments[i] = next_nul_field(&cursor, end);
-  long environment_count = parse_nonnegative_integer(next_nul_field(&cursor, end));
-  char **environment = calloc((size_t)environment_count + 1, sizeof(char *));
-  if (!environment) invalid();
-  const char *path = "/bin:/usr/bin"; /* CPython posixpath.defpath */
-  for (long i = 0; i < environment_count; i++) {
-    environment[i] = next_nul_field(&cursor, end);
-    char *equals = strchr(environment[i], '=');
-    if (!equals || equals == environment[i]) invalid();
-    if (!strncmp(environment[i], "PATH=", 5)) path = environment[i] + 5;
+  long removed_count = parse_nonnegative_integer(next_nul_field(&cursor, end));
+  char **removed = calloc((size_t)removed_count + 1, sizeof(char *));
+  if (!removed) invalid();
+  for (long i = 0; i < removed_count; i++) {
+    removed[i] = next_nul_field(&cursor, end);
+    if (!*removed[i] || strchr(removed[i], '=')) invalid();
+  }
+  long changed_count = parse_nonnegative_integer(next_nul_field(&cursor, end));
+  char **changed = calloc((size_t)changed_count + 1, sizeof(char *));
+  if (!changed) invalid();
+  for (long i = 0; i < changed_count; i++) {
+    changed[i] = next_nul_field(&cursor, end);
+    char *equals = strchr(changed[i], '=');
+    if (!equals || equals == changed[i]) invalid();
   }
   if (cursor != end) invalid();
+  size_t original_count = 0, environment_count = 0;
+  while (environ[original_count]) original_count++;
+  char **environment = calloc(original_count + (size_t)changed_count + 1, sizeof(char *));
+  if (!environment) invalid();
+  /* Bun 起動用の sanitization を target へ持ち込まず、明示された差分だけ適用する。 */
+  for (size_t i = 0; i < original_count; i++) {
+    int replaced = 0;
+    for (long j = 0; j < removed_count; j++)
+      if (same_key(environ[i], removed[j], strlen(removed[j]))) replaced = 1;
+    for (long j = 0; j < changed_count; j++)
+      if (same_key(environ[i], changed[j], (size_t)(strchr(changed[j], '=') - changed[j]))) replaced = 1;
+    if (!replaced) environment[environment_count++] = environ[i];
+  }
+  for (long i = 0; i < changed_count; i++) environment[environment_count++] = changed[i];
+  const char *path = "/bin:/usr/bin"; /* CPython posixpath.defpath */
+  for (size_t i = 0; i < environment_count; i++)
+    if (!strncmp(environment[i], "PATH=", 5)) path = environment[i] + 5;
   /* 旧 Python 自身が無視する signal。親からの mask と他の SIG_IGN は維持する。 */
   if (signal(SIGPIPE, SIG_IGN) == SIG_ERR || signal(SIGXFSZ, SIG_IGN) == SIG_ERR) invalid();
 #ifdef SIGXFZ

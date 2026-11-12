@@ -468,20 +468,55 @@ test("pipe buffer より大きい準備結果も途中で切れず、空引数�
   const marker = `${"x".repeat(64 * 1024)}🙂`;
   const result = spawnSync(
     entry,
-    [runner, prepare, launcher, "search", observer, "report", "37", ""],
+    [runner, prepare, launcher, "search", observer, "report", "37", marker, ""],
     {
       encoding: "utf8",
       timeout: 5_000,
-      env: { ...process.env, PROCESS_PROOF_MARKER: marker },
+      env: process.env,
     },
   );
   expect(result.status).toBe(37);
   expect(result.stderr).toBe("");
   const target = JSON.parse(result.stdout);
-  expect(createHash("sha256").update(target.marker).digest("hex")).toBe(
+  expect(createHash("sha256").update(target.argv.at(-2)).digest("hex")).toBe(
     createHash("sha256").update(marker).digest("hex"),
   );
   expect(target.argv.at(-1)).toBe("");
+});
+
+test("Bun 起動時に除去する環境変数も target には保持し、子の起動用変数を追加しない", () => {
+  const environment = {
+    PATH: process.env.PATH!,
+    NODE_OPTIONS: "--no-warnings",
+    NODE_PATH: "public-node-path",
+    BUN_PROOF_MARKER: "public-bun",
+    JSC_PROOF_MARKER: "public-jsc",
+    SHLVL: "3",
+  };
+  const options = { env: environment, encoding: "utf8" as const, timeout: 5_000 };
+  const control = spawnSync("/bin/bash", ["-p", "-c", "exec /usr/bin/env"], options);
+  const candidate = spawnSync(
+    entry,
+    [runner, prepare, launcher, "search", "/usr/bin/env"],
+    options,
+  );
+  expect(control.status).toBe(0);
+  expect(candidate.status).toBe(0);
+  const fields = (value: string) =>
+    Object.fromEntries(
+      value
+        .trim()
+        .split("\n")
+        .map((line) => {
+          const equals = line.indexOf("=");
+          return [line.slice(0, equals), line.slice(equals + 1)];
+        }),
+    );
+  const baseline = fields(control.stdout),
+    target = fields(candidate.stdout);
+  for (const key of Object.keys(environment)) expect(target[key]).toBe(baseline[key]);
+  expect(target.BUN_RUNTIME_TRANSPILER_CACHE_PATH).toBeUndefined();
+  expect(target.DO_NOT_TRACK).toBeUndefined();
 });
 
 for (const mode of ["prep-fail", "prep-partial", "prep-trailing", "prep-complete-fail"]) {

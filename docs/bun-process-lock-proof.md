@@ -101,7 +101,7 @@ lock の Perl 方式を後続で選ぶ場合も、隔離用 Nix closure の明�
 
 ## 専用 native launcher の追加実証
 
-[Bash の fixture 入口](../tests/fixtures/bun-exec-entry.sh)が、既存の `lib/bun/run` を使って [Bun の準備処理](../tests/fixtures/bun-exec-prepare.ts)を子として起動する。親は同じ PID の[専用 launcher](../tests/fixtures/bun-exec-launcher.c)に置換され、準備結果を pipe から読み、子の終了0を確認した後だけ target を `execve(2)` する。Bun は親の FD・mask に触れない。環境変数の値を launcher の argv に載せず、追加の pipe FD は target の起動前に閉じる。
+[Bash の fixture 入口](../tests/fixtures/bun-exec-entry.sh)が、既存の `lib/bun/run` を使って [Bun の準備処理](../tests/fixtures/bun-exec-prepare.ts)を子として起動する。親は同じ PID の[専用 launcher](../tests/fixtures/bun-exec-launcher.c)に置換され、準備結果を pipe から読み、子の終了0を確認した後だけ target を `execve(2)` する。Bun は親の FD・mask に触れない。環境は launcher の元の値へ明示的な unset / set だけを適用する。Bun 起動用に除去する NODE_OPTIONS / NODE_PATH / BUN_* / JSC_* を target から落とさず、子の cache 制御変数も追加しない。準備結果や環境の値を launcher の argv に載せず、追加の pipe FD は target の起動前に閉じる。
 
 ```mermaid
 flowchart LR
