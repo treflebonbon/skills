@@ -1,0 +1,199 @@
+{
+  "sourceRevision": "f66ae47bb61f98ee27c3629573733b01140f8850",
+  "sources": [
+    {
+      "path": "share/codex-isolation/secret-isolation-worktree.py",
+      "sha256": "33cdbb6edee6bb703b7329afeeaa4246da5abf153d10d8046f06f9e83e32978d"
+    },
+    {
+      "path": "skills/orca-peer-refactor/scripts/run-evidence.py",
+      "sha256": "c3bd924d5bf3597dc20213f4db70dd70f707cf08548c7832c2fe22cbfd9615e3"
+    }
+  ],
+  "captured": {
+    "python": "3.14.7",
+    "os": "Linux",
+    "architecture": "x86_64"
+  },
+  "cases": [
+    {
+      "profile": "raw",
+      "kind": "normal",
+      "relative": "nested/file",
+      "expected": {
+        "accepted": true,
+        "bodyBase64": "aW5zaWRl8J+Zggo="
+      }
+    },
+    {
+      "profile": "raw",
+      "kind": "hardlink",
+      "relative": "alias",
+      "expected": {
+        "accepted": false,
+        "errorType": "ValueError",
+        "errno": null,
+        "message": "input must be a regular file with one link"
+      }
+    },
+    {
+      "profile": "raw",
+      "kind": "leaf-symlink",
+      "relative": "alias",
+      "expected": {
+        "accepted": false,
+        "errorType": "OSError",
+        "errno": 40,
+        "message": "[Errno 40] Too many levels of symbolic links: 'alias'"
+      }
+    },
+    {
+      "profile": "raw",
+      "kind": "ancestor-symlink",
+      "relative": "alias/file",
+      "expected": {
+        "accepted": false,
+        "errorType": "NotADirectoryError",
+        "errno": 20,
+        "message": "[Errno 20] Not a directory: 'alias'"
+      }
+    },
+    {
+      "profile": "raw",
+      "kind": "fifo",
+      "relative": "pipe",
+      "expected": {
+        "accepted": false,
+        "errorType": "ValueError",
+        "errno": null,
+        "message": "input must be a regular file with one link"
+      }
+    },
+    {
+      "profile": "raw",
+      "kind": "directory",
+      "relative": "nested",
+      "expected": {
+        "accepted": false,
+        "errorType": "IsADirectoryError",
+        "errno": 21,
+        "message": "[Errno 21] Is a directory: 4"
+      }
+    },
+    {
+      "profile": "raw",
+      "kind": "parent-component",
+      "relative": "nested/../nested/file",
+      "expected": {
+        "accepted": false,
+        "errorType": "ValueError",
+        "errno": null,
+        "message": "input must be a relative file outside Git metadata"
+      }
+    },
+    {
+      "profile": "raw",
+      "kind": "change-after-stat",
+      "relative": "nested/file",
+      "expected": {
+        "accepted": false,
+        "errorType": "ValueError",
+        "errno": null,
+        "message": "input changed while being read"
+      }
+    },
+    {
+      "profile": "raw",
+      "kind": "git-metadata",
+      "relative": ".git/config",
+      "expected": {
+        "accepted": false,
+        "errorType": "ValueError",
+        "errno": null,
+        "message": "input must be a relative file outside Git metadata"
+      }
+    },
+    {
+      "profile": "evidence",
+      "kind": "normal",
+      "relative": "nested/file",
+      "expected": {
+        "accepted": true,
+        "bodyBase64": "aW5zaWRl8J+Zggo="
+      }
+    },
+    {
+      "profile": "evidence",
+      "kind": "hardlink",
+      "relative": "alias",
+      "expected": {
+        "accepted": true,
+        "bodyBase64": "aW5zaWRl8J+Zggo="
+      }
+    },
+    {
+      "profile": "evidence",
+      "kind": "leaf-symlink",
+      "relative": "alias",
+      "expected": {
+        "accepted": false,
+        "errorType": "ValueError",
+        "errno": null,
+        "message": "証跡のパスに symlink を含められません"
+      }
+    },
+    {
+      "profile": "evidence",
+      "kind": "ancestor-symlink",
+      "relative": "alias/file",
+      "expected": {
+        "accepted": false,
+        "errorType": "ValueError",
+        "errno": null,
+        "message": "証跡のパスに symlink を含められません"
+      }
+    },
+    {
+      "profile": "evidence",
+      "kind": "fifo",
+      "relative": "pipe",
+      "expected": {
+        "accepted": false,
+        "errorType": "ValueError",
+        "errno": null,
+        "message": "証跡は通常ファイルで指定してください"
+      }
+    },
+    {
+      "profile": "evidence",
+      "kind": "directory",
+      "relative": "nested",
+      "expected": {
+        "accepted": false,
+        "errorType": "IsADirectoryError",
+        "errno": 21,
+        "message": "[Errno 21] Is a directory: 5"
+      }
+    },
+    {
+      "profile": "evidence",
+      "kind": "ancestor-after-validation",
+      "relative": "nested/file",
+      "expected": {
+        "accepted": false,
+        "errorType": "ValueError",
+        "errno": null,
+        "message": "証跡のパスを安全に開けません"
+      }
+    },
+    {
+      "profile": "evidence",
+      "kind": "git-metadata",
+      "relative": ".git/config",
+      "expected": {
+        "accepted": true,
+        "bodyBase64": "bWV0YWRhdGEtZml4dHVyZQ=="
+      }
+    }
+  ]
+}
