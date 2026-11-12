@@ -59,10 +59,19 @@ function finish(name: string, args: string[]): never {
 
 function checked(name: string, args: string[]) {
   const result = command(name, args);
-  if (result.status !== 0)
-    throw new Error(
-      `${name}: status=${result.status}, signal=${result.signal}: ${result.stderr.trim()}`,
+  if (result.status !== 0) {
+    console.error(
+      JSON.stringify({
+        event: "failure",
+        stage,
+        command: name,
+        status: result.status,
+        signal: result.signal,
+        reason: result.stderr.trim(),
+      }),
     );
+    process.exit(result.status ?? 128 + constants.signals[result.signal!]);
+  }
 }
 
 async function loopback53() {

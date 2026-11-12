@@ -98,11 +98,7 @@ describe.skipIf(!real)("実 namespace（明示 opt-in）", () => {
     expect(result.error).toBeUndefined();
     expect(result.stderr).toBe("");
     expect(result.status).toBe(37);
-    const events = result.stdout
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line));
-    const target = events.find((event) => event.event === "target");
+    const target = events(result.stdout).find((event) => event.event === "target")!;
     expect(target.port53).toBe("bound");
     expect(target.snapshot.setgroups).toBe("deny");
     expect(target.snapshot.unprivilegedPortStart).toBe(0);
@@ -167,14 +163,25 @@ runpy.run_path(source)['main']()
       expect(observation.gidMap).toEqual([[process.getgid!(), process.getgid!(), 1]]);
       expect(observation.setgroups).toBe("deny");
       expect(observation.unprivilegedPortStart).toBe(0);
-      expect(BigInt("0x" + observation.capabilities.CapEff!)).toBeGreaterThan(0n);
+      for (const key of ["CapPrm", "CapEff", "CapBnd"])
+        expect(BigInt("0x" + observation.capabilities[key]!)).toBeGreaterThan(0n);
     }
+    expect(old.capabilities.CapInh).toBe("0000000000000000");
     expect(old.capabilities.CapAmb).toBe("0000000000000000");
-    expect(BigInt("0x" + prepared.capabilities.CapAmb!)).toBeGreaterThan(0n);
+    expect(Object.keys(prepared.capabilities).sort()).toEqual([
+      "CapAmb",
+      "CapBnd",
+      "CapEff",
+      "CapInh",
+      "CapPrm",
+    ]);
+    for (const value of Object.values(prepared.capabilities))
+      expect(value).toBe(old.capabilities.CapEff!);
     for (const observations of [oldEvents, newEvents]) {
       const before = observations.find((event) => event.event === "before-bwrap")!.snapshot;
       for (const key of ["CapInh", "CapPrm", "CapEff", "CapAmb"])
         expect(before.capabilities[key]).toBe("0000000000000000");
+      expect(before.capabilities.CapBnd).toBe(old.capabilities.CapBnd!);
       const inside = observations.find((event) => event.event === "target")!.snapshot;
       expect(Object.keys(inside.capabilities).sort()).toEqual([
         "CapAmb",
@@ -241,9 +248,9 @@ runpy.run_path(source)['main']()
         ...process.env,
         PATH: `${directory}:${process.env.PATH}`,
       });
-      expect(result.status).toBe(tool === "ip" ? 1 : status);
+      expect(result.status).toBe(status);
       expect(result.stderr).toContain(`fixture-${tool}-failure`);
-      if (tool === "ip") expect(result.stderr).toContain("status=24");
+      if (tool === "ip") expect(result.stderr).toContain('"status":24');
       expect(result.stdout).not.toContain('"event":"target"');
       expect(readFileSync("/proc/sys/net/ipv4/ip_unprivileged_port_start", "utf8")).toBe(before);
       expect(statSync("/proc/self/ns/net").ino).toBe(net);

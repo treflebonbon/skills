@@ -47,7 +47,7 @@ bubblewrap の内部の mapping は、準備段階の mapping と異なる。途
 ## 失敗時の結果
 
 - 共有 network namespace で準備を直接呼ぶと、sysctl 書込み前に終了1となる。
-- `unshare`・`ip`・`setpriv`・`bwrap` を失敗する合成 executable に置き換えると、各段階で停止し、target の出力は現れない。`unshare` / `setpriv` / `bwrap` の終了23 / 25 / 26は外側まで伝わる。`ip` の終了24は失敗理由に保持し、準備全体は終了1となる。
+- `unshare`・`ip`・`setpriv`・`bwrap` を失敗する合成 executable に置き換えると、各段階で停止し、target の出力は現れない。各ツールの終了23 / 24 / 25 / 26と失敗理由が外側まで伝わる。
 - `unshare` 不在でも明示的に失敗し、隔離なしの再実行を行わない。
 - namespace 作成権限、sysctl 書込み権限、capability の除去、bubblewrap のいずれかが成立しない環境でも、同じ拒否を維持する。host の sysctl や AppArmor 設定を自動変更して成立させない。
 
