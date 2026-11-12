@@ -131,7 +131,7 @@ class PluginPackageContractTest(unittest.TestCase):
 
         development = json.loads((ROOT / "development/package.json").read_text(encoding="utf-8"))
         self.assertTrue(development["private"])
-        self.assertEqual(development["devDependencies"], {"oxfmt": "0.67.0"})
+        self.assertEqual(development["devDependencies"], {"oxfmt": "0.67.0", "typescript": "7.0.2", "@types/bun": "1.4.4"})
         lock = json.loads((ROOT / "development/package-lock.json").read_text(encoding="utf-8"))
         self.assertEqual(lock["name"], development["name"])
         self.assertEqual(lock["version"], development["version"])

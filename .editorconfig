@@ -9,3 +9,7 @@ indent_size = 2
 [*.{sh,bats}]
 indent_style = space
 indent_size = 2
+
+[lib/bun/run]
+indent_style = space
+indent_size = 2

@@ -228,31 +228,13 @@ ordinary / nested worker の `check` は filter なしで whole FIFO を読む�
 
 <!-- literal-safe-example:start -->
 
-```python
-import os
-import subprocess
-from pathlib import Path
-
-body_file = os.environ["ORCA_BODY_FILE"]  # UTF-8本文ファイルの絶対パス
-skill_dir = Path(os.environ["SKILL_DIR"]).resolve()
-plugin_root = skill_dir.parents[1]
-sender = str(plugin_root / "bin" / "orca-send")
-orca = os.environ["ORCA_CLI"]
-subprocess.run(
-    [
-        sender,
-        "--cli", orca,
-        "--body-file", body_file,
-        "--",
-        "--to", "run:<run-id>",
-        "--run", "<run-id>",
-        "--from", "<sender-handle>",
-        "--subject", "レビュー依頼",
-        "--type", "status",
-        "--json",
-    ],
-    check=True,
-)
+```bash
+skill_dir="$(cd -- "$SKILL_DIR" && pwd -P)"
+plugin_root="$(cd -- "$skill_dir/../.." && pwd -P)"
+"$plugin_root/bin/orca-send" \
+  --cli "$ORCA_CLI" --body-file "$ORCA_BODY_FILE" -- \
+  --to 'run:<run-id>' --run '<run-id>' --from '<sender-handle>' \
+  --subject 'レビュー依頼' --type status --json
 ```
 
 <!-- literal-safe-example:end -->

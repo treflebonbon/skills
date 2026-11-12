@@ -1,0 +1,9 @@
+preload = []
+env = false
+telemetry = false
+
+[install]
+auto = "disable"
+
+[test]
+preload = []
