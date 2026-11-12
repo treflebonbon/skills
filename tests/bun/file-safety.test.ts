@@ -26,6 +26,17 @@ function fixture() {
   return root;
 }
 
+function swapAncestor(root: string, outside: string): void {
+  const attacker = spawnSync("/bin/sh", [
+    "-c",
+    'mv "$1/nested" "$1/moved" && ln -s "$2" "$1/nested"',
+    "swap",
+    root,
+    outside,
+  ]);
+  expect(attacker.status).toBe(0);
+}
+
 function descriptorCapability(): { status: "available" | "incompatible"; reason?: string } {
   const root = fixture();
   const parentPath = join(root, "nested", "file");
@@ -142,14 +153,7 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
     const outside = fixture();
     fs.writeFileSync(join(outside, "file"), "outside");
     expect(fs.lstatSync(join(root, "nested")).isDirectory()).toBe(true);
-    const attacker = spawnSync("/bin/sh", [
-      "-c",
-      'mv "$1/nested" "$1/moved" && ln -s "$2" "$1/nested"',
-      "swap",
-      root,
-      outside,
-    ]);
-    expect(attacker.status).toBe(0);
+    swapAncestor(root, outside);
     // 最終 component だけの O_NOFOLLOW は祖先の symlink を辿ってしまう。
     const unsafe = fs.openSync(
       join(root, "nested", "file"),
@@ -169,14 +173,7 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
     fs.writeFileSync(join(outside, "file"), "outside");
     const parent = openParent(root, "nested/file");
     try {
-      const attacker = spawnSync("/bin/sh", [
-        "-c",
-        'mv "$1/nested" "$1/moved" && ln -s "$2" "$1/nested"',
-        "swap",
-        root,
-        outside,
-      ]);
-      expect(attacker.status).toBe(0);
+      swapAncestor(root, outside);
       const leaf = fs.openSync(
         descriptorPath(parent),
         fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK,
@@ -275,15 +272,7 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
       const outside = fixture();
       const parent = openParent(root, "nested/created");
       try {
-        expect(
-          spawnSync("/bin/sh", [
-            "-c",
-            'mv "$1/nested" "$1/moved" && ln -s "$2" "$1/nested"',
-            "swap",
-            root,
-            outside,
-          ]).status,
-        ).toBe(0);
+        swapAncestor(root, outside);
         const fd = fs.openSync(
           descriptorPath(parent),
           fs.constants.O_WRONLY |
@@ -373,15 +362,7 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
     const outside = fixture();
     const parent = openParent(root, "nested/created");
     try {
-      expect(
-        spawnSync("/bin/sh", [
-          "-c",
-          'mv "$1/nested" "$1/moved" && ln -s "$2" "$1/nested"',
-          "swap",
-          root,
-          outside,
-        ]).status,
-      ).toBe(0);
+      swapAncestor(root, outside);
       fs.mkdirSync(descriptorPath(parent), { mode: 0o700 });
       const child = fs.openSync(
         descriptorPath(parent),
@@ -406,15 +387,7 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
     fs.writeFileSync(join(outside, "file"), "outside");
     const parent = openParent(root, "nested/file");
     try {
-      expect(
-        spawnSync("/bin/sh", [
-          "-c",
-          'mv "$1/nested" "$1/moved" && ln -s "$2" "$1/nested"',
-          "swap",
-          root,
-          outside,
-        ]).status,
-      ).toBe(0);
+      swapAncestor(root, outside);
       const temporary = descriptorPath(parent, "temporary");
       const fd = fs.openSync(
         temporary,
@@ -490,15 +463,7 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
         const outside = fixture();
         fs.writeFileSync(join(outside, "file"), "outside");
         expect(fs.lstatSync(join(root, "nested")).isDirectory()).toBe(true);
-        expect(
-          spawnSync("/bin/sh", [
-            "-c",
-            'mv "$1/nested" "$1/moved" && ln -s "$2" "$1/nested"',
-            "swap",
-            root,
-            outside,
-          ]).status,
-        ).toBe(0);
+        swapAncestor(root, outside);
       }
       let parent: ReturnType<typeof openParent> | undefined;
       let bytes: Buffer | undefined;

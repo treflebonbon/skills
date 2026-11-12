@@ -6,13 +6,15 @@
 
 directory FD を保持し、各 component を `O_DIRECTORY | O_NOFOLLOW` で開く。Linux では `/proc/self/fd/<directory-fd>/<component>` を使う。macOS の `/dev/fd/<directory-fd>/<component>` は別の候補として実測する。process 全体の cwd を変更したり、絶対 path を開いてから inode を比較する方式には置き換えない。
 
-| 環境                                 | Bun   | 判定                              | 必要な証拠・制約                                                                                                   |
-| ------------------------------------ | ----- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Linux x86_64 / WSL2 kernel 6.18.58.1 | 1.4.4 | 候補の契約を確認済み（confirmed） | 43テスト成功、旧版との17ケース比較、strace 7.2。信頼できる `/proc/self/fd` と保持中の directory FD が必要          |
-| Linux aarch64                        | 1.4.4 | 未確認（unconfirmed）             | 同じ fixture を標準 CI で実行し、この変更の job log にある機能判定と契約テストの結果を確認する                     |
-| macOS aarch64                        | 1.4.4 | 未確認（unconfirmed）             | `/dev/fd` の下を directory として辿れるかを実測する。Linux の結果と #31 の起動テストを、この候補の証拠へ転用しない |
+| 環境                                 | Bun   | 判定                          | 必要な証拠・制約                                                                                                   |
+| ------------------------------------ | ----- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Linux x86_64 / WSL2 kernel 6.18.58.1 | 1.4.4 | 採用可・条件付き（confirmed） | 43テスト成功、旧版との17ケース比較、strace 7.2。信頼できる `/proc/self/fd` と保持中の directory FD が必要          |
+| Linux aarch64                        | 1.4.4 | 未確認（unconfirmed）         | 同じ fixture を標準 CI で実行し、この変更の job log にある機能判定と契約テストの結果を確認する                     |
+| macOS aarch64                        | 1.4.4 | 未確認（unconfirmed）         | `/dev/fd` の下を directory として辿れるかを実測する。Linux の結果と #31 の起動テストを、この候補の証拠へ転用しない |
 
 通常の fixture は実モデル・実 browser・資格情報・Nix を使わない。Linux の syscall 調査だけに `strace` を使った。新規 native helper・FFI の採用は判断していない。
+
+この表は環境ごとの採用判定を示す。Linux x86_64 では保持 FD の方式を下記の制約内で採用できるが、他の必要な環境は未確認であり、#32 全体は未完了。fixture の JSON にある `adoption: "not-decided"` は実測だけで全環境の採用を自動決定しないことを表し、Linux の条件付き採用可を取り消す意味ではない。
 
 機能判定が `incompatible` の場合、基本的な対照読込みが成功したうえで、macOS の FD path が `ENOTDIR` で拒否されたことを記録する。必要な42契約テストは `describe.skipIf` で skip として表示し、JSON 記録を `fullContract: "not-run"` / `adoption: "not-decided"` にする。機能判定テストや job の成功だけを #32 の採用成功と数えない。その他の不明なエラーは不適合と決めつけず、テストを失敗させる。
 
