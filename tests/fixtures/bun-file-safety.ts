@@ -11,15 +11,16 @@ import {
 
 export type Parent = { fd: number; leaf: string };
 
-export function openParent(root: string, relative: string): Parent {
+export function openParent(root: string, relative: string, rawInput = false): Parent {
   const parts = relative.split("/");
   if (
     !root.startsWith("/") ||
-    parts.some(
-      (part) => !part || part === "." || part === ".." || part === ".git" || part.includes("\0"),
-    )
+    parts.some((part) => !part || part === "." || part === ".." || part.includes("\0"))
   ) {
     throw new Error("正規の相対 path が必要です");
+  }
+  if (rawInput && parts.includes(".git")) {
+    throw new Error("raw 入力は Git metadata 外の相対 path が必要です");
   }
   let fd = openSync(root, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
   try {
@@ -39,14 +40,7 @@ export function openParent(root: string, relative: string): Parent {
 }
 export function descriptorPath(parent: Parent, name = parent.leaf): string {
   if (parent.fd < 0) throw new Error("directory FD は閉じています");
-  if (
-    !name ||
-    name === "." ||
-    name === ".." ||
-    name === ".git" ||
-    name.includes("/") ||
-    name.includes("\0")
-  ) {
+  if (!name || name === "." || name === ".." || name.includes("/") || name.includes("\0")) {
     throw new Error("正規の単一 component が必要です");
   }
   return `${process.platform === "darwin" ? "/dev/fd" : "/proc/self/fd"}/${parent.fd}/${name}`;

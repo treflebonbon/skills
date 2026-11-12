@@ -107,13 +107,27 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
     );
   });
 
+  test("公開証跡で読める .git 内の合成ファイルを raw 入力では拒否する", () => {
+    const root = fixture();
+    fs.mkdirSync(join(root, ".git"));
+    fs.writeFileSync(join(root, ".git", "config"), "metadata-fixture");
+    const parent = openParent(root, ".git/config");
+    try {
+      expect(readRegular(parent).toString("utf8")).toBe("metadata-fixture");
+      expect(() => closeParent(openParent(root, ".git/config", true))).toThrow(
+        "raw 入力は Git metadata 外の相対 path が必要です",
+      );
+    } finally {
+      closeParent(parent);
+    }
+  });
+
   for (const relative of [
     "",
     "/nested/file",
     "nested//file",
     "./nested/file",
     "nested/",
-    ".git/config",
     "nested/\0file",
   ]) {
     test(`非正規の相対 path を拒否する: ${JSON.stringify(relative)}`, () => {
@@ -462,6 +476,10 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
   for (const scenario of reference.cases) {
     test(`旧 Python 版との受理・拒否比較: ${scenario.profile}/${scenario.kind}`, () => {
       const root = fixture();
+      if (scenario.kind === "git-metadata") {
+        fs.mkdirSync(join(root, ".git"));
+        fs.writeFileSync(join(root, ".git", "config"), "metadata-fixture");
+      }
       if (scenario.kind === "hardlink")
         fs.linkSync(join(root, "nested", "file"), join(root, "alias"));
       if (scenario.kind === "leaf-symlink") fs.symlinkSync("nested/file", join(root, "alias"));
@@ -486,7 +504,7 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
       let bytes: Buffer | undefined;
       let failure: Error | undefined;
       try {
-        parent = openParent(root, scenario.relative);
+        parent = openParent(root, scenario.relative, scenario.profile === "raw");
         bytes = readRegular(parent, scenario.profile === "raw", () => {
           if (scenario.kind === "change-after-stat") {
             expect(
@@ -520,6 +538,7 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
           fifo: /通常ファイルが必要/,
           directory: /通常ファイルが必要/,
           "parent-component": /正規の相対 path/,
+          "git-metadata": /raw 入力は Git metadata 外の相対 path/,
           "change-after-stat": /raw 入力が読込中に変更/,
         };
         expect(failure!.message).toMatch(messages[scenario.kind]!);

@@ -103,6 +103,17 @@
       }
     },
     {
+      "profile": "raw",
+      "kind": "git-metadata",
+      "relative": ".git/config",
+      "expected": {
+        "accepted": false,
+        "errorType": "ValueError",
+        "errno": null,
+        "message": "input must be a relative file outside Git metadata"
+      }
+    },
+    {
       "profile": "evidence",
       "kind": "normal",
       "relative": "nested/file",
@@ -173,6 +184,15 @@
         "errorType": "ValueError",
         "errno": null,
         "message": "証跡のパスを安全に開けません"
+      }
+    },
+    {
+      "profile": "evidence",
+      "kind": "git-metadata",
+      "relative": ".git/config",
+      "expected": {
+        "accepted": true,
+        "bodyBase64": "bWV0YWRhdGEtZml4dHVyZQ=="
       }
     }
   ]
