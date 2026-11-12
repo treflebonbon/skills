@@ -56,7 +56,7 @@ function descriptorCapability(): {
   let fdAliasIdentity = false;
   let fdAliasError: string | undefined;
   try {
-    const duplicate = fs.openSync(alias, fs.constants.O_RDONLY);
+    const duplicate = fs.openSync(alias, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
     try {
       const observed = fs.fstatSync(duplicate, { bigint: true });
       fdAliasIdentity = observed.dev === identity.dev && observed.ino === identity.ino;
