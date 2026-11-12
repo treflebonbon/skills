@@ -125,6 +125,7 @@ Python は起動時に SIGPIPE / SIGXFSZ（定義される環境では SIGXFZ �
 - PID / PPID / PGID / SID、FD の identity と CLOEXEC、3/9/63 の継承と範囲3〜127の余分な FD、blocked mask、3種の signal disposition、空引数・Unicode・literal shell 記号、GIT_* 除去と marker を確認する。
 - 既存の PTY 対照に launcher を加え、TTY / foreground、入力、Ctrl-C・SIGTERM・timeout の終了を比較する。
 - 部分 frame・余分な field・準備の非0終了は、完全な frame が出力済みでも target を起動しない。pipe buffer より大きい準備結果も比較する。準備中の親の SIGTERM では子を終了させ、回収してから同じ signal で終了する。
+- テスト harness の期限処理は独立した process group 全体を終了し、stderr と読み取りを閉じる。ready 前に停止する準備子でも待機が終わることと、launcher / 実際の Bun 準備子の PGID が同じであることを確認する。出力の読み取りを遅らせた2 MiB超の frame でも、`prep-complete-fail` が全 byte を送ってから終了17になることを正常終了の対照と比較する。この harness の cleanup は、製品候補の SIGKILL 後の子の寿命の採用判断とは区別する。
 - `lib/bun/` と `tests/fixtures/` の bytes・mode・file inventory を実行前後で比較する。生成 binary はテストの一時領域だけに build する。これは今回の fixture の不変性検査であり、製品配布物の導入・受入の証拠ではない。
 - lock の追加 case は旧 Python と同じ O_WRONLY / O_APPEND / O_CREAT、0666 & ~umask を使う。Perl は書込み専用 FD を受け取り、競合・close 後の再取得を検査する。
 

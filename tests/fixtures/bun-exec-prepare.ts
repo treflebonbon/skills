@@ -1,7 +1,7 @@
 const [requestedMode, executable, ...arguments_] = process.argv.slice(2);
 if (!executable) throw new Error("実証用 executable が必要です");
-if (requestedMode === "prep-hang") {
-  console.error(`prep-ready:${process.pid}`);
+if (requestedMode === "prep-hang" || requestedMode === "prep-before-ready") {
+  console.error(`${requestedMode === "prep-hang" ? "prep-ready" : "prep-started"}:${process.pid}`);
   setInterval(() => {}, 1_000);
 } else {
   const mode = requestedMode?.startsWith("search") ? "search" : "reviewer";
@@ -35,5 +35,5 @@ if (requestedMode === "prep-hang") {
     if (requestedMode === "prep-trailing") fields.push("unexpected");
     process.stdout.write(`${fields.join("\0")}\0`);
   }
-  if (requestedMode === "prep-complete-fail") process.exit(17);
+  if (requestedMode === "prep-complete-fail") process.exitCode = 17;
 }

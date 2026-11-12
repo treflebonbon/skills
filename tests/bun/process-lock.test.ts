@@ -529,39 +529,134 @@ for (const mode of ["prep-fail", "prep-partial", "prep-trailing", "prep-complete
   });
 }
 
-test("準備中に親を SIGTERM 終了すると準備子も終了し、親が回収する", async () => {
-  const child = spawn(entry, [runner, prepare, launcher, "prep-hang", observer], {
-    stdio: ["ignore", "ignore", "pipe"],
+test("prep-complete-fail は読み取りが遅い大きな frame も全て送ってから終了17になる", async () => {
+  const driver = join(root, "prepare-pressure.ts");
+  // kernel の argv 上限に依存せず、fixture 内で pipe buffer を超える入力を作る。
+  fs.writeFileSync(
+    driver,
+    `process.argv = ["bun", "proof", process.argv[2]!, ${JSON.stringify(observer)}, ...Array(32).fill("x".repeat(65_536))];\nawait import(${JSON.stringify(prepare)});\n`,
+  );
+  const control = spawnSync(runner, ["run", driver, "reviewer"], {
+    encoding: "utf8",
+    timeout: 5_000,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  expect(control.status).toBe(0);
+  expect(control.stdout.length).toBeGreaterThan(2 * 1024 * 1024);
+  const child = spawn(runner, ["run", driver, "prep-complete-fail"], {
+    stdio: ["ignore", "pipe", "pipe"],
   });
   const ended = once(child, "exit");
-  const lines = createInterface({ input: child.stderr });
-  let preparationPid: number | undefined;
-  const deadline = setTimeout(() => child.kill("SIGKILL"), 4_000);
+  child.stdout.pause();
+  let stderr = "";
+  child.stderr.on("data", (bytes) => {
+    stderr += bytes.toString();
+  });
   try {
-    for await (const line of lines) {
-      if (line.startsWith("prep-ready:")) {
-        preparationPid = Number(line.slice("prep-ready:".length));
-        child.kill("SIGTERM");
-        break;
-      }
-    }
-    expect(await ended).toEqual([null, "SIGTERM"]);
-    expect(preparationPid).toBeGreaterThan(1);
-    expect(() => process.kill(preparationPid!, 0)).toThrow();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const chunks: Buffer[] = [];
+    for await (const chunk of child.stdout) chunks.push(Buffer.from(chunk));
+    const output = Buffer.concat(chunks);
+    expect(await ended).toEqual([17, null]);
+    expect(stderr).toBe("");
+    expect(output.length).toBe(Buffer.byteLength(control.stdout));
+    expect(createHash("sha256").update(output).digest("hex")).toBe(
+      createHash("sha256").update(control.stdout).digest("hex"),
+    );
   } finally {
-    clearTimeout(deadline);
-    lines.close();
+    child.stdout.destroy();
     if (child.exitCode === null && child.signalCode === null) {
       child.kill("SIGKILL");
       await ended;
     }
-    if (preparationPid) {
-      try {
-        process.kill(preparationPid, "SIGKILL");
-      } catch {}
-    }
   }
 });
+
+for (const beforeReady of [false, true]) {
+  test(
+    beforeReady
+      ? "ready 前の期限切れでも準備 group 全体を終了して stderr の待機を終える"
+      : "準備中に親を SIGTERM 終了すると準備子も終了し、親が回収する",
+    async () => {
+      const child = spawn(
+        entry,
+        [runner, prepare, launcher, beforeReady ? "prep-before-ready" : "prep-hang", observer],
+        {
+          detached: true,
+          stdio: ["ignore", "ignore", "pipe"],
+        },
+      );
+      const ended = once(child, "exit");
+      const lines = createInterface({ input: child.stderr });
+      let preparationPid: number | undefined;
+      let expired = false;
+      function killGroup() {
+        if (!child.pid) return;
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        }
+      }
+      function expire() {
+        expired = true;
+        try {
+          killGroup();
+        } finally {
+          lines.close();
+          child.stderr.destroy();
+        }
+      }
+      let deadline = setTimeout(expire, 4_000);
+      try {
+        for await (const line of lines) {
+          const prefix = beforeReady ? "prep-started:" : "prep-ready:";
+          if (line.startsWith(prefix)) {
+            preparationPid = Number(line.slice(prefix.length));
+            const groups = spawnSync(
+              "ps",
+              ["-o", "pid=,pgid=", "-p", `${child.pid},${preparationPid}`],
+              { encoding: "utf8", timeout: 1_000 },
+            );
+            expect(groups.status).toBe(0);
+            const observed = groups.stdout
+              .trim()
+              .split("\n")
+              .map((row) => row.trim().split(/\s+/).map(Number));
+            expect(observed).toHaveLength(2);
+            for (const [, pgid] of observed) expect(pgid).toBe(child.pid!);
+            if (beforeReady) {
+              clearTimeout(deadline);
+              deadline = setTimeout(expire, 50);
+            } else child.kill("SIGTERM");
+          }
+        }
+        expect(await ended).toEqual([null, beforeReady ? "SIGKILL" : "SIGTERM"]);
+        expect(expired).toBe(beforeReady);
+        expect(preparationPid).toBeGreaterThan(1);
+        if (!beforeReady) expect(() => process.kill(preparationPid!, 0)).toThrow();
+        let groupGone = false;
+        for (let attempt = 0; attempt < 100; attempt++) {
+          try {
+            process.kill(-child.pid!, 0);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+            groupGone = true;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        expect(groupGone).toBe(true);
+      } finally {
+        clearTimeout(deadline);
+        lines.close();
+        killGroup();
+        child.stderr.destroy();
+        await ended;
+      }
+    },
+  );
+}
 
 async function pty(
   mode: "execve" | "posix-control" | "launcher",
