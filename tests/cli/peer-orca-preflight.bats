@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+bats_require_minimum_version 1.5.0
+
 setup() {
   PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
   SCRIPT="$PROJECT_ROOT/skills/orca-peer-refactor/scripts/orca-preflight.py"
@@ -310,9 +312,12 @@ assert.deepEqual(argv, [
   '--subject', 'レビュー依頼', '--type', 'status', '--json',
 ]);
 JS
+  run --separate-stderr env SKILL_DIR="$PROJECT_ROOT/skills/orca-peer-refactor" ORCA_CLI=orca-ide ORCA_BODY_FILE="$body_file" ARGV_CAPTURE="$BATS_TEST_TMPDIR/interactive-argv" PATH="$bin:$PATH" bash --noprofile --norc -i <"$example"
+  [ "$status" -eq 0 ]
+  cmp "$BATS_TEST_TMPDIR/argv" "$BATS_TEST_TMPDIR/interactive-argv"
 }
 
-@test "the documented Bash sender refuses an unset or empty SKILL_DIR before selecting a package" {
+@test "the documented Bash sender refuses invalid SKILL_DIR before selecting a package" {
   local example="$BATS_TEST_TMPDIR/example.sh" outside="$BATS_TEST_TMPDIR/outside" marker="$BATS_TEST_TMPDIR/outside-called"
   mkdir -p "$outside/skills/orca-peer-refactor" "$outside/bin"
   awk '
@@ -335,6 +340,32 @@ SH
   run env SKILL_DIR= ORCA_CLI=unused ORCA_BODY_FILE=unused OUTSIDE_MARKER="$marker" bash "$example"
   [ "$status" -ne 0 ]
   [[ "$output" == *"SKILL_DIR"* ]]
+  [ ! -e "$marker" ]
+  run env SKILL_DIR="$BATS_TEST_TMPDIR/missing-skill" ORCA_CLI=unused ORCA_BODY_FILE=unused OUTSIDE_MARKER="$marker" bash "$example"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"package root"* ]]
+  [ ! -e "$marker" ]
+  local interactive="$BATS_TEST_TMPDIR/interactive.sh"
+  cat "$example" >"$interactive"
+  cat >>"$interactive" <<'SH'
+example_status=$?
+printf 'EXAMPLE_STATUS=%s\n' "$example_status"
+printf 'INTERACTIVE_ALIVE\n'
+SH
+  run --separate-stderr env -u SKILL_DIR ORCA_CLI=unused ORCA_BODY_FILE=unused OUTSIDE_MARKER="$marker" bash --noprofile --norc -i <"$interactive"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'EXAMPLE_STATUS=1\nINTERACTIVE_ALIVE'* ]]
+  [[ "$stderr" == *"SKILL_DIR"* ]]
+  [ ! -e "$marker" ]
+  run --separate-stderr env SKILL_DIR= ORCA_CLI=unused ORCA_BODY_FILE=unused OUTSIDE_MARKER="$marker" bash --noprofile --norc -i <"$interactive"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'EXAMPLE_STATUS=1\nINTERACTIVE_ALIVE'* ]]
+  [[ "$stderr" == *"SKILL_DIR"* ]]
+  [ ! -e "$marker" ]
+  run --separate-stderr env SKILL_DIR="$BATS_TEST_TMPDIR/missing-skill" ORCA_CLI=unused ORCA_BODY_FILE=unused OUTSIDE_MARKER="$marker" bash --noprofile --norc -i <"$interactive"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'EXAMPLE_STATUS=1\nINTERACTIVE_ALIVE'* ]]
+  [[ "$stderr" == *"package root"* ]]
   [ ! -e "$marker" ]
 }
 

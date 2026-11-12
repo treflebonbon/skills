@@ -228,16 +228,22 @@ ordinary / nested worker の `check` は filter なしで whole FIFO を読む�
 
 <!-- literal-safe-example:start -->
 
-`SKILL_DIR` は実際に読み込んだ `skills/orca-peer-refactor/SKILL.md` の親 directory、`ORCA_CLI` は選択済み Orca command、`ORCA_BODY_FILE` は UTF-8 本文ファイルの絶対 path に設定してから実行する。`SKILL_DIR` が未設定・空、または directory を解決できない場合は送信を始めず終了する。
+`SKILL_DIR` は実際に読み込んだ `skills/orca-peer-refactor/SKILL.md` の親 directory、`ORCA_CLI` は選択済み Orca command、`ORCA_BODY_FILE` は UTF-8 本文ファイルの絶対 path に設定してから実行する。`SKILL_DIR` が未設定・空、または directory を解決できない場合は送信処理を実行せず非0の状態を返す。対話 Bash に貼り付ける場合も、条件ブロック全体を実行する。
 
 ```bash
-: "${SKILL_DIR:?SKILL_DIR に読み込み済み SKILL.md の親 directory を設定してください}"
-skill_dir="$(cd -- "$SKILL_DIR" && pwd -P)" || exit
-plugin_root="$(cd -- "$skill_dir/../.." && pwd -P)" || exit
-"$plugin_root/bin/orca-send" \
-  --cli "$ORCA_CLI" --body-file "$ORCA_BODY_FILE" -- \
-  --to 'run:<run-id>' --run '<run-id>' --from '<sender-handle>' \
-  --subject 'レビュー依頼' --type status --json
+if [[ -z "${SKILL_DIR:-}" ]]; then
+  printf '%s\n' 'SKILL_DIR に読み込み済み SKILL.md の親 directory を設定してください' >&2
+  false
+elif skill_dir="$(cd -- "$SKILL_DIR" && pwd -P)" &&
+  plugin_root="$(cd -- "$skill_dir/../.." && pwd -P)"; then
+  "$plugin_root/bin/orca-send" \
+    --cli "$ORCA_CLI" --body-file "$ORCA_BODY_FILE" -- \
+    --to 'run:<run-id>' --run '<run-id>' --from '<sender-handle>' \
+    --subject 'レビュー依頼' --type status --json
+else
+  printf '%s\n' 'SKILL_DIR から package root を解決できません' >&2
+  false
+fi
 ```
 
 <!-- literal-safe-example:end -->
