@@ -37,35 +37,86 @@ function swapAncestor(root: string, outside: string): void {
   expect(attacker.status).toBe(0);
 }
 
-function descriptorCapability(): { status: "available" | "incompatible"; reason?: string } {
+function descriptorCapability(): {
+  status: "available" | "incompatible";
+  reason?: string;
+  lookupErrno?: string;
+  fdAliasIdentity: boolean;
+  fdAliasError?: string;
+} {
   const root = fixture();
   const parentPath = join(root, "nested", "file");
   if (fs.readFileSync(parentPath, "utf8") !== "inside🙂\n")
     throw new Error("対照 fixture が不正です");
-  let parent: ReturnType<typeof openParent> | undefined;
+  const flags = fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW;
+  const rootFd = fs.openSync(root, flags);
+  const identity = fs.fstatSync(rootFd, { bigint: true });
+  const childPath = descriptorPath({ fd: rootFd, leaf: "nested" });
+  const alias = childPath.slice(0, -"/nested".length);
+  let fdAliasIdentity = false;
+  let fdAliasError: string | undefined;
   try {
-    parent = openParent(root, "nested/file");
-    if (readRegular(parent).toString("utf8") !== "inside🙂\n")
-      throw new Error("FD path が元の bytes を返しません");
-    return { status: "available" };
+    const duplicate = fs.openSync(alias, fs.constants.O_RDONLY);
+    try {
+      const observed = fs.fstatSync(duplicate, { bigint: true });
+      fdAliasIdentity = observed.dev === identity.dev && observed.ino === identity.ino;
+    } finally {
+      fs.closeSync(duplicate);
+    }
   } catch (error) {
-    if (
-      process.platform !== "darwin" ||
-      !(error instanceof Error) ||
-      !("code" in error) ||
-      error.code !== "ENOTDIR"
-    )
-      throw error;
-    return { status: "incompatible", reason: error.message };
+    fdAliasError = error instanceof Error ? error.message : String(error);
+  }
+  try {
+    try {
+      const child = fs.openSync(childPath, flags);
+      try {
+        if (readRegular({ fd: child, leaf: "file" }).toString("utf8") !== "inside🙂\n")
+          throw new Error("FD path が元の bytes を返しません");
+      } finally {
+        fs.closeSync(child);
+      }
+      return { status: "available", fdAliasIdentity, fdAliasError };
+    } catch (error) {
+      if (
+        process.platform !== "darwin" ||
+        !(error instanceof Error) ||
+        !("code" in error) ||
+        (error.code !== "ENOTDIR" && error.code !== "ENOENT")
+      )
+        throw error;
+      // fixture の消失や FD の close と、FD namespace の lookup 不適合を区別する。
+      const held = fs.fstatSync(rootFd, { bigint: true });
+      const direct = fs.statSync(root, { bigint: true });
+      const prefix = alias.slice(0, alias.lastIndexOf("/"));
+      if (
+        !held.isDirectory() ||
+        held.dev !== identity.dev ||
+        held.ino !== identity.ino ||
+        direct.dev !== identity.dev ||
+        direct.ino !== identity.ino ||
+        !fs.statSync(prefix).isDirectory() ||
+        fs.readFileSync(parentPath, "utf8") !== "inside🙂\n"
+      )
+        throw error;
+      return {
+        status: "incompatible",
+        reason: error.message,
+        lookupErrno: error.code,
+        fdAliasIdentity,
+        fdAliasError,
+      };
+    }
   } finally {
-    if (parent) closeParent(parent);
+    fs.closeSync(rootFd);
   }
 }
 
 const capability = descriptorCapability();
 test(`FD path 候補の機能判定を記録する: ${capability.status}`, () => {
-  if (capability.status === "incompatible") expect(capability.reason).toContain("ENOTDIR");
-  else expect(capability.status).toBe("available");
+  if (capability.status === "incompatible") {
+    expect(capability.reason).toMatch(/ENOTDIR|ENOENT/);
+    expect(capability.lookupErrno).toMatch(/^(ENOTDIR|ENOENT)$/);
+  } else expect(capability.status).toBe("available");
 });
 
 afterAll(() => {
@@ -82,6 +133,9 @@ afterAll(() => {
       sourceRevision: source.status === 0 ? source.stdout.trim() : null,
       fdPathLookup: capability.status,
       reason: capability.reason,
+      lookupErrno: capability.lookupErrno,
+      fdAliasIdentity: capability.fdAliasIdentity,
+      fdAliasError: capability.fdAliasError,
       fullContract: capability.status === "available" ? "see-test-results" : "not-run",
       adoption: "not-decided",
     }),

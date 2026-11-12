@@ -6,17 +6,19 @@
 
 directory FD を保持し、各 component を `O_DIRECTORY | O_NOFOLLOW` で開く。Linux では `/proc/self/fd/<directory-fd>/<component>` を使う。macOS の `/dev/fd/<directory-fd>/<component>` は別の候補として実測する。process 全体の cwd を変更したり、絶対 path を開いてから inode を比較する方式には置き換えない。
 
-| 環境                                 | Bun   | 判定                          | 必要な証拠・制約                                                                                                   |
-| ------------------------------------ | ----- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Linux x86_64 / WSL2 kernel 6.18.58.1 | 1.4.4 | 採用可・条件付き（confirmed） | 43テスト成功、旧版との17ケース比較、strace 7.2。信頼できる `/proc/self/fd` と保持中の directory FD が必要          |
-| Linux aarch64                        | 1.4.4 | 未確認（unconfirmed）         | 同じ fixture を標準 CI で実行し、この変更の job log にある機能判定と契約テストの結果を確認する                     |
-| macOS aarch64                        | 1.4.4 | 未確認（unconfirmed）         | `/dev/fd` の下を directory として辿れるかを実測する。Linux の結果と #31 の起動テストを、この候補の証拠へ転用しない |
+| 環境                                 | Bun   | 判定                          | 必要な証拠・制約                                                                                                          |
+| ------------------------------------ | ----- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Linux x86_64 / WSL2 kernel 6.18.58.1 | 1.4.4 | 採用可・条件付き（confirmed） | 43テスト成功、旧版との17ケース比較、strace 7.2。信頼できる `/proc/self/fd` と保持中の directory FD が必要                 |
+| Linux aarch64 / Ubuntu 24.04.5       | 1.4.4 | 採用可・条件付き（confirmed） | 標準 CI で本実証43件を含む66テスト成功。保持 FD と `/proc/self/fd` が必要。syscall trace は x86_64 でのみ取得             |
+| macOS aarch64 / macOS 15.8.2         | 1.4.4 | 現候補は不適合（confirmed）   | 既存の合成 directory を `/dev/fd/<fd>/nested` で開くと `ENOENT`。FD alias 単独と元 FD・元 path の対照を追加して再確認する |
 
 通常の fixture は実モデル・実 browser・資格情報・Nix を使わない。Linux の syscall 調査だけに `strace` を使った。新規 native helper・FFI の採用は判断していない。
 
-この表は環境ごとの採用判定を示す。Linux x86_64 では保持 FD の方式を下記の制約内で採用できるが、他の必要な環境は未確認であり、#32 全体は未完了。fixture の JSON にある `adoption: "not-decided"` は実測だけで全環境の採用を自動決定しないことを表し、Linux の条件付き採用可を取り消す意味ではない。
+この表は環境ごとの採用判定を示す。Linux では保持 FD の方式を下記の制約内で採用できるが、macOS に採用可能な方式がなく、#32 全体は未完了。fixture の JSON にある `adoption: "not-decided"` は実測だけで全環境の採用を自動決定しないことを表し、Linux の条件付き採用可を取り消す意味ではない。
 
-機能判定が `incompatible` の場合、基本的な対照読込みが成功したうえで、macOS の FD path が `ENOTDIR` で拒否されたことを記録する。必要な42契約テストは `describe.skipIf` で skip として表示し、JSON 記録を `fullContract: "not-run"` / `adoption: "not-decided"` にする。機能判定テストや job の成功だけを #32 の採用成功と数えない。その他の不明なエラーは不適合と決めつけず、テストを失敗させる。
+機能判定が `incompatible` の場合、基本的な対照読込みが成功し、保持 FD と元 root の device / inode が一致し、FD namespace 自体が存在することを確認したうえで、macOS の FD path が `ENOTDIR` / `ENOENT` で拒否されたことを記録する。FD alias 単独の open と identity の結果も記録する。必要な42契約テストは `describe.skipIf` で skip として表示し、JSON 記録を `fullContract: "not-run"` / `adoption: "not-decided"` にする。機能判定テストや job の成功だけを #32 の採用成功と数えない。その他の不明なエラーや対照の失敗は不適合と決めつけず、テストを失敗させる。
+
+初回の [CI run 43155204096](https://github.com/treflebonbon/skills/actions/runs/43155204096) は PR head `60b073aee56204bac7b617bb7b93947a7c46b690`、checkout source `8a750a35f8303316b4b9215345eeff1f6099cdd7` を検査した。[Linux arm64](https://github.com/treflebonbon/skills/actions/runs/43155204096/job/130973435760) と [Linux x86_64](https://github.com/treflebonbon/skills/actions/runs/43155204096/job/130973435863) は本実証43件を含む66テストで成功した。[macOS](https://github.com/treflebonbon/skills/actions/runs/43155204096/job/130973435988) は最初の component の open が `ENOENT` となった。機能判定 fixture が `ENOTDIR` だけを想定していたため初回 job は失敗したが、公開 CLI の既存23テストは通過した。errno を無条件に読み替えず、上記の対照を追加して不適合を記録する。
 
 ## 旧版と比較した境界
 
@@ -78,6 +80,8 @@ strace -f -yy -s 180 \
 - inode の比較と unlink、既存内容の検査と rename はそれぞれ別 syscall。これらを単一の原子的な比較・更新と呼ばない。ここでの検証は旧版の拒否条件と、検査前に置換された宛先の保持であり、任意の非協調 writer に対する完全な CAS の証明ではない。
 - 公開証跡の機密名・許可 root・provenance / hash と、raw の Git / policy 検査は、それぞれの移植 ticket が既存契約を引き継ぐ。相対 path の primitive だけを、公開絶対 path の validator の代替として使わない。
 - 必要な OS で候補が不適合、または証拠が足りない場合は、影響する入口を明記し、#32 を open のまま `ready-for-human` として方式を判断する。native helper / FFI を自動採用したり、拒否条件を緩めたりしない。
+
+現候補の macOS 不適合は [#38 の公開証跡](https://github.com/treflebonbon/skills/issues/38)の読込み・checkpoint / restore に影響する。[#44 の raw 入力](https://github.com/treflebonbon/skills/issues/44)は Linux の条件付き候補を持つが、#32 の native blocking link を勝手に外して先行しない。必要な追加判断は、macOS でも FD を基準に操作できる別方式と、そのビルド・配布・追加 runtime 要件を受け入れるかどうか。新規 native helper / FFI の実装・採用は、その判断後の範囲とする。
 
 公開 CLI・保存形式・Python の入口は変更していないため、この実証に伴う repo 外の呼び出し元の更新はない。今後入口を変更する ticket では、外部の対象と更新手順をその変更とともに報告する。
 
