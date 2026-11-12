@@ -1,0 +1,98 @@
+{
+  "sourceRevision": "236b0f61d194c277f0bb4c79561939113ee6ea24",
+  "sources": [
+    {
+      "path": "bin/codex-reviewer",
+      "sha256": "d2e7762ef3b4e33dc1778ffa17567090fd0b73d494ef08d5f5f4a19207a957b7"
+    },
+    {
+      "path": "lib/python/treflebonbon_skills/codex_reviewer.py",
+      "sha256": "72f03abf8bccde8b272f53f101fa6df25398d4745ecbb1c68d115c4b1719fff3"
+    },
+    {
+      "path": "lib/python/treflebonbon_skills/git_context.py",
+      "sha256": "986e2a6143cc467e760b7e931c93d3ab9126a6eda214192a372736502491de43"
+    },
+    {
+      "path": "share/codex-isolation/codex-inner.py",
+      "sha256": "98edfeda1f8ad632af6abdfb09b56cc3bfea29e5288fd519a599a078c07648f5"
+    },
+    {
+      "path": "share/codex-isolation/codex-namespace.py",
+      "sha256": "fa1b9de47711a6c25df0c2049ee1db10c29db89d83f3c0aa6564b2fe36cdc332"
+    },
+    {
+      "path": "share/codex-isolation/secret-isolation-worktree.py",
+      "sha256": "33cdbb6edee6bb703b7329afeeaa4246da5abf153d10d8046f06f9e83e32978d"
+    }
+  ],
+  "captured": {
+    "python": "3.14.7",
+    "os": "Linux",
+    "kernel": "6.18.58.1-microsoft-standard-WSL2",
+    "architecture": "x86_64"
+  },
+  "method": "既存の bin/codex-reviewer を、実モデルを呼ばない C observer を codex として起動して採取。FD と signal mask は observer seed が設定する。raw の namespace と Nix 起動はこの corpus で実行していない。",
+  "cases": [
+    {
+      "name": "inheritable-fd-and-mask",
+      "command": [
+        "<observer>",
+        "seed",
+        "<file>",
+        "inherit",
+        "blocked",
+        "bin/codex-reviewer",
+        "--",
+        "report",
+        "37",
+        "literal ; $() 🙂",
+        ""
+      ],
+      "expected": {
+        "exitCode": 37,
+        "signal": null,
+        "samePid": true,
+        "sameParent": true,
+        "sameGroup": true,
+        "sameSession": true,
+        "usr1Blocked": 1,
+        "fdInherited": true,
+        "fdCloexec": 0,
+        "tty": [0, 0, 0],
+        "marker": "literal🙂",
+        "literalTail": ["--", "report", "37", "literal ; $() 🙂", ""]
+      }
+    },
+    {
+      "name": "cloexec-fd",
+      "command": [
+        "<observer>",
+        "seed",
+        "<file>",
+        "cloexec",
+        "clear",
+        "bin/codex-reviewer",
+        "--",
+        "report",
+        "37",
+        "literal ; $() 🙂",
+        ""
+      ],
+      "expected": {
+        "exitCode": 37,
+        "signal": null,
+        "samePid": true,
+        "sameParent": true,
+        "sameGroup": true,
+        "sameSession": true,
+        "usr1Blocked": 0,
+        "fdInherited": false,
+        "fdCloexec": null,
+        "tty": [0, 0, 0],
+        "marker": "literal🙂",
+        "literalTail": ["--", "report", "37", "literal ; $() 🙂", ""]
+      }
+    }
+  ]
+}
