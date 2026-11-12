@@ -140,7 +140,7 @@ jobs:
             else
               printf 'fixture log は未取得です。\n'
             fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
   typescript-evidence:
     name: TypeScript evidence (Bun ${{ matrix.bun_version }})
