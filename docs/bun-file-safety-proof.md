@@ -12,7 +12,7 @@ directory FD を保持し、各 component を `O_DIRECTORY | O_NOFOLLOW` で開�
 | Linux aarch64 / Ubuntu 24.04.5       | 1.4.4 | 採用可・条件付き（confirmed） | 標準 CI で本実証43件を含む66テスト成功。保持 FD と `/proc/self/fd` が必要。syscall trace は x86_64 でのみ取得     |
 | macOS aarch64 / macOS 15.8.2         | 1.4.4 | 現候補は不適合（confirmed）   | 追試で元 FD・元 path・FD alias の identity を確認したが、子 path は `ENOENT`。必要42契約テストは未実行として skip |
 
-通常の fixture は実モデル・実 browser・資格情報・Nix を使わない。Linux の syscall 調査だけに `strace` を使った。新規 native helper・FFI の採用は判断していない。
+通常の fixture は実モデル・実 browser・資格情報・Nix を使わない。Linux の syscall 調査だけに `strace` を使った。上の表は FD path 候補の実測であり、後述する Node-API 追加実証の結果とは区別する。
 
 この表は環境ごとの採用判定を示す。Linux では保持 FD の方式を下記の制約内で採用できるが、macOS に採用可能な方式がなく、#32 全体は未完了。fixture の JSON にある `adoption: "not-decided"` は実測だけで全環境の採用を自動決定しないことを表し、Linux の条件付き採用可を取り消す意味ではない。
 
@@ -85,7 +85,17 @@ strace -f -yy -s 180 \
 
 現候補の macOS 不適合は [#38 の公開証跡](https://github.com/treflebonbon/skills/issues/38)の読込み・checkpoint / restore に影響する。[#44 の raw 入力](https://github.com/treflebonbon/skills/issues/44)は Linux の条件付き候補を持つが、#32 の native blocking link を勝手に外して先行しない。必要な追加判断は、macOS でも FD を基準に操作できる別方式と、そのビルド・配布・追加 runtime 要件を受け入れるかどうか。新規 native helper / FFI の実装・採用は、その判断後の範囲とする。
 
-追加実証の推奨案は、同じ process 内で `openat`・`mkdirat`・`renameat`・`linkat`・`unlinkat` を呼ぶ最小の Node-API helper。TypeScript / Bun の実装を維持し、欠けている FD 操作だけを対象にする。compiler / header と OS・architecture ごとのビルド・配布が増えるため、まず fixture で FD の受渡し・寿命、既存の拒否条件、必要なツールと生成物の配置を確認する。これは未承認の提案であり、実装・採用や本番の切り替えは行っていない。Bun は [Node-API module の読込み](https://bun.com/docs/runtime/node-api)をサポートし、[公式 FFI 文書](https://bun.com/docs/runtime/ffi)も安定した native 連携として Node-API を案内している。`bun:ffi` は実験的で本番利用非推奨のため、同じ前提で採用しない。
+## Node-API の追加実証
+
+ユーザーの承認を受け、同じ process 内で `openat`・`mkdirat`・`renameat`・`linkat`・`unlinkat` を呼ぶ最小の Node-API helper を fixture に追加した。TypeScript / Bun の実装を維持し、欠けている FD 操作だけを対象にする。公開 CLI の切り替え・本番配備は対象外。Bun は [Node-API module の読込み](https://bun.com/docs/runtime/node-api)をサポートし、[公式 FFI 文書](https://bun.com/docs/runtime/ffi)も安定した native 連携として Node-API を案内している。`bun:ffi` は実験的で本番利用非推奨のため採用しない。
+
+[C helper](../tests/fixtures/bun-file-safety-native.c) は Node-API の C header と POSIX libc だけを使い、Bun から渡された数値 FD を同じ process で操作する。返す FD は `O_CLOEXEC` を付けて caller に所有権を渡し、Bun の `fstat`・read・write・close と組み合わせる。単一 component と非負の int を C 境界でも検査し、syscall 失敗は errno を TypeScript 側へ返す。Bun が開いた parent を helper が閉じることはない。
+
+[実証用 loader](../tests/fixtures/bun-file-safety-native.ts) は、導入済み Node.js の実行 path に対応する `include/node/node_api.h` と `cc` を要求する。自動 download・node-gyp・追加 npm package は使わず、不足やビルド失敗はテスト失敗とする。Linux は `-shared -fPIC`、macOS は `-bundle -undefined dynamic_lookup` で、その環境の `.node` を作る。Node.js の版・compiler の版・header path・compile 引数・C source と生成物の SHA-256 をテスト末尾の JSON に記録する。
+
+ビルド先は `tmpdir()` 配下の mode 0700 の作業 directory。保護されたローカル検証では `/tmp/codex/verification-env.*/tmp/`、CI では runner の一時領域を使う。payload の中に生成物を置かず、load 後は成功・失敗とも作成した directory を削除する。通常の runtime で自動 build / install する入口は追加していない。この fixture の source build には C compiler と Node.js header が必要であり、将来の配布方法は移植 ticket で別途決める。
+
+5操作だけでは、macOS で既存 rollback の symlink を辿らない device / inode 検査を置換できない。現時点ではその部分に旧 FD path が残り、Node-API 候補を全環境で採用可とはしていない。`fstatat` の追加を確認中であり、ファイルを開いて metadata 検査を代用することで拒否条件を変更しない。
 
 公開 CLI・保存形式・Python の入口は変更していないため、この実証に伴う repo 外の呼び出し元の更新はない。今後入口を変更する ticket では、外部の対象と更新手順をその変更とともに報告する。
 

@@ -8,6 +8,7 @@ import {
   unlinkSync,
   type BigIntStats,
 } from "node:fs";
+import { native } from "./bun-file-safety-native.ts";
 
 export type Parent = { fd: number; leaf: string };
 
@@ -25,8 +26,9 @@ export function openParent(root: string, relative: string, rawInput = false): Pa
   let fd = openSync(root, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
   try {
     for (const part of parts.slice(0, -1)) {
-      const child = openSync(
-        descriptorPath({ fd, leaf: part }),
+      const child = native.openat(
+        fd,
+        part,
         constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
       );
       closeSync(fd);
@@ -37,6 +39,15 @@ export function openParent(root: string, relative: string, rawInput = false): Pa
     closeSync(fd);
     throw error;
   }
+}
+export function openRelative(
+  parent: Parent,
+  flags: number,
+  mode = 0o600,
+  name = parent.leaf,
+): number {
+  if (parent.fd < 0) throw new Error("directory FD は閉じています");
+  return native.openat(parent.fd, name, flags, mode);
 }
 export function descriptorPath(parent: Parent, name = parent.leaf): string {
   if (parent.fd < 0) throw new Error("directory FD は閉じています");
@@ -65,10 +76,7 @@ export function closeParent(parent: Parent): void {
 }
 
 export function readRegular(parent: Parent, singleLink = false, pause = () => {}): Buffer {
-  const fd = openSync(
-    descriptorPath(parent),
-    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-  );
+  const fd = openRelative(parent, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const before = fstatSync(fd, { bigint: true });
     if (!before.isFile()) throw new Error("通常ファイルが必要です");

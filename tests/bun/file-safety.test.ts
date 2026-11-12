@@ -7,11 +7,13 @@ import {
   closeParent,
   descriptorPath,
   openParent,
+  openRelative,
   readRegular,
   removeCreated,
   requirePrivateDirectory,
 } from "../fixtures/bun-file-safety.ts";
 import reference from "../fixtures/bun-file-safety-python.json";
+import { native, nativeBuild } from "../fixtures/bun-file-safety-native.ts";
 
 const directories: string[] = [];
 afterEach(() => {
@@ -70,7 +72,7 @@ function descriptorCapability(): {
     try {
       const child = fs.openSync(childPath, flags);
       try {
-        if (readRegular({ fd: child, leaf: "file" }).toString("utf8") !== "inside🙂\n")
+        if (fs.readFileSync(descriptorPath({ fd: child, leaf: "file" }), "utf8") !== "inside🙂\n")
           throw new Error("FD path が元の bytes を返しません");
       } finally {
         fs.closeSync(child);
@@ -136,21 +138,22 @@ afterAll(() => {
       lookupErrno: capability.lookupErrno,
       fdAliasIdentity: capability.fdAliasIdentity,
       fdAliasError: capability.fdAliasError,
-      fullContract: capability.status === "available" ? "see-test-results" : "not-run",
+      method: "node-api",
+      nativeBuild,
+      fullContract: "see-test-results",
       adoption: "not-decided",
     }),
   );
 });
 
-// 不適合の機構はここで採用せず、required contract の skip を可視化する。
-describe.skipIf(capability.status !== "available")("FD path 候補の契約", () => {
+describe("Node-API 候補の契約", () => {
   test("directory FD を基準に相対 path の元 bytes を読み、cwd を変更しない", () => {
     const root = fixture();
     const cwd = process.cwd();
     const parent = openParent(root, "nested/file");
     try {
-      const leaf = fs.openSync(
-        descriptorPath(parent),
+      const leaf = openRelative(
+        parent,
         fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK,
       );
       try {
@@ -228,8 +231,8 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
     const parent = openParent(root, "nested/file");
     try {
       swapAncestor(root, outside);
-      const leaf = fs.openSync(
-        descriptorPath(parent),
+      const leaf = openRelative(
+        parent,
         fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK,
       );
       try {
@@ -250,7 +253,7 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
     fs.writeFileSync(join(outer, "nested", "anchor", "file"), "inside");
     const parent = openParent(join(outer, "alias", "anchor"), "file");
     try {
-      expect(fs.readFileSync(descriptorPath(parent), "utf8")).toBe("inside");
+      expect(readRegular(parent).toString("utf8")).toBe("inside");
     } finally {
       closeParent(parent);
     }
@@ -327,8 +330,8 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
       const parent = openParent(root, "nested/created");
       try {
         swapAncestor(root, outside);
-        const fd = fs.openSync(
-          descriptorPath(parent),
+        const fd = openRelative(
+          parent,
           fs.constants.O_WRONLY |
             fs.constants.O_CREAT |
             fs.constants.O_EXCL |
@@ -361,8 +364,8 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
       try {
         expect(() =>
           fs.closeSync(
-            fs.openSync(
-              descriptorPath(parent),
+            openRelative(
+              parent,
               fs.constants.O_WRONLY |
                 fs.constants.O_CREAT |
                 fs.constants.O_EXCL |
@@ -405,7 +408,9 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
     closeParent(parent);
     const reused = fs.openSync(join(root, "nested", "file"), fs.constants.O_RDONLY);
     try {
-      expect(() => descriptorPath(parent)).toThrow("directory FD は閉じています");
+      expect(() => openRelative(parent, fs.constants.O_RDONLY)).toThrow(
+        "directory FD は閉じています",
+      );
     } finally {
       fs.closeSync(reused);
     }
@@ -417,9 +422,9 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
     const parent = openParent(root, "nested/created");
     try {
       swapAncestor(root, outside);
-      fs.mkdirSync(descriptorPath(parent), { mode: 0o700 });
-      const child = fs.openSync(
-        descriptorPath(parent),
+      native.mkdirat(parent.fd, parent.leaf, 0o700);
+      const child = openRelative(
+        parent,
         fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW,
       );
       try {
@@ -442,14 +447,14 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
     const parent = openParent(root, "nested/file");
     try {
       swapAncestor(root, outside);
-      const temporary = descriptorPath(parent, "temporary");
-      const fd = fs.openSync(
-        temporary,
+      const fd = openRelative(
+        parent,
         fs.constants.O_WRONLY |
           fs.constants.O_CREAT |
           fs.constants.O_EXCL |
           fs.constants.O_NOFOLLOW,
         0o600,
+        "temporary",
       );
       try {
         fs.writeFileSync(fd, "new complete bytes");
@@ -457,10 +462,10 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
       } finally {
         fs.closeSync(fd);
       }
-      fs.renameSync(temporary, descriptorPath(parent));
+      native.renameat(parent.fd, "temporary", parent.fd, parent.leaf);
       expect(fs.readFileSync(join(root, "moved", "file"), "utf8")).toBe("new complete bytes");
       expect(fs.statSync(join(root, "moved", "file")).mode & 0o777).toBe(0o755);
-      fs.unlinkSync(descriptorPath(parent));
+      native.unlinkat(parent.fd, parent.leaf);
       expect(fs.existsSync(join(root, "moved", "file"))).toBe(false);
       expect(fs.readFileSync(join(outside, "file"), "utf8")).toBe("outside");
     } finally {
@@ -472,29 +477,31 @@ describe.skipIf(capability.status !== "available")("FD path 候補の契約", ()
     const root = fixture();
     const parent = openParent(root, "snapshot");
     try {
-      const temporary = descriptorPath(parent, "temporary");
-      const fd = fs.openSync(
-        temporary,
+      const fd = openRelative(
+        parent,
         fs.constants.O_WRONLY |
           fs.constants.O_CREAT |
           fs.constants.O_EXCL |
           fs.constants.O_NOFOLLOW,
         0o600,
+        "temporary",
       );
       try {
         fs.writeFileSync(fd, "complete snapshot");
         fs.fsyncSync(fd);
-        fs.linkSync(temporary, descriptorPath(parent));
-        expect(fs.lstatSync(descriptorPath(parent), { bigint: true }).ino).toBe(
+        native.linkat(parent.fd, "temporary", parent.fd, parent.leaf);
+        expect(fs.lstatSync(join(root, "snapshot"), { bigint: true }).ino).toBe(
           fs.fstatSync(fd, { bigint: true }).ino,
         );
-        expect(() => fs.linkSync(temporary, descriptorPath(parent))).toThrow("EEXIST");
+        expect(() => native.linkat(parent.fd, "temporary", parent.fd, parent.leaf)).toThrow(
+          "EEXIST",
+        );
       } finally {
         fs.closeSync(fd);
-        fs.unlinkSync(temporary);
+        native.unlinkat(parent.fd, "temporary");
       }
-      expect(fs.readFileSync(descriptorPath(parent), "utf8")).toBe("complete snapshot");
-      expect(fs.statSync(descriptorPath(parent)).nlink).toBe(1);
+      expect(readRegular(parent).toString("utf8")).toBe("complete snapshot");
+      expect(fs.statSync(join(root, "snapshot")).nlink).toBe(1);
     } finally {
       closeParent(parent);
     }
