@@ -28,22 +28,119 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   bun-cli:
-    name: Bun CLI と型検査
-    runs-on: ubuntu-latest
+    name: Bun CLI と型検査 (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux
+            machine: x86_64
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            machine: aarch64
+            arch: arm64
+          - runner: macos-15
+            platform: darwin
+            machine: arm64
+            arch: arm64
+    env:
+      EXPECTED_BUN_VERSION: "1.4.4"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        id: checkout
         with:
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        id: bun
         with:
-          bun-version: "1.4.4"
+          bun-version: ${{ env.EXPECTED_BUN_VERSION }}
+      - name: 実行環境を照合
+        id: environment
+        shell: bash
+        env:
+          EXPECTED_PLATFORM: ${{ matrix.platform }}
+          EXPECTED_MACHINE: ${{ matrix.machine }}
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          observed_source="$(git rev-parse HEAD)"
+          observed_os="$(uname -sr)"
+          observed_machine="$(uname -m)"
+          observed_platform="$(bun --print process.platform)"
+          observed_arch="$(bun --print process.arch)"
+          observed_bun="$(bun --version)"
+          {
+            printf 'source=%s\n' "$observed_source"
+            printf 'os=%s\n' "$observed_os"
+            printf 'machine=%s\n' "$observed_machine"
+            printf 'platform=%s\n' "$observed_platform"
+            printf 'arch=%s\n' "$observed_arch"
+            printf 'bun=%s\n' "$observed_bun"
+          } >> "$GITHUB_OUTPUT"
+          if [[ "$observed_platform" != "$EXPECTED_PLATFORM" ||
+                "$observed_machine" != "$EXPECTED_MACHINE" ||
+                "$observed_arch" != "$EXPECTED_ARCH" ||
+                "$observed_bun" != "$EXPECTED_BUN_VERSION" ]]; then
+            echo '::error::実行環境が matrix の OS・architecture・Bun 版と一致しません'
+            exit 1
+          fi
       - name: 開発依存を導入
+        id: install
         run: npm ci --prefix development
-      - name: 型検査と Bun CLI の回帰検査
-        run: npm run typecheck && npm run test:bun
+      - name: 型検査
+        id: typecheck
+        run: npm run typecheck
+      - name: Bun CLI と portable fixture の回帰検査
+        id: fixtures
+        shell: bash
+        run: npm run test:bun 2>&1 | tee "$RUNNER_TEMP/bun-fixtures.log"
+      - name: 実行環境と結果を記録
+        if: always()
+        shell: bash
+        env:
+          RUNNER_LABEL: ${{ matrix.runner }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          OBSERVED_SOURCE: ${{ steps.environment.outputs.source }}
+          OBSERVED_OS: ${{ steps.environment.outputs.os }}
+          OBSERVED_MACHINE: ${{ steps.environment.outputs.machine }}
+          OBSERVED_PLATFORM: ${{ steps.environment.outputs.platform }}
+          OBSERVED_ARCH: ${{ steps.environment.outputs.arch }}
+          OBSERVED_BUN: ${{ steps.environment.outputs.bun }}
+          CHECKOUT_RESULT: ${{ steps.checkout.outcome }}
+          SETUP_RESULT: ${{ steps.bun.outcome }}
+          ENVIRONMENT_RESULT: ${{ steps.environment.outcome }}
+          INSTALL_RESULT: ${{ steps.install.outcome }}
+          TYPECHECK_RESULT: ${{ steps.typecheck.outcome }}
+          FIXTURES_RESULT: ${{ steps.fixtures.outcome }}
+        run: |
+          {
+            printf '## Bun portable fixture\n\n'
+            printf '| 項目 | 実測・結果 |\n| --- | --- |\n'
+            printf '| checkout source | %s |\n' "${OBSERVED_SOURCE:-未取得}"
+            printf '| PR head | %s |\n' "$PR_HEAD_SHA"
+            printf '| runner | %s |\n' "$RUNNER_LABEL"
+            printf '| OS / kernel | %s |\n' "${OBSERVED_OS:-未取得}"
+            printf '| host architecture | %s |\n' "${OBSERVED_MACHINE:-未取得}"
+            printf '| Bun platform / architecture | %s / %s |\n' "${OBSERVED_PLATFORM:-未取得}" "${OBSERVED_ARCH:-未取得}"
+            printf '| Bun | %s |\n' "${OBSERVED_BUN:-未取得}"
+            printf '| checkout / Bun 導入 | %s / %s |\n' "$CHECKOUT_RESULT" "$SETUP_RESULT"
+            printf '| 環境照合 / 依存導入 | %s / %s |\n' "$ENVIRONMENT_RESULT" "$INSTALL_RESULT"
+            printf '| 型検査 / fixture | %s / %s |\n' "$TYPECHECK_RESULT" "$FIXTURES_RESULT"
+            printf '\n失敗・未実行・fixture 内の skip は未確認です。後続実証の成功として転用しません。\n'
+            printf '\n### fixture log（末尾20行）\n\n'
+            if [[ -f "$RUNNER_TEMP/bun-fixtures.log" ]]; then
+              printf '```text\n'
+              tail -n 20 "$RUNNER_TEMP/bun-fixtures.log"
+              printf '\n```\n'
+            else
+              printf 'fixture log は未取得です。\n'
+            fi
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
   typescript-evidence:
     name: TypeScript evidence (Bun ${{ matrix.bun_version }})

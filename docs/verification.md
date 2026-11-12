@@ -24,7 +24,21 @@ validator は manifest の受理、mock/fixture は指定分岐の挙動、公�
 
 開発依存として Node.js 20.19+、npm、Python 3、Bun 1.4.4+、Bats Core 1.x、`jq` を用意します。TypeScript evidence の Bats は `npm test` と pre-push で実行され、Bun 1.4.4 以上を必要とします。旧版の拒否も確認する場合は、`TYPESCRIPT_EVIDENCE_OLD_BUN` に Bun 1.2.14 の実行ファイルの絶対パスを指定します。`npm run lint:sh` には `shfmt` と `shellcheck` も要ります。
 
-CI の `bun-cli` は Bun 1.4.4 で型検査と `npm run test:bun` を実行します。`typescript-evidence` の旧版 job では共用起動の拒否も検査します。
+CI の `bun-cli` は Bun 1.4.4 で型検査と `npm run test:bun` を実行します。次の標準 GitHub-hosted runner を使い、OS・host architecture・Bun の platform / architecture・版が期待値と一致しなければ fixture を始めず失敗します。runner の対応表は [GitHub の公式資料](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#standard-github-hosted-runners-for-public-repositories)を参照します。
+
+| 検証対象      | runner             | host architecture | Bun platform / architecture |
+| ------------- | ------------------ | ----------------- | --------------------------- |
+| Linux x86_64  | `ubuntu-latest`    | `x86_64`          | `linux / x64`               |
+| Linux aarch64 | `ubuntu-24.04-arm` | `aarch64`         | `linux / arm64`             |
+| macOS aarch64 | `macos-15`         | `arm64`           | `darwin / arm64`            |
+
+各 job の summary に、実際の checkout SHA と PR head SHA、runner、実測した OS / kernel・architecture・Bun 版、導入・環境照合・型検査・fixture の結果と fixture log の末尾20行を記録します。導入失敗や未実行も `always()` の記録 step に残します。PR の checkout は通常 merge commit なので、PR head と実際に検査した checkout を区別します。
+
+後続の portable なファイル操作・process / lock の実証は、`tests/bun/` にテストを追加し、同じ `npm run test:bun` を3つの環境で実行します。この matrix は合成 fixture と型検査だけを対象にし、実モデル・実 browser・認証・Nix / raw isolation を呼びません。summary と通常の job log を証拠とし、artifact の upload や cache の拡張は行いません。
+
+実測結果は対象 HEAD の各 job summary と fixture log で確認します。runner が定義されていても、未実行・環境不一致・導入失敗・required test の skip は未確認です。Linux x86_64 の結果を macOS / Linux aarch64 の証拠として転用せず、必要な環境の成功が揃うまで実証完了や後続 ticket の解禁を判断しません。fixture の成功も、実 CLI session や OS ごとの受入とは別の証拠です。
+
+`typescript-evidence` の旧版 job では共用起動の拒否も検査します。
 
 CI の `typescript-evidence` は Bun 1.4.4 と `ast-grep 0.42.1` で抽出テストを実行し、別の Bun 1.2.14 ジョブで `unavailable` による拒否を確認します。対応版では実物の `ast-grep` の版を先に確認するため、ツール不足で native テストがスキップされた結果を成功扱いしません。旧版の拒否テストは専用ジョブで必ず実行します。
 
