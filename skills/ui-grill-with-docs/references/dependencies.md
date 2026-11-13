@@ -7,3 +7,5 @@
 生成した sheet を browser で開く場合に限り、別途導入した `playwright-cli` が任意で必要です。単体で動作する HTML を作成し、file link を利用者に渡すだけなら不要です。browser 表示ができない場合は既存の代替手順を使い、file link を示して、sheet から回答を貼り付けられることを説明してください。
 
 template、埋め込み回答 script、round-question example は [`assets/round.html`](../assets/round.html) に含まれます。HTML は network resource を使わず、build step も必要ありません。各 session の sheet は、導入済み plugin の外にある task 所有の scratch 配下へ書き込みます。
+
+file URL の代わりに loopback HTTP で表示する経路だけ、package の `bin/serve-local` と Bash・Bun 1.4.4 以上が必要です。専用 document root を渡し、起動 JSON の URL を使います。Python と追加 install は不要です。[共用 CLI](../../../docs/shared-cli.md)と[配信の移行記録](../../../docs/bun-loopback-proof.md)を参照してください。

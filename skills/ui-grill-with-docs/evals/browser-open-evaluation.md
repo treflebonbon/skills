@@ -118,3 +118,11 @@ Aの各実行時にはHTTP 200と実際の表示を確認した。後続評価�
 | 既存契約 | `bats tests/workflow-contract.bats` 14件、`bats tests/nix-devshell.bats --filter 'ui grill skill'` 1件が通過。 |
 
 通常の対話をまたぐHTTP配信寿命とネイティブusage不足は、上記評価の未確認事項として引き続き残る。
+
+## Bun 配信への移行 — 2026-11-13
+
+上記の Python による実測結果と過去のスコアは保持する。現在の配信手順は package の `bin/serve-local` を使う。[配信の移行記録](../../../docs/bun-loopback-proof.md)と[旧 HTTP corpus](../../../tests/fixtures/loopback-python.json)に、変更前の source revision と21ケースの元応答を保存した。
+
+`tests/bun/serve-local.test.ts` で専用 root の index / file、通常・encode された親参照、別 session、symlink、同じ URL の round 更新、process の終了後の到達不能を確認する。root 外 symlink と index のない directory は404とし、この3ケースは旧版の200からの変更として明示する。使用中 port では既存 server を保持する。
+
+この HTTP / process 検査は実 browser の表示や人の回答待ちを再評価したものではない。実 browser での session / round の照合、通常の対話をまたぐ寿命、native usage の不足は別の検証対象として残る。
