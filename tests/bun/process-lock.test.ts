@@ -529,6 +529,30 @@ for (const mode of ["prep-fail", "prep-partial", "prep-trailing", "prep-complete
   });
 }
 
+// kernel.pid_max は 64-bit Linux で 4194304 まで上がる。準備子の PID を件数の上限で弾くと、
+// 準備 pipe を読む前に失敗して準備子が EPIPE になる。
+test.skipIf(process.platform !== "linux")(
+  "専用 launcher は 100 万を超える準備子 PID でも準備 pipe を読み始める",
+  () => {
+    const frame = join(root, "large-pid-frame");
+    fs.writeFileSync(frame, "x");
+    // 存在しない PID は waitpid で失敗するが、その前に frame を読むかどうかで引数検査を区別する。
+    const result = spawnSync(
+      "/bin/bash",
+      [
+        "-c",
+        'exec 3<"$1"; "$2" /dev/fd/3 4194304 2>/dev/null; sed -n "s/^pos:\\t//p" /proc/self/fdinfo/3',
+        "bash",
+        frame,
+        launcher,
+      ],
+      { encoding: "utf8", timeout: 5_000 },
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe("1");
+  },
+);
+
 test("prep-complete-fail は読み取りが遅い大きな frame も全て送ってから終了17になる", async () => {
   const driver = join(root, "prepare-pressure.ts");
   // kernel の argv 上限に依存せず、fixture 内で pipe buffer を超える入力を作る。
