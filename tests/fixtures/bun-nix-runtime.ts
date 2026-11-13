@@ -145,7 +145,11 @@ function launch(directory: string, mode: string) {
   const manifest: RuntimeManifest = JSON.parse(
     readFileSync(resolve(directory, "manifest.json"), "utf8"),
   );
-  for (const path of Object.values(manifest.tools)) storeRoot(path);
+  for (const path of Object.values(manifest.tools)) {
+    storeRoot(path);
+    if (realpathSync(path) !== path)
+      throw new Error("tool は Nix store 内の実体パスである必要があります");
+  }
   for (const path of manifest.closure)
     if (storeRoot(path) !== path) throw new Error("不正な closure path です");
   const mounted = manifest.closure.filter((path) =>

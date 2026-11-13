@@ -47,6 +47,7 @@ payload の書込み拒否と正常起動を併せて確認する。読み取り
 
 - Nix store 外の Bun は state の作成と copy の前に拒否する。
 - 保存後に tool を Nix store 外の合成 executable へ変更すると、実行前に拒否し、その executable の marker を作らない。
+- Nix store の root に続けた `..` で外部の合成 executable を指す場合も、実体パスとの不一致で実行前に拒否する。
 - Bun の package を mount しない対照は終了2となり、host の Bun に fallback しない。
 - package root だけを公開する対照は、共有ライブラリを含む closure が不足して `execvp` / `No such file or directory` で拒否される。同じ wrapper と完全な closure の対照は成功する。
 - `--version` に1.2.14を返す合成 executable を内側の選択 Bun に重ねた対照は、既存 `lib/bun/run` が終了2で拒否し、本体実行の marker を作らない。旧 Nix Bun の実バイナリを入手して動かした証拠とは区別する。
@@ -62,9 +63,15 @@ payload の書込み拒否と正常起動を併せて確認する。読み取り
 
 ## 対応環境と再実行
 
-2026-11-13 に確認した環境は Linux / WSL2 x86_64、kernel `6.18.58.1-microsoft-standard-WSL2`、Bun 1.4.4、Nix 2.34.6、Bash 5.3p9、coreutils 9.11、bubblewrap 0.12.0。8件が pass、失敗・skip は0。Bun 1.4.4 以上という既存 runner の条件を維持し、移行全体の最低版や Nix の下限をこの1環境から推定しない。
+2026-11-13 に確認した環境は Linux / WSL2 x86_64、kernel `6.18.58.1-microsoft-standard-WSL2`、Bun 1.4.4、Nix 2.34.6、Bash 5.3p9、coreutils 9.11、bubblewrap 0.12.0。9件が pass、失敗・skip は0。Bun 1.4.4 以上という既存 runner の条件を維持し、移行全体の最低版や Nix の下限をこの1環境から推定しない。
 
-`~/runtime/skill-harness.md` の保護された検証入口から task worktree を指定する。
+必要な Nix tools と namespace 権限を用意し、checkout の root を作業ディレクトリとして、利用環境の保護された検証入口に次のコマンドを渡す。
+
+```sh
+NIX_BUN_PROOF_REAL=1 lib/bun/run test tests/bun/nix-runtime.test.ts
+```
+
+記録時は `~/runtime/skill-harness.md` の保護された検証入口から task worktree を指定した。
 
 ```sh
 python3 -B /home/ubuntu/ghq/github.com/treflebonbon/dotfiles/scripts/verification_env.py \
@@ -74,7 +81,7 @@ python3 -B /home/ubuntu/ghq/github.com/treflebonbon/dotfiles/scripts/verificatio
 
 末尾の `boundary: "nix-runtime"` の JSON に source revision、fixture / test source hash、選択 tool と closure、準備時間、不変性の結果を残す。dirty checkout では HEAD と両方の source hash を併せて照合する。準備は test file ごとに一度だけ行い、終了後に自分が作った専用 store を片付ける。追加の npm package、FFI、native build は不要。既存入口の検査には通常の raw fixture と同じ Nix tool 群・Python・Git・GitHub CLI も必要だが、実モデル・認証・外部サービスは使用しない。
 
-通常の Bun suite は Nix store 外の Bun の拒否を検査し、実隔離の7件は明示 opt-in まで skip する。未実行時の JSON は `realIsolation: "not-requested"` とし、Nix がない CI の成功を実証の成功に数えない。opt-in 時の tool・権限・版の不足は失敗にする。通常 Linux / aarch64、WSL2 aarch64 は未確認。macOS と Windows native は raw isolation の対象外。
+通常の Bun suite は Nix store 外の Bun の拒否を検査し、実隔離の8件は明示 opt-in まで skip する。未実行時の JSON は `realIsolation: "not-requested"` とし、Nix がない CI の成功を実証の成功に数えない。opt-in 時の tool・権限・版の不足は失敗にする。通常 Linux / aarch64、WSL2 aarch64 は未確認。macOS と Windows native は raw isolation の対象外。
 
 ## repo 外の切り替えと残る判断
 

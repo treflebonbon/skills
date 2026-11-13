@@ -228,6 +228,32 @@ describe.skipIf(!real)("Nix closure の実隔離（明示 opt-in）", () => {
       writeFileSync(file, saved);
     }
   });
+  test("Nix store 内に見せた traversal tool path は host 実行前に拒否する", () => {
+    const file = resolve(state, "manifest.json");
+    const saved = readFileSync(file);
+    const fake = resolve(state, "traversal-bwrap");
+    const marker = resolve(state, "traversal-called");
+    writeFileSync(fake, '#!/bin/sh\nprintf executed > "$NIX_BUN_PROOF_CAPTURE"\n', { mode: 0o700 });
+    const traversal = `${resolve(manifest.tools.bun, "../..")}/../../..${fake}`;
+    writeFileSync(
+      file,
+      JSON.stringify({ ...manifest, tools: { ...manifest.tools, bwrap: traversal } }),
+    );
+    try {
+      const result = spawnSync(runner, ["run", fixture, "run", state, "normal"], {
+        encoding: "utf8",
+        timeout: 15_000,
+        env: { ...process.env, NIX_BUN_PROOF_CAPTURE: marker },
+      });
+      expect(result.error).toBeUndefined();
+      expect(existsSync(marker)).toBe(false);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("Nix store 内の実体パス");
+      expect(result.stdout).not.toContain('"event":"launch"');
+    } finally {
+      writeFileSync(file, saved);
+    }
+  });
   test("既存 raw fixture と公開 run 入口でも Bun closure・書込み制限を維持する", () => {
     const integration = resolve(temporary, "existing-boundary");
     mkdirSync(integration, { mode: 0o700 });
@@ -275,7 +301,8 @@ NIX_BUN_PROOF_POISON=must-not-enter python3 -I -B "$PROJECT_ROOT/share/codex-iso
 `;
     const result = spawnSync(manifest.tools.bash, ["-c", script], {
       encoding: "utf8",
-      timeout: 90_000,
+      // 既存入口の nix copy は300秒を許容するため、準備と後続処理にも余裕を持たせる。
+      timeout: 360_000,
       env: {
         ...process.env,
         PROJECT_ROOT: root,
@@ -318,5 +345,5 @@ NIX_BUN_PROOF_POISON=must-not-enter python3 -I -B "$PROJECT_ROOT/share/codex-iso
         .update(readFileSync(resolve(root, "share/codex-isolation/secret-isolation-worktree.py")))
         .digest("hex"),
     };
-  }, 95_000);
+  }, 370_000);
 });
