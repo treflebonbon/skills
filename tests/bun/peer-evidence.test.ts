@@ -274,6 +274,10 @@ test("Python・compiler・node_modules がない読み取り専用 payload で p
       cache = resolve(directory, "cache"),
       commands = resolve(directory, "bin"),
       poison = resolve(directory, "poison");
+    // system alias がない Linux でも、実行した checker の実体パスを検証する。
+    const physicalPayload = resolve(directory, "physical-payload");
+    fs.mkdirSync(physicalPayload);
+    fs.symlinkSync(physicalPayload, payload);
     fs.mkdirSync(resolve(payload, "lib"), { recursive: true });
     fs.cpSync(resolve(root, "lib/bun"), resolve(payload, "lib/bun"), { recursive: true });
     for (const peer of peers) {
@@ -353,7 +357,7 @@ test("Python・compiler・node_modules がない読み取り専用 payload で p
         );
         expect(result.status, result.stderr).toBe(0);
         expect(JSON.parse(result.stdout).command).toEqual([
-          resolve(payload, `skills/${peer}/scripts/candidate-record`),
+          fs.realpathSync(resolve(payload, `skills/${peer}/scripts/candidate-record`)),
           "check",
           corpus.recordPath,
           corpus.candidatesPath,

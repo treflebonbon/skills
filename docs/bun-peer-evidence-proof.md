@@ -38,7 +38,9 @@ checkpoint は書込みと fsync を終えた一時ファイルから link で�
 
 [CLI テスト](../tests/bun/peer-evidence.test.ts)は旧 corpus、整数・Unicode、record 読込み後の置換、chmod・部分 write・close・後続ファイルの失敗、競合と置換先の保持を検査する。native cache の欠落・改変・symlink・mode・環境不一致を拒否し、自動修復しないことも確認する。Python・compiler・node_modules を PATH と payload に持たない実行で、read-only payload の前後の bytes / mode と preload の不実行を照合する。既存 Bats の provenance・FIFO・timeout・機密名・復旧検査も維持する。HTML parser の75入力は #36 の suite を引き継ぐ。
 
-ローカルの対象検査は Linux x64 / WSL2、Bun 1.4.4 で実行する。全体 suite とレビューの結果は実装の検証記録に残す。#32 の3環境の実証は採用方式の根拠であり、この production loader の macOS arm64 / Linux arm64 の実行結果とは区別する。後者は、この変更の CI 実行まで未確認。
+ローカルの対象検査は Linux x64 / WSL2、Bun 1.4.4 で実行する。全体 suite とレビューの結果は実装の検証記録に残す。#32 の3環境の実証は採用方式の根拠であり、この production loader の macOS arm64 / Linux arm64 の実行結果とは区別する。今回の3環境の checkout SHA と結果は [PR #76](https://github.com/treflebonbon/skills/pull/76) の CI 記録で確認する。
+
+read-only payload の probe テストは Linux でも symlink 経由で呼び出す。receipt の実 command は wrapper の実体と同じ canonical path なので、期待する checker path も `realpath` で解決して argv 全体を照合する。macOS の `/tmp` alias を字面どおりの path と比較して失敗することを防ぎ、呼出し元の alias と実行先の checker を区別する。
 
 ## repo 外で必要な更新
 
