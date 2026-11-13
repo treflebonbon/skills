@@ -1,0 +1,51 @@
+---
+name: product-guide
+description: "対象版のコードと承認済みの用語・仕様・ADR を調べ、根拠付きモデルから利用者向けの単体 HTML の利用ガイドを生成する。"
+disable-model-invocation: true
+---
+
+# product-guide
+
+対象版の「今、何ができるか」を、利用者向けの単体 HTML の**利用ガイド**にする。調査と文章化はあなた（エージェント）が行い、決定的な CLI がモデルを検証して HTML を生成する。語彙は `GLOSSARY.md` の「利用ガイド」「対象版」「調査範囲」「根拠区分」「提供状況」に従う。
+
+## 手順
+
+1. 対象の Git 参照をコミット ID（40 桁）へ解決する。CLI は解決しない。ブランチ名のままモデルへ入れない。
+2. 対象版のコードと、承認済みの用語・仕様・ADR を調べ、[モデル仕様](references/model.md)の JSON を書く。モデルは session 所有の scratch に置く。
+3. 各主張に根拠を付ける。根拠区分は `code-verified`（対象版のコードで確認した事実）、`approved-decision`（承認済みの業務判断）、`inferred`、`unverified`。コードの事実と業務判断が食い違うときは `conflicts` に両方の主張を残す。どちらかへ寄せない。 利用者から訂正を受けたら、コードの事実確認と業務判断を分けて反映する。承認されていない判断を `approved-decision` へ自動で格上げしない。
+4. 提供状況（`available` / `in-development` / `proposed` / `unknown`）は人から指定された値だけを書く。コミットから推定しない。未指定は `unknown`。`proposed` は現行機能と別枠に出る。`proposed` の機能を `summary` など自由記述で現行のものとして書かない（検査できない）。比較の `changes` には、`proposed` の機能を `removed` 以外で載せられない。
+5. TypeScript/JavaScript のソースは、手順 2 で `collect-evidence` により対象版の構文上の根拠（シンボルと位置）を集められる（下記）。他の言語は、対象版のソースを読み、その根拠を `evidence` に手で記録する（自動抽出はない）。
+6. `validate` で検証し、`generate` で出力する。
+
+```bash
+skill_dir="<読み込んだ SKILL.md の絶対パスの親 directory>"
+plugin_root="$(cd -- "$skill_dir/../.." && pwd -P)"
+"$plugin_root/lib/bun/run" run "$skill_dir/scripts/product-guide.ts" validate model.json
+"$plugin_root/lib/bun/run" run "$skill_dir/scripts/product-guide.ts" generate model.json --audience internal --out <出力親 directory>
+```
+
+`--audience` は `internal` か `public`。出力は `<out>/<完全なコミット ID>-<audience>/index.html`。既存があれば上書きせず失敗し、強制上書きの手段はない。比較するときはモデルの `baseline` と `changes` を書く（[モデル仕様](references/model.md)）。出力先は `<out>/<対象版>-vs-<比較元>-<audience>/index.html`。未対応の入力は、黙って無視せずエラーになる。
+
+## TypeScript/JavaScript の根拠収集
+
+```bash
+"$plugin_root/lib/bun/run" run "$skill_dir/scripts/collect-evidence.ts" <git repo> --commit <完全なコミット ID> --out evidence.json [--path <接頭辞>]
+```
+
+指定コミットの版（作業ツリーではない）から、関数・クラス・メソッド・インターフェース・型・enum・関数値の const の名前と位置を、ast-grep で集める。出力 `evidence.json` の `evidence` 配列を、モデルの `evidence` へそのまま取り込める（ID は `AG1`…。モデルの他の ID と重ならないようにする）。**収集した根拠の `kind` は全て `unverified`。** 構文上の宣言があるだけで、業務上の意味は何も示さない。ソースを読んで事実を確かめた根拠だけ、あなたが `code-verified` に変える。出力先が既にあれば上書きせず失敗する。
+
+**大きなリポジトリでは `--path` で対象を分けて実行する。** 同梱の ast-grep（WASM）の node は GC に任せると実行中に解放されず、ファイルが多いほどメモリが増える。スクリプトはファイルごとに作った node と構文木を処理後に `free()` する（計測: 300 ファイル・36000 件の根拠で、最大メモリが約 380 MB から約 234 MB に減り、出力は同一）。ただし増加はなくならない（解放後も 1 パースあたり約 20 KB が残る計測だった）。数千ファイル規模では接頭辞で分割して実行し、`evidence` 配列は ID が重ならないように後で結合する。
+
+## 保証の範囲
+
+- `validate` が保証するのは構造の整合だけ。対象版 ID の形式、主張から根拠への参照、根拠の版が対象版と一致すること、`code-verified` の根拠にコミット ID とパスがあること。**実コードとの一致は、調べたあなたの責任**で、CLI は検証済みとして扱わない。
+- `public` は、根拠・コミット ID・パス・シンボルをモデルから取り除いた別データから HTML を作る（投影方式）。さらに最後の安全網として、投影後の自由記述（題名・要約・操作名・用語集・未確認事項・主張・矛盾）を次で検査し、一致すれば成果物を作らず失敗する。拒否メッセージには、一致した根拠の ID と項目（例: `根拠 E1 の symbol`）を出し、値そのものは出さない。
+  - **登録済みの値:** パスとコミット ID は部分一致で照合する。シンボルは識別子の境界（前後が英数字・`_`・`$` でないこと）で照合する。短い識別子（`D` など）が `PDF` のような語に紛れても拒否しないが、`D を押す` のように単独で現れれば拒否する。
+  - **形式:** 7〜40 桁の小文字 16 進の ID（数字と英字の両方を含むもの）、`ADR` の後に数字が続くもの（`ADR-12`・`ADR 12`）、`issue` の後に数字が続くもの（`issue 56`・`issue #56`）、直前が英数字・`_`・`&` でない `#数字`、`origin/`・`refs/heads/` で始まるブランチ名、拡張子 `.ts`・`.js`・`.mjs`・`.py`・`.md`・`.json`・`.tsx`・`.rs`・`.go`。
+  - **検出できない（書かない）:** `PR#75`・`GH-75`・`pull/75`、全角の `＃75`、`ADR_12`、`docs/adr/…` のようなパス、`.jsx`・`.mts`・`.cts`・`.cjs`・`.vue`・`.yaml`・`.sql` などの拡張子、大文字の 16 進 ID、拡張子のない登録済みのパス（`src/invoice/submit`）、接頭辞のないブランチ名（`feat/foo`）、全角や見えない文字、言い換えた内部名や一般的な語に見える識別子。
+  - **誤検知:** `.md` や `.json` のような拡張子形式を含む通常の文章（例: 手順書.md）は拒否される。既知の限界で、`public` では拡張子形式を避けて書き換える。検査パターンを広げると誤検知が増えるため、広げない。
+  - この検査は完全な保証ではない。**`public` の自由記述に実装詳細を書かない。** 利用者が画面と照合する操作名は `operations` に、内部のシンボルは `evidence.symbol` に分けて書く。
+- `public` の共有単位は `index.html` だけ。ディレクトリ名にコミット ID が含まれるため、ディレクトリごと共有しない。
+- 見た目と閲覧（ネットワーク遮断、折りたたみ、キーボード、印刷）の確認は人手で行う。手順は [検証記録](../../docs/verification.md) を参照。
+
+依存と対応範囲は[依存関係](references/dependencies.md)を参照。
