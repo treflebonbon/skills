@@ -1,6 +1,6 @@
 # treflebonbon-skills
 
-Claude Code、Codex、Antigravity CLI で使う Agent Skills plugin です。対象11件を1つの plugin にまとめています。最新の版は [releases](https://github.com/treflebonbon/skills/releases) にあります。plugin の利用と汎用 skill に dotfiles や Nix は必要ありません。
+Claude Code、Codex、Antigravity CLI で使う Agent Skills plugin です。対象12件を1つの plugin にまとめています。最新の版は [releases](https://github.com/treflebonbon/skills/releases) にあります。plugin の利用と汎用 skill に dotfiles や Nix は必要ありません。
 
 ## 収録 skill
 
@@ -14,6 +14,7 @@ Claude Code、Codex、Antigravity CLI で使う Agent Skills plugin です。対
 | `md-claude-review`       | `CLAUDE.md` と Claude Code 向け指示をレビュー            |
 | `orca-peer-refactor`     | Orca orchestration と read-only peer を使った候補改善    |
 | `pr-screenshots`         | 既存 PR に画像を添付する手順                             |
+| `product-guide`          | 対象版の利用ガイド（単体 HTML）を根拠付きモデルから作成  |
 | `rop`                    | Elixir・Gleam・Rust・Effect-TS の ROP を適用             |
 | `ui-grill-with-docs`     | UI/UX の設計質問と回答欄を含む offline HTML を作成       |
 | `worktree-gc`            | repo-local worktree の保護付き診断・回収                 |
@@ -84,7 +85,7 @@ agy plugin list --json
 
 Antigravity CLI では `/skills` 一覧に表示される名前空間付きの正式名を使います。1.5.5 の headless 経路では、短い `/pr-screenshots` と `/ui-grill-with-docs` は明示起動専用 skill を展開できませんでした。短い名前をモデルが解釈できることと、CLI が skill を明示展開することを区別します。
 
-Claude Code の plugin manifest と Codex の plugin package は公式仕様に従います。Agent Skills の core frontmatter を使い、`ui-grill-with-docs` と `pr-screenshots` の明示起動条件は維持しています。Claude Code では `disable-model-invocation: true`、Codex では各 `agents/openai.yaml` の `policy.allow_implicit_invocation: false` を使います。これらの runtime 固有 metadata を core upload validator の成功と混同しません。Antigravity CLI の strict validator による manifest 検証と、manual-only の実効制御は別の確認項目です。
+Claude Code の plugin manifest と Codex の plugin package は公式仕様に従います。Agent Skills の core frontmatter を使い、`ui-grill-with-docs`、`product-guide`、`pr-screenshots` の明示起動条件は維持しています。Claude Code では `disable-model-invocation: true`、Codex では各 `agents/openai.yaml` の `policy.allow_implicit_invocation: false` を使います。これらの runtime 固有 metadata を core upload validator の成功と混同しません。Antigravity CLI の strict validator による manifest 検証と、manual-only の実効制御は別の確認項目です。
 
 Antigravity App/IDE は[公式 plugin 手順](https://antigravity.google/docs/plugins)に従って配置してください。App/IDE の実機動作は未確認です。
 
@@ -102,6 +103,7 @@ Antigravity App/IDE は[公式 plugin 手順](https://antigravity.google/docs/pl
 | [`md-claude-review`](skills/md-claude-review/SKILL.md)                               | Claude Code。Anthropic [`claude-api`](https://github.com/anthropics/skills/tree/main/skills/claude-api) skill は任意で別途導入                 | `prompt-audit` 用。revision は固定せず、未導入時は同梱の公式文書を fallback とする                                                |
 | [`orca-peer-refactor`](skills/orca-peer-refactor/references/dependencies.md)         | Orca runtime（移管時に観測 `1.4.243`）、Git、Python 3.9+、Bun 1.4.4+、Bash、`jq`、Perl `flock`、`gh`（外部 skill の pin は依存詳細を参照）     | Orca peer route。GitHub 操作では利用者の `gh` 認証を使う                                                                          |
 | [`pr-screenshots`](skills/pr-screenshots/DEPENDENCIES.md)                            | `gh` と通常認証、Node.js 20.19+、package lock 固定 `@playwright/cli` `0.1.22`                                                                  | 既存画像の添付には WSL2、mirrored networking、Windows interop、Windows Stable Chrome が必要                                       |
+| [`product-guide`](skills/product-guide/references/dependencies.md)                   | Bun 1.4.4+（Bun と標準 API のみ。npm 依存・lock なし）                                                                                         | 通常の導入済み Bun での実行のみ。raw 隔離内での実行は保証しない                                                                   |
 | [`rop`](skills/rop/SKILL.md)                                                         | reference を読むだけなら追加依存なし                                                                                                           | 対象コードの編集・検証では対象 project の指定 runtime を使う                                                                      |
 | [`ui-grill-with-docs`](skills/ui-grill-with-docs/references/dependencies.md)         | Matt Pocock の `grilling` と `domain-modeling` skills（外部配布）、loopback 配信時は Bash・Bun 1.4.4+                                          | interview と domain model 作成時。`codebase-design` は設計境界の検討時のみ必要                                                    |
 | [`worktree-gc`](skills/worktree-gc/DEPENDENCIES.md)                                  | repo-local は Bash + Git 2.7+。fan-out は Bash 4.0+ と GNU-compatible `readlink -f`                                                            | fan-out `--apply` は Linux/WSL2、読める `/proc`、GNU `stat -c` が必要。macOS は repo-local / preview 用                           |
@@ -138,9 +140,9 @@ npm test
 npm run lint
 ```
 
-`npm test` は Bun CLI の型検査・Bun suite、Python suite、dogfood・domain-modeling-studio・WSL2 browser package の nested Node suite、dogfood・WSL2 browser package・raw-Codex の Bats fixture、および公開 root / CLI の Bats suite（`tests/*.bats`、`tests/cli/*.bats`）を実行します。実 browser を使う dogfood / WSL2 browser suite は通常テストに含めません。`npm run test:plugin-cli` は Claude Code、Codex、Antigravity CLI がすべて必要な隔離 HOME での公式導入 smoke test です。CLI が不足する必須実行では skip を成功と扱わず、[検証記録](docs/verification.md)へ未確認として残します。公式実 session の11 skill × 3 runtime の証跡と最終 version/source SHA/hash は plugin 外の採用記録に保管し、この README に自己参照として埋め込みません。
+`npm test` は Bun CLI の型検査・Bun suite、Python suite、dogfood・domain-modeling-studio・WSL2 browser package の nested Node suite、dogfood・WSL2 browser package・raw-Codex の Bats fixture、および公開 root / CLI の Bats suite（`tests/*.bats`、`tests/cli/*.bats`）を実行します。実 browser を使う dogfood / WSL2 browser suite は通常テストに含めません。`npm run test:plugin-cli` は Claude Code、Codex、Antigravity CLI がすべて必要な隔離 HOME での公式導入 smoke test です。CLI が不足する必須実行では skip を成功と扱わず、[検証記録](docs/verification.md)へ未確認として残します。公式実 session の12 skill × 3 runtime の証跡と最終 version/source SHA/hash は plugin 外の採用記録に保管し、この README に自己参照として埋め込みません。
 
-実モデルを使う33件の新規 session は `npm run test:plugin-sessions -- run --output-dir <plugin 外の未作成 directory>` で明示的に実行します。導入確認で得た root を `--installed-root RUNTIME=/absolute/plugin/root` で runtime ごとに渡し、既存の通常認証・設定で導入済み skill を呼び出して、実ツールの読込先と照合します。root が未確認なら成功扱いにしません。保存済みの1件は `npm run test:plugin-sessions -- check <case directory>` で再判定できます。通常の `npm test` はこの CLI の fixture 検査だけを実行します。必要条件と未確認の扱いは[実セッション検査](docs/verification.md#実セッションの-opt-in-検査)を参照してください。
+実モデルを使う36件の新規 session は `npm run test:plugin-sessions -- run --output-dir <plugin 外の未作成 directory>` で明示的に実行します。導入確認で得た root を `--installed-root RUNTIME=/absolute/plugin/root` で runtime ごとに渡し、既存の通常認証・設定で導入済み skill を呼び出して、実ツールの読込先と照合します。root が未確認なら成功扱いにしません。保存済みの1件は `npm run test:plugin-sessions -- check <case directory>` で再判定できます。通常の `npm test` はこの CLI の fixture 検査だけを実行します。必要条件と未確認の扱いは[実セッション検査](docs/verification.md#実セッションの-opt-in-検査)を参照してください。
 
 ## 公式仕様と配布元
 

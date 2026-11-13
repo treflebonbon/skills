@@ -20,6 +20,7 @@ EXPECTED_SKILLS = {
     "md-claude-review",
     "orca-peer-refactor",
     "pr-screenshots",
+    "product-guide",
     "rop",
     "ui-grill-with-docs",
     "worktree-gc",
@@ -159,7 +160,7 @@ class PluginPackageContractTest(unittest.TestCase):
                 self.assertIn("npm ci --prefix development", path.read_text(encoding="utf-8"))
 
     def test_manual_only_skills_keep_each_runtime_policy(self):
-        for name in ("pr-screenshots", "ui-grill-with-docs"):
+        for name in ("pr-screenshots", "product-guide", "ui-grill-with-docs"):
             skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
             frontmatter = re.match(r"\A---\n(.*?)\n---\n", skill, re.DOTALL)
             self.assertIsNotNone(frontmatter, name)
@@ -227,6 +228,7 @@ class PluginPackageContractTest(unittest.TestCase):
         for detail in (
             "skills/dogfood/references/dependencies.md",
             "skills/domain-modeling-studio/references/dependencies.md",
+            "skills/product-guide/references/dependencies.md",
             "skills/herdr-peer-refactor/references/dependencies.md",
             "skills/herdr-peer-refactor/references/auto-session.md",
             "contracts/auto-peer-protection.md",

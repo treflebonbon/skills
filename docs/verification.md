@@ -8,10 +8,10 @@
 
 | 境界                 | 確認内容                                                                                                                        | 成功扱いに必要な証拠                                                             |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| package static       | 11件の exact set、frontmatter、manifest version、license、依存表、resource links、npm lock URLs/integrity                       | `npm test`、`npm run format:check`、`npm run lint` の実行結果                    |
+| package static       | 12件の exact set、frontmatter、manifest version、license、依存表、resource links、npm lock URLs/integrity                       | `npm test`、`npm run format:check`、`npm run lint` の実行結果                    |
 | fixture / quality    | source と導入済み payload の hash、runtime の source/version/content 不一致、nested Node/Bats の回帰                            | fixture の具体的な検出・拒否結果と suite の終了状態                              |
-| official CLI install | Claude Code、Codex、Antigravity CLI それぞれが同一 full-SHA checkout から 11件を導入し、version/source/content を一致させたこと | CLI version、実行コマンド、導入元 path、導入済み path、skill set と content hash |
-| new session          | 各 runtime が公式名で11件を検出・呼出し、実際に読んだ SKILL.md と資源/補助 CLI の path を確認したこと                           | tool/command の実 path と成功・拒否状態。自己申告だけでは成功にしない            |
+| official CLI install | Claude Code、Codex、Antigravity CLI それぞれが同一 full-SHA checkout から 12件を導入し、version/source/content を一致させたこと | CLI version、実行コマンド、導入元 path、導入済み path、skill set と content hash |
+| new session          | 各 runtime が公式名で12件を検出・呼出し、実際に読んだ SKILL.md と資源/補助 CLI の path を確認したこと                           | tool/command の実 path と成功・拒否状態。自己申告だけでは成功にしない            |
 | App / IDE            | Antigravity App/IDE の公式配置案内                                                                                              | 実機で試していない場合は未確認と記録                                             |
 
 validator は manifest の受理、mock/fixture は指定分岐の挙動、公式 CLI install は runtime 配布境界、新規 session は実際の skill 呼出しを示します。それぞれ別の証拠として扱います。必須 CLI が無い場合の skip は未確認です。
@@ -76,6 +76,19 @@ report と質問シートの loopback 配信、旧 HTTP corpus、専用 root と
 
 同じ失敗が Nix shell 配下の一時 directory で起きた場合は、`TMPDIR` だけを Nix shell 外の書込み可能な directory に変えて、この1件を再実行します。WSL2 の通常セッションではこの変更で成功したことを確認しました（confirmed）。fixture の保管先を変える切り分けであり、権限と host 非公開の検査は同じものを実行します。単独実行が通ったら、その `TMPDIR` と同じ HEAD で全 `npm test` を実行します。
 
+## product-guide のブラウザ受入（人手）
+
+`tests/bun/product-guide.test.ts` は CLI の終了コードと出力ファイルだけを検証します。表示は自動化しておらず、リリースの受入で人が次を確認し、結果と未確認の項目を記録します。
+
+1. 架空のモデルから `internal` と `public` を生成し、`index.html` だけをブラウザで開く。
+2. ネットワークを遮断した状態で開き、外部読込みの失敗や欠けた表示がないこと。
+3. 機能目次・見出しリンクで移動でき、`internal` の「根拠を表示」をキーボード（Tab・Enter・Space）だけで開閉できること。
+4. 印刷プレビューで本文が読め、折りたたみの内容が表示されること。
+5. 提案の機能が現行の節・目次にないこと。状態と区分が色以外の文字でも分かること。
+6. `public` の `index.html` に、コミット ID・パス・シンボルがないこと（ページのソースを検索する）。
+
+実ブラウザの自動化は CI の対象外です。実行できなかった項目は未確認と記録します。
+
 ## 変更した Python 関数の docstring 診断
 
 `npm run report:docstrings` は、比較元の commit とステージ済みの内容（index）を比べ、構文が変わった Python 関数の docstring 有無を JSON で表示します。JSON だけを取得するときは `--silent` を使います。
@@ -104,7 +117,7 @@ npm run test:plugin-sessions -- run --output-dir /absolute/path/outside-plugin/s
   --installed-root agy=/verified/agy/plugin
 ```
 
-`run` は実モデルを呼びます。出力先は plugin 外の未作成 directory を指定します。省略時は3 CLI × 全11 skill を実行し、欠けた CLI や inventory 取得失敗をスキップ扱いしません。`--runtime agy --skill pr-screenshots` のように範囲を絞れます（両 flag は複数指定可能）。モデルは各 CLI の通常設定を使い、各 session の上限は既定240秒、`--timeout` で変更できます。既存 session の resume、権限回避 flag、共有設定の変更は行いません。
+`run` は実モデルを呼びます。出力先は plugin 外の未作成 directory を指定します。省略時は3 CLI × 全12 skill を実行し、欠けた CLI や inventory 取得失敗をスキップ扱いしません。`--runtime agy --skill pr-screenshots` のように範囲を絞れます（両 flag は複数指定可能）。モデルは各 CLI の通常設定を使い、各 session の上限は既定240秒、`--timeout` で変更できます。既存 session の resume、権限回避 flag、共有設定の変更は行いません。
 
 `--installed-root RUNTIME=PATH` は runtime ごとに1件指定し、例のパスを独立した導入確認で得た値に置き換えます。`skills/` を含む plugin root を指定し、読込 event から逆算した値や cache の配置の推測は使いません。導入先の symlink と実体に別名がある場合は、導入確認で対応を確認した実読込側のパスを使います。この入力は呼出し側の確認結果であり、この CLI が source・version・hash の一致を保証するものではありません。未指定なら、他の条件が揃っても `installed_root_unconfirmed` で未確認にします。
 
