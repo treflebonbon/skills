@@ -799,7 +799,127 @@
       "text": {
         "value": "Atail"
       }
+    },
+    {
+      "name": "rcdata-less-than-textarea",
+      "inputBase64": "PHRleHRhcmVhPjwmYW1wOzwvdGV4dGFyZWE+",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "<&"
+      }
+    },
+    {
+      "name": "rcdata-less-than-title",
+      "inputBase64": "PHRpdGxlPjwmYW1wOzwvdGl0bGU+",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "<&"
+      }
+    },
+    {
+      "name": "rcdata-single-decoding",
+      "inputBase64": "PHRleHRhcmVhPjwmYW1wO2FtcDs8L3RleHRhcmVhPg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "<&amp;"
+      }
+    },
+    {
+      "name": "rcdata-numeric-filter",
+      "inputBase64": "PHRleHRhcmVhPjwmIzExOyAmI3hGREQwOyAmIzY1OzwvdGV4dGFyZWE+",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "< A"
+      }
+    },
+    {
+      "name": "rcdata-whitespace",
+      "inputBase64": "PHRleHRhcmVhPkEgJmFtcDsgQiA8JmFtcDsgQzwvdGV4dGFyZWE+IHRhaWw=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A & B <& C tail"
+      }
+    },
+    {
+      "name": "rcdata-context-boundaries",
+      "inputBase64": "JmFtcDthbXA7PHRleHRhcmVhPiAmYW1wO2FtcDsgPCZhbXA7YW1wOzwvdGV4dGFyZWE+PHNjcmlwdD4mYW1wO2FtcDsgPCZhbXA7PC9zY3JpcHQ+PHN0eWxlPiZhbXA7IDwmYW1wOzwvc3R5bGU+",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "&amp; &amp; <&amp;&amp;amp; <&amp;&amp; <&amp;"
+      }
+    },
+    {
+      "name": "eof-self-closing-tag",
+      "inputBase64": "QTxzcGFuLw==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "eof-self-closing-attribute",
+      "inputBase64": "QTxzcGFuIHgv",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "eof-self-closing-in-pre",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QTxzcGFuLw==",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> が閉じていません\n"
+      },
+      "text": {
+        "value": "A"
+      }
     }
   ],
-  "additionalCasesFromPinnedSource": ["endtag-quoted-angle", "endtag-embedded-pre"]
+  "additionalCasesFromPinnedSource": [
+    "endtag-quoted-angle",
+    "endtag-embedded-pre",
+    "rcdata-less-than-textarea",
+    "rcdata-less-than-title",
+    "rcdata-single-decoding",
+    "rcdata-numeric-filter",
+    "rcdata-whitespace",
+    "rcdata-context-boundaries",
+    "eof-self-closing-tag",
+    "eof-self-closing-attribute",
+    "eof-self-closing-in-pre"
+  ]
 }

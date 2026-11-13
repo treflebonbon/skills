@@ -19,7 +19,7 @@ htmlparser2 / entities の [MIT license](../lib/bun/vendor/html-tokenizer.LICENS
 
 ## 移行前の比較 corpus
 
-[比較用 JSON](../tests/fixtures/html-report-python.json) は、source revision `2a894eb1d3932cd800cdd40255690832ea57b354`、Python 3.14.7 で、旧 checker と candidate の `artifact_text` を両 peer から採取した。4ファイルの source hash と元 bytes・stdout / stderr・終了状態・text または拒否を保持する。初回64入力を旧実装の変更前に採取し、固定した旧 source hash を照合して終了 tag の属性内に `>` を含む2入力を追加した。計66入力の期待値はすべて旧実装から採取している。新実装から期待値を生成し直す手順にはしない。
+[比較用 JSON](../tests/fixtures/html-report-python.json) は、source revision `2a894eb1d3932cd800cdd40255690832ea57b354`、Python 3.14.7 で、旧 checker と candidate の `artifact_text` を両 peer から採取した。4ファイルの source hash と元 bytes・stdout / stderr・終了状態・text または拒否を保持する。初回64入力を旧実装の変更前に採取し、固定した旧 source hash を照合して終了 tag の属性内に `>` を含む2入力を追加した。レビューで RCDATA と未完了 tag の9入力も同じ固定 source から追加した。計75入力の期待値はすべて旧実装から採取している。新実装から期待値を生成し直す手順にはしない。
 
 | 入力                                                 | 確認する契約                           |
 | ---------------------------------------------------- | -------------------------------------- |
@@ -28,13 +28,13 @@ htmlparser2 / entities の [MIT license](../lib/bun/vendor/html-tokenizer.LICENS
 | 不完全な tag・属性・comment・宣言、raw text / RCDATA | EOF の扱いと誤受理の防止               |
 | 既存 report fixture、不正 UTF-8                      | 実際の入力と読込拒否                   |
 
-比較で見つかった数値 entity の制御文字・非文字の除外、quote が閉じない終了 tag の拒否、EOF の doctype の診断を明示的に維持する。text の空白は Python の `str.split()` と同じ集合を使い、BOM を空白として除去しない。
+比較で見つかった数値 entity の制御文字・非文字の除外、quote が閉じない終了 tag の拒否、EOF の doctype の診断を明示的に維持する。 RCDATA の `<` に続く entity は raw chunk でも1回だけ復元し、通常 text の二重 decode と script/style の decode を避ける。EOF で開始位置が負になる text chunk は追加せず、空白の正規化は全 chunk を連結した後に行う。text の空白は Python の `str.split()` と同じ集合を使い、BOM を空白として除去しない。
 
 `lib/bun/html-report.ts` の `artifactText(raw)` が text 抽出の移植先になる。candidate/evidence の切り替えは [#38](https://github.com/treflebonbon/skills/issues/38) でまとめて行うため、今回の candidate Python 実装はそのまま利用する。
 
 ## 検証と残る範囲
 
-2026-11-13 の Linux / WSL2 x86_64、Bun 1.4.4 で確認した。両 CLI の66入力と text 抽出の66入力を [Bun suite](../tests/bun/html-report.test.ts) で照合する。JSON は公開フィールドの値、拒否は終了状態と診断全文を比較する。
+2026-11-13 の Linux / WSL2 x86_64、Bun 1.4.4 で確認した。両 CLI の75入力と text 抽出の75入力を [Bun suite](../tests/bun/html-report.test.ts) で照合する。JSON は公開フィールドの値、拒否は終了状態と診断全文を比較する。
 
 読み取り専用にした runtime copy に、wrapper・runner・config・TypeScript・同梱 Tokenizer だけを配置して起動した。`node_modules` を配置せず、fixture 専用の `bin` に Bun・`dirname`・`readlink` だけを置いて Python を PATH から除く。cwd / HOME の preload 設定と `BUN_OPTIONS` を注入しても marker を作らず、payload の bytes・mode・inventory を保持した。ホストの coreutils と Python が同じ directory にある場合も、この専用 PATH で検査できる。これは PATH 上の Python 不在の検査であり、絶対 path の interpreter まで排除する repo 全体の最終検査は #51 が担当する。
 

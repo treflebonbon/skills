@@ -21,7 +21,7 @@ function entityText(codepoint: number) {
   return String.fromCodePoint(codepoint);
 }
 
-function parseHtml(source: string) {
+function parseHtml(source: string): { diagrams: number; errors: string[]; text: string } {
   let tag = "";
   let attribute = "";
   let value = "";
@@ -29,12 +29,14 @@ function parseHtml(source: string) {
   let inside = false;
   let diagrams = 0;
   let consumed = 0;
+  let rcdata = false;
   const parts: string[] = [];
   const errors: string[] = [];
   const markup = (kind: string) => {
     if (inside) errors.push(`Mermaid の <pre> 内に ${kind} があります`);
   };
   const startTag = (selfClosing: boolean, end: number) => {
+    rcdata = !selfClosing && (tag === "textarea" || tag === "title");
     if (inside) markup(`<${tag}${selfClosing ? "/" : ""}> markup`);
     else if (tag === "pre" && classValue.split(whitespace).includes("mermaid")) {
       diagrams++;
@@ -75,6 +77,7 @@ function parseHtml(source: string) {
         onclosetag(start, end) {
           const complete = endTag.exec(source.slice(start))?.[0];
           if (complete?.endsWith(">")) {
+            rcdata = false;
             const name = source.slice(start, end).toLowerCase();
             if (inside) {
               if (name === "pre") inside = false;
@@ -88,7 +91,11 @@ function parseHtml(source: string) {
           tokenizer.pause();
         },
         ontext(start, end) {
-          parts.push(source.slice(start, end));
+          if (start >= 0) {
+            const text = source.slice(start, end);
+            // RCDATA の raw chunk は tag を作らず、通常 text と同じ1回の entity 復元を通す。
+            parts.push(rcdata ? parseHtml(text.replaceAll("<", "&lt;")).text : text);
+          }
           consumed = end;
         },
         ontextentity(codepoint, end) {
@@ -132,7 +139,7 @@ function parseHtml(source: string) {
     source = source.slice(resumeAt);
   }
   if (inside) errors.push("Mermaid の <pre> が閉じていません");
-  return { diagrams, errors, text: parts.join("").split(whitespace).filter(Boolean).join(" ") };
+  return { diagrams, errors, text: parts.join("") };
 }
 
 function decode(raw: Uint8Array, message: string) {
@@ -144,7 +151,10 @@ function decode(raw: Uint8Array, message: string) {
 }
 
 export function artifactText(raw: Uint8Array): string {
-  return parseHtml(decode(raw, "レポートは UTF-8 で読めません")).text;
+  return parseHtml(decode(raw, "レポートは UTF-8 で読めません"))
+    .text.split(whitespace)
+    .filter(Boolean)
+    .join(" ");
 }
 
 function main(args: string[]) {
