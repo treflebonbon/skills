@@ -37,7 +37,9 @@ function main(args: string[]) {
       let path = pathInRoot(requested);
       if (statSync(path).isDirectory()) {
         if (!pathname.endsWith("/")) {
-          response.writeHead(301, { Location: `${pathname}/${target.slice(pathname.length)}` });
+          response.writeHead(301, {
+            Location: `${pathname.replace(/^\/+/, "/")}/${target.slice(pathname.length)}`,
+          });
           response.end();
           return;
         }
@@ -46,11 +48,12 @@ function main(args: string[]) {
       }
       const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
       try {
-        if (!fstatSync(fd).isFile()) throw new Error("通常ファイルではありません");
-        const body = readFileSync(fd);
+        const stat = fstatSync(fd);
+        if (!stat.isFile()) throw new Error("通常ファイルではありません");
+        const body = request.method === "HEAD" ? undefined : readFileSync(fd);
         response.writeHead(200, {
           "Content-Type": Bun.file(requested).type,
-          "Content-Length": body.length,
+          "Content-Length": body?.length ?? stat.size,
         });
         response.end(body);
       } finally {

@@ -14,8 +14,8 @@ port は `0`〜`65535`。`0` は OS が空きを選ぶ。listen 成功後に `{ 
 
 専用 root には、その session が所有する report / sheet と必要な asset だけを置く。共有の `/tmp/codex` 全体、plugin、repository 全体を指定しない。root を選ぶ責任は呼出し手順にあり、CLI が任意の directory の所有目的を判定するものではない。
 
-- GET / HEAD で通常ファイルの元 bytes を返す。URL decode は1回とし、query はファイル名から除く。
-- directory は末尾 `/` へ query を保って301 redirect し、`index.html` を返す。index のない directory は404とし、一覧を生成しない。
+- GET は通常ファイルの元 bytes、HEAD は `fstat` の長さと header だけを返す。HEAD で本文は読まない。URL decode は1回とし、query はファイル名から除く。
+- directory は先頭の slash を単一にし、末尾 `/` へ query を保って同じ origin 内へ301 redirect し、`index.html` を返す。index のない directory は404とし、一覧を生成しない。
 - 解決した path が root 外なら、親参照・encode された参照・symlink も404。dangling symlink・不正 URL・NUL・FIFO などの非通常ファイルも404。open は `O_NOFOLLOW | O_NONBLOCK` を使い、開いた FD が通常ファイルか検査する。
 - GET / HEAD 以外は501。拒否応答は日本語の固定本文を返す。
 
@@ -23,11 +23,11 @@ root は session が管理する配信用 directory として使う。非協調 
 
 ## 移行前の比較データ
 
-[旧 HTTP corpus](../tests/fixtures/loopback-python.json) は、変更前の source revision `da3cae898d8875da67f832e0c6b0ef4fbfb0d28e`、Python 3.14.7 の実際の `python3 -u -m http.server 0 --bind 127.0.0.1 --directory <root>` から21ケースを採取した。手順4ファイルと標準 `http.server` の SHA-256、入力 bytes、method・raw path・status・Content-Type・Location・応答 bytes・終了 signal を保存している。新実装で期待値を採取し直さない。
+[旧 HTTP corpus](../tests/fixtures/loopback-python.json) は、変更前の source revision `da3cae898d8875da67f832e0c6b0ef4fbfb0d28e`、Python 3.14.7 の実際の `python3 -u -m http.server 0 --bind 127.0.0.1 --directory <root>` から初回21ケースを採取し、固定 source hash と Python の版を照合して複数の先頭 slash の4ケースを追加した。計25ケースを保持する。手順4ファイルと標準 `http.server` の SHA-256、入力 bytes、method・raw path・status・Content-Type・Location・応答 bytes・終了 signal を保存している。新実装で期待値を採取し直さない。
 
 通常ファイル、HTML、binary、Unicode と空白のファイル名、HEAD、query、directory redirect と index、見つからないファイル、通常・encode・二重 encode の親参照、別 session、symlink、同じ URL の次 round、非対応 method を含む。
 
-18ケースは旧版と status を照合し、成功したファイルの bytes、MIME の種類、redirect の Location を比較する。日付・server banner・charset 表記と旧版のエラー HTML 全文は HTTP 配信の互換性判定に使わない。拒否本文は新 CLI の固定診断で検査する。
+22ケースは旧版と status を照合し、成功したファイルの bytes、MIME の種類、redirect の Location を比較する。日付・server banner・charset 表記と旧版のエラー HTML 全文は HTTP 配信の互換性判定に使わない。拒否本文は新 CLI の固定診断で検査する。
 
 残る3ケースは旧版の200をそのまま踏襲しない。root 外への file / directory symlink は受入条件に従って404にし、index のない directory の一覧も公開しない。旧版の元結果は JSON に保持し、この差はテストと本記録で明示する。
 
@@ -49,7 +49,7 @@ npm run typecheck
 npm test
 ```
 
-2026-11-13、Linux / WSL2 x86_64、Bun 1.4.4 で対象7テストと型検査を確認した（confirmed）。 実装 commit `67be708` の全 `npm test` は終了0で、Bun 358成功 / 22 skip、Python 107成功 / 4 skip、Node 41成功、Bats 520成功 / 11 skip、失敗0件だった。skip は既存の opt-in 検査で、対象7件には skip はない。実 browser の session / round 表示、実モデル session、通常 Linux・aarch64・macOS の実機受入は未確認（unconfirmed）。通常の CI は同じ Bun suite を3環境で実行するが、定義だけを実測の証拠とは扱わない。
+2026-11-13、Linux / WSL2 x86_64、Bun 1.4.4 で初回の対象7テストと型検査を確認した（confirmed）。 実装 commit `67be708` の全 `npm test` は終了0で、Bun 358成功 / 22 skip、Python 107成功 / 4 skip、Node 41成功、Bats 520成功 / 11 skip、失敗0件だった。skip は既存の opt-in 検査で、対象7件には skip はない。実 browser の session / round 表示、実モデル session、通常 Linux・aarch64・macOS の実機受入は未確認（unconfirmed）。通常の CI は同じ Bun suite を3環境で実行するが、定義だけを実測の証拠とは扱わない。
 
 ## repo 外の更新手順
 
@@ -71,3 +71,11 @@ repo 外の固定 plugin・agent 設定・flake・呼出し元の更新、導入
 調査した dotfiles の `docs/` と `runtime/` には、この HTTP server を直接起動する追加の呼出しは見つからなかった。別環境の独立した script や利用者の alias まで網羅したという意味ではない。確認環境の Bun 1.4.4 は新入口の条件を満たしており、この確認を他の配布先の runtime / flake の証拠には使わない。
 
 HTTP 配信の実動確認では、検証用 runtime の長時間 session を保持して起動し、出力 root / URL を照合した。同じ URL で round r1 と r2 の bytes を確認し、その session への Ctrl-C 後に同じ port が接続を拒否することを確認した。これは browser 表示の検査とは別の証拠である。
+
+## レビュー後の回帰検証
+
+複数の先頭 slash、query と encode された directory 名の4入力は、旧 Python で同じ origin の Location を返すことを確認して corpus へ追加した。新実装では元の path と query を保ち、redirect の先頭 slash を単一にする。全301応答について、起動 URL と解決した redirect URL の origin が一致することも検査する。
+
+8 MiB の通常ファイルへの HEAD は長さ・MIME・空本文を照合する。Linux では公開 CLI の子 process の `/proc/<pid>/io` を観測し、warm-up 後の HEAD で本文相当の読込みが増えず、対照の GET では同じ bytes 分の読込みが増えることを検査する。macOS のこのテストは header・本文の公開挙動を対象とし、Linux の I/O 観測を実測として転用しない。
+
+質問シートの一時 root は `mkdir -p /tmp/codex` の成功後に `mktemp` で作る。Linux の私有 mount namespace 内の空の `/tmp` で、旧手順が失敗し、新手順が専用 root を作ることを確認した。host の共有 directory は変更していない。

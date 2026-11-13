@@ -25,7 +25,8 @@
     "asset.txt": "aW5zaWRlCg==",
     "nested/index.html": "PGgxPm5lc3RlZDwvaDE+Cg==",
     "nested/asset.bin": "AAH/",
-    "round 日本.html": "PGgxPuizquWVjzwvaDE+Cg=="
+    "round 日本.html": "PGgxPuizquWVjzwvaDE+Cg==",
+    "round dir/index.html": "PGgxPnJvdW5kPC9oMT4K"
   },
   "termination": {
     "signal": "SIGTERM",
@@ -220,6 +221,48 @@
       "contentType": "text/html",
       "location": null,
       "bodyBase64": "PGgxPnJvdW5kIHIyPC9oMT4K"
+    },
+    {
+      "name": "leading-slashes",
+      "method": "GET",
+      "path": "//nested",
+      "status": 301,
+      "contentType": null,
+      "location": "/nested/",
+      "bodyBase64": ""
+    },
+    {
+      "name": "leading-slashes-query",
+      "method": "GET",
+      "path": "//nested?x=1",
+      "status": 301,
+      "contentType": null,
+      "location": "/nested/?x=1",
+      "bodyBase64": ""
+    },
+    {
+      "name": "leading-slashes-query-tail",
+      "method": "GET",
+      "path": "///nested?x=1&next=%2F",
+      "status": 301,
+      "contentType": null,
+      "location": "/nested/?x=1&next=%2F",
+      "bodyBase64": ""
+    },
+    {
+      "name": "leading-slashes-encoded-path",
+      "method": "GET",
+      "path": "//round%20dir?x=a%20b",
+      "status": 301,
+      "contentType": null,
+      "location": "/round%20dir/?x=a%20b",
+      "bodyBase64": ""
     }
+  ],
+  "additionalCasesFromPinnedSource": [
+    "leading-slashes",
+    "leading-slashes-query",
+    "leading-slashes-query-tail",
+    "leading-slashes-encoded-path"
   ]
 }

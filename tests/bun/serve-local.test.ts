@@ -3,10 +3,13 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   copyFileSync,
+  closeSync,
   existsSync,
   lstatSync,
+  ftruncateSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   readdirSync,
   realpathSync,
@@ -23,26 +26,31 @@ const root = resolve(import.meta.dir, "../..");
 const entry = resolve(root, "bin/serve-local");
 
 async function response(port: number, path: string, method = "GET") {
-  return await new Promise<{ status: number; body: Buffer; location?: string; type?: string }>(
-    (accept, reject) => {
-      const req = request({ host: "127.0.0.1", port, path, method }, (res) => {
-        const chunks: Buffer[] = [];
-        res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-        res.on("error", reject);
-        res.on("end", () =>
-          accept({
-            status: res.statusCode!,
-            body: Buffer.concat(chunks),
-            location: res.headers.location,
-            type: res.headers["content-type"],
-          }),
-        );
-      });
-      req.on("error", reject);
-      req.setTimeout(2_000, () => req.destroy(new Error("HTTP の応答期限を超えました")));
-      req.end();
-    },
-  );
+  return await new Promise<{
+    status: number;
+    body: Buffer;
+    location?: string;
+    type?: string;
+    length?: string;
+  }>((accept, reject) => {
+    const req = request({ host: "127.0.0.1", port, path, method }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      res.on("error", reject);
+      res.on("end", () =>
+        accept({
+          status: res.statusCode!,
+          body: Buffer.concat(chunks),
+          location: res.headers.location,
+          type: res.headers["content-type"],
+          length: res.headers["content-length"],
+        }),
+      );
+    });
+    req.on("error", reject);
+    req.setTimeout(2_000, () => req.destroy(new Error("HTTP の応答期限を超えました")));
+    req.end();
+  });
 }
 
 async function withServer(
@@ -323,12 +331,45 @@ test("旧 HTTP corpus を照合し、root 外 symlink と index のない direct
           expect(result.type?.split(";")[0], item.name).toBe(item.contentType!.split(";")[0]);
         } else if (result.status === 301) {
           expect(result.location).toBe(item.location!);
+          expect(new URL(result.location!, ready.url).origin).toBe(new URL(ready.url).origin);
         } else {
           expect(result.body.toString()).toBe(
             result.status === 501 ? "未対応の method です\n" : "見つかりません\n",
           );
         }
       }
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("HEAD は通常ファイルの長さだけを返し、Linux では本文の読込み I/O を増やさない", async () => {
+  const directory = mkdtempSync(resolve(tmpdir(), "serve-local-head-"));
+  const size = 8 * 1024 * 1024;
+  const fd = openSync(resolve(directory, "large.bin"), "w");
+  ftruncateSync(fd, size);
+  closeSync(fd);
+  writeFileSync(resolve(directory, "warm.txt"), "warm\n");
+  try {
+    await withServer(directory, async (ready, child) => {
+      const port = Number(new URL(ready.url).port);
+      await response(port, "/warm.txt");
+      const readBytes = () =>
+        Number(/^rchar: (\d+)$/m.exec(readFileSync(`/proc/${child.pid}/io`, "utf8"))![1]);
+      const before = process.platform === "linux" ? readBytes() : undefined;
+      const head = await response(port, "/large.bin", "HEAD");
+      expect(head.status).toBe(200);
+      expect(head.length).toBe(String(size));
+      expect(head.type).toBe("application/octet-stream");
+      expect(head.body.length).toBe(0);
+      const afterHead = before === undefined ? undefined : readBytes();
+      if (afterHead !== undefined) expect(afterHead - before!).toBeLessThan(64 * 1024);
+      const get = await response(port, "/large.bin");
+      expect(get.status).toBe(200);
+      expect(get.length).toBe(head.length);
+      expect(get.body.length).toBe(size);
+      if (afterHead !== undefined) expect(readBytes() - afterHead).toBeGreaterThanOrEqual(size);
     });
   } finally {
     rmSync(directory, { recursive: true, force: true });
