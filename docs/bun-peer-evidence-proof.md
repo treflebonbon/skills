@@ -28,7 +28,7 @@ macOS の `/tmp -> /private/tmp` は common Git dir の canonical path を変え
 
 新しい probe は、実際に起動した同じ skill の `candidate-record check` の argv を保存する。nonce・fingerprint・実 HEAD・cwd・終了状態を記録し、checker の30秒 timeout は kill 後に124として保存する。元資料の本文と checker の生出力は receipt に含めない。
 
-候補の JSON は、大きな整数を BigInt として比較・保存し、非有限値を `null` に置換しない。float は旧 Python と同じ IEEE 754 として扱い、整数との比較で丸めを許さない。元 bytes の hash を JSON の再 serialize で代用しない。文字列の空白集合と title の casefold は旧 Python の Unicode 16.0.0 を引き継ぐ。固定 casefold table は移植前の Python `str.casefold()` から生成し、[Unicode license](../lib/bun/vendor/peer-casefold.LICENSE)を同梱する。
+候補の JSON は、大きな整数を BigInt として比較・保存し、非有限値を `null` に置換しない。float は旧 Python と同じ IEEE 754 として扱い、整数との比較で丸めを許さない。安全な整数範囲を超える Number は指数表記で保存し、再読込みで異なる値の BigInt に変換させない。元 bytes の hash を JSON の再 serialize で代用しない。文字列の空白集合と title の casefold は旧 Python の Unicode 16.0.0 を引き継ぐ。固定 casefold table は移植前の Python `str.casefold()` から生成し、[Unicode license](../lib/bun/vendor/peer-casefold.LICENSE)を同梱する。
 
 ## ファイル操作と検証
 

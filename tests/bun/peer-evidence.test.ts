@@ -185,6 +185,77 @@ test("新 pin は大きな整数・非有限値を保持し、旧 corpus と同�
   });
 });
 
+test("大きな浮動小数点値を pin した候補は直後の check と証跡の復旧でも一致する", () => {
+  withCorpus((repo) => {
+    const prepared = spawnSync(resolve(root, "bin/prepare-file-safety"), [], { encoding: "utf8" });
+    expect(prepared.status, prepared.stderr).toBe(0);
+    const candidates =
+      '[{"id":"C1","title":"保存 Straße Σ ﬃ","acceptance":["既存 bytes を維持"],"non_goals":[],"owned_files":["src/a.ts"],"extra":[1.0000000000000001e18,-1.0000000000000001e18,1000000000000000100,9007199254740993]}]\n';
+    for (const peer of peers) {
+      fs.writeFileSync(corpus.candidatesPath, candidates);
+      const script = resolve(root, `skills/${peer}/scripts/candidate-record`);
+      const record = resolve(corpus.base, peer + "-float.json");
+      const invoke = (entry: string, args: string[]) =>
+        spawnSync(entry, args, { cwd: repo, encoding: "utf8" });
+      const pinned = invoke(script, [
+        "pin",
+        corpus.artifactPath,
+        resolve(repo, ".git"),
+        corpus.sourceSha,
+        corpus.candidatesPath,
+        record,
+      ]);
+      expect(pinned.status, pinned.stderr).toBe(0);
+      const fingerprint = pinned.stdout.trim();
+      const check = () => invoke(script, ["check", record, corpus.candidatesPath, fingerprint]);
+      const unchanged = check();
+      expect(unchanged.status, unchanged.stderr).toBe(0);
+      // 同じ表示に丸められる近傍の整数を同一候補として誤受理しない。
+      fs.writeFileSync(
+        corpus.candidatesPath,
+        candidates.replace("1.0000000000000001e18", "1000000000000000100"),
+      );
+      const changed = check();
+      expect(changed.status).toBe(1);
+      expect(changed.stderr).toContain("候補が固定記録と一致しません");
+      fs.writeFileSync(corpus.candidatesPath, candidates);
+      const evidence = resolve(root, `skills/${peer}/scripts/run-evidence`);
+      const receipt = resolve(corpus.base, peer + "-float-receipt.json");
+      const probed = invoke(evidence, [
+        "probe",
+        record,
+        corpus.candidatesPath,
+        fingerprint,
+        "0123456789abcdef",
+        receipt,
+      ]);
+      expect(probed.status, probed.stderr).toBe(0);
+      expect(JSON.parse(probed.stdout).exit_code).toBe(0);
+      const saved = invoke(evidence, [
+        "checkpoint",
+        record,
+        corpus.candidatesPath,
+        fingerprint,
+        receipt,
+      ]);
+      expect(saved.status, saved.stderr).toBe(0);
+      const originals = new Map(
+        [record, corpus.candidatesPath, receipt].map((path) => [path, fs.readFileSync(path)]),
+      );
+      for (const path of originals.keys()) fs.unlinkSync(path);
+      const restored = invoke(evidence, [
+        "restore",
+        fingerprint,
+        JSON.parse(saved.stdout).checkpoint,
+      ]);
+      expect(restored.status, restored.stderr).toBe(0);
+      for (const [path, raw] of originals) expect(fs.readFileSync(path)).toEqual(raw);
+      const checked = check();
+      expect(checked.status, checked.stderr).toBe(0);
+    }
+  });
+});
+
 test("record 読込み後の同時置換でも最初に検証した候補を差し替えられない", () => {
   withCorpus((repo) => {
     const script = resolve(root, "skills/orca-peer-refactor/scripts/candidate-record");

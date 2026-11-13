@@ -52,6 +52,11 @@ export function peerJSON(value: unknown): string {
     (_key, item) => {
       if (typeof item === "bigint")
         return (JSON as typeof JSON & { rawJSON(text: string): unknown }).rawJSON(String(item));
+      if (typeof item === "number" && Number.isInteger(item) && !Number.isSafeInteger(item))
+        // 整数表記では再読込みが BigInt になり、元の IEEE-754 値と食い違う。
+        return (JSON as typeof JSON & { rawJSON(text: string): unknown }).rawJSON(
+          item.toExponential(),
+        );
       if (typeof item === "number" && !Number.isFinite(item)) {
         const key = marker + constants.size;
         constants.set(key, Number.isNaN(item) ? "NaN" : item < 0 ? "-Infinity" : "Infinity");
