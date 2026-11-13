@@ -363,11 +363,30 @@ class PluginPackageContractTest(unittest.TestCase):
         self.assertTrue((ROOT / "skills/domain-modeling-studio/dist/THIRD-PARTY-LICENSES.txt").is_file())
         self.assertTrue((ROOT / "packages/wsl2-browser/THIRD_PARTY_NOTICES.md").is_file())
 
+    def test_product_guide_vendored_bundles_match_lock_and_have_notices(self):
+        """配布する bundle は lock 固定の版で、lock の全 package の notice を持つ。"""
+        skill = ROOT / "skills/product-guide"
+        lock = json.loads((skill / "package-lock.json").read_text(encoding="utf-8"))
+        declared = json.loads((skill / "package.json").read_text(encoding="utf-8"))["dependencies"]
+        notice = (skill / "vendor/THIRD-PARTY-LICENSES.txt").read_text(encoding="utf-8")
+        for name, version in declared.items():
+            with self.subTest(package=name):
+                self.assertEqual(lock["packages"][f"node_modules/{name}"]["version"], version)
+        for name, package in lock["packages"].items():
+            if name:
+                with self.subTest(notice=name):
+                    self.assertIn(f"{name.removeprefix('node_modules/')}@{package['version']}", notice)
+                    self.assertIn("Permission is hereby granted", notice)
+        bundle = (skill / "vendor/dagre.esm.js").read_text(encoding="utf-8")
+        self.assertTrue(bundle.startswith("/* @dagrejs/dagre@3.1.3 "))
+        self.assertFalse((skill / "node_modules").exists())
+
     def test_npm_locks_use_public_registry_urls_and_integrity(self):
         locks = (
             ROOT / "development/package-lock.json",
             ROOT / "skills/dogfood/references/package-lock.json",
             ROOT / "skills/domain-modeling-studio/package-lock.json",
+            ROOT / "skills/product-guide/package-lock.json",
             ROOT / "packages/wsl2-browser/package-lock.json",
         )
         for path in locks:

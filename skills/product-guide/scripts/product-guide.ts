@@ -1,6 +1,7 @@
 // product-guide CLI: validate (モデル検証) と generate (単体 HTML 生成)。Bun と標準 API のみ。
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import dagre from "../vendor/dagre.esm.js"; // 同梱 bundle。node_modules には依存しない（references/dependencies.md）
 
 const KINDS = ["code-verified", "approved-decision", "inferred", "unverified"] as const;
 const AVAILABILITY = ["available", "in-development", "proposed", "unknown"] as const;
@@ -335,7 +336,97 @@ a{color:var(--accent)}a:focus-visible,summary:focus-visible{outline:3px solid va
 .badge{display:inline-block;border:1px solid var(--fg);border-radius:.25rem;padding:0 .4rem;margin-left:.4rem;font-size:.875rem;line-height:1.6}
 .muted{color:var(--muted)}.box{border:1px solid var(--line);border-left:6px solid var(--fg);padding:.5rem 1rem;margin:1rem 0}
 details{margin:.25rem 0 .75rem}summary{cursor:pointer}ol,ul{padding-left:1.5rem}code{font-family:ui-monospace,monospace}
-@media print{a{color:inherit}main{max-width:none}details>*{display:block}}`;
+figure.flow{margin:1rem 0}.diagram{overflow:auto;border:1px solid var(--line);padding:.5rem}.diagram:focus-visible{outline:3px solid var(--accent)}svg{display:block;max-width:none;color:var(--fg)}svg text{fill:var(--fg)}svg .node rect{fill:var(--bg);stroke:var(--fg);stroke-width:2}svg .edge{fill:none;stroke:var(--fg);stroke-width:2}svg marker path{fill:var(--fg)}figcaption{color:var(--muted)}
+@media print{a{color:inherit}main{max-width:none}details>*{display:block}.diagram{overflow:visible}svg{max-width:100%;height:auto}}`;
+
+// ---- 流れの図（Dagre） ----
+const MAX_STEPS = 30; // これを超える流れは単純フローとして読めないので、配置せず失敗させる。
+const DASH: Record<string, string> = {
+  "code-verified": "",
+  "approved-decision": "6 3",
+  inferred: "2 3",
+  unverified: "1 5",
+};
+const PX = 14; // 本文の文字サイズ（px）
+const textWidth = (s: string) =>
+  [...s].reduce((w, ch) => w + (ch.charCodeAt(0) < 256 ? PX * 0.6 : PX), 0);
+function wrap(s: string, max: number): string[] {
+  const lines: string[] = [];
+  let cur = "";
+  for (const ch of s) {
+    if (cur && textWidth(cur + ch) > max) {
+      lines.push(cur);
+      cur = "";
+    }
+    cur += ch;
+  }
+  return [...lines, cur];
+}
+
+// flow の手順を上から下へ並べた SVG を返す。配置できなければ例外（呼び出し側が生成を止める）。
+function flowDiagram(name: string, steps: { text: string; kinds: string[] }[], id: string) {
+  const fail = (why: string): never => {
+    throw new Error(`図の配置に失敗しました（機能「${name}」: ${why}）`);
+  };
+  if (steps.length > MAX_STEPS)
+    fail(`手順が ${MAX_STEPS} 件を超え、単純フローとして配置できません`);
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({ rankdir: "TB", nodesep: 24, ranksep: 36, marginx: 16, marginy: 16 });
+  g.setDefaultEdgeLabel(() => ({}));
+  const boxes = steps.map((s, i) => {
+    const body = wrap(`${i + 1}. ${s.text}`, 280);
+    const label = s.kinds.map((k) => KIND_LABEL[k]).join("・");
+    const width = Math.max(...body.map(textWidth), textWidth(label)) + 24;
+    const height = (body.length + 1) * 20 + 16;
+    g.setNode(`n${i}`, { width, height });
+    if (i) g.setEdge(`n${i - 1}`, `n${i}`);
+    return { body, label, dash: DASH[KINDS.filter((k) => s.kinds.includes(k)).pop()!] }; // 最も確かでない区分で線種を決める
+  });
+  try {
+    dagre.layout(g);
+  } catch (e) {
+    fail((e as Error).message);
+  }
+  const { width, height } = g.graph();
+  const num = (n: number | undefined) => {
+    if (n === undefined || !Number.isFinite(n)) return fail("配置結果の座標が不正です");
+    return Math.round(n * 10) / 10;
+  };
+  const nodes = boxes
+    .map((b, i) => {
+      const n = g.node(`n${i}`);
+      const x = num(n.x - n.width / 2);
+      const y = num(n.y - n.height / 2);
+      const w = num(n.width);
+      const h = num(n.height);
+      const lines = [...b.body, b.label];
+      const texts = lines
+        .map(
+          (l, j) =>
+            `<text x="${num(x + 12)}" y="${num(y + 24 + j * 20)}"${j === lines.length - 1 ? ' font-weight="bold"' : ""}>${esc(l)}</text>`,
+        )
+        .join("");
+      return `<g class="node"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6"${b.dash ? ` stroke-dasharray="${b.dash}"` : ""}/>${texts}</g>`;
+    })
+    .join("");
+  const edges = steps
+    .slice(1)
+    .map((_, i) => {
+      const pts = g.edge(`n${i}`, `n${i + 1}`).points.map((p) => `${num(p.x)},${num(p.y)}`);
+      return `<polyline class="edge" points="${pts.join(" ")}" marker-end="url(#${id}-arrow)"/>`;
+    })
+    .join("");
+  const W = num(width);
+  const H = num(height);
+  const caption = `この図は ${steps.length} 件の手順を上から下へ順に示します。最初は「${steps[0].text}」、最後は「${steps[steps.length - 1].text}」です。各手順の枠には番号と根拠区分の文字があり、根拠区分は枠線の種類（実線・破線・点線）でも区別できます。`;
+  return (
+    `<figure class="flow"><div class="diagram" tabindex="0" role="region" aria-label="${esc(name)}の流れの図（スクロールできます）">` +
+    `<svg role="img" aria-labelledby="${id}-title" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-size="${PX}">` +
+    `<title id="${id}-title">${esc(name)}の流れの図</title>` +
+    `<defs><marker id="${id}-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>` +
+    `${edges}${nodes}</svg></div><figcaption>${esc(caption)}</figcaption></figure>`
+  );
+}
 
 function render(v: View): string {
   const internal = v.audience === "internal";
@@ -363,7 +454,7 @@ function render(v: View): string {
     (f.operations.length
       ? `<h4>画面上の表記</h4><ul>${f.operations.map((o) => `<li>${esc(o)}</li>`).join("")}</ul>`
       : "") +
-    `<h4>通常の流れ</h4>${list("ol", f.flow)}${section("条件", f.conditions)}${section("例外", f.exceptions)}${section("制約", f.constraints)}${section("必要な対応", f.actions)}</section>`;
+    `<h4>通常の流れ</h4>${list("ol", f.flow)}${f.flow.length ? flowDiagram(f.name, f.flow, `${id}-flow`) : ""}${section("条件", f.conditions)}${section("例外", f.exceptions)}${section("制約", f.constraints)}${section("必要な対応", f.actions)}</section>`;
   const ver = `${v.version.name ? `${esc(v.version.name)} / ` : ""}確認日 ${esc(v.version.confirmedOn)}`;
   const toc = v.current
     .map(
@@ -443,7 +534,12 @@ if (command === "validate" && file && rest.length === 0) {
     if (found.length)
       fail(1, "public に出せない内部情報が見つかりました。成果物は作成しません。", ...found);
   }
-  const html = render(view);
+  let html = "";
+  try {
+    html = render(view); // 図の配置失敗はここで止め、書込み前なので成果物は残らない。
+  } catch (e) {
+    fail(1, (e as Error).message);
+  }
   const parent = resolve(out as string);
   const dir = join(parent, `${model.target.commit}-${audience}`);
   mkdirSync(parent, { recursive: true });

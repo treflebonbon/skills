@@ -33,4 +33,4 @@
 
 - `evidence.kind` は `code-verified` / `approved-decision` / `inferred` / `unverified`。`code-verified` には `commit` と `path` が必須で、`commit` は対象版と一致する。
 - `conflicts` のコード側は `code-verified`、業務判断側は `approved-decision` の根拠を含む。
-- `flow` は初版では番号付き手順リストとして表示する。1 件以上必要。
+- `flow` は番号付き手順リストと、同じ手順から Dagre で配置した SVG 図（文章説明付き）として表示する。1 件以上必要。手順が 30 件を超える等で配置できなければ、`generate` は「図の配置に失敗」で終了コード 1 になり、成果物を作らない（図を省いて生成しない）。
