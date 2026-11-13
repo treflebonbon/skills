@@ -34,6 +34,8 @@
 }
 ```
 
+- 根拠の版の一致検査は、`commit` を書いた根拠だけが対象。`code-verified` は `commit` が必須なので常に検査されるが、他の区分は `commit` が任意で、書かなければ版の一致は検査されない。
+- `summary` は現行の概要で、`proposed` の機能を現行として書かない（自由記述は検査できない）。`changes[].feature` が `proposed` の機能を指すとき、`removed` 以外（`added` / `changed` / `unchanged`）は拒否される。
 - `evidence.kind` は `code-verified` / `approved-decision` / `inferred` / `unverified`。`code-verified` には `commit` と `path` が必須で、`commit` は対象版と一致する。
 - `conflicts` のコード側は `code-verified`、業務判断側は `approved-decision` の根拠を含む。
 - `flow` の各手順には、任意の `group`（業務区分の入れ子。外側から内側の順の文字列配列で、1 段以上、4 段まで）を付けられる。`group` を持つ手順が 1 件でもある `flow` は、ELK.js が区分の枠で囲んで配置した SVG 図になり、手順リストにも区分が文字で出る。`group` を持たない `flow`（既存のモデル）は従来どおり Dagre の単純な図になる。`group` は出力に渡る自由記述なので、`public` では他の自由記述と同じ検査を受け、実装詳細を書かない。入れ子が 4 段を超える等で配置できなければ、Dagre と同じく「図の配置に失敗」で失敗する。
