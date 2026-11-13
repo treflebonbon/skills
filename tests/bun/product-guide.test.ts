@@ -260,6 +260,65 @@ test("public は自由記述への内部情報の混入を拒否し、成果物�
   expect(generate(m, "internal").r.code).toBe(0);
 });
 
+test("flow は Dagre の SVG 図になり、手順リスト・文章説明と同じモデルに由来する", () => {
+  const { r, text } = generate(model(), "internal");
+  expect(r.code).toBe(0);
+  const figure = text.slice(text.indexOf("<figure"), text.indexOf("</figure>"));
+  expect(figure).toContain("<svg");
+  expect(figure).toContain('role="img"');
+  expect(figure).toContain("viewBox=");
+  // 図の手順は本文の flow と同じ文言・順序
+  const first = figure.indexOf("「申請する」を押す。");
+  const second = figure.indexOf("承認者へ通知される。");
+  expect(first).toBeGreaterThan(-1);
+  expect(second).toBeGreaterThan(first);
+  // 文章による説明
+  expect(figure).toContain("<figcaption");
+  expect(figure).toContain("2 件の手順");
+  // 提案の flow の図は、提案枠の中だけに出る
+  expect(text.slice(0, text.indexOf('id="proposed"'))).not.toContain("提案中の手順です。");
+  expect(text.slice(text.indexOf('id="proposed"'))).toContain("<svg");
+});
+
+test("図は拡大して読め、状態を色以外（文字と線種）でも識別できる", () => {
+  const { text } = generate(model(), "internal");
+  const figure = text.slice(text.indexOf("<figure"), text.indexOf("</figure>"));
+  expect(figure).toContain('tabindex="0"'); // キーボードでスクロール・拡大表示できる領域
+  expect(figure).toContain("コードで確認");
+  expect(figure).toContain("未確認");
+  expect(figure).toContain("stroke-dasharray"); // 線種でも区別する
+  expect(figure).toContain("1.");
+  expect(figure).toContain("2.");
+});
+
+test("図は外部通信も script も使わず、public でも内部情報を含めない", () => {
+  for (const audience of ["internal", "public"]) {
+    const { r, text } = generate(model(), audience);
+    expect(r.code).toBe(0);
+    expect(text).toContain("<svg");
+    expect(text).not.toMatch(/https?:\/\//);
+    expect(text).not.toContain("<script");
+  }
+  const pub = generate(model(), "public").text;
+  expect(pub).not.toContain(COMMIT);
+  expect(pub).not.toContain("submitInvoice");
+});
+
+test("配置に失敗したら明示して失敗し、図を省いた成果物を残さない", () => {
+  const m = model();
+  m.features[0].flow = Array.from({ length: 31 }, (_, i) => ({
+    text: `手順 ${i + 1}`,
+    evidence: ["E1"],
+  }));
+  for (const audience of ["internal", "public"]) {
+    const g = generate(m, audience);
+    expect(g.r.code).toBe(1);
+    expect(g.r.err).toContain("図の配置に失敗");
+    expect(g.r.err).toContain("請求書の申請");
+    expect(existsSync(g.out)).toBe(false);
+  }
+});
+
 test("根拠区分と提供状況は別の軸で、同じ文書に複数の提供状況が混在する", () => {
   const m = model();
   (m.features as unknown[]).push(
