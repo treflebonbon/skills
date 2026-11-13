@@ -21,3 +21,5 @@ Herdr 手順の script helper には Bash、Git、Python 3.9 以上、`jq`、`pe
 静的 HTML checker は Bash と Bun 1.4.4 以上で起動します。固定した Tokenizer は package に bundle 済みで、利用時の npm install は不要です。方式・比較 corpus・旧入口からの更新は [HTML parser の移行記録](../../../docs/html-report-parser-proof.md) を参照してください。candidate/evidence の Python helper は #38 の切り替えまで維持します。
 
 描画用 HTML checker は Agent Skill を呼ばず、package wrapper 経由で [npm の `@playwright/cli`](https://www.npmjs.com/package/@playwright/cli/v/0.1.22) `0.1.22` を使います。lock は `playwright` / `playwright-core` `1.64.0-alpha-1790635538000` も固定します。移管時の Node.js `24.22.1` / npm `11.19.1` は観測値で、browser package が示す Node.js の下限は `20.19` です。これらの観測値は互換性保証や推奨 pin ではありません。CLI API は選択した native CLI と同じ版の外部 guide で確認してください。
+
+report の loopback 配信は package の `bin/serve-local` を使い、Bash と Bun 1.4.4 以上が必要です。配信に Python・追加 install・native build は使いません。専用 root・process の管理と旧手順からの更新は [配信の移行記録](../../../docs/bun-loopback-proof.md)を参照してください。

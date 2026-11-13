@@ -1,0 +1,268 @@
+{
+  "sourceRevision": "da3cae898d8875da67f832e0c6b0ef4fbfb0d28e",
+  "pythonVersion": "3.14.7",
+  "pythonHttpServerSha256": "ace1320105a1f21b09b4c50179af8d4cdbda95cd4f82cb5f4527de4cd5ab8551",
+  "sources": {
+    "skills/herdr-peer-refactor/SKILL.md": "d444afb7a52ed14d14eae78094a69658ff9d5dfdfb2627061ee8320b3e9c84f9",
+    "skills/orca-peer-refactor/SKILL.md": "ed67f271b51cfd2f75a770ac23401dd0fa43129b5e9a388d101230b5291b7c4a",
+    "skills/ui-grill-with-docs/SKILL.md": "86aa5f8bdadfd39f063b6dd6d4702881aa21b8d9ffc6e429ea1c0f18217f6df2",
+    "skills/ui-grill-with-docs/evals/browser-open-evaluation.md": "f9c1ac92e21d0843291818c1d8caa0fe6d21b8855b9a889115d601b3cf49f344"
+  },
+  "command": [
+    "python3",
+    "-u",
+    "-m",
+    "http.server",
+    "0",
+    "--bind",
+    "127.0.0.1",
+    "--directory",
+    "<document-root>"
+  ],
+  "files": {
+    "index.html": "PGgxPnJvdW5kIHIxPC9oMT4K",
+    "report.html": "PHByZSBjbGFzcz0ibWVybWFpZCI+QSAtLT4gQjwvcHJlPgo=",
+    "asset.txt": "aW5zaWRlCg==",
+    "nested/index.html": "PGgxPm5lc3RlZDwvaDE+Cg==",
+    "nested/asset.bin": "AAH/",
+    "round 日本.html": "PGgxPuizquWVjzwvaDE+Cg==",
+    "round dir/index.html": "PGgxPnJvdW5kPC9oMT4K"
+  },
+  "termination": {
+    "signal": "SIGTERM",
+    "returncode": -15
+  },
+  "cases": [
+    {
+      "name": "root-index",
+      "method": "GET",
+      "path": "/",
+      "status": 200,
+      "contentType": "text/html",
+      "location": null,
+      "bodyBase64": "PGgxPnJvdW5kIHIxPC9oMT4K"
+    },
+    {
+      "name": "report-query",
+      "method": "GET",
+      "path": "/report.html?__architecture_expected_mermaid=1",
+      "status": 200,
+      "contentType": "text/html",
+      "location": null,
+      "bodyBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QSAtLT4gQjwvcHJlPgo="
+    },
+    {
+      "name": "head",
+      "method": "HEAD",
+      "path": "/asset.txt",
+      "status": 200,
+      "contentType": "text/plain",
+      "location": null,
+      "bodyBase64": ""
+    },
+    {
+      "name": "directory-redirect",
+      "method": "GET",
+      "path": "/nested?round=1",
+      "status": 301,
+      "contentType": null,
+      "location": "/nested/?round=1",
+      "bodyBase64": ""
+    },
+    {
+      "name": "directory-index",
+      "method": "GET",
+      "path": "/nested/",
+      "status": 200,
+      "contentType": "text/html",
+      "location": null,
+      "bodyBase64": "PGgxPm5lc3RlZDwvaDE+Cg=="
+    },
+    {
+      "name": "binary",
+      "method": "GET",
+      "path": "/nested/asset.bin",
+      "status": 200,
+      "contentType": "application/octet-stream",
+      "location": null,
+      "bodyBase64": "AAH/"
+    },
+    {
+      "name": "missing",
+      "method": "GET",
+      "path": "/missing.html",
+      "status": 404,
+      "contentType": "text/html;charset=utf-8",
+      "location": null,
+      "bodyBase64": "PCFET0NUWVBFIEhUTUw+CjxodG1sIGxhbmc9ImVuIj4KICAgIDxoZWFkPgogICAgICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04Ij4KICAgICAgICA8c3R5bGUgdHlwZT0idGV4dC9jc3MiPgogICAgICAgICAgICA6cm9vdCB7CiAgICAgICAgICAgICAgICBjb2xvci1zY2hlbWU6IGxpZ2h0IGRhcms7CiAgICAgICAgICAgIH0KICAgICAgICA8L3N0eWxlPgogICAgICAgIDx0aXRsZT5FcnJvciByZXNwb25zZTwvdGl0bGU+CiAgICA8L2hlYWQ+CiAgICA8Ym9keT4KICAgICAgICA8aDE+RXJyb3IgcmVzcG9uc2U8L2gxPgogICAgICAgIDxwPkVycm9yIGNvZGU6IDQwNDwvcD4KICAgICAgICA8cD5NZXNzYWdlOiBGaWxlIG5vdCBmb3VuZC48L3A+CiAgICAgICAgPHA+RXJyb3IgY29kZSBleHBsYW5hdGlvbjogNDA0IC0gTm90aGluZyBtYXRjaGVzIHRoZSBnaXZlbiBVUkkuPC9wPgogICAgPC9ib2R5Pgo8L2h0bWw+Cg=="
+    },
+    {
+      "name": "parent",
+      "method": "GET",
+      "path": "/../outside.txt",
+      "status": 404,
+      "contentType": "text/html;charset=utf-8",
+      "location": null,
+      "bodyBase64": "PCFET0NUWVBFIEhUTUw+CjxodG1sIGxhbmc9ImVuIj4KICAgIDxoZWFkPgogICAgICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04Ij4KICAgICAgICA8c3R5bGUgdHlwZT0idGV4dC9jc3MiPgogICAgICAgICAgICA6cm9vdCB7CiAgICAgICAgICAgICAgICBjb2xvci1zY2hlbWU6IGxpZ2h0IGRhcms7CiAgICAgICAgICAgIH0KICAgICAgICA8L3N0eWxlPgogICAgICAgIDx0aXRsZT5FcnJvciByZXNwb25zZTwvdGl0bGU+CiAgICA8L2hlYWQ+CiAgICA8Ym9keT4KICAgICAgICA8aDE+RXJyb3IgcmVzcG9uc2U8L2gxPgogICAgICAgIDxwPkVycm9yIGNvZGU6IDQwNDwvcD4KICAgICAgICA8cD5NZXNzYWdlOiBGaWxlIG5vdCBmb3VuZC48L3A+CiAgICAgICAgPHA+RXJyb3IgY29kZSBleHBsYW5hdGlvbjogNDA0IC0gTm90aGluZyBtYXRjaGVzIHRoZSBnaXZlbiBVUkkuPC9wPgogICAgPC9ib2R5Pgo8L2h0bWw+Cg=="
+    },
+    {
+      "name": "encoded-parent",
+      "method": "GET",
+      "path": "/%2e%2e/outside.txt",
+      "status": 404,
+      "contentType": "text/html;charset=utf-8",
+      "location": null,
+      "bodyBase64": "PCFET0NUWVBFIEhUTUw+CjxodG1sIGxhbmc9ImVuIj4KICAgIDxoZWFkPgogICAgICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04Ij4KICAgICAgICA8c3R5bGUgdHlwZT0idGV4dC9jc3MiPgogICAgICAgICAgICA6cm9vdCB7CiAgICAgICAgICAgICAgICBjb2xvci1zY2hlbWU6IGxpZ2h0IGRhcms7CiAgICAgICAgICAgIH0KICAgICAgICA8L3N0eWxlPgogICAgICAgIDx0aXRsZT5FcnJvciByZXNwb25zZTwvdGl0bGU+CiAgICA8L2hlYWQ+CiAgICA8Ym9keT4KICAgICAgICA8aDE+RXJyb3IgcmVzcG9uc2U8L2gxPgogICAgICAgIDxwPkVycm9yIGNvZGU6IDQwNDwvcD4KICAgICAgICA8cD5NZXNzYWdlOiBGaWxlIG5vdCBmb3VuZC48L3A+CiAgICAgICAgPHA+RXJyb3IgY29kZSBleHBsYW5hdGlvbjogNDA0IC0gTm90aGluZyBtYXRjaGVzIHRoZSBnaXZlbiBVUkkuPC9wPgogICAgPC9ib2R5Pgo8L2h0bWw+Cg=="
+    },
+    {
+      "name": "nested-parent",
+      "method": "GET",
+      "path": "/nested/%2e%2e/%2e%2e/outside.txt",
+      "status": 404,
+      "contentType": "text/html;charset=utf-8",
+      "location": null,
+      "bodyBase64": "PCFET0NUWVBFIEhUTUw+CjxodG1sIGxhbmc9ImVuIj4KICAgIDxoZWFkPgogICAgICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04Ij4KICAgICAgICA8c3R5bGUgdHlwZT0idGV4dC9jc3MiPgogICAgICAgICAgICA6cm9vdCB7CiAgICAgICAgICAgICAgICBjb2xvci1zY2hlbWU6IGxpZ2h0IGRhcms7CiAgICAgICAgICAgIH0KICAgICAgICA8L3N0eWxlPgogICAgICAgIDx0aXRsZT5FcnJvciByZXNwb25zZTwvdGl0bGU+CiAgICA8L2hlYWQ+CiAgICA8Ym9keT4KICAgICAgICA8aDE+RXJyb3IgcmVzcG9uc2U8L2gxPgogICAgICAgIDxwPkVycm9yIGNvZGU6IDQwNDwvcD4KICAgICAgICA8cD5NZXNzYWdlOiBGaWxlIG5vdCBmb3VuZC48L3A+CiAgICAgICAgPHA+RXJyb3IgY29kZSBleHBsYW5hdGlvbjogNDA0IC0gTm90aGluZyBtYXRjaGVzIHRoZSBnaXZlbiBVUkkuPC9wPgogICAgPC9ib2R5Pgo8L2h0bWw+Cg=="
+    },
+    {
+      "name": "encoded-slash-parent",
+      "method": "GET",
+      "path": "/%2e%2e%2foutside.txt",
+      "status": 404,
+      "contentType": "text/html;charset=utf-8",
+      "location": null,
+      "bodyBase64": "PCFET0NUWVBFIEhUTUw+CjxodG1sIGxhbmc9ImVuIj4KICAgIDxoZWFkPgogICAgICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04Ij4KICAgICAgICA8c3R5bGUgdHlwZT0idGV4dC9jc3MiPgogICAgICAgICAgICA6cm9vdCB7CiAgICAgICAgICAgICAgICBjb2xvci1zY2hlbWU6IGxpZ2h0IGRhcms7CiAgICAgICAgICAgIH0KICAgICAgICA8L3N0eWxlPgogICAgICAgIDx0aXRsZT5FcnJvciByZXNwb25zZTwvdGl0bGU+CiAgICA8L2hlYWQ+CiAgICA8Ym9keT4KICAgICAgICA8aDE+RXJyb3IgcmVzcG9uc2U8L2gxPgogICAgICAgIDxwPkVycm9yIGNvZGU6IDQwNDwvcD4KICAgICAgICA8cD5NZXNzYWdlOiBGaWxlIG5vdCBmb3VuZC48L3A+CiAgICAgICAgPHA+RXJyb3IgY29kZSBleHBsYW5hdGlvbjogNDA0IC0gTm90aGluZyBtYXRjaGVzIHRoZSBnaXZlbiBVUkkuPC9wPgogICAgPC9ib2R5Pgo8L2h0bWw+Cg=="
+    },
+    {
+      "name": "double-encoded-parent",
+      "method": "GET",
+      "path": "/%252e%252e/outside.txt",
+      "status": 404,
+      "contentType": "text/html;charset=utf-8",
+      "location": null,
+      "bodyBase64": "PCFET0NUWVBFIEhUTUw+CjxodG1sIGxhbmc9ImVuIj4KICAgIDxoZWFkPgogICAgICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04Ij4KICAgICAgICA8c3R5bGUgdHlwZT0idGV4dC9jc3MiPgogICAgICAgICAgICA6cm9vdCB7CiAgICAgICAgICAgICAgICBjb2xvci1zY2hlbWU6IGxpZ2h0IGRhcms7CiAgICAgICAgICAgIH0KICAgICAgICA8L3N0eWxlPgogICAgICAgIDx0aXRsZT5FcnJvciByZXNwb25zZTwvdGl0bGU+CiAgICA8L2hlYWQ+CiAgICA8Ym9keT4KICAgICAgICA8aDE+RXJyb3IgcmVzcG9uc2U8L2gxPgogICAgICAgIDxwPkVycm9yIGNvZGU6IDQwNDwvcD4KICAgICAgICA8cD5NZXNzYWdlOiBGaWxlIG5vdCBmb3VuZC48L3A+CiAgICAgICAgPHA+RXJyb3IgY29kZSBleHBsYW5hdGlvbjogNDA0IC0gTm90aGluZyBtYXRjaGVzIHRoZSBnaXZlbiBVUkkuPC9wPgogICAgPC9ib2R5Pgo8L2h0bWw+Cg=="
+    },
+    {
+      "name": "other-session",
+      "method": "GET",
+      "path": "/other-session/sheet.html",
+      "status": 404,
+      "contentType": "text/html;charset=utf-8",
+      "location": null,
+      "bodyBase64": "PCFET0NUWVBFIEhUTUw+CjxodG1sIGxhbmc9ImVuIj4KICAgIDxoZWFkPgogICAgICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04Ij4KICAgICAgICA8c3R5bGUgdHlwZT0idGV4dC9jc3MiPgogICAgICAgICAgICA6cm9vdCB7CiAgICAgICAgICAgICAgICBjb2xvci1zY2hlbWU6IGxpZ2h0IGRhcms7CiAgICAgICAgICAgIH0KICAgICAgICA8L3N0eWxlPgogICAgICAgIDx0aXRsZT5FcnJvciByZXNwb25zZTwvdGl0bGU+CiAgICA8L2hlYWQ+CiAgICA8Ym9keT4KICAgICAgICA8aDE+RXJyb3IgcmVzcG9uc2U8L2gxPgogICAgICAgIDxwPkVycm9yIGNvZGU6IDQwNDwvcD4KICAgICAgICA8cD5NZXNzYWdlOiBGaWxlIG5vdCBmb3VuZC48L3A+CiAgICAgICAgPHA+RXJyb3IgY29kZSBleHBsYW5hdGlvbjogNDA0IC0gTm90aGluZyBtYXRjaGVzIHRoZSBnaXZlbiBVUkkuPC9wPgogICAgPC9ib2R5Pgo8L2h0bWw+Cg=="
+    },
+    {
+      "name": "unicode-space",
+      "method": "GET",
+      "path": "/round%20%E6%97%A5%E6%9C%AC.html",
+      "status": 200,
+      "contentType": "text/html",
+      "location": null,
+      "bodyBase64": "PGgxPuizquWVjzwvaDE+Cg=="
+    },
+    {
+      "name": "inside-symlink",
+      "method": "GET",
+      "path": "/inside-link",
+      "status": 200,
+      "contentType": "application/octet-stream",
+      "location": null,
+      "bodyBase64": "aW5zaWRlCg=="
+    },
+    {
+      "name": "outside-symlink",
+      "method": "GET",
+      "path": "/outside-link",
+      "status": 200,
+      "contentType": "application/octet-stream",
+      "location": null,
+      "bodyBase64": "b3V0c2lkZS1jYW5hcnkK"
+    },
+    {
+      "name": "outside-directory-symlink",
+      "method": "GET",
+      "path": "/outside-dir/sheet.html",
+      "status": 200,
+      "contentType": "text/html",
+      "location": null,
+      "bodyBase64": "b3RoZXItc2Vzc2lvbi1jYW5hcnkK"
+    },
+    {
+      "name": "dangling-symlink",
+      "method": "GET",
+      "path": "/dangling-link",
+      "status": 404,
+      "contentType": "text/html;charset=utf-8",
+      "location": null,
+      "bodyBase64": "PCFET0NUWVBFIEhUTUw+CjxodG1sIGxhbmc9ImVuIj4KICAgIDxoZWFkPgogICAgICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04Ij4KICAgICAgICA8c3R5bGUgdHlwZT0idGV4dC9jc3MiPgogICAgICAgICAgICA6cm9vdCB7CiAgICAgICAgICAgICAgICBjb2xvci1zY2hlbWU6IGxpZ2h0IGRhcms7CiAgICAgICAgICAgIH0KICAgICAgICA8L3N0eWxlPgogICAgICAgIDx0aXRsZT5FcnJvciByZXNwb25zZTwvdGl0bGU+CiAgICA8L2hlYWQ+CiAgICA8Ym9keT4KICAgICAgICA8aDE+RXJyb3IgcmVzcG9uc2U8L2gxPgogICAgICAgIDxwPkVycm9yIGNvZGU6IDQwNDwvcD4KICAgICAgICA8cD5NZXNzYWdlOiBGaWxlIG5vdCBmb3VuZC48L3A+CiAgICAgICAgPHA+RXJyb3IgY29kZSBleHBsYW5hdGlvbjogNDA0IC0gTm90aGluZyBtYXRjaGVzIHRoZSBnaXZlbiBVUkkuPC9wPgogICAgPC9ib2R5Pgo8L2h0bWw+Cg=="
+    },
+    {
+      "name": "directory-listing",
+      "method": "GET",
+      "path": "/empty/",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "location": null,
+      "bodyBase64": "PCFET0NUWVBFIEhUTUw+CjxodG1sIGxhbmc9ImVuIj4KPGhlYWQ+CjxtZXRhIGNoYXJzZXQ9InV0Zi04Ij4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KOnJvb3Qgewpjb2xvci1zY2hlbWU6IGxpZ2h0IGRhcms7Cn0KPC9zdHlsZT4KPHRpdGxlPkRpcmVjdG9yeSBsaXN0aW5nIGZvciAvZW1wdHkvPC90aXRsZT4KPC9oZWFkPgo8Ym9keT4KPGgxPkRpcmVjdG9yeSBsaXN0aW5nIGZvciAvZW1wdHkvPC9oMT4KPGhyPgo8dWw+CjwvdWw+Cjxocj4KPC9ib2R5Pgo8L2h0bWw+Cg=="
+    },
+    {
+      "name": "unsupported-method",
+      "method": "POST",
+      "path": "/asset.txt",
+      "status": 501,
+      "contentType": "text/html;charset=utf-8",
+      "location": null,
+      "bodyBase64": "PCFET0NUWVBFIEhUTUw+CjxodG1sIGxhbmc9ImVuIj4KICAgIDxoZWFkPgogICAgICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04Ij4KICAgICAgICA8c3R5bGUgdHlwZT0idGV4dC9jc3MiPgogICAgICAgICAgICA6cm9vdCB7CiAgICAgICAgICAgICAgICBjb2xvci1zY2hlbWU6IGxpZ2h0IGRhcms7CiAgICAgICAgICAgIH0KICAgICAgICA8L3N0eWxlPgogICAgICAgIDx0aXRsZT5FcnJvciByZXNwb25zZTwvdGl0bGU+CiAgICA8L2hlYWQ+CiAgICA8Ym9keT4KICAgICAgICA8aDE+RXJyb3IgcmVzcG9uc2U8L2gxPgogICAgICAgIDxwPkVycm9yIGNvZGU6IDUwMTwvcD4KICAgICAgICA8cD5NZXNzYWdlOiBVbnN1cHBvcnRlZCBtZXRob2QgKCdQT1NUJykuPC9wPgogICAgICAgIDxwPkVycm9yIGNvZGUgZXhwbGFuYXRpb246IDUwMSAtIFNlcnZlciBkb2VzIG5vdCBzdXBwb3J0IHRoaXMgb3BlcmF0aW9uLjwvcD4KICAgIDwvYm9keT4KPC9odG1sPgo="
+    },
+    {
+      "name": "refresh-same-url",
+      "method": "GET",
+      "path": "/",
+      "status": 200,
+      "contentType": "text/html",
+      "location": null,
+      "bodyBase64": "PGgxPnJvdW5kIHIyPC9oMT4K"
+    },
+    {
+      "name": "leading-slashes",
+      "method": "GET",
+      "path": "//nested",
+      "status": 301,
+      "contentType": null,
+      "location": "/nested/",
+      "bodyBase64": ""
+    },
+    {
+      "name": "leading-slashes-query",
+      "method": "GET",
+      "path": "//nested?x=1",
+      "status": 301,
+      "contentType": null,
+      "location": "/nested/?x=1",
+      "bodyBase64": ""
+    },
+    {
+      "name": "leading-slashes-query-tail",
+      "method": "GET",
+      "path": "///nested?x=1&next=%2F",
+      "status": 301,
+      "contentType": null,
+      "location": "/nested/?x=1&next=%2F",
+      "bodyBase64": ""
+    },
+    {
+      "name": "leading-slashes-encoded-path",
+      "method": "GET",
+      "path": "//round%20dir?x=a%20b",
+      "status": 301,
+      "contentType": null,
+      "location": "/round%20dir/?x=a%20b",
+      "bodyBase64": ""
+    }
+  ],
+  "additionalCasesFromPinnedSource": [
+    "leading-slashes",
+    "leading-slashes-query",
+    "leading-slashes-query-tail",
+    "leading-slashes-encoded-path"
+  ]
+}

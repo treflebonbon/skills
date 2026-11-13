@@ -13,22 +13,25 @@ description: "明示依頼された元候補を Herdr の pane と read-only pee
 
 HTML report の pin は、静的検査と実ブラウザ描画検査が成功し、その後に同じ artifact を提示した場合だけ行う。`<skill-dir>/scripts/check-architecture-report <report.html>` は Mermaid `<pre>` の raw text と期待図数を検査するだけで、実描画を証明しない。提示前に検査されていない report は、検査後に提示し直す。HTML 検査の失敗時は pin しない。Markdown artifact は従来経路を保ち、HTML 描画検査を要求しない。候補ゼロ、または peer 依頼未承認で未選択ならこの pin 手順へ入らない。peer 協働の明示依頼で選択を委任された場合は、peer が元候補一覧から選んだ候補を pin してよい。
 
-`skill_dir` はロードされた `SKILL.md` の絶対 path の親 directory にする。共用 CLI が必要なときは [共用 CLI の説明](../../docs/shared-cli.md) に従い、`plugin_root` を `skill_dir` から解決して `"$plugin_root/bin/<command>"` を絶対 path で使う。cwd や `PATH`、別の skill install location から推測しない。Orca 内蔵 page 操作には別途導入した `orca-cli` skill を使う。HTML report の browser 検査は [WSL2 browser package](../../packages/wsl2-browser/USAGE.md) の条件が満たされる場合にだけ `"$plugin_root/packages/wsl2-browser/bin/playwright-cli"` で行う。`file:` URL は使わず、report directory を loopback のみで listen する HTTP server で配信し、server URL と artifact path を照合してから server を止める。実 browser を使えなければ HTML report は検査済みと扱わず、Markdown artifact の経路を案内する。
+`skill_dir` はロードされた `SKILL.md` の絶対 path の親 directory にする。共用 CLI が必要なときは [共用 CLI の説明](../../docs/shared-cli.md) に従い、`plugin_root` を `skill_dir` から解決して `"$plugin_root/bin/<command>"` を絶対 path で使う。cwd や `PATH`、別の skill install location から推測しない。Orca 内蔵 page 操作には別途導入した `orca-cli` skill を使う。HTML report の browser 検査は [WSL2 browser package](../../packages/wsl2-browser/USAGE.md) の条件が満たされる場合にだけ `"$plugin_root/packages/wsl2-browser/bin/playwright-cli"` で行う。HTML report と同じ session が所有する必要な asset だけを専用 document root に置き、`bin/serve-local` で配信する。起動時 JSON の `root` と `url`、配信する artifact path を照合し、runtime 管理の長時間 terminal/session の handle を保持して HTTP の到達を確認する。描画検査後はその handle で server を止める。実 browser を使えなければ HTML report は検査済みと扱わず、Markdown artifact の経路を案内する。
 
 ```bash
 : "${skill_dir:?現在の skill directory を指定してください}"
 plugin_root="$(cd "$skill_dir/../.." && pwd)"
-report="/absolute/path/to/report.html"
+document_root="/absolute/path/to/session-private-report-root"
+report="$document_root/report.html"
 "$skill_dir/scripts/check-architecture-report" "$report"
-python3 -m http.server 8765 --bind 127.0.0.1 --directory "$(dirname "$report")"
+"$plugin_root/bin/serve-local" "$document_root" 8765
 ```
+
+`document_root` はこの report 専用に作成し、共有作業領域全体を指定しない。`serve-local` は foreground のまま使う。`file:` URL は使わない。
 
 別 terminal:
 
 ```bash
 : "${skill_dir:?現在の skill directory を指定してください}"
 plugin_root="$(cd "$skill_dir/../.." && pwd)"
-report="/absolute/path/to/report.html"
+report="/absolute/path/to/session-private-report-root/report.html"
 expected=1 # 静的 checker の expected_mermaid_diagrams
 render_script="$skill_dir/scripts/check-architecture-render.js"
 "$plugin_root/packages/wsl2-browser/bin/playwright-cli" open "http://127.0.0.1:8765/$(basename "$report")?__architecture_expected_mermaid=$expected"
