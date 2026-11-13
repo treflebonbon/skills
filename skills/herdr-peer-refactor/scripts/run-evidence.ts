@@ -10,6 +10,7 @@ import {
   openParent,
   readRegular,
   removeCreated,
+  exclusiveFile,
   type Identity,
   type Parent,
 } from "../../../lib/bun/file-safety.ts";
@@ -280,40 +281,60 @@ function restore(fingerprint: string, hash: string): void {
     files.get(path) ?? fail("checkpoint に必要なファイルがありません");
   const artifact = originalArtifact(read(data.record_path), fingerprint);
   check(data.record_path, data.candidates_path, fingerprint, read);
-  for (const [path, content] of files) {
-    publicPath(path, artifact);
-    try {
-      if (!readPublic(path, artifact).equals(content))
-        fail("既存の証跡と異なるため復元を中止しました。待機台帳も上書きしません");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      // 親の欠落だけを許す。file / symlink の拒否は publicPath で検査済み。
-    }
+  let release: () => void;
+  try {
+    release = exclusiveFile(
+      openParent(join(repoIdentity(), "peer-refactor-evidence", ".restore-lock"), "/", true),
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST")
+      fail("別の restore が実行中、または中断した restore の lock が残っています");
+    throw error;
   }
-  const created: { parent: Parent; made: Identity }[] = [];
-  const parents: Parent[] = [];
   try {
     for (const [path, content] of files) {
-      const target = parentFor(publicPath(path, artifact), true);
-      parents.push(target);
+      publicPath(path, artifact);
       try {
-        writeNew(target, content, created);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-        if (!readRegular(target).equals(content))
+        if (!readPublic(path, artifact).equals(content))
           fail("既存の証跡と異なるため復元を中止しました。待機台帳も上書きしません");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        // 親の欠落だけを許す。file / symlink の拒否は publicPath で検査済み。
       }
     }
-  } catch (error) {
-    rollback(created);
-    throw error;
+    const created: { parent: Parent; made: Identity }[] = [];
+    const parents: Parent[] = [];
+    try {
+      for (const [path, content] of files) {
+        const target = parentFor(publicPath(path, artifact), true);
+        parents.push(target);
+        try {
+          writeNew(target, content, created);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+          if (!readRegular(target).equals(content))
+            fail("既存の証跡と異なるため復元を中止しました。待機台帳も上書きしません");
+        }
+      }
+      for (const [path, content] of files) {
+        if (!readPublic(path, artifact).equals(content))
+          fail("復元後の証跡が checkpoint と一致しません");
+      }
+      check(data.record_path, data.candidates_path, fingerprint, (path) =>
+        readPublic(path, artifact),
+      );
+    } catch (error) {
+      rollback(created);
+      throw error;
+    } finally {
+      for (const target of parents) fs.closeSync(target.fd);
+    }
+    console.log(
+      JSON.stringify({ restored: files.size, record_path: data.record_path, checkpoint: hash }),
+    );
   } finally {
-    for (const target of parents) fs.closeSync(target.fd);
+    release();
   }
-  check(data.record_path, data.candidates_path, fingerprint, (path) => readPublic(path, artifact));
-  console.log(
-    JSON.stringify({ restored: files.size, record_path: data.record_path, checkpoint: hash }),
-  );
 }
 if (import.meta.main) {
   try {

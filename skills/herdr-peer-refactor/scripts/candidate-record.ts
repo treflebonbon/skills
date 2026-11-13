@@ -1,11 +1,19 @@
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { readFileSync, realpathSync, closeSync, writeFileSync, constants } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import {
+  readFileSync,
+  realpathSync,
+  closeSync,
+  writeFileSync,
+  fstatSync,
+  fsyncSync,
+  constants,
+} from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { artifactText } from "../../../lib/bun/html-report.ts";
 import { parsePeerJSON, peerJSON, equalPeerJSON } from "../../../lib/bun/peer-json.ts";
 import folds from "../../../lib/bun/vendor/peer-casefold.json";
-import { native, openParent } from "../../../lib/bun/file-safety.ts";
+import { native, openParent, removeCreated, type Identity } from "../../../lib/bun/file-safety.ts";
 
 export function fail(message: string): never {
   throw new Error(message);
@@ -127,20 +135,29 @@ export function pin(
     const parent = openParent(
       absolute.startsWith("/tmp/") ? realpathSync("/tmp") + absolute.slice(4) : absolute,
     );
+    const temporary = { fd: parent.fd, leaf: `.candidate-${randomBytes(16).toString("hex")}` };
+    let made: Identity | undefined;
     try {
       const fd = native.openat(
         parent.fd,
-        parent.leaf,
+        temporary.leaf,
         constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
         0o666,
       );
       try {
+        made = fstatSync(fd, { bigint: true });
         writeFileSync(fd, rawRecord);
+        fsyncSync(fd);
       } finally {
         closeSync(fd);
       }
+      native.linkat(parent.fd, temporary.leaf, parent.fd, parent.leaf);
     } finally {
-      closeSync(parent.fd);
+      try {
+        if (made) removeCreated(temporary, made);
+      } finally {
+        closeSync(parent.fd);
+      }
     }
   } catch (error) {
     fail(

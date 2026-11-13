@@ -1,6 +1,11 @@
 #!/usr/bin/env bats
 
 setup() {
+  mkdir -m 700 /tmp/codex 2>/dev/null || :
+  if ! [ -d /tmp/codex ] || [ -L /tmp/codex ] || ! [ -O /tmp/codex ]; then
+    echo '/tmp/codex は実行ユーザー所有の通常 directory が必要です' >&2
+    return 1
+  fi
   EVIDENCE="$(mktemp -d /tmp/codex/peer-orca-receipts.XXXXXX)"
 }
 
@@ -141,5 +146,41 @@ for index, heading in enumerate(['### coordinator\n', '### nested coordinator\n'
         assert result.returncode != 0, (heading, mode)
         assert calls.read_text().splitlines() == ['called'], (heading, mode, 'later operation ran')
 PY
+  [ "$status" -eq 0 ]
+}
+
+@test "単独 receipt テストは共有先を準備し、通常ファイルと symlink を拒否する" {
+  run node - "$BATS_TEST_DIRNAME/../.." "$EVIDENCE" <<'JS'
+const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const [root, evidence] = process.argv.slice(2).map(p => fs.realpathSync(p));
+const source = fs.readFileSync(path.join(root, 'tests/cli/peer-orca-receipts.bats'), 'utf8');
+const quote = s => "'" + s.replaceAll("'", "'\\''") + "'";
+for (const kind of ['missing', 'owned', 'file', 'symlink', 'dangling']) {
+  const shared = path.join(evidence, 'shared-' + kind);
+  if (kind === 'owned') {
+    fs.mkdirSync(shared, { mode: 0o700 });
+    fs.writeFileSync(path.join(shared, 'keep'), 'unchanged');
+  } else if (kind === 'file') fs.writeFileSync(shared, 'unchanged');
+  else if (kind === 'symlink') {
+    const target = shared + '.target';
+    fs.mkdirSync(target, { mode: 0o700 });
+    fs.symlinkSync(target, shared);
+  } else if (kind === 'dangling') fs.symlinkSync(shared + '.absent', shared);
+  const fixture = path.join(evidence, kind + '.bats');
+  fs.writeFileSync(fixture, source.replaceAll('/tmp/codex', shared).replaceAll('"$BATS_TEST_DIRNAME/../.."', quote(root)));
+  const result = spawnSync('bats', ['--tap', '--filter', '^Orca receipt example validates', fixture], { encoding: 'utf8' });
+  if (['missing', 'owned'].includes(kind)) {
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(fs.lstatSync(shared).mode & 0o777, 0o700);
+    assert.deepEqual(fs.readdirSync(shared), kind === 'owned' ? ['keep'] : []);
+  } else {
+    assert.notEqual(result.status, 0);
+    assert.match(result.stdout + result.stderr, /実行ユーザー所有の通常 directory/);
+    if (kind === 'file') assert.equal(fs.readFileSync(shared, 'utf8'), 'unchanged');
+    else assert(fs.lstatSync(shared).isSymbolicLink());
+  }
+}
+JS
   [ "$status" -eq 0 ]
 }

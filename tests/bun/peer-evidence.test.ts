@@ -71,6 +71,206 @@ function withCorpus(action: (repo: string) => void): void {
   }
 }
 
+function faultCLI(repo: string, entry: string, args: string[], fault: string[], env = process.env) {
+  return spawnSync(
+    resolve(root, "lib/bun/run"),
+    [
+      "run",
+      "--preload",
+      resolve(root, "tests/fixtures/bun-peer-evidence-fault.ts"),
+      resolve(root, entry),
+      ...args,
+    ],
+    { cwd: repo, encoding: "utf8", env: { ...env, PEER_FAULT: JSON.stringify(fault) } },
+  );
+}
+
+for (const fault of ["build-publish", "build-replaced"]) {
+  test(`native 準備の ${fault} 失敗は自分の公開物だけを回収する`, () => {
+    withCorpus((repo) => {
+      const cache = resolve(corpus.base, "prepare-cache");
+      const marker = resolve(corpus.base, "publication");
+      const env = { ...process.env, TREFLEBONBON_FILE_SAFETY_DIR: cache };
+      const failed = faultCLI(repo, "lib/bun/prepare-file-safety.ts", [], [fault, marker], env);
+      expect(failed.status).toBe(1);
+      expect(failed.stderr).toContain("injected binary publication ENOSPC");
+      expect(fs.readFileSync(marker + ".injected", "utf8")).toBe("binary publication");
+      const folder = resolve(cache, fs.readdirSync(cache)[0]!);
+      expect(fs.existsSync(resolve(folder, "file-safety.node"))).toBe(false);
+      if (fault === "build-replaced") {
+        expect(fs.readFileSync(resolve(folder, "build.json"), "utf8")).toBe("another writer");
+      } else {
+        expect(fs.existsSync(resolve(folder, "build.json"))).toBe(false);
+        const retry = spawnSync(resolve(root, "bin/prepare-file-safety"), [], {
+          cwd: repo,
+          env,
+          encoding: "utf8",
+        });
+        expect(retry.status, retry.stderr).toBe(0);
+        const loaded = spawnSync(resolve(root, "bin/prepare-file-safety"), [], {
+          cwd: repo,
+          env,
+          encoding: "utf8",
+        });
+        expect(loaded.status, loaded.stderr).toBe(0);
+        const checked = spawnSync(
+          resolve(root, "skills/herdr-peer-refactor/scripts/candidate-record"),
+          ["check", corpus.recordPath, corpus.candidatesPath, corpus.fingerprint],
+          { cwd: repo, env, encoding: "utf8" },
+        );
+        expect(checked.status, checked.stderr).toBe(0);
+      }
+      expect(fs.readdirSync(folder).some((name) => name.startsWith(".build-"))).toBe(false);
+    });
+  }, 45_000);
+}
+
+test("両 peer の pin は部分書込みを公開せず、同じ path で再試行できる", () => {
+  withCorpus((repo) => {
+    const prepared = spawnSync(resolve(root, "bin/prepare-file-safety"), [], { encoding: "utf8" });
+    expect(prepared.status, prepared.stderr).toBe(0);
+    for (const peer of peers) {
+      const record = resolve(corpus.base, peer + "-partial.json");
+      const args = [
+        "pin",
+        corpus.artifactPath,
+        fs.realpathSync(resolve(repo, ".git")),
+        corpus.sourceSha,
+        corpus.candidatesPath,
+        record,
+      ];
+      const entry = `skills/${peer}/scripts/candidate-record`;
+      const failed = faultCLI(repo, entry + ".ts", args, ["pin-write", record]);
+      expect(failed.status).toBe(1);
+      expect(failed.stderr).toContain("injected pin write failure");
+      expect(JSON.parse(fs.readFileSync(record + ".injected", "utf8"))).toEqual({
+        finalVisible: false,
+      });
+      expect(fs.existsSync(record)).toBe(false);
+      expect(fs.readdirSync(corpus.base).some((name) => name.startsWith(".candidate-"))).toBe(
+        false,
+      );
+      const retry = spawnSync(resolve(root, entry), args, { cwd: repo, encoding: "utf8" });
+      expect(retry.status, retry.stderr).toBe(0);
+      const bytes = fs.readFileSync(record);
+      const existing = spawnSync(resolve(root, entry), args, { cwd: repo, encoding: "utf8" });
+      expect(existing.status).toBe(1);
+      expect(existing.stderr).toContain("記録ファイルは既に存在します");
+      expect(fs.readFileSync(record)).toEqual(bytes);
+      const checked = spawnSync(
+        resolve(root, entry),
+        ["check", record, corpus.candidatesPath, retry.stdout.trim()],
+        { cwd: repo, encoding: "utf8" },
+      );
+      expect(checked.status, checked.stderr).toBe(0);
+    }
+  });
+});
+
+test("並行 restore の rollback は別 peer が採用した追加証跡を削除しない", () => {
+  withCorpus((repo) => {
+    const prepared = spawnSync(resolve(root, "bin/prepare-file-safety"), [], { encoding: "utf8" });
+    expect(prepared.status, prepared.stderr).toBe(0);
+    const ledger = resolve(corpus.base, "a-ledger");
+    fs.writeFileSync(ledger, "adopted ledger");
+    const saved = spawnSync(
+      resolve(root, "skills/herdr-peer-refactor/scripts/run-evidence"),
+      ["checkpoint", corpus.recordPath, corpus.candidatesPath, corpus.fingerprint, ledger],
+      { cwd: repo, encoding: "utf8" },
+    );
+    expect(saved.status, saved.stderr).toBe(0);
+    const paths = [ledger, corpus.recordPath, corpus.candidatesPath, corpus.artifactPath];
+    const originals = new Map(paths.map((path) => [path, fs.readFileSync(path)]));
+    for (const path of paths) fs.unlinkSync(path);
+    const checkpoint = JSON.parse(saved.stdout).checkpoint;
+    const result = spawnSync(
+      resolve(root, "lib/bun/run"),
+      [
+        "run",
+        resolve(root, "tests/fixtures/bun-peer-restore-interleave.ts"),
+        root,
+        corpus.fingerprint,
+        checkpoint,
+        resolve(corpus.base, "schedule"),
+      ],
+      { cwd: repo, encoding: "utf8", timeout: 15_000 },
+    );
+    expect(result.status, result.stderr).toBe(0);
+    const outcome = JSON.parse(result.stdout);
+    expect(fs.existsSync(ledger), JSON.stringify(outcome)).toBe(true);
+    for (const [path, bytes] of originals) expect(fs.readFileSync(path)).toEqual(bytes);
+    expect(outcome.first.status, JSON.stringify(outcome)).toBe(0);
+    expect(outcome.second.status, JSON.stringify(outcome)).toBe(1);
+    expect(outcome.second.stderr).toContain("別の restore が実行中");
+    expect(outcome.interleaved).toBe(false);
+    const repeated = spawnSync(
+      resolve(root, "skills/orca-peer-refactor/scripts/run-evidence"),
+      ["restore", corpus.fingerprint, checkpoint],
+      { cwd: repo, encoding: "utf8" },
+    );
+    expect(repeated.status, repeated.stderr).toBe(0);
+  });
+}, 20_000);
+
+for (const fault of ["move-extra", "final-source"]) {
+  test(`restore の最終検査は ${fault} を検出して作成分を戻す`, () => {
+    withCorpus((repo) => {
+      const prepared = spawnSync(resolve(root, "bin/prepare-file-safety"), [], {
+        encoding: "utf8",
+      });
+      expect(prepared.status, prepared.stderr).toBe(0);
+      const ledger = resolve(corpus.base, "nested/ledger");
+      fs.mkdirSync(resolve(ledger, ".."));
+      fs.writeFileSync(ledger, "extra evidence");
+      const script = resolve(root, "skills/orca-peer-refactor/scripts/run-evidence");
+      const saved = spawnSync(
+        script,
+        ["checkpoint", corpus.recordPath, corpus.candidatesPath, corpus.fingerprint, ledger],
+        { cwd: repo, encoding: "utf8" },
+      );
+      expect(saved.status, saved.stderr).toBe(0);
+      const paths = [ledger, corpus.recordPath, corpus.candidatesPath, corpus.artifactPath];
+      for (const path of paths) fs.unlinkSync(path);
+      let target = ledger;
+      if (fault === "final-source") {
+        const orphan = spawnSync("git", ["hash-object", "-t", "commit", "-w", "--stdin"], {
+          cwd: repo,
+          input: corpus.commit.replace("\n\n", "\n\nother source\n"),
+          encoding: "utf8",
+        });
+        expect(orphan.status, orphan.stderr).toBe(0);
+        target = orphan.stdout.trim();
+      }
+      const checkpoint = JSON.parse(saved.stdout).checkpoint;
+      const result = faultCLI(
+        repo,
+        "skills/orca-peer-refactor/scripts/run-evidence.ts",
+        ["restore", corpus.fingerprint, checkpoint],
+        [fault, target, String(paths.length)],
+      );
+      expect(fs.existsSync(resolve(repo, target + ".injected"))).toBe(true);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(
+        fault === "move-extra" ? "ENOENT" : "source commit は現在の HEAD の祖先ではありません",
+      );
+      for (const path of paths) expect(fs.existsSync(path), path).toBe(false);
+      if (fault === "move-extra")
+        expect(fs.existsSync(resolve(corpus.base, "nested.moved/ledger"))).toBe(false);
+      const reset = spawnSync("git", ["update-ref", "HEAD", corpus.sourceSha], {
+        cwd: repo,
+        encoding: "utf8",
+      });
+      expect(reset.status, reset.stderr).toBe(0);
+      const control = spawnSync(script, ["restore", corpus.fingerprint, checkpoint], {
+        cwd: repo,
+        encoding: "utf8",
+      });
+      expect(control.status, control.stderr).toBe(0);
+      expect(fs.readFileSync(ledger, "utf8")).toBe("extra evidence");
+    });
+  });
+}
+
 test("旧 Python の record bytes を両 peer が同じ provenance と候補で検査する", () => {
   withCorpus((repo) => {
     for (const peer of peers) {

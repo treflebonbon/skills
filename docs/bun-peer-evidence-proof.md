@@ -36,6 +36,10 @@ production の [C helper](../lib/bun/file-safety-native.c)は、採用済み [�
 
 checkpoint は書込みと fsync を終えた一時ファイルから link で公開し、同じ内容の同時保存は既存 bytes と照合する。restore は全入力と既存内容を先に検査する。失敗時には保持 directory FD と BigInt の device / inode を使って、自分の作成分だけを戻す。別 writer のファイル、symlink、directory は残す。検査と unlink/link は別 syscall であり、任意の非協調 writer に対する原子的な CAS を保証するものではない。
 
+candidate pin も同じ directory の一時ファイルへ書込みと fsync を終えてから、既存の名前を置換しない link で公開する。途中で失敗した場合は自分の一時ファイルを回収し、部分的な record を最終 path に残さない。native module の準備も、公開途中の失敗では今回の metadata / binary と同じ device / inode の公開物だけを回収する。別 writer が置換した metadata は保持する。
+
+両 peer の restore は共通 Git dir の `peer-refactor-evidence/.restore-lock` を排他的に作成し、既存ファイルの照合から公開・全ファイルの絶対 path での再検査・provenance 検査・rollback まで保持する。他の restore は明示的に拒否し、採用済みの証跡を別の restore の rollback が消す交錯を防ぐ。追加証跡の親 directory が移動した場合も成功にせず、自分の作成分を保持 FD から戻す。新しい native 操作や待機・期限切れの自動回収は追加しない。強制終了で lock が残った場合は拒否を維持する。利用者が該当 restore の終了と他の restore が実行中でないことを確認した後、残った lock を回収して再実行する。
+
 `/tmp/codex` 自体が欠落した場合も、restore はその親 directory FD から共有先を mode `0700` で作成し、no-follow で開いて復旧する。system の `/tmp` alias を解決した後の作成と検査には採用済みの native 操作を使う。CLI テストでは共有先定数だけを専用 directory へ置き換えたコピーを使い、両 peer の共有先全体の欠落、元 bytes の復旧、既存の symlink・通常ファイルの拒否と保持、再実行を検査する。外部 artifact は入力準備で実体 path に解決し、macOS の system alias と同じ fixture を Linux でも通す。
 
 [CLI テスト](../tests/bun/peer-evidence.test.ts)は旧 corpus、整数・Unicode、record 読込み後の置換、chmod・部分 write・close・後続ファイルの失敗、競合と置換先の保持を検査する。native cache の欠落・改変・symlink・mode・環境不一致を拒否し、自動修復しないことも確認する。Python・compiler・node_modules を PATH と payload に持たない実行で、read-only payload の前後の bytes / mode と preload の不実行を照合する。既存 Bats の provenance・FIFO・timeout・機密名・復旧検査も維持する。HTML parser の75入力は #36 の suite を引き継ぐ。

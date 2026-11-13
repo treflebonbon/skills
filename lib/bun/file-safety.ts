@@ -156,6 +156,31 @@ export const native = {
   },
 };
 export type Parent = { fd: number; leaf: string };
+export function exclusiveFile(parent: Parent): () => void {
+  let made: Identity;
+  try {
+    const fd = native.openat(
+      parent.fd,
+      parent.leaf,
+      fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW,
+    );
+    try {
+      made = fs.fstatSync(fd, { bigint: true });
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch (error) {
+    fs.closeSync(parent.fd);
+    throw error;
+  }
+  return () => {
+    try {
+      removeCreated(parent, made);
+    } finally {
+      fs.closeSync(parent.fd);
+    }
+  };
+}
 export function openParent(path: string, anchor = "/", create = false): Parent {
   if (
     !isAbsolute(path) ||

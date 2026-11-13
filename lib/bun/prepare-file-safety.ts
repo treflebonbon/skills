@@ -40,6 +40,7 @@ try {
   if (!fs.existsSync(join(headerDirectory, "node_api.h")))
     throw new Error(`Node-API header が必要です: ${headerDirectory}`);
   const temporary = fs.mkdtempSync(join(directory, ".build-"));
+  const published: { path: string; dev: bigint; ino: bigint }[] = [];
   try {
     const binary = join(temporary, "file-safety.node");
     const args = [
@@ -81,8 +82,22 @@ try {
       flag: "wx",
     });
     // binary を最後に公開する。別の build が先に公開しても置換しない。
-    fs.linkSync(join(temporary, "build.json"), join(directory, "build.json"));
-    fs.linkSync(binary, output);
+    for (const name of ["build.json", "file-safety.node"]) {
+      const from = join(temporary, name),
+        path = join(directory, name);
+      published.push({ path, ...fs.lstatSync(from, { bigint: true }) });
+      fs.linkSync(from, path);
+    }
+  } catch (error) {
+    for (const made of published.reverse()) {
+      try {
+        const current = fs.lstatSync(made.path, { bigint: true });
+        if (current.dev === made.dev && current.ino === made.ino) fs.unlinkSync(made.path);
+      } catch {
+        /* 元の公開エラーを保持する。 */
+      }
+    }
+    throw error;
   } finally {
     fs.rmSync(temporary, { recursive: true });
   }
