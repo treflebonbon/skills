@@ -125,6 +125,8 @@ raw Codex isolation の準備条件は [raw Codex 隔離手順](docs/raw-codex-i
 
 この plugin の license は [MIT](LICENSE) です。第三者 skill の本文は同梱しません。
 
+両 peer の candidate/evidence helper は、Bun 1.4.4 以上と準備済み Node-API module を使います。導入済み Node.js・対応する header・C compiler を使う[明示的な準備と移行手順](docs/bun-peer-evidence-proof.md)を確認してください。
+
 ## 検証入口
 
 開発には Node.js 20.19+、npm、Python 3、Bun 1.4.4+、Bats Core 1.x、`jq` が必要です。`npm run lint` には Antigravity CLI `agy` と Claude Code CLI `claude` も必要です。`npm run format:check` の対象は配布 metadata、README、verification entrypoint、Bun CLI とそのテスト、worktree-gc の変更文書です。移管済み全 skill source の一括 reformat 結果を示すものではありません。

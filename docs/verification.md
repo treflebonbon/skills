@@ -62,7 +62,7 @@ npm run lint
 npm run lint:sh
 ```
 
-`lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `lib/bun/run`、両 peer の `scripts/check-architecture-report`、`tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトと `lib/bun/run`、両 peer の `scripts/check-architecture-report` です（`-S warning` 以上。info と style は見ません）。対象のファイルを commit するときは、pre-commit hook が実行します。CI では走りません。
+`lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `lib/bun/run`、両 peer の `scripts/check-architecture-report`・`scripts/candidate-record`・`scripts/run-evidence`、`tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトと `lib/bun/run`、両 peer の `scripts/check-architecture-report`・`scripts/candidate-record`・`scripts/run-evidence` です（`-S warning` 以上。info と style は見ません）。対象のファイルを commit するときは、pre-commit hook が実行します。CI では走りません。
 
 HTML report の静的 checker と text 抽出の比較 corpus、同梱 parser、入口の更新は [移行記録](html-report-parser-proof.md) を参照してください。
 
@@ -75,6 +75,8 @@ report と質問シートの loopback 配信、旧 HTTP corpus、専用 root と
 `tests/raw-codex/raw-managed-profile.bats` の「managed host grants and ancestor path rules stay scoped in raw namespace」は、Claude Code の worktree 隔離 session（Bats の一時 directory が `/tmp/nix-shell.*/` 配下）で失敗し、単独実行でも再現することを確認しました。sandbox 内の task が `mkdir: cannot create directory …/raw/home: Read-only file system` で終了します（confirmed）。原因の特定と、この環境の外で成功するかは未確認です。`npm test` の失敗にこのテスト 1 件だけが現れる場合は、環境依存の可能性が高い（推定）ので、通常の端末で単独実行して切り分けます。
 
 同じ失敗が Nix shell 配下の一時 directory で起きた場合は、`TMPDIR` だけを Nix shell 外の書込み可能な directory に変えて、この1件を再実行します。WSL2 の通常セッションではこの変更で成功したことを確認しました（confirmed）。fixture の保管先を変える切り分けであり、権限と host 非公開の検査は同じものを実行します。単独実行が通ったら、その `TMPDIR` と同じ HEAD で全 `npm test` を実行します。
+
+candidate と公開証跡の移行・native module の明示的な準備・旧 corpus の復旧は [移行記録](bun-peer-evidence-proof.md)と `tests/bun/peer-evidence.test.ts` で確認します。`npm run test:bun` は先に `npm run prepare:file-safety` を実行します。準備には導入済み Node.js と対応する Node-API header、`cc` が必要で、通常の helper 実行では build しません。
 
 ## 変更した Python 関数の docstring 診断
 

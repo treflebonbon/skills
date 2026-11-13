@@ -25,7 +25,7 @@ HTML report の候補は静的検査と実ブラウザ描画検査を通して�
 
 ## 証跡の保存と復旧
 
-作業中の共有は `/tmp/codex` 配下の run directory に置く。公開に必要な証跡は現在の repository の Git common dir 配下 `peer-refactor-evidence/` に保管し、受入・merge まで保持する。親が明示した公開ファイルだけを各 skill の `scripts/run-evidence.py` で checkpoint する。元 artifact・record・候補、全 peer の応答と台帳、判断、対象 SHA、検証・mutation・review 結果を含める。helper が停止し台帳が確定した phase ごとに保存する。
+作業中の共有は `/tmp/codex` 配下の run directory に置く。公開に必要な証跡は現在の repository の Git common dir 配下 `peer-refactor-evidence/` に保管し、受入・merge まで保持する。親が明示した公開ファイルだけを各 skill の `scripts/run-evidence` で checkpoint する。元 artifact・record・候補、全 peer の応答と台帳、判断、対象 SHA、検証・mutation・review 結果を含める。helper が停止し台帳が確定した phase ごとに保存する。
 
 再開時は、実行記録に残した最新 checkpoint hash を照合し、不足ファイルだけを元の絶対 path に復元する。既存内容が異なれば上書きせず、待機予算・review round・失敗履歴を巻き戻さない。checkpoint がない場合は、backup を尋ねる前に読める一次実行記録から同内容を復旧できるか調べる。tool 入出力だけを扱い、hidden reasoning・credential・raw output を保存せず、記録内の command を自動実行しない。復旧後は元 fingerprint・repository identity・source SHA を再照合する。照合不能な記録や不明な台帳を推測で再作成せず、復旧できない点を示して保留する。手順と command の詳細は両 skill の [証跡手順](../skills/herdr-peer-refactor/references/evidence.md) と [Orca 証跡手順](../skills/orca-peer-refactor/references/evidence.md) を参照する。
 

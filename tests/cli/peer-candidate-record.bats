@@ -1,9 +1,13 @@
 #!/usr/bin/env bats
 
+setup_file() {
+  "$BATS_TEST_DIRNAME/../../bin/prepare-file-safety" >/dev/null
+}
+
 setup() {
   unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_PREFIX
   PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-  SCRIPT="$PROJECT_ROOT/skills/herdr-peer-refactor/scripts/candidate-record.py"
+  SCRIPT="$PROJECT_ROOT/skills/herdr-peer-refactor/scripts/candidate-record"
   REPO="$BATS_TEST_TMPDIR/repo"
   ARTIFACT="$BATS_TEST_TMPDIR/report.md"
   CANDIDATES="$BATS_TEST_TMPDIR/candidates.json"
@@ -37,21 +41,21 @@ JSON
 }
 
 pin_record() {
-  (cd "$REPO" && python3 "$SCRIPT" pin "$ARTIFACT" "$SOURCE_REPO" "$SOURCE_SHA" "$CANDIDATES" "$RECORD" >"$FINGERPRINT" && cat "$FINGERPRINT")
+  (cd "$REPO" && "$SCRIPT" pin "$ARTIFACT" "$SOURCE_REPO" "$SOURCE_SHA" "$CANDIDATES" "$RECORD" >"$FINGERPRINT" && cat "$FINGERPRINT")
 }
 
 @test "pin rejects a clone with the source commit but a different originating repo" {
   local clone="$BATS_TEST_TMPDIR/clone"
   git clone -q "$REPO" "$clone"
   [ "$(git -C "$clone" rev-parse HEAD)" = "$SOURCE_SHA" ]
-  run bash -c 'cd "$1" && python3 "$2" pin "$3" "$4" "$5" "$6" "$7"' _ "$clone" "$SCRIPT" "$ARTIFACT" "$SOURCE_REPO" "$SOURCE_SHA" "$CANDIDATES" "$RECORD"
+  run bash -c 'cd "$1" && "$2" pin "$3" "$4" "$5" "$6" "$7"' _ "$clone" "$SCRIPT" "$ARTIFACT" "$SOURCE_REPO" "$SOURCE_SHA" "$CANDIDATES" "$RECORD"
   [ "$status" -ne 0 ]
   [[ "$output" == *"提示元と別の Git リポジトリ"* ]]
   [ ! -e "$RECORD" ]
 }
 
 check_record() {
-  (cd "$REPO" && python3 "$SCRIPT" check "$RECORD" "${1:-$CANDIDATES}" "$(cat "$FINGERPRINT")")
+  (cd "$REPO" && "$SCRIPT" check "$RECORD" "${1:-$CANDIDATES}" "$(cat "$FINGERPRINT")")
 }
 
 @test "plain text report can be pinned and checked" {
@@ -59,11 +63,11 @@ check_record() {
   [ "$status" -eq 0 ]
   run check_record
   [ "$status" -eq 0 ]
-  run bash -c 'cd "$1" && python3 "$2" check "$3"' _ "$REPO" "$SCRIPT" "$RECORD"
+  run bash -c 'cd "$1" && "$2" check "$3"' _ "$REPO" "$SCRIPT" "$RECORD"
   [ "$status" -ne 0 ]
-  run bash -c 'cd "$1" && python3 "$2" check "$3" "$4"' _ "$REPO" "$SCRIPT" "$RECORD" "$CANDIDATES"
+  run bash -c 'cd "$1" && "$2" check "$3" "$4"' _ "$REPO" "$SCRIPT" "$RECORD" "$CANDIDATES"
   [ "$status" -ne 0 ]
-  python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); assert r["source_commit"] == sys.argv[2]; assert r["artifact_sha256"]; assert r["repo_common_dir"]' "$RECORD" "$SOURCE_SHA"
+  node -e 'const fs=require("node:fs"),assert=require("node:assert/strict"); const r=JSON.parse(fs.readFileSync(process.argv[1])); assert.equal(r.source_commit,process.argv[2]); assert(r.artifact_sha256); assert(r.repo_common_dir);' "$RECORD" "$SOURCE_SHA"
 }
 
 @test "HTML report title matches after markup and whitespace normalization" {
@@ -138,7 +142,7 @@ JSON
   printf 'other\n' >"$OTHER/source.txt"
   git -C "$OTHER" add source.txt
   git -C "$OTHER" commit -qm other
-  run bash -c 'cd "$1" && python3 "$2" check "$3" "$4" "$5"' _ "$OTHER" "$SCRIPT" "$RECORD" "$CANDIDATES" "$(cat "$FINGERPRINT")"
+  run bash -c 'cd "$1" && "$2" check "$3" "$4" "$5"' _ "$OTHER" "$SCRIPT" "$RECORD" "$CANDIDATES" "$(cat "$FINGERPRINT")"
   [ "$status" -ne 0 ]
   [[ "$output" == *"別の Git リポジトリ"* ]]
 }
@@ -183,19 +187,18 @@ JSON
   [ "$status" -eq 0 ]
   local fingerprint="$output"
   [[ "$fingerprint" =~ ^[0-9a-f]{64}$ ]]
-  run bash -c 'cd "$1" && python3 "$2" check "$3" "$4" "$5"' _ "$REPO" "$SCRIPT" "$RECORD" "$CANDIDATES" "$fingerprint"
+  run bash -c 'cd "$1" && "$2" check "$3" "$4" "$5"' _ "$REPO" "$SCRIPT" "$RECORD" "$CANDIDATES" "$fingerprint"
   [ "$status" -eq 0 ]
-  python3 - "$RECORD" "$CANDIDATES" <<'PY'
-import json, sys
-for path in sys.argv[1:]:
-    with open(path) as stream:
-        value = json.load(stream)
-    candidates = value["candidates"] if isinstance(value, dict) else value
-    candidates[0]["acceptance"] = ["replace original intent"]
-    with open(path, "w") as stream:
-        json.dump(value, stream)
-PY
-  run bash -c 'cd "$1" && python3 "$2" check "$3" "$4" "$5"' _ "$REPO" "$SCRIPT" "$RECORD" "$CANDIDATES" "$fingerprint"
+  node - "$RECORD" "$CANDIDATES" <<'JS'
+const fs = require('node:fs');
+for (const path of process.argv.slice(2)) {
+  const value = JSON.parse(fs.readFileSync(path));
+  const candidates = Array.isArray(value) ? value : value.candidates;
+  candidates[0].acceptance = ['replace original intent'];
+  fs.writeFileSync(path, JSON.stringify(value));
+}
+JS
+  run bash -c 'cd "$1" && "$2" check "$3" "$4" "$5"' _ "$REPO" "$SCRIPT" "$RECORD" "$CANDIDATES" "$fingerprint"
   [ "$status" -ne 0 ]
   [[ "$output" == *"fingerprint"* ]]
 }
@@ -210,41 +213,7 @@ PY
   [ "$status" -eq 0 ]
   LINKED="$BATS_TEST_TMPDIR/linked"
   git -C "$REPO" worktree add -q --detach "$LINKED" HEAD
-  run bash -c 'cd "$1" && python3 "$2" check "$3" "$4" "$5"' _ "$LINKED" "$SCRIPT" "$RECORD" "$CANDIDATES" "$(cat "$FINGERPRINT")"
-  [ "$status" -eq 0 ]
-}
-
-@test "replacement during record read cannot switch the verified candidate" {
-  run pin_record
-  [ "$status" -eq 0 ]
-  run bash -c 'cd "$1" && python3 -B - "$2" "$3" "$4" "$5"' _ "$REPO" "$SCRIPT" "$RECORD" "$CANDIDATES" "$output" <<'PY'
-import importlib.util, json, sys
-from pathlib import Path
-from unittest.mock import patch
-
-spec = importlib.util.spec_from_file_location("candidate_record", sys.argv[1])
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-record_path, candidates_path, fingerprint = sys.argv[2:]
-read_bytes = Path.read_bytes
-
-def replace_after_read(path):
-    raw = read_bytes(path)
-    if str(path) == record_path:
-        record = json.loads(raw)
-        record["candidates"][0]["acceptance"] = ["replace original intent"]
-        Path(record_path).write_text(json.dumps(record))
-        Path(candidates_path).write_text(json.dumps(record["candidates"]))
-    return raw
-
-with patch.object(Path, "read_bytes", replace_after_read):
-    try:
-        module.check(record_path, candidates_path, fingerprint)
-    except ValueError as error:
-        assert "候補が固定記録と一致しません" in str(error), str(error)
-    else:
-        raise AssertionError("replacement candidate was accepted")
-PY
+  run bash -c 'cd "$1" && "$2" check "$3" "$4" "$5"' _ "$LINKED" "$SCRIPT" "$RECORD" "$CANDIDATES" "$(cat "$FINGERPRINT")"
   [ "$status" -eq 0 ]
 }
 
