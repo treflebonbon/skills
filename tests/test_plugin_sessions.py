@@ -392,7 +392,7 @@ class PluginSessionCliTest(unittest.TestCase):
                                      capture_output=True, text=True)
             self.assertEqual(checked.returncode, 0, checked.stderr + checked.stdout)
 
-    def test_missing_clients_fail_all_33_cases_without_model_calls(self):
+    def test_missing_clients_fail_all_36_cases_without_model_calls(self):
         """The default matrix stays exhaustive when prerequisites are missing."""
         clients = self.base / "empty-clients"
         clients.mkdir()
@@ -403,7 +403,7 @@ class PluginSessionCliTest(unittest.TestCase):
         )
         report = json.loads(result.stdout)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(report["expected"], 33)
+        self.assertEqual(report["expected"], 36)
         self.assertEqual(report["passed"], 0)
         self.assertTrue(all(case["status"] == "unconfirmed" for case in report["cases"]))
         self.assertTrue(all(case["reasons"] == ["cli_or_inventory_unavailable"] for case in report["cases"]))

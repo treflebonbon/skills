@@ -8,10 +8,10 @@
 
 | 境界                 | 確認内容                                                                                                                        | 成功扱いに必要な証拠                                                             |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| package static       | 11件の exact set、frontmatter、manifest version、license、依存表、resource links、npm lock URLs/integrity                       | `npm test`、`npm run format:check`、`npm run lint` の実行結果                    |
+| package static       | 12件の exact set、frontmatter、manifest version、license、依存表、resource links、npm lock URLs/integrity                       | `npm test`、`npm run format:check`、`npm run lint` の実行結果                    |
 | fixture / quality    | source と導入済み payload の hash、runtime の source/version/content 不一致、nested Node/Bats の回帰                            | fixture の具体的な検出・拒否結果と suite の終了状態                              |
-| official CLI install | Claude Code、Codex、Antigravity CLI それぞれが同一 full-SHA checkout から 11件を導入し、version/source/content を一致させたこと | CLI version、実行コマンド、導入元 path、導入済み path、skill set と content hash |
-| new session          | 各 runtime が公式名で11件を検出・呼出し、実際に読んだ SKILL.md と資源/補助 CLI の path を確認したこと                           | tool/command の実 path と成功・拒否状態。自己申告だけでは成功にしない            |
+| official CLI install | Claude Code、Codex、Antigravity CLI それぞれが同一 full-SHA checkout から 12件を導入し、version/source/content を一致させたこと | CLI version、実行コマンド、導入元 path、導入済み path、skill set と content hash |
+| new session          | 各 runtime が公式名で12件を検出・呼出し、実際に読んだ SKILL.md と資源/補助 CLI の path を確認したこと                           | tool/command の実 path と成功・拒否状態。自己申告だけでは成功にしない            |
 | App / IDE            | Antigravity App/IDE の公式配置案内                                                                                              | 実機で試していない場合は未確認と記録                                             |
 
 validator は manifest の受理、mock/fixture は指定分岐の挙動、公式 CLI install は runtime 配布境界、新規 session は実際の skill 呼出しを示します。それぞれ別の証拠として扱います。必須 CLI が無い場合の skip は未確認です。
@@ -76,6 +76,91 @@ report と質問シートの loopback 配信、旧 HTTP corpus、専用 root と
 
 同じ失敗が Nix shell 配下の一時 directory で起きた場合は、`TMPDIR` だけを Nix shell 外の書込み可能な directory に変えて、この1件を再実行します。WSL2 の通常セッションではこの変更で成功したことを確認しました（confirmed）。fixture の保管先を変える切り分けであり、権限と host 非公開の検査は同じものを実行します。単独実行が通ったら、その `TMPDIR` と同じ HEAD で全 `npm test` を実行します。
 
+## product-guide のブラウザ受入（人手）
+
+`tests/bun/product-guide.test.ts` は CLI の終了コードと出力ファイルだけを検証します。表示は自動化しておらず、リリースの受入で人が次を確認し、結果と未確認の項目を記録します。
+
+1. 架空のモデルから `internal` と `public` を生成し、`index.html` だけをブラウザで開く。
+2. ネットワークを遮断した状態で開き、外部読込みの失敗や欠けた表示がないこと。
+3. 機能目次・見出しリンクで移動でき、`internal` の「根拠を表示」をキーボード（Tab・Enter・Space）だけで開閉できること。
+4. 印刷プレビューで本文が読め、折りたたみの内容が表示されること。
+5. 提案の機能が現行の節・目次にないこと。状態と区分が色以外の文字でも分かること。
+6. `public` の `index.html` に、コミット ID・パス・シンボルがないこと（ページのソースを検索する）。
+7. 流れの図が表示され、ブラウザのズーム（200% 以上）とスクロール領域のキーボード操作で読めること。枠線の種類と文字で根拠区分が分かり、図の下の文章説明が手順リストと一致していること。印刷プレビューでも図が欠けないこと。
+
+実ブラウザの自動化は CI の対象外です。実行できなかった項目は未確認と記録します。
+
+### 記録の方法
+
+実施ごとに、日付・対象のコミット・ブラウザと実施手段・手順 1〜7 の結果（確認済み / 未確認と理由）を次の形式で追記します。
+
+### 実施記録: 2026-11-13（#69、`playwright-cli` の Chromium、1400 幅と 360 幅）
+
+- 対象コミット: `7068b4b`（初回の実施）。script を外した `dff433f` では、目次移動と現在位置だけを再確認した（手順 3 の注記のとおり）。それ以降のコミットでは再実施していない。
+- 手段: `playwright-cli` で実 Chromium を操作。`file:` は拒否されたため、127.0.0.1 の一時 HTTP サーバー（`internal` と `public` を生成した親ディレクトリ）から配信。架空モデルは「請求書申請ガイド」。
+- 手順 2（外部通信）: 確認済み。読込み中のリクエストは `index.html` の 1 件のみ（外部 0 件）で、HTML に script・外部参照・フォント指定はない（`document.fonts` は 0 件）。読込み後にコンテキストを offline にして操作した。offline での再読込みは loopback も遮断されるため行っていない。
+- 手順 3（キーボード）: 確認済み。Tab の最初の停止はスキップリンク、次が目次。目次で Enter すると `#feature-1` へ移動し、その目次項目に「▶」と太字が付く（CSS の `:target` と `:has()` による。スクロール追従はしない）。`summary` は Enter と Space で開閉でき、フォーカスは 3px の枠線で見える（初回実施時の確認。script を外した再実施では目次移動と現在位置のみ再確認し、`summary` の開閉は再確認していない）。
+- 手順 4（印刷）: 一部確認済み。`print` メディアの emulate で、閉じた折りたたみの内容が全て表示され（画面では閉じたまま）、全面スクリーンショットで本文が読めることを目視した。実際の印刷ダイアログと用紙への出力は未確認。
+- 手順 5: 確認済み（目視）。提案は「提案（現行の機能ではありません）」の別枠にあり、目次にない。状態と区分は文字のバッジ、食い違いは「注意」の文字と記号で示される。
+- 手順 6（`public` のソース検索）は自動テストで確認済み。ブラウザでの `public` 表示は未確認。
+- 追加: 360 幅で横スクロールなし。本文 16px・行間 約 1.85。80rem 以上の幅では目次が左に固定される（#74 で 88rem 以上へ変更）。ダークモード表示・200% ズーム・スクリーンリーダーは未確認（#74 の実施記録で一部を確認）。
+
+### 実施記録: 2026-11-13（#74、`playwright-cli` の Chromium）
+
+- 対象コミット: `eb3da50` の上で、のちに `0349240` として commit した変更を加えた作業ツリー。commit 後のブラウザでの再確認はしていない。その後の `18e71b5`（型と定義表の整理）は、fixture から生成した `internal` と `public` の出力が変更の前後で同一であることだけを確認した。`7fc5da0` 以降（`public` の検査の変更）はブラウザでは未確認。
+- 手段: 架空の実文 fixture（`tests/fixtures/product-guide-model.json`、機能 6 件・長い見出し 1 件・提案 1 件・未調査・矛盾・入れ子フロー 2 件）から `internal` と `public` を生成し、127.0.0.1 の一時 HTTP サーバーから配信して `playwright-cli` で操作。環境は Linux（WSL2）上の Chromium 1 種類のみ。
+- 確認済み:
+  - 狭い画面: 360 幅と 320 幅で、図のスクロール領域を除き横スクロールなし。長い見出しは折り返され、目次・本文とも崩れない。
+  - ズーム: ブラウザのズームそのものは操作できないため、200% 相当の 640 幅と、1280 幅（2560 幅の 200%）で代替した（代替であり、実際のズーム操作は未確認）。
+  - ダークモード（`set-color-scheme dark`）: 背景・本文・図の線と文字・リンクが読める。目視。コントラスト比の計測は未実施。
+  - 印刷（`set-media print`、794 幅）: 閉じた折りたたみ 45 件がすべて表示され、図が欠けず、横はみ出しなし。実際の印刷ダイアログは未確認。
+  - 図（Dagre・ELK.js）の実表示: 表示される。SVG の文字の右端が枠の右端より内側に収まることを、通常のフォントと、フォールバック想定の `DejaVu Sans` へ強制した場合の両方で実測した（余白 12px 以上）。
+  - `summary` の開閉: script のない出力で、フォーカスした `summary` が Enter と Space で開閉する。フォーカス枠は 3px。
+  - 外部通信: 読込みは `index.html` のみ。console の唯一のエラーは一時サーバーの `favicon.ico` 404。
+  - フォールバック: この環境の日本語フォントは Noto CJK 系のみ。日本語フォントが全くない環境、Hiragino・Yu Gothic・Meiryo での表示は未確認。
+- 見つけて直した問題:
+  1. 1280〜1407 幅で、固定の目次と本文の間隔が 8px ほどしかなく窮屈だった。目次を固定する下限を 80rem から 88rem へ上げた（それ未満は本文の前に置く）。
+  2. 本文の行長が 48rem（全角約 48 字）で、日本語には長かった。42rem へ縮めた。あわせて `word-break:auto-phrase`（対応ブラウザで文節単位の折返し）と、見出しの `text-wrap:balance`、本文の `text-wrap:pretty` を足した。非対応のブラウザでは従来の折返しになる。
+  3. 入れ子の図で、同じ区分（社員 → 上長 → 社員）を往復する流れが 1 つの枠へ集められ、矢印が枠の外を大きく迂回して上から下の順に読めなかった。連続する手順ごとに別の枠にした。
+- 残る未確認: Safari・Firefox・スマートフォン実機、実際のブラウザのズーム操作と印刷ダイアログ、日本語フォントがない環境、スクリーンリーダー、コントラスト比の計測、`word-break:auto-phrase` の非対応ブラウザでの折返し幅。
+- **非エンジニアによるレビューは未実施**。この記録の確認項目は、レビューではなく表示の確認である。
+
+## 非エンジニアのレビュー（人が実施・未完了）
+
+#74 の受入条件「非エンジニアのレビューで把握できると確認され、記録されている」は、人にしか確認できない。次の手順で用意し、結果は実施者が下の形式で追記する。AI が非エンジニアの立場で代わりに記入しない。
+
+### 再現手順
+
+```sh
+plugin_root="<このリポジトリの絶対パス>"
+dir="$(mktemp -d)"
+for a in internal public; do
+  "$plugin_root/lib/bun/run" run "$plugin_root/skills/product-guide/scripts/product-guide.ts" \
+    generate "$plugin_root/tests/fixtures/product-guide-model.json" --audience "$a" --out "$dir"
+done
+```
+
+標準出力に 2 つの `index.html` のパスが出る。レビュー担当者には、まず `public`（外部へ共有する版）だけを渡す。`internal`（根拠を辿れる版）は、根拠の見え方を確かめたい人にだけ渡す。題材は架空の備品貸出で、実在の企業・個人・機密は含まない。
+
+### チェックリスト（レビュー担当者が記入する）
+
+レビュー担当者は、ガイドを開いて 15 分ほど読んだあと、ガイドを見ずに次に答える。答えられなかった項目、迷った箇所は、その場所（見出し）とともに記録する。
+
+1. 自分への影響: 「社員」として、このガイドで何が自分に関係すると分かったか。
+2. 必要な対応: 備品を借りる前、返却の前に、自分がしておくことは何か。
+3. 通常の流れ: 備品を借りてから返すまでの順序を言えるか。
+4. 例外: 返却予定日を過ぎたとき、備品が「要確認」になったとき、付属品が足りないときはどうなるか。
+5. 未確認範囲: このガイドが調べていない機能と、確認できていない事項は何か。「分かっていること」と「分かっていないこと」を取り違えていないか。
+6. 提供状況: 今使える機能と、まだ使えない・開発中・提案中の機能を区別できたか。
+7. 食い違い: コードと業務判断が食い違っている箇所があることに気づいたか。どう扱うべきと感じたか。
+8. 目次と見出し: 目的の節へ迷わず移動できたか。今どこを読んでいるか分かったか。
+9. 図: 図と文章のどちらで流れを理解したか。図が読めない・役に立たない箇所はあったか。
+10. 読みやすさ: 狭い画面・拡大・印刷のうち使ったもので、読みにくい箇所はなかったか。
+
+### 記録の形式
+
+実施日・レビュー担当者の立場（職種のみ。個人名は書かない）・使った版（`public` / `internal`）・端末とブラウザ・項目 1〜10 の回答の要点と迷った箇所・見つかった指摘と、反映したか未反映の理由。
+
 ## 変更した Python 関数の docstring 診断
 
 `npm run report:docstrings` は、比較元の commit とステージ済みの内容（index）を比べ、構文が変わった Python 関数の docstring 有無を JSON で表示します。JSON だけを取得するときは `--silent` を使います。
@@ -104,7 +189,7 @@ npm run test:plugin-sessions -- run --output-dir /absolute/path/outside-plugin/s
   --installed-root agy=/verified/agy/plugin
 ```
 
-`run` は実モデルを呼びます。出力先は plugin 外の未作成 directory を指定します。省略時は3 CLI × 全11 skill を実行し、欠けた CLI や inventory 取得失敗をスキップ扱いしません。`--runtime agy --skill pr-screenshots` のように範囲を絞れます（両 flag は複数指定可能）。モデルは各 CLI の通常設定を使い、各 session の上限は既定240秒、`--timeout` で変更できます。既存 session の resume、権限回避 flag、共有設定の変更は行いません。
+`run` は実モデルを呼びます。出力先は plugin 外の未作成 directory を指定します。省略時は3 CLI × 全12 skill を実行し、欠けた CLI や inventory 取得失敗をスキップ扱いしません。`--runtime agy --skill pr-screenshots` のように範囲を絞れます（両 flag は複数指定可能）。モデルは各 CLI の通常設定を使い、各 session の上限は既定240秒、`--timeout` で変更できます。既存 session の resume、権限回避 flag、共有設定の変更は行いません。
 
 `--installed-root RUNTIME=PATH` は runtime ごとに1件指定し、例のパスを独立した導入確認で得た値に置き換えます。`skills/` を含む plugin root を指定し、読込 event から逆算した値や cache の配置の推測は使いません。導入先の symlink と実体に別名がある場合は、導入確認で対応を確認した実読込側のパスを使います。この入力は呼出し側の確認結果であり、この CLI が source・version・hash の一致を保証するものではありません。未指定なら、他の条件が揃っても `installed_root_unconfirmed` で未確認にします。
 

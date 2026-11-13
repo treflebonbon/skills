@@ -11,5 +11,10 @@
     "typeRoots": ["../../development/node_modules/@types"],
     "skipLibCheck": true
   },
-  "include": ["./**/*.ts", "../../tests/bun/**/*.ts", "../../development/*.ts"]
+  "include": [
+    "./**/*.ts",
+    "../../skills/product-guide/scripts/*.ts",
+    "../../tests/bun/**/*.ts",
+    "../../development/*.ts"
+  ]
 }

@@ -20,6 +20,7 @@ EXPECTED_SKILLS = {
     "md-claude-review",
     "orca-peer-refactor",
     "pr-screenshots",
+    "product-guide",
     "rop",
     "ui-grill-with-docs",
     "worktree-gc",
@@ -159,7 +160,7 @@ class PluginPackageContractTest(unittest.TestCase):
                 self.assertIn("npm ci --prefix development", path.read_text(encoding="utf-8"))
 
     def test_manual_only_skills_keep_each_runtime_policy(self):
-        for name in ("pr-screenshots", "ui-grill-with-docs"):
+        for name in ("pr-screenshots", "product-guide", "ui-grill-with-docs"):
             skill = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
             frontmatter = re.match(r"\A---\n(.*?)\n---\n", skill, re.DOTALL)
             self.assertIsNotNone(frontmatter, name)
@@ -227,6 +228,7 @@ class PluginPackageContractTest(unittest.TestCase):
         for detail in (
             "skills/dogfood/references/dependencies.md",
             "skills/domain-modeling-studio/references/dependencies.md",
+            "skills/product-guide/references/dependencies.md",
             "skills/herdr-peer-refactor/references/dependencies.md",
             "skills/herdr-peer-refactor/references/auto-session.md",
             "contracts/auto-peer-protection.md",
@@ -361,11 +363,43 @@ class PluginPackageContractTest(unittest.TestCase):
         self.assertTrue((ROOT / "skills/domain-modeling-studio/dist/THIRD-PARTY-LICENSES.txt").is_file())
         self.assertTrue((ROOT / "packages/wsl2-browser/THIRD_PARTY_NOTICES.md").is_file())
 
+    def test_product_guide_vendored_bundles_match_lock_and_have_notices(self):
+        """配布する bundle は lock 固定の版で、lock の全 package の notice を持つ。"""
+        skill = ROOT / "skills/product-guide"
+        lock = json.loads((skill / "package-lock.json").read_text(encoding="utf-8"))
+        declared = json.loads((skill / "package.json").read_text(encoding="utf-8"))["dependencies"]
+        notice = (skill / "vendor/THIRD-PARTY-LICENSES.txt").read_text(encoding="utf-8")
+        for name, version in declared.items():
+            with self.subTest(package=name):
+                self.assertEqual(lock["packages"][f"node_modules/{name}"]["version"], version)
+        for name, package in lock["packages"].items():
+            if name:
+                with self.subTest(notice=name):
+                    self.assertIn(f"{name.removeprefix('node_modules/')}@{package['version']}", notice)
+                    self.assertRegex(
+                        notice, r"Permission is hereby granted|Eclipse Public License"
+                    )
+        for file, header in (
+            ("dagre.esm.js", "/* @dagrejs/dagre@3.1.3 "),
+            ("elk-api.js", "/* elkjs@0.11.1 "),
+            ("elk-worker.min.js", "/* elkjs@0.11.1 "),
+        ):
+            with self.subTest(bundle=file):
+                bundle = (skill / "vendor" / file).read_text(encoding="utf-8")
+                self.assertTrue(bundle.startswith(header))
+        for name, version in {"@ast-grep/wasm": "0.51.0", "web-tree-sitter": "0.26.13"}.items():
+            self.assertEqual(lock["packages"][f"node_modules/{name}"]["version"], version)
+        for wasm in ("wasm_bg.wasm", "web-tree-sitter.wasm", "tree-sitter-typescript.wasm",
+                     "tree-sitter-tsx.wasm", "tree-sitter-javascript.wasm"):
+            self.assertTrue((skill / "vendor/ast-grep" / wasm).is_file(), wasm)
+        self.assertFalse((skill / "node_modules").exists())
+
     def test_npm_locks_use_public_registry_urls_and_integrity(self):
         locks = (
             ROOT / "development/package-lock.json",
             ROOT / "skills/dogfood/references/package-lock.json",
             ROOT / "skills/domain-modeling-studio/package-lock.json",
+            ROOT / "skills/product-guide/package-lock.json",
             ROOT / "packages/wsl2-browser/package-lock.json",
         )
         for path in locks:
