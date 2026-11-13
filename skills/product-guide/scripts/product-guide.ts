@@ -335,7 +335,20 @@ a{color:var(--accent)}a:focus-visible,summary:focus-visible{outline:3px solid va
 .badge{display:inline-block;border:1px solid var(--fg);border-radius:.25rem;padding:0 .4rem;margin-left:.4rem;font-size:.875rem;line-height:1.6}
 .muted{color:var(--muted)}.box{border:1px solid var(--line);border-left:6px solid var(--fg);padding:.5rem 1rem;margin:1rem 0}
 details{margin:.25rem 0 .75rem}summary{cursor:pointer}ol,ul{padding-left:1.5rem}code{font-family:ui-monospace,monospace}
-@media print{a{color:inherit}main{max-width:none}details>*{display:block}}`;
+section[id],h2,h3{scroll-margin-top:1rem}
+.skip{position:absolute;left:-999px}.skip:focus{left:1rem;top:1rem;background:var(--bg);padding:.25rem .5rem;z-index:2}
+nav a[aria-current]{font-weight:700}nav a[aria-current]::before{content:"\\25B6 "}
+.box>strong:first-child{display:block}.box>strong:first-child::before{content:"\\26A0 "}
+main:focus{outline:none}
+@media(min-width:80rem){nav{position:fixed;top:1rem;left:1rem;width:14rem;max-height:calc(100vh - 2rem);overflow:auto;font-size:.9375rem}nav h2{margin-top:0;font-size:1.1rem}}
+@media print{body{background:#fff;color:#000;font-size:11pt;line-height:1.7}nav{position:static}a{color:inherit;text-decoration:none}main{max-width:none;padding:0}.skip{display:none}li,.box{break-inside:avoid}h2,h3,h4{break-after:avoid}}`;
+// 印刷時は閉じた折りたたみを開き、終了後に戻す。現在位置は IntersectionObserver で aria-current を付ける。
+const JS = `(function(){var d=document.querySelectorAll("details"),o=[];
+addEventListener("beforeprint",function(){o=[];d.forEach(function(e){if(!e.open){o.push(e);e.open=true}})});
+addEventListener("afterprint",function(){o.forEach(function(e){e.open=false})});
+var L=document.querySelectorAll("nav a"),m={};L.forEach(function(a){m[a.hash.slice(1)]=a});
+if(window.IntersectionObserver){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting&&m[e.target.id]){L.forEach(function(a){a.removeAttribute("aria-current")});m[e.target.id].setAttribute("aria-current","location")}})},{rootMargin:"0px 0px -70% 0px"});
+document.querySelectorAll("section[id^=feature-]").forEach(function(s){io.observe(s)})}})();`;
 
 function render(v: View): string {
   const internal = v.audience === "internal";
@@ -375,7 +388,7 @@ function render(v: View): string {
     ? `<section id="conflicts"><h2><a href="#conflicts">コードと業務判断の食い違い</a></h2>${v.conflicts
         .map(
           (c) =>
-            `<div class="box"><p>${esc(c.summary)}</p><ul><li>コード: ${esc(c.code.text)}${ev(c.code)}</li><li>業務判断: ${esc(c.decision.text)}${ev(c.decision)}</li></ul></div>`,
+            `<div class="box"><strong>注意</strong><p>${esc(c.summary)}</p><ul><li>コード: ${esc(c.code.text)}${ev(c.code)}</li><li>業務判断: ${esc(c.decision.text)}${ev(c.decision)}</li></ul></div>`,
         )
         .join("")}</section>`
     : "";
@@ -386,8 +399,8 @@ function render(v: View): string {
     ? `<ul>${v.scope.notInvestigated.map((s) => `<li>${esc(s)}<span class="badge">未調査</span></li>`).join("")}</ul>`
     : "<p>未調査として宣言された機能はありません。</p>";
   return `<!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(v.title)}</title><style>${CSS}</style></head>
-<body><main>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"><title>${esc(v.title)}</title><style>${CSS}</style></head>
+<body><a class="skip" href="#main">本文へ移動</a><main id="main" tabindex="-1">
 <h1>${esc(v.title)}</h1><p>${esc(v.summary)}</p>
 <p class="muted">対象版: ${ver}${internal && v.version.commit ? ` / コミット <code>${esc(v.version.commit)}</code>` : ""}</p>
 <nav aria-label="機能目次"><h2>機能目次</h2><ul>${toc}</ul></nav>
@@ -396,7 +409,7 @@ function render(v: View): string {
 ${conflicts}${proposed}
 <section id="unconfirmed"><h2><a href="#unconfirmed">未確認事項</a></h2>${v.unconfirmed.length ? `<ul>${v.unconfirmed.map((u) => `<li>${esc(u)}<span class="badge">未確認</span></li>`).join("")}</ul>` : "<p>なし</p>"}</section>
 <section id="glossary"><h2><a href="#glossary">用語集</a></h2><dl>${v.glossary.map((g) => `<dt>${esc(g.term)}</dt><dd>${esc(g.meaning)}</dd>`).join("")}</dl></section>
-</main></body></html>
+</main><script>${JS}</script></body></html>
 `;
 }
 
