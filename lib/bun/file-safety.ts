@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { getSystemErrorName } from "node:util";
 
 export const source = new URL("./file-safety-native.c", import.meta.url);
@@ -168,8 +168,11 @@ export function openParent(path: string, anchor = "/", create = false): Parent {
   if (!path.startsWith(anchor === "/" ? "/" : anchor + "/"))
     throw new Error("path が anchor の外です");
   const parts = path.slice(anchor.length).split("/").filter(Boolean);
+  const createAnchor = create && anchor !== "/";
+  if (createAnchor) parts.unshift(basename(anchor));
+  // 共有先自身も保持した親 FD から作る。system の /tmp alias はここで解決する。
   let fd = fs.openSync(
-    anchor,
+    createAnchor ? fs.realpathSync(dirname(anchor)) : anchor,
     fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW,
   );
   try {

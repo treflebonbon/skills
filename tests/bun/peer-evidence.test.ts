@@ -117,6 +117,79 @@ test("両 peer は旧 checkpoint から元 bytes と receipt を復元し同じ 
   });
 });
 
+test("両 peer は共有先自体が消えても checkpoint から元 bytes を復元する", () => {
+  withCorpus((repo) => {
+    const prepared = spawnSync(resolve(root, "bin/prepare-file-safety"), [], { encoding: "utf8" });
+    expect(prepared.status, prepared.stderr).toBe(0);
+    const base = fs.realpathSync(corpus.base);
+    const payload = resolve(base, "anchor-payload");
+    fs.mkdirSync(payload);
+    fs.symlinkSync(resolve(root, "lib"), resolve(payload, "lib"), "dir");
+    for (const peer of peers) {
+      const shared = resolve(base, peer + "-shared");
+      const scripts = resolve(payload, `skills/${peer}/scripts`);
+      fs.mkdirSync(scripts, { recursive: true });
+      for (const name of ["candidate-record", "candidate-record.ts", "run-evidence"])
+        fs.copyFileSync(resolve(root, `skills/${peer}/scripts/${name}`), resolve(scripts, name));
+      const source = fs.readFileSync(
+        resolve(root, `skills/${peer}/scripts/run-evidence.ts`),
+        "utf8",
+      );
+      const declaration = 'const SHARED = "/tmp/codex";';
+      expect(source.split(declaration)).toHaveLength(2);
+      // 共有先だけを隔離し、実際の /tmp/codex と他セッションの証跡には触れない。
+      fs.writeFileSync(
+        resolve(scripts, "run-evidence.ts"),
+        source.replace(declaration, `const SHARED = ${JSON.stringify(shared)};`),
+      );
+      const run = (name: string, args: string[]) =>
+        spawnSync(resolve(scripts, name), args, { cwd: repo, encoding: "utf8" });
+      const candidates = resolve(shared, "run/candidates.json");
+      const record = resolve(shared, "run/record.json");
+      fs.mkdirSync(resolve(candidates, ".."), { recursive: true, mode: 0o700 });
+      fs.copyFileSync(corpus.candidatesPath, candidates);
+      const pinned = run("candidate-record", [
+        "pin",
+        corpus.artifactPath,
+        fs.realpathSync(resolve(repo, ".git")),
+        corpus.sourceSha,
+        candidates,
+        record,
+      ]);
+      expect(pinned.status, pinned.stderr).toBe(0);
+      const fingerprint = pinned.stdout.trim();
+      const saved = run("run-evidence", ["checkpoint", record, candidates, fingerprint]);
+      expect(saved.status, saved.stderr).toBe(0);
+      const checkpoint = JSON.parse(saved.stdout).checkpoint;
+      const originals = [record, candidates].map((path) => [path, fs.readFileSync(path)] as const);
+      fs.renameSync(shared, shared + ".lost");
+      expect(fs.existsSync(shared)).toBe(false);
+      fs.symlinkSync(shared + ".lost", shared, "dir");
+      const linked = run("run-evidence", ["restore", fingerprint, checkpoint]);
+      expect(linked.status).toBe(1);
+      expect(linked.stderr).toContain("symlink を含められません");
+      expect(fs.lstatSync(shared).isSymbolicLink()).toBe(true);
+      for (const [path, bytes] of originals)
+        expect(fs.readFileSync(path.replace(shared, shared + ".lost"))).toEqual(bytes);
+      fs.unlinkSync(shared);
+      fs.writeFileSync(shared, "another writer");
+      const occupied = run("run-evidence", ["restore", fingerprint, checkpoint]);
+      expect(occupied.status).toBe(1);
+      expect(occupied.stderr).toContain("親パスが directory ではありません");
+      expect(fs.readFileSync(shared, "utf8")).toBe("another writer");
+      fs.unlinkSync(shared);
+      const restored = run("run-evidence", ["restore", fingerprint, checkpoint]);
+      expect(restored.status, restored.stderr).toBe(0);
+      expect(fs.lstatSync(shared).mode & 0o777).toBe(0o700);
+      for (const [path, bytes] of originals) expect(fs.readFileSync(path)).toEqual(bytes);
+      const checked = run("candidate-record", ["check", record, candidates, fingerprint]);
+      expect(checked.status, checked.stderr).toBe(0);
+      const repeated = run("run-evidence", ["restore", fingerprint, checkpoint]);
+      expect(repeated.status, repeated.stderr).toBe(0);
+    }
+  });
+});
+
 test("新 pin は大きな整数・非有限値を保持し、旧 corpus と同じ候補だけを受け入れる", () => {
   withCorpus((repo) => {
     const prepared = spawnSync(resolve(root, "bin/prepare-file-safety"), [], { encoding: "utf8" });

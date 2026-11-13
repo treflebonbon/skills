@@ -36,6 +36,8 @@ production の [C helper](../lib/bun/file-safety-native.c)は、採用済み [�
 
 checkpoint は書込みと fsync を終えた一時ファイルから link で公開し、同じ内容の同時保存は既存 bytes と照合する。restore は全入力と既存内容を先に検査する。失敗時には保持 directory FD と BigInt の device / inode を使って、自分の作成分だけを戻す。別 writer のファイル、symlink、directory は残す。検査と unlink/link は別 syscall であり、任意の非協調 writer に対する原子的な CAS を保証するものではない。
 
+`/tmp/codex` 自体が欠落した場合も、restore はその親 directory FD から共有先を mode `0700` で作成し、no-follow で開いて復旧する。system の `/tmp` alias を解決した後の作成と検査には採用済みの native 操作を使う。CLI テストでは共有先定数だけを専用 directory へ置き換えたコピーを使い、両 peer の共有先全体の欠落、元 bytes の復旧、既存の symlink・通常ファイルの拒否と保持、再実行を検査する。
+
 [CLI テスト](../tests/bun/peer-evidence.test.ts)は旧 corpus、整数・Unicode、record 読込み後の置換、chmod・部分 write・close・後続ファイルの失敗、競合と置換先の保持を検査する。native cache の欠落・改変・symlink・mode・環境不一致を拒否し、自動修復しないことも確認する。Python・compiler・node_modules を PATH と payload に持たない実行で、read-only payload の前後の bytes / mode と preload の不実行を照合する。既存 Bats の provenance・FIFO・timeout・機密名・復旧検査も維持する。HTML parser の75入力は #36 の suite を引き継ぐ。
 
 ローカルの対象検査は Linux x64 / WSL2、Bun 1.4.4 で実行する。全体 suite とレビューの結果は実装の検証記録に残す。#32 の3環境の実証は採用方式の根拠であり、この production loader の macOS arm64 / Linux arm64 の実行結果とは区別する。今回の3環境の checkout SHA と結果は [PR #76](https://github.com/treflebonbon/skills/pull/76) の CI 記録で確認する。
