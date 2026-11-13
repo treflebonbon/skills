@@ -125,6 +125,9 @@ test("両 peer は共有先自体が消えても checkpoint から元 bytes を�
     const payload = resolve(base, "anchor-payload");
     fs.mkdirSync(payload);
     fs.symlinkSync(resolve(root, "lib"), resolve(payload, "lib"), "dir");
+    // macOS の /tmp alias と同じ fixture を Linux でも使う。
+    const artifactAlias = resolve(base, "artifact-alias");
+    fs.symlinkSync(base, artifactAlias, "dir");
     for (const peer of peers) {
       const shared = resolve(base, peer + "-shared");
       const scripts = resolve(payload, `skills/${peer}/scripts`);
@@ -150,7 +153,7 @@ test("両 peer は共有先自体が消えても checkpoint から元 bytes を�
       fs.copyFileSync(corpus.candidatesPath, candidates);
       const pinned = run("candidate-record", [
         "pin",
-        corpus.artifactPath,
+        fs.realpathSync(resolve(artifactAlias, "report.html")),
         fs.realpathSync(resolve(repo, ".git")),
         corpus.sourceSha,
         candidates,
