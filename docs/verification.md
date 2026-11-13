@@ -96,6 +96,7 @@ report と質問シートの loopback 配信、旧 HTTP corpus、専用 root と
 
 ### 実施記録: 2026-11-13（#69、`playwright-cli` の Chromium、1400 幅と 360 幅）
 
+- 対象コミット: `7068b4b`（初回の実施）。script を外した `dff433f` では、目次移動と現在位置だけを再確認した（手順 3 の注記のとおり）。それ以降のコミットでは再実施していない。
 - 手段: `playwright-cli` で実 Chromium を操作。`file:` は拒否されたため、127.0.0.1 の一時 HTTP サーバー（`internal` と `public` を生成した親ディレクトリ）から配信。架空モデルは「請求書申請ガイド」。
 - 手順 2（外部通信）: 確認済み。読込み中のリクエストは `index.html` の 1 件のみ（外部 0 件）で、HTML に script・外部参照・フォント指定はない（`document.fonts` は 0 件）。読込み後にコンテキストを offline にして操作した。offline での再読込みは loopback も遮断されるため行っていない。
 - 手順 3（キーボード）: 確認済み。Tab の最初の停止はスキップリンク、次が目次。目次で Enter すると `#feature-1` へ移動し、その目次項目に「▶」と太字が付く（CSS の `:target` と `:has()` による。スクロール追従はしない）。`summary` は Enter と Space で開閉でき、フォーカスは 3px の枠線で見える（初回実施時の確認。script を外した再実施では目次移動と現在位置のみ再確認し、`summary` の開閉は再確認していない）。
@@ -106,6 +107,7 @@ report と質問シートの loopback 配信、旧 HTTP corpus、専用 root と
 
 ### 実施記録: 2026-11-13（#74、`playwright-cli` の Chromium）
 
+- 対象コミット: `eb3da50` の上で、のちに `0349240` として commit した変更を加えた作業ツリー。commit 後のブラウザでの再確認はしていない。その後の `18e71b5`（型と定義表の整理）は、fixture から生成した `internal` と `public` の出力が変更の前後で同一であることだけを確認した。`7fc5da0` 以降（`public` の検査の変更）はブラウザでは未確認。
 - 手段: 架空の実文 fixture（`tests/fixtures/product-guide-model.json`、機能 6 件・長い見出し 1 件・提案 1 件・未調査・矛盾・入れ子フロー 2 件）から `internal` と `public` を生成し、127.0.0.1 の一時 HTTP サーバーから配信して `playwright-cli` で操作。環境は Linux（WSL2）上の Chromium 1 種類のみ。
 - 確認済み:
   - 狭い画面: 360 幅と 320 幅で、図のスクロール領域を除き横スクロールなし。長い見出しは折り返され、目次・本文とも崩れない。

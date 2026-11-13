@@ -56,6 +56,7 @@ type SgNode = {
   text(): string;
   field(name: string): SgNode | null;
   ancestors(): SgNode[];
+  namedChildren(): SgNode[];
   range(): { start: { line: number }; end: { line: number } };
   findAll(matcher: object): SgNode[];
 };
@@ -85,6 +86,15 @@ const DECLS = [
 const kindsFor = (lang: string) =>
   DECLS.filter((k) => sg.kind(lang, k) !== 0).map((kind) => ({ kind })); // 存在しない kind は 0
 const FN_VALUE = ["arrow_function", "function_expression", "generator_function"];
+// メソッドの所属は直近の所有ノードで決める。オブジェクトやクラス式は、外側のクラスの名前を引き継がない境界。
+const OWNER = ["class_declaration", "abstract_class_declaration", "class", "object"];
+// `(() => true)` のような括弧を外して、中の式を返す。
+const unwrap = (node: SgNode | null): SgNode | null => {
+  let cur = node;
+  while (cur?.kind() === "parenthesized_expression")
+    cur = cur.namedChildren().find((child) => child.kind() !== "comment") ?? null;
+  return cur;
+};
 
 const files = git("ls-tree", "-r", "--name-only", "-z", commit)
   .toString()
@@ -102,15 +112,15 @@ for (const path of files) {
     if (!name) continue;
     if (
       decl.kind() === "variable_declarator" &&
-      !FN_VALUE.includes(decl.field("value")?.kind() ?? "")
+      !FN_VALUE.includes(unwrap(decl.field("value"))?.kind() ?? "")
     )
       continue;
     let symbol = name;
     if (decl.kind() === "method_definition") {
-      const cls = decl
-        .ancestors()
-        .find((ancestor) => ancestor.kind().endsWith("class_declaration"));
-      const clsName = cls?.field("name")?.text();
+      const owner = decl.ancestors().find((ancestor) => OWNER.includes(ancestor.kind()));
+      const clsName = owner?.kind().endsWith("class_declaration")
+        ? owner.field("name")?.text()
+        : undefined;
       if (clsName) symbol = `${clsName}.${name}`;
     }
     const { start, end } = decl.range();

@@ -1,6 +1,6 @@
 // product-guide CLI: validate (モデル検証) と generate (単体 HTML 生成)。Bun と標準 API のみ。
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { mkdirSync, readFileSync, rmSync, rmdirSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import dagre from "../vendor/dagre.esm.js"; // 同梱 bundle。node_modules には依存しない（references/dependencies.md）
 
 // 区分の定義表。区分を足すときはここだけを直す（型・検証・表示ラベルはここから導く）。
@@ -888,10 +888,19 @@ if (command === "validate" && file && rest.length === 0) {
     parent,
     `${model.target.commit}${model.baseline ? `-vs-${model.baseline.commit}` : ""}-${audience}`,
   );
-  // 親は描画と検査がすべて成功した後に作る。以降の失敗では、作った分を取り除いて何も残さない。
+  // 親は描画と検査がすべて成功した後に作る。以降の失敗では、この実行が作った親を取り除く。
+  // 取り除くのは、深い方から順に「空の」ディレクトリだけ。同時に動く別の実行が同じ親へ置いた成果物は消さない。
   let created: string | undefined;
   const cleanup = () => {
-    if (created) rmSync(created, { recursive: true, force: true });
+    if (!created) return;
+    for (let p = parent; ; p = dirname(p)) {
+      try {
+        rmdirSync(p);
+      } catch {
+        return; // 空でない（他の成果物がある）か、既に無い。残す。
+      }
+      if (p === created) return;
+    }
   };
   const cannotCreate = (e: unknown) => fail(1, `出力先を作成できません: ${(e as Error).message}`);
   try {

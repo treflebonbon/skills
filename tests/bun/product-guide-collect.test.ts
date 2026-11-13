@@ -121,3 +121,49 @@ test("不正な入力は失敗し、出力を作らない", () => {
   const again = spawn([run, "run", collect, dir, "--commit", a, "--out", first.out]);
   expect(again.code).not.toBe(0); // 既存の出力は上書きしない
 });
+
+// 括弧付きの関数値は収集し、メソッドは直近の所有ノード（クラス宣言）の名前だけを所属として記録する。
+function repoWith(file: string, source: string) {
+  const dir = mkdtempSync(join(tmpdir(), "pg-collect-"));
+  git(dir, "init", "-q");
+  writeFileSync(join(dir, file), source);
+  git(dir, "add", ".");
+  git(dir, "commit", "-q", "-m", "a");
+  return { dir, a: git(dir, "rev-parse", "HEAD").out };
+}
+const symbols = (json: { evidence: { symbol: string }[] }) => json.evidence.map((e) => e.symbol);
+
+test("括弧付きの関数値の const も収集する。関数でない値の const は収集しない", () => {
+  const { dir, a } = repoWith(
+    "src.js",
+    [
+      "export const approve = (() => true);",
+      "export const nested = ((function () {}));",
+      "export const plain = (1 + 2);",
+      "export const direct = () => 1;",
+      "",
+    ].join("\n"),
+  );
+  expect(symbols(collectAt(dir, a).json)).toEqual(["approve", "nested", "direct"]);
+});
+
+test("メソッドの所属は直近の所有ノードで決め、オブジェクトやクラス式を越えて外側のクラス名を付けない", () => {
+  const { dir, a } = repoWith(
+    "src.js",
+    [
+      "class Outer {",
+      "  build() { return { submit() {} }; }",
+      "  make() { return class { inner() {} }; }",
+      "}",
+      "",
+    ].join("\n"),
+  );
+  // Outer.build と Outer.make は所属が Outer。オブジェクトの submit とクラス式の inner は外側の Outer を付けない。
+  expect(symbols(collectAt(dir, a).json).sort()).toEqual([
+    "Outer",
+    "Outer.build",
+    "Outer.make",
+    "inner",
+    "submit",
+  ]);
+});
