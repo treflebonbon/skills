@@ -16,136 +16,113 @@ teardown() {
 }
 
 @test "Orca receipt example validates before publishing and reuses saved worker receipts" {
-  run python3 - "$BATS_TEST_DIRNAME/../.." "$EVIDENCE" <<'PY'
-import json, os, subprocess, sys
-from pathlib import Path
-from unittest.mock import patch
-
-root, run = (Path(p).resolve() for p in sys.argv[1:])
-receipt = run / 'worker-one'
-receipt.mkdir()
-(run / 'run-create.json').write_text(json.dumps({'ok': True, 'result': {'run': {'id': 'run-1', 'coordinator_handle': 'parent-1'}}}))
-(receipt / 'worker-start.json').write_text(json.dumps({'result': {'dispatchId': 'dispatch-1', 'taskId': 'task-1', 'effects': [{'kind': 'terminal', 'role': 'agent', 'id': 'worker-1'}]}}))
-doc = root / 'skills/orca-peer-refactor/references/orca.md'
-source = doc.read_text().split("<<'PY'\n", 1)[1].split('\nPY\n```', 1)[0]
-source = source.replace('<skill-dir>', str(root / 'skills/orca-peer-refactor'))
-actual_run = subprocess.run
-queries = []
-worker_output = json.dumps({'ok': True, 'result': {'dispatch': {'id': 'dispatch-1', 'taskId': 'task-1', 'assigneeHandle': 'worker-1', 'status': 'dispatched'}}})
-def fake_orca(argv, **kwargs):
-    if argv[0] != 'orca-ide':
-        return actual_run(argv, **kwargs)
-    if 'worker-show' in argv:
-        queries.append(argv)
-        return subprocess.CompletedProcess(argv, 0, stdout=worker_output)
-    return subprocess.CompletedProcess(argv, 0, stdout=json.dumps({'result': {'runId': 'run-1'}}))
-
-valid_output = worker_output
-for name, worker_output in [('malformed', '{"ok":'), ('rejected', '{"ok":false,"result":{}}'), ('mismatch', valid_output.replace('dispatch-1', 'dispatch-other'))]:
-    failed_receipt = run / name
-    failed_receipt.mkdir()
-    (failed_receipt / 'worker-start.json').write_bytes((receipt / 'worker-start.json').read_bytes())
-    with patch.object(sys, 'argv', ['example', str(run), str(failed_receipt)]), patch.dict(os.environ, {'ORCA_TERMINAL_HANDLE': 'parent-1', 'ORCA_CLI': 'orca-ide', 'SKILL_DIR': str(root / 'skills/orca-peer-refactor')}), patch.object(subprocess, 'run', fake_orca):
-        try:
-            exec(compile(source, str(doc), 'exec'), {})
-        except subprocess.CalledProcessError:
-            pass
-        else:
-            raise AssertionError(f'{name}: invalid receipt was accepted')
-        assert not (failed_receipt / 'worker-show.json').exists(), name
-        pending = failed_receipt / 'worker-show.json.part'
-        assert pending.read_text() == worker_output, name
-        before_retry = len(queries)
-        try:
-            exec(compile(source, str(doc), 'exec'), {})
-        except SystemExit:
-            pass
-        else:
-            raise AssertionError(f'{name}: unfinished receipt was ignored')
-        assert len(queries) == before_retry, name
-        assert pending.read_text() == worker_output, name
-
-worker_output = valid_output
-queries.clear()
-
-with patch.object(sys, 'argv', ['example', str(run), str(receipt)]), patch.dict(os.environ, {'ORCA_TERMINAL_HANDLE': 'parent-1', 'ORCA_CLI': 'orca-ide', 'SKILL_DIR': str(root / 'skills/orca-peer-refactor')}), patch.object(subprocess, 'run', fake_orca):
-    exec(compile(source, str(doc), 'exec'), {})
-    original = (receipt / 'worker-show.json').read_bytes()
-    exec(compile(source, str(doc), 'exec'), {})
-assert len(queries) == 1, queries
-assert (receipt / 'worker-show.json').read_bytes() == original
-PY
+  run node - "$BATS_TEST_DIRNAME/../.." "$EVIDENCE" <<'JS'
+const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const [root, run] = process.argv.slice(2).map(p => fs.realpathSync(p));
+const doc = fs.readFileSync(path.join(root, 'skills/orca-peer-refactor/references/orca.md'), 'utf8');
+const example = doc.split('## ID を receipt から渡す\n')[1].split('```bash\n')[1].split('\n```')[0];
+const calls = path.join(run, 'calls.jsonl'), cli = path.join(run, 'orca-fixture');
+fs.writeFileSync(cli, [
+  '#!/usr/bin/env node',
+  "const fs = require('node:fs');",
+  'const args = process.argv.slice(2);',
+  "fs.appendFileSync(process.env.ORCA_CALLS, JSON.stringify(args) + '\\n');",
+  "process.stdout.write(args[1] === 'worker-show' ? process.env.WORKER_OUTPUT : JSON.stringify({result:{runId:'run-1'}}));",
+].join('\n')+'\n', { mode: 0o700 });
+fs.writeFileSync(path.join(run, 'run-create.json'), JSON.stringify({ok:true,result:{run:{id:'run-1',coordinator_handle:'parent-1'}}}));
+const started = {ok:true,result:{dispatchId:'dispatch-1',taskId:'task-1',effects:[{kind:'terminal',role:'agent',id:'worker-1'}]}};
+const valid = JSON.stringify({ok:true,result:{dispatch:{id:'dispatch-1',taskId:'task-1',assigneeHandle:'worker-1',status:'dispatched'}}});
+const recorded = () => fs.existsSync(calls) ? fs.readFileSync(calls,'utf8').trim().split('\n').map(JSON.parse) : [];
+const queries = () => recorded().filter(args => args[1] === 'worker-show');
+const expectedChecks = [
+ ['orchestration','check','--terminal','parent-1','--peek','--json'],
+ ['orchestration','check','--terminal','parent-1','--run','run-1','--wait','--timeout-ms','45000','--json'],
+];
+for (const [name, output] of [['malformed','{"ok":'], ['rejected','{"ok":false,"result":{}}'], ['mismatch',valid.replace('dispatch-1','dispatch-other')], ['valid',valid]]) {
+  const receipt = path.join(run, name); fs.mkdirSync(receipt);
+  fs.writeFileSync(path.join(receipt,'worker-start.json'), JSON.stringify(started));
+  const invoke = () => spawnSync('bash',['-c',example],{encoding:'utf8',env:{...process.env,run_dir:run,receipt_dir:receipt,ORCA_CLI:cli,ORCA_TERMINAL_HANDLE:'parent-1',SKILL_DIR:path.join(root,'skills/orca-peer-refactor'),ORCA_CALLS:calls,WORKER_OUTPUT:output}});
+  const before = queries().length, commandCount = recorded().length, result = invoke();
+  assert.deepEqual(recorded().slice(commandCount), [...expectedChecks, ['orchestration','worker-show','--dispatch','dispatch-1','--json']]);
+  const final = path.join(receipt,'worker-show.json'), pending = final+'.part';
+  if (name === 'valid') {
+    assert.equal(result.status,0,result.stderr);
+    const original=fs.readFileSync(final);
+    assert.equal(invoke().status,0);
+    assert.deepEqual(fs.readFileSync(final),original);
+  } else {
+    assert.notEqual(result.status,0);
+    const diagnostic = name === 'malformed' ? /receipt を読み取れません/ : name === 'rejected' ? /receipt が成功応答ではありません/ : /Dispatch ID が期待値と一致しません/;
+    assert.match(result.stderr,diagnostic);
+    assert(!fs.existsSync(final));
+    assert.equal(fs.readFileSync(pending,'utf8'),output);
+    const retry=invoke();assert.notEqual(retry.status,0);assert.match(retry.stderr,/未確定の receipt/);
+    assert.equal(fs.readFileSync(pending,'utf8'),output);
+  }
+  assert.equal(queries().length,before+1);
+  assert.deepEqual(recorded().slice(commandCount + 3),expectedChecks);
+  assert.deepEqual(queries().at(-1),['orchestration','worker-show','--dispatch','dispatch-1','--json']);
+}
+JS
   [ "$status" -eq 0 ]
 }
 
 @test "Orca shell receipt examples publish only complete successful output and preserve failed attempts" {
-  run python3 - "$BATS_TEST_DIRNAME/../.." "$EVIDENCE" <<'PY'
-import json, os, re, subprocess, sys
-from pathlib import Path
-
-root, evidence = (Path(p).resolve() for p in sys.argv[1:])
-doc = root / 'skills/orca-peer-refactor/references/orca.md'
-examples = re.findall(r'\(set -C\b.*?\)', doc.read_text(), re.S)
-assert len(examples) == 5, examples
-binary = evidence / 'bin'
-binary.mkdir()
-fake = binary / 'ORCA'
-fake.write_text('''#!/usr/bin/env python3
-import os, signal, sys
-with open(os.environ['RECEIPT_CALLS'], 'a') as stream:
-    stream.write('called\\n')
-sys.stdout.write(os.environ['RECEIPT_OUTPUT'])
-sys.stdout.flush()
-if os.environ['RECEIPT_MODE'] == 'interrupted':
-    os.kill(os.getpid(), signal.SIGTERM)
-sys.exit(1 if os.environ['RECEIPT_MODE'] == 'failed' else 0)
-''')
-fake.chmod(0o700)
-complete = json.dumps({'ok': True, 'result': {'id': 'receipt-1'}})
-for index, example in enumerate(examples):
-    command = re.sub(r'<[^>]+>', 'fixture', example)
-    operation = re.search(r'ORCA orchestration (run-create|worker-start|worker-show)', command).group(1)
-    for mode, output in [('failed', complete), ('interrupted', '{"ok":'), ('empty', ''), ('malformed', '{"ok":'), ('success', complete), ('existing', complete)]:
-        folder = evidence / f'{index}-{mode}'
-        folder.mkdir()
-        final = folder / f'{operation}.json'
-        pending = folder / f'{operation}.json.part'
-        calls = folder / 'calls'
-        env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ['PATH'], RECEIPT_MODE=mode, RECEIPT_OUTPUT=output, RECEIPT_CALLS=str(calls))
-        env.update({key: str(folder) for key in ['run_dir', 'receipt_dir', 'child_run_dir', 'child_receipt_dir']})
-        if mode == 'existing':
-            final.write_text('original receipt\n')
-        result = subprocess.run(['bash', '-c', command], env=env, capture_output=True, text=True)
-        if mode == 'success':
-            assert result.returncode == 0, result.stderr
-            assert final.read_text() == complete
-        elif mode == 'existing':
-            assert result.returncode != 0
-            assert final.read_text() == 'original receipt\n'
-            assert not calls.exists(), command
-        else:
-            assert result.returncode != 0, (mode, command)
-            assert not final.exists(), (mode, command)
-            assert pending.read_text() == output
-            before_retry = calls.read_bytes()
-            retried = subprocess.run(['bash', '-c', command], env=env, capture_output=True, text=True)
-            assert retried.returncode != 0
-            assert calls.read_bytes() == before_retry, command
-            assert pending.read_text() == output
-
-for index, heading in enumerate(['### coordinator\n', '### nested coordinator\n']):
-    block = doc.read_text().split(heading, 1)[1].split('```text\n', 1)[1].split('\n```', 1)[0]
-    block = block.replace('<skill-dir>', str(root / 'skills/orca-peer-refactor'))
-    command = re.sub(r'<[^>]+>', 'fixture', block)
-    for mode in ['failed', 'interrupted', 'malformed']:
-        folder = evidence / f'sequence-{index}-{mode}'
-        folder.mkdir()
-        calls = folder / 'calls'
-        env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ['PATH'], run_dir=str(folder), RECEIPT_MODE=mode, RECEIPT_OUTPUT='{"ok":', RECEIPT_CALLS=str(calls))
-        result = subprocess.run(['bash', '-c', command], env=env, capture_output=True, text=True)
-        assert result.returncode != 0, (heading, mode)
-        assert calls.read_text().splitlines() == ['called'], (heading, mode, 'later operation ran')
-PY
+  run node - "$BATS_TEST_DIRNAME/../.." "$EVIDENCE" <<'JS'
+const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const [root,evidence]=process.argv.slice(2).map(p=>fs.realpathSync(p));
+const doc=fs.readFileSync(path.join(root,'skills/orca-peer-refactor/references/orca.md'),'utf8');
+const examples=[...doc.matchAll(/\(set -C\b[\s\S]*?\)/g)].map(match=>match[0]);
+assert.equal(examples.length,5);
+const binary=path.join(evidence,'bin');fs.mkdirSync(binary);
+fs.writeFileSync(path.join(binary,'ORCA'),[
+ '#!/usr/bin/env node',"const fs = require('node:fs');",
+ "fs.appendFileSync(process.env.RECEIPT_CALLS,JSON.stringify(process.argv.slice(2))+'\\n');",
+ "fs.writeSync(1,process.env.RECEIPT_OUTPUT);",
+ "if(process.env.RECEIPT_MODE === 'interrupted') process.kill(process.pid,'SIGTERM');",
+ "process.exit(process.env.RECEIPT_MODE === 'failed' ? 1 : 0);",
+].join('\n')+'\n',{mode:0o700});
+const complete=JSON.stringify({ok:true,result:{id:'receipt-1'}});
+const commandFor = source => source.replaceAll('<skill-dir>',path.join(root,'skills/orca-peer-refactor')).replace(/<[^>]+>/g,'fixture');
+const expectedArgs = [
+ ['orchestration','run-create','--objective','fixture','--from','fixture','--json'],
+ ['orchestration','worker-start','--task','fixture','--worktree','id:fixture','--agent','claude','--run','fixture','--from','fixture','--json'],
+ ['orchestration','worker-show','--dispatch','fixture','--json'],
+ ['orchestration','run-create','--objective','fixture','--from','fixture','--json'],
+ ['orchestration','worker-start','--task','fixture','--worktree','id:fixture','--agent','codex','--run','fixture','--from','fixture','--json'],
+];
+const recorded = calls => fs.readFileSync(calls,'utf8').trim().split('\n').map(JSON.parse);
+for (const [index,example] of examples.entries()) {
+ const command=commandFor(example), operation=/ORCA orchestration (run-create|worker-start|worker-show)/.exec(command)[1];
+ for (const [mode,output] of [['failed',complete],['interrupted','{"ok":'],['empty',''],['malformed','{"ok":'],['success',complete],['existing',complete]]) {
+  const folder=path.join(evidence,index+'-'+mode);fs.mkdirSync(folder);
+  const final=path.join(folder,operation+'.json'),pending=final+'.part',calls=path.join(folder,'calls');
+  const env={...process.env,PATH:binary+path.delimiter+process.env.PATH,RECEIPT_MODE:mode,RECEIPT_OUTPUT:output,RECEIPT_CALLS:calls};
+  for (const key of ['run_dir','receipt_dir','child_run_dir','child_receipt_dir']) env[key]=folder;
+  if (mode==='existing') fs.writeFileSync(final,'original receipt\n');
+  const result=spawnSync('bash',['-c',command],{env,encoding:'utf8'});
+  if (mode !== 'existing') assert.deepEqual(recorded(calls),[expectedArgs[index]]);
+  if (mode==='success') { assert.equal(result.status,0,result.stderr);assert.equal(fs.readFileSync(final,'utf8'),complete); }
+  else if (mode==='existing') { assert.notEqual(result.status,0);assert.equal(fs.readFileSync(final,'utf8'),'original receipt\n');assert(!fs.existsSync(calls)); }
+  else {
+   assert.notEqual(result.status,0);assert(!fs.existsSync(final));assert.equal(fs.readFileSync(pending,'utf8'),output);
+   const before=fs.readFileSync(calls);assert.notEqual(spawnSync('bash',['-c',command],{env,encoding:'utf8'}).status,0);
+   assert.deepEqual(fs.readFileSync(calls),before);assert.equal(fs.readFileSync(pending,'utf8'),output);
+  }
+ }
+}
+for (const [index,heading] of ['### coordinator\n','### nested coordinator\n'].entries()) {
+ const block=doc.split(heading)[1].split('```text\n')[1].split('\n```')[0],command=commandFor(block);
+ for (const mode of ['failed','interrupted','malformed']) {
+  const folder=path.join(evidence,'sequence-'+index+'-'+mode);fs.mkdirSync(folder);const calls=path.join(folder,'calls');
+  const env={...process.env,PATH:binary+path.delimiter+process.env.PATH,run_dir:folder,RECEIPT_MODE:mode,RECEIPT_OUTPUT:'{"ok":',RECEIPT_CALLS:calls};
+  const result=spawnSync('bash',['-c',command],{env,encoding:'utf8'});assert.notEqual(result.status,0);
+  assert.deepEqual(recorded(calls),[expectedArgs[index === 0 ? 0 : 3]],'後続の操作が実行されました');
+ }
+}
+JS
   [ "$status" -eq 0 ]
 }
 

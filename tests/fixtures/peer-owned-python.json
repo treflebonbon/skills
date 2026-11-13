@@ -1,0 +1,104 @@
+{
+  "sourceCommit": "be6a6aaa0c2d5841ea90e594119058832e8f04a6",
+  "sourceHash": "7dacfb45b8574afd81b184a22aa680e10f65fc450168cf583a0eb1cee062bba0",
+  "cases": [
+    {
+      "owned": "a.txt:1-2",
+      "status": 1,
+      "stdout": "a.txt:3-3 (outside the declared lines)\nnew.txt\n",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "a.txt:2-4,new.txt:1-2",
+      "status": 0,
+      "stdout": "",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "a.txt,new.txt",
+      "status": 0,
+      "stdout": "",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "./a.txt:3-3,./new.txt:1-1",
+      "status": 1,
+      "stdout": "new.txt:1-2 (outside the declared lines)\n",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "a.txt:٣-٣,new.txt:١-٢",
+      "status": 0,
+      "stdout": "",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "a.txt:0003-0003,new.txt:0001-0002",
+      "status": 0,
+      "stdout": "",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "a.txt:1-2,a.txt:3-3,new.txt:1-2",
+      "status": 0,
+      "stdout": "",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "a.txt:1-2,a.txt,new.txt",
+      "status": 0,
+      "stdout": "",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "a.txt:3-9007199254740993,new.txt:1-2",
+      "status": 0,
+      "stdout": "",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "a.txt:9007199254740993-9999999999999999,new.txt:1-2",
+      "status": 1,
+      "stdout": "a.txt:3-3 (outside the declared lines)\n",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "a.txt:0-0,new.txt:1-2",
+      "status": 1,
+      "stdout": "a.txt:3-3 (outside the declared lines)\n",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "",
+      "status": 1,
+      "stdout": "a.txt\nnew.txt\n",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "a.txt:𑷣-𑷣,new.txt:1-2",
+      "status": 1,
+      "stdout": "a.txt\n",
+      "stderr": "",
+      "extras": false
+    },
+    {
+      "owned": "a.txt,new.txt",
+      "status": 1,
+      "stdout": ".txt\n𐀀.txt\n",
+      "stderr": "",
+      "extras": true
+    }
+  ]
+}

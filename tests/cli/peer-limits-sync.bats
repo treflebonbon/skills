@@ -5,54 +5,35 @@
 # a row or constant is missing, duplicated, or not a plain integer.
 
 @test "peer limits in the contract table match peer-request.sh constants" {
-  run python3 -I - "$BATS_TEST_DIRNAME/../.." <<'PY'
-import re
-import sys
-from pathlib import Path
-
-root = Path(sys.argv[1])
-contract = (root / "contracts/autonomous-peer-contract.md").read_text(encoding="utf-8")
-script = (root / "skills/herdr-peer-refactor/scripts/peer-request.sh").read_text(encoding="utf-8")
-
-
-def one(items, label):
-    if len(items) != 1:
-        raise SystemExit(f"{label}: found {len(items)}, expected exactly 1")
-    return items[0]
-
-
-def cells(line):
-    return [c.strip() for c in line.strip().split("|")]
-
-
-lines = contract.splitlines()
-head = one([i for i, l in enumerate(lines) if cells(l) == ["", "上限", "値", ""]], "limits table")
-rows = []
-for line in lines[head + 2 :]:
-    if not line.lstrip().startswith("|"):
-        break
-    row = cells(line)
-    if len(row) != 4:
-        raise SystemExit(f"limits table: bad row {line!r}")
-    rows.append((re.sub(r"\s+", "", row[1]), row[2]))
-
-for label, name, units in (
-    ("peer1回の待機", "PEER_TIMEOUT_S", {"分": 60, "時間": 3600}),
-    ("1候補の累積待機", "TOTAL_WAIT_S", {"分": 60, "時間": 3600}),
-    ("ReviewRound", "MAX_ROUNDS", {"回": 1}),
-):
-    value = one([v for k, v in rows if k == label], label)
-    m = re.fullmatch(r"(\d+)\s*(" + "|".join(units) + ")", value)
-    if m is None:
-        raise SystemExit(f"{label}: bad value {value!r}")
-    # leading blanks allowed: an indented override inside a conditional also counts
-    const = one(re.findall(rf"^[ \t]*{name}=(.*)$", script, re.M), name)
-    # no leading zero: Bash arithmetic reads 01200 as octal, int() as decimal
-    if re.fullmatch(r"[1-9]\d*", const) is None:
-        raise SystemExit(f"{name}: not a plain decimal literal: {const!r}")
-    if int(m[1]) * units[m[2]] != int(const):
-        raise SystemExit(f"{label}: contract {value} != {name}={const}")
-PY
+  run node - "$BATS_TEST_DIRNAME/../.." <<'JS'
+const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const root = process.argv[2];
+const contract = fs.readFileSync(path.join(root, 'contracts/autonomous-peer-contract.md'), 'utf8');
+const script = fs.readFileSync(path.join(root, 'skills/herdr-peer-refactor/scripts/peer-request.sh'), 'utf8');
+function one(items, label) { assert.equal(items.length, 1, `${label}: ${items.length}件あります`); return items[0]; }
+const cells = line => line.trim().split('|').map(c => c.trim());
+const lines = contract.split('\n');
+const head = one(lines.flatMap((line, i) => JSON.stringify(cells(line)) === '["","上限","値",""]' ? [i] : []), 'limits table');
+const rows = [];
+for (const line of lines.slice(head + 2)) {
+  if (!line.trimStart().startsWith('|')) break;
+  const row = cells(line); assert.equal(row.length, 4, `limits table: 不正な行 ${line}`);
+  rows.push([row[1].replace(/\s+/g, ''), row[2]]);
+}
+for (const [label, name, units] of [
+  ['peer1回の待機', 'PEER_TIMEOUT_S', {分: 60n, 時間: 3600n}],
+  ['1候補の累積待機', 'TOTAL_WAIT_S', {分: 60n, 時間: 3600n}],
+  ['ReviewRound', 'MAX_ROUNDS', {回: 1n}],
+]) {
+  const value = one(rows.filter(([key]) => key === label).map(([, value]) => value), label);
+  const match = new RegExp('^(\\d+)\\s*(' + Object.keys(units).join('|') + ')$').exec(value);
+  assert(match, `${label}: 不正な値 ${value}`);
+  // 条件付きの重複宣言と、Bash が8進数として読む先頭0も拒否する。
+  const literal = one([...script.matchAll(new RegExp('^[ \\t]*' + name + '=(.*)$', 'gm'))].map(m => m[1]), name);
+  assert.match(literal, /^[1-9]\d*$/, `${name}: 10進整数の literal が必要です`);
+  assert.equal(BigInt(match[1]) * units[match[2]], BigInt(literal), `${label}: 契約と定数が不一致です`);
+}
+JS
   echo "$output"
   [ "$status" -eq 0 ]
 }

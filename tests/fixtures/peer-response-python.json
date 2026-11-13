@@ -1,0 +1,97 @@
+{
+  "sourceCommit": "be6a6aaa0c2d5841ea90e594119058832e8f04a6",
+  "sourceHash": "c87c819874de37bac46e3518ff28a67702f77c828569b6dc6d79154dcefe006b",
+  "extractorHash": "3fc86120d6d3f21f401fff22095173d15996ccb28aa10d61cb1db1d531555243",
+  "cases": [
+    {
+      "name": "plain",
+      "text": "DONE REQ-1 abc1234 fixture-nonce\nreply\nEND REQ-1 fixture-nonce",
+      "status": 0,
+      "base64": "RE9ORSBSRVEtMSBhYmMxMjM0CnJlcGx5Cg=="
+    },
+    {
+      "name": "bullet",
+      "text": " • DONE REQ-1 abc1234 fixture-nonce\n  日本語 🚀  \n • END REQ-1 fixture-nonce",
+      "status": 0,
+      "base64": "RE9ORSBSRVEtMSBhYmMxMjM0CuaXpeacrOiqniDwn5qACg=="
+    },
+    {
+      "name": "wrong-nonce",
+      "text": "DONE REQ-1 abc1234 old\nold\nEND REQ-1 old",
+      "status": 3,
+      "base64": ""
+    },
+    {
+      "name": "blank",
+      "text": "DONE REQ-1 abc1234 fixture-nonce\n \t\nEND REQ-1 fixture-nonce",
+      "status": 3,
+      "base64": ""
+    },
+    {
+      "name": "bom-body",
+      "text": "DONE REQ-1 abc1234 fixture-nonce\n﻿\nEND REQ-1 fixture-nonce",
+      "status": 0,
+      "base64": "RE9ORSBSRVEtMSBhYmMxMjM0Cu+7vwo="
+    },
+    {
+      "name": "header-only",
+      "text": "DONE REQ-1 abc1234 fixture-nonce",
+      "status": 3,
+      "base64": ""
+    },
+    {
+      "name": "wrong-id",
+      "text": "DONE REQ-2 abc1234 fixture-nonce\nreply\nEND REQ-1 fixture-nonce",
+      "status": 3,
+      "base64": ""
+    },
+    {
+      "name": "wrong-sha",
+      "text": "DONE REQ-1 wrong fixture-nonce\nreply\nEND REQ-1 fixture-nonce",
+      "status": 3,
+      "base64": ""
+    },
+    {
+      "name": "quoted",
+      "text": "> DONE REQ-1 abc1234 fixture-nonce\nreply\n> END REQ-1 fixture-nonce",
+      "status": 3,
+      "base64": ""
+    },
+    {
+      "name": "echo",
+      "text": "Request: DONE REQ-1 abc1234 fixture-nonce\nreply\nEND REQ-1 fixture-nonce",
+      "status": 3,
+      "base64": ""
+    },
+    {
+      "name": "nested",
+      "text": "DONE REQ-1 abc1234 fixture-nonce\nquote\n  DONE REQ-1 abc1234 fixture-nonce\n nested\n END REQ-1 fixture-nonce\nouter\nEND REQ-1 fixture-nonce",
+      "status": 0,
+      "base64": "RE9ORSBSRVEtMSBhYmMxMjM0CnF1b3RlCkRPTkUgUkVRLTEgYWJjMTIzNCBmaXh0dXJlLW5vbmNlCm5lc3RlZApFTkQgUkVRLTEgZml4dHVyZS1ub25jZQpvdXRlcgo="
+    },
+    {
+      "name": "crlf",
+      "text": "DONE REQ-1 abc1234 fixture-nonce\r\nreply\r\nEND REQ-1 fixture-nonce\r\n",
+      "status": 0,
+      "base64": "RE9ORSBSRVEtMSBhYmMxMjM0CnJlcGx5Cg=="
+    },
+    {
+      "name": "cr",
+      "text": "DONE REQ-1 abc1234 fixture-nonce\rreply\rEND REQ-1 fixture-nonce",
+      "status": 3,
+      "base64": ""
+    },
+    {
+      "name": "unicode-space",
+      "text": "\u001c•DONE REQ-1 abc1234 fixture-nonce\n  literal $HOME `quoted`\nEND REQ-1 fixture-nonce",
+      "status": 0,
+      "base64": "RE9ORSBSRVEtMSBhYmMxMjM0CmxpdGVyYWwgJEhPTUUgYHF1b3RlZGAK"
+    },
+    {
+      "name": "old-then-current",
+      "text": "DONE REQ-1 abc1234 old\nstale\nEND REQ-1 old\nDONE REQ-1 abc1234 fixture-nonce\ncurrent\nEND REQ-1 fixture-nonce",
+      "status": 0,
+      "base64": "RE9ORSBSRVEtMSBhYmMxMjM0CmN1cnJlbnQK"
+    }
+  ]
+}

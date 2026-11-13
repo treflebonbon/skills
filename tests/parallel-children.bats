@@ -423,14 +423,16 @@ mkrepo() {
 
 @test "owned: a file larger than one read chunk is counted exactly" {
   mkrepo
-  yes line | head -n 400000 >"$REPO/big.txt" # about 2 MB, more than one 1 MiB chunk
+  node -e 'process.stdout.write("line\n".repeat(400000))' >"$REPO/big.txt" # about 2 MB, more than one 1 MiB chunk
   run bash "$SCRIPTS/check-owned.sh" "$REPO" "$BASE" big.txt:1-400000
   [ "$status" -eq 0 ]
   run bash "$SCRIPTS/check-owned.sh" "$REPO" "$BASE" big.txt:1-399999
   [ "$status" -eq 1 ]
+  [[ "$output" == *"big.txt:1-400000 (outside the declared lines)"* ]]
   printf 'x' >>"$REPO/big.txt" # an unterminated last line past the chunk boundary
   run bash "$SCRIPTS/check-owned.sh" "$REPO" "$BASE" big.txt:1-400000
   [ "$status" -eq 1 ]
+  [[ "$output" == *"big.txt:1-400001 (outside the declared lines)"* ]]
 }
 
 @test "owned: a base with no merge-base stops instead of diffing against the base" {
