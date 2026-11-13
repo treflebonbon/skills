@@ -17,6 +17,12 @@ const AVAIL_LABEL: Record<string, string> = {
   proposed: "提案",
   unknown: "不明",
 };
+const STATUS_LABEL: Record<string, string> = {
+  added: "追加",
+  changed: "変更",
+  removed: "削除",
+  unchanged: "変更なし",
+};
 const COMMIT = /^[0-9a-f]{40}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -26,6 +32,7 @@ type Claim = { text: string; evidence: string[] };
 type Evidence = {
   id: string;
   kind: string;
+  version: "target" | "baseline";
   commit?: string;
   path?: string;
   symbol?: string;
@@ -42,10 +49,20 @@ type Feature = {
   constraints: Claim[];
   actions: Claim[];
 };
+type Change = {
+  feature: string;
+  status: string;
+  who: string;
+  summary: string;
+  action: string;
+  evidence: string[];
+};
 type Model = {
   title: string;
   summary: string;
   target: { commit: string; versionName?: string; confirmedOn: string };
+  baseline?: { commit: string; versionName?: string; confirmedOn: string };
+  changes: Change[];
   scope: { investigated: string[]; notInvestigated: string[] };
   evidence: Evidence[];
   glossary: { term: string; meaning: string }[];
@@ -97,6 +114,8 @@ function validate(input: Json): { errors: string[]; model?: Model } {
       "title",
       "summary",
       "target",
+      "baseline",
+      "changes",
       "scope",
       "evidence",
       "glossary",
@@ -125,6 +144,32 @@ function validate(input: Json): { errors: string[]; model?: Model } {
     err("model.target.confirmedOn", "YYYY-MM-DD 形式である必要があります");
   const versionName = str(t.versionName, "model.target.versionName", true);
 
+  let baseline: Model["baseline"];
+  if (root.baseline !== undefined) {
+    const b =
+      obj(
+        root.baseline,
+        "model.baseline",
+        ["commit", "versionName", "confirmedOn"],
+        ["commit", "confirmedOn"],
+      ) ?? {};
+    const bc = str(b.commit, "model.baseline.commit");
+    if (bc && !COMMIT.test(bc))
+      err(
+        "model.baseline.commit",
+        "比較元は 40 桁の小文字 16 進のコミット ID である必要があります",
+      );
+    if (bc && bc === commit) err("model.baseline.commit", "比較元が対象版と同じです");
+    const bd = str(b.confirmedOn, "model.baseline.confirmedOn");
+    if (bd && !DATE.test(bd))
+      err("model.baseline.confirmedOn", "YYYY-MM-DD 形式である必要があります");
+    baseline = {
+      commit: bc,
+      versionName: str(b.versionName, "model.baseline.versionName", true) || undefined,
+      confirmedOn: bd,
+    };
+  }
+
   const sc =
     obj(root.scope, "model.scope", ["investigated", "notInvestigated"], ["investigated"]) ?? {};
   const scope = {
@@ -134,16 +179,28 @@ function validate(input: Json): { errors: string[]; model?: Model } {
 
   const evidence: Evidence[] = [];
   const kinds = new Map<string, string>();
+  const versions = new Map<string, "target" | "baseline">();
   arr(root.evidence, "model.evidence").forEach((v, i) => {
     const p = `model.evidence[${i}]`;
-    const e = obj(v, p, ["id", "kind", "commit", "path", "symbol", "note"], ["id", "kind"]);
+    const e = obj(
+      v,
+      p,
+      ["id", "kind", "version", "commit", "path", "symbol", "note"],
+      ["id", "kind"],
+    );
     if (!e) return;
     const id = str(e.id, `${p}.id`);
+    const version = e.version === undefined ? "target" : e.version;
+    if (version !== "target" && version !== "baseline")
+      err(`${p}.version`, "根拠の版は target / baseline のいずれかです");
+    if (version === "baseline" && !baseline)
+      err(`${p}.version`, "baseline の根拠には model.baseline が必要です");
     const kind = str(e.kind, `${p}.kind`);
     if (kind && !(KINDS as readonly string[]).includes(kind))
       err(`${p}.kind`, `根拠区分は ${KINDS.join(" / ")} のいずれかです`);
     if (id && kinds.has(id)) err(`${p}.id`, `根拠 ID "${id}" が重複しています`);
     kinds.set(id, kind);
+    versions.set(id, version === "baseline" ? "baseline" : "target");
     const ec = str(e.commit, `${p}.commit`, true);
     if (ec && !COMMIT.test(ec))
       err(`${p}.commit`, "40 桁の小文字 16 進のコミット ID である必要があります");
@@ -151,10 +208,18 @@ function validate(input: Json): { errors: string[]; model?: Model } {
       err(`${p}.commit`, "code-verified の根拠にはコミット ID が必要です");
     if (kind === "code-verified" && !e.path)
       err(`${p}.path`, "code-verified の根拠にはファイルパスが必要です");
-    if (ec && commit && ec !== commit) err(`${p}.commit`, "根拠の版が対象版と一致しません");
+    const expected = version === "baseline" ? baseline?.commit : commit;
+    if (ec && expected && ec !== expected)
+      err(
+        `${p}.commit`,
+        version === "baseline"
+          ? "根拠の版が比較元と一致しません"
+          : "根拠の版が対象版と一致しません",
+      );
     evidence.push({
       id,
       kind,
+      version: version === "baseline" ? "baseline" : "target",
       commit: ec || undefined,
       path: str(e.path, `${p}.path`, true) || undefined,
       symbol: str(e.symbol, `${p}.symbol`, true) || undefined,
@@ -169,6 +234,8 @@ function validate(input: Json): { errors: string[]; model?: Model } {
       err(`${p}.evidence`, "根拠を 1 件以上参照する必要があります");
     for (const id of ids)
       if (id && !kinds.has(id)) err(`${p}.evidence`, `存在しない根拠 "${id}" を参照しています`);
+      else if (id && versions.get(id) !== "target")
+        err(`${p}.evidence`, `根拠 "${id}" は比較元のものです。対象版の主張には使えません`);
     return { text: str(c.text, `${p}.text`), evidence: ids };
   };
   const claims = (v: Json, p: string, optional = true) =>
@@ -191,6 +258,51 @@ function validate(input: Json): { errors: string[]; model?: Model } {
       err(`${p}.decision`, "業務判断側の主張には approved-decision の根拠が必要です");
     return { summary: str(c.summary, `${p}.summary`), code, decision };
   });
+
+  const changes = arr(root.changes, "model.changes", true).map((v, i): Change => {
+    const p = `model.changes[${i}]`;
+    const c =
+      obj(
+        v,
+        p,
+        ["feature", "status", "who", "summary", "action", "evidence"],
+        ["feature", "status", "who", "summary", "action", "evidence"],
+      ) ?? {};
+    const status = str(c.status, `${p}.status`);
+    if (status && !(status in STATUS_LABEL))
+      err(`${p}.status`, `変更の種別は ${Object.keys(STATUS_LABEL).join(" / ")} のいずれかです`);
+    const ids = arr(c.evidence, `${p}.evidence`).map((x, j) => str(x, `${p}.evidence[${j}]`));
+    if (Array.isArray(c.evidence) && ids.length === 0)
+      err(`${p}.evidence`, "根拠を 1 件以上参照する必要があります");
+    for (const id of ids)
+      if (id && !kinds.has(id)) err(`${p}.evidence`, `存在しない根拠 "${id}" を参照しています`);
+    const has = (v: string) => ids.some((id) => versions.get(id) === v);
+    const need = { added: ["target"], removed: ["baseline"], changed: ["target", "baseline"] }[
+      status as string
+    ];
+    for (const v of need ?? [])
+      if (!has(v))
+        err(
+          `${p}.evidence`,
+          `${STATUS_LABEL[status]}には${v === "target" ? "対象版" : "比較元"}の根拠が必要です`,
+        );
+    if (status === "added" && has("baseline"))
+      err(`${p}.evidence`, "追加に比較元の根拠は使えません");
+    if (status === "removed" && has("target"))
+      err(`${p}.evidence`, "削除に対象版の根拠は使えません");
+    return {
+      feature: str(c.feature, `${p}.feature`),
+      status,
+      who: str(c.who, `${p}.who`),
+      summary: str(c.summary, `${p}.summary`),
+      action: str(c.action, `${p}.action`),
+      evidence: ids,
+    };
+  });
+  if (changes.length && !baseline)
+    err("model.changes", "変更点には model.baseline（比較元）が必要です");
+  if (baseline && !changes.length)
+    err("model.changes", "比較元を指定したときは変更点が 1 件以上必要です");
 
   const features = arr(root.features, "model.features").map((v, i): Feature => {
     const p = `model.features[${i}]`;
@@ -237,6 +349,8 @@ function validate(input: Json): { errors: string[]; model?: Model } {
       title,
       summary,
       target: { commit, versionName: versionName || undefined, confirmedOn },
+      baseline,
+      changes,
       scope,
       evidence,
       glossary,
@@ -277,6 +391,24 @@ function project(m: Model, audience: string) {
       confirmedOn: m.target.confirmedOn,
       ...(internal ? { commit: m.target.commit } : {}),
     },
+    ...(m.baseline
+      ? {
+          baseline: {
+            name: m.baseline.versionName ?? "",
+            confirmedOn: m.baseline.confirmedOn,
+            ...(internal ? { commit: m.baseline.commit } : {}),
+          },
+        }
+      : {}),
+    changes: m.changes.map((x) => ({
+      feature: x.feature,
+      status: x.status,
+      who: x.who,
+      summary: x.summary,
+      action: x.action,
+      kinds: [...new Set(x.evidence.map((id) => byId.get(id)!.kind))],
+      ...(internal ? { evidence: x.evidence.map((id) => byId.get(id)!) } : {}),
+    })),
     scope: m.scope,
     glossary: m.glossary,
     unconfirmed: m.unconfirmed,
@@ -294,6 +426,7 @@ type View = ReturnType<typeof project>;
 // 最後の安全網。完全な保証ではなく、登録済みの値と典型的な形だけを検出する。
 function leaks(m: Model, view: View): string[] {
   const secrets = new Set<string>([m.target.commit]);
+  if (m.baseline) secrets.add(m.baseline.commit);
   for (const e of m.evidence) for (const s of [e.path, e.symbol, e.commit]) if (s) secrets.add(s);
   const patterns = [
     /\b[0-9a-f]{40}\b/,
@@ -438,7 +571,7 @@ function render(v: View): string {
       : `<details><summary>根拠を表示</summary><ul>${c.evidence
           .map(
             (e) =>
-              `<li><code>${esc(e.id)}</code> ${esc(KIND_LABEL[e.kind])}${e.path ? ` ${esc(e.path)}` : ""}${e.symbol ? ` <code>${esc(e.symbol)}</code>` : ""}${e.commit ? ` @<code>${esc(e.commit)}</code>` : ""}${e.note ? ` - ${esc(e.note)}` : ""}</li>`,
+              `<li><code>${esc(e.id)}</code> ${esc(KIND_LABEL[e.kind])}${v.baseline ? (e.version === "baseline" ? "（比較元）" : "（対象版）") : ""}${e.path ? ` ${esc(e.path)}` : ""}${e.symbol ? ` <code>${esc(e.symbol)}</code>` : ""}${e.commit ? ` @<code>${esc(e.commit)}</code>` : ""}${e.note ? ` - ${esc(e.note)}` : ""}</li>`,
           )
           .join("")}</ul></details>`;
   type F = (typeof v.current)[number];
@@ -456,6 +589,14 @@ function render(v: View): string {
       : "") +
     `<h4>通常の流れ</h4>${list("ol", f.flow)}${f.flow.length ? flowDiagram(f.name, f.flow, `${id}-flow`) : ""}${section("条件", f.conditions)}${section("例外", f.exceptions)}${section("制約", f.constraints)}${section("必要な対応", f.actions)}</section>`;
   const ver = `${v.version.name ? `${esc(v.version.name)} / ` : ""}確認日 ${esc(v.version.confirmedOn)}`;
+  const changes = v.baseline
+    ? `<section id="changes"><h2><a href="#changes">前回からの変更点</a></h2><p class="muted">比較元: ${v.baseline.name ? `${esc(v.baseline.name)} / ` : ""}確認日 ${esc(v.baseline.confirmedOn)}${internal && v.baseline.commit ? ` / コミット <code>${esc(v.baseline.commit)}</code>` : ""}</p>${v.changes
+        .map(
+          (c) =>
+            `<div class="box"><h3>${esc(c.feature)}<span class="badge">${STATUS_LABEL[c.status]}</span></h3><ul><li>誰に何が変わるか: ${esc(c.who)} ${esc(c.summary)}${badges(c.kinds)}</li><li>必要な対応: ${esc(c.action)}</li></ul>${ev(c)}</div>`,
+        )
+        .join("")}</section>`
+    : "";
   const toc = v.current
     .map(
       (f, i) =>
@@ -481,6 +622,7 @@ function render(v: View): string {
 <body><main>
 <h1>${esc(v.title)}</h1><p>${esc(v.summary)}</p>
 <p class="muted">対象版: ${ver}${internal && v.version.commit ? ` / コミット <code>${esc(v.version.commit)}</code>` : ""}</p>
+${changes}
 <nav aria-label="機能目次"><h2>機能目次</h2><ul>${toc}</ul></nav>
 <section id="scope"><h2><a href="#scope">調査範囲</a></h2><h4>調査した機能</h4><ul>${v.scope.investigated.map((s) => `<li>${esc(s)}</li>`).join("")}</ul><h4>未調査</h4>${notInv}</section>
 <section id="features"><h2><a href="#features">機能</a></h2>${v.current.map((f, i) => feature(f, `feature-${i + 1}`)).join("")}</section>
@@ -495,6 +637,7 @@ ${conflicts}${proposed}
 const usage = `使い方:
   product-guide validate <model.json>
   product-guide generate <model.json> --audience internal|public --out <出力親ディレクトリ>`;
+// 比較元はモデルの baseline で指定する（CLI 引数では受けない）。
 const fail = (code: number, ...lines: string[]): never => {
   console.error(lines.join("\n"));
   process.exit(code);
@@ -541,7 +684,10 @@ if (command === "validate" && file && rest.length === 0) {
     fail(1, (e as Error).message);
   }
   const parent = resolve(out as string);
-  const dir = join(parent, `${model.target.commit}-${audience}`);
+  const dir = join(
+    parent,
+    `${model.target.commit}${model.baseline ? `-vs-${model.baseline.commit}` : ""}-${audience}`,
+  );
   mkdirSync(parent, { recursive: true });
   try {
     mkdirSync(dir); // 既存なら EEXIST。強制上書きは提供しない。
