@@ -1,5 +1,13 @@
 import { expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -724,4 +732,65 @@ test("業務区分の深さ MAX_GROUP_DEPTH は 4 段まで通り、5 段で拒�
   expect(over.r.code).toBe(1);
   expect(over.r.err).toContain("業務区分の入れ子が 4 段を超え");
   expect(existsSync(over.out)).toBe(false);
+});
+
+// ---- 提案の機能は変更点（現行の変更）に載らない ----
+test("proposed の機能は removed 以外の changes に載せられず、現行の機能なら通る", () => {
+  const proposed = "自動仕訳"; // model() で availability: proposed
+  const reason = "proposed のため";
+  rejects(cmp([change("added", proposed, ["E1"])]), reason);
+  rejects(cmp([change("changed", proposed, ["E1", "B1"])]), reason);
+  rejects(cmp([change("unchanged", proposed, ["E1"])]), reason);
+  accepts(cmp([change("removed", proposed, ["B1"])]));
+  accepts(cmp([change("added", "請求書の申請", ["E1"])]));
+});
+
+// ---- 出力先の作成 ----
+const dirPerm = (dir: string, mode: number) => chmodSync(dir, mode);
+
+test("出力先を作れない理由は実際のエラーで報告し、既存扱いにしない", () => {
+  const s = setup(model());
+  writeFileSync(s.out, "file"); // --out が通常ファイル
+  const underFile = cli("generate", s.file, "--audience", "internal", "--out", join(s.out, "sub"));
+  expect(underFile.code).toBe(1);
+  expect(underFile.err).toContain("出力先を作成できません");
+  expect(underFile.err).not.toContain("既に存在");
+  expect(readFileSync(s.out, "utf8")).toBe("file");
+});
+
+test.skipIf(process.getuid?.() === 0)(
+  "親ディレクトリが書込み不可なら権限エラーを報告し、何も残さない",
+  () => {
+    const s = setup(model());
+    mkdirSync(s.out);
+    dirPerm(s.out, 0o555);
+    try {
+      const r = cli("generate", s.file, "--audience", "internal", "--out", s.out);
+      expect(r.code).toBe(1);
+      expect(r.err).toContain("EACCES");
+      expect(r.err).not.toContain("既に存在");
+      expect(readdirSync(s.out)).toEqual([]);
+    } finally {
+      dirPerm(s.out, 0o755);
+    }
+    // 対比: 書込み可なら通り、同じ出力先の再実行は「既に存在」で拒否される
+    expect(cli("generate", s.file, "--audience", "internal", "--out", s.out).code).toBe(0);
+    const again = cli("generate", s.file, "--audience", "internal", "--out", s.out);
+    expect(again.code).toBe(1);
+    expect(again.err).toContain("既に存在");
+  },
+);
+
+test("検査や描画に失敗したら、存在しない親ディレクトリも作らない", () => {
+  const m = model();
+  m.features[0].flow[0].text = "submitInvoice を呼ぶ。";
+  const s = setup(m);
+  const deep = join(s.dir, "a", "b");
+  const r = cli("generate", s.file, "--audience", "public", "--out", deep);
+  expect(r.code).toBe(1);
+  expect(existsSync(join(s.dir, "a"))).toBe(false);
+  const bad = model();
+  bad.features[0].flow = manySteps(31);
+  expect(cli("generate", setup(bad).file, "--audience", "internal", "--out", deep).code).toBe(1);
+  expect(existsSync(join(s.dir, "a"))).toBe(false);
 });

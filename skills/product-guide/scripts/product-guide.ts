@@ -352,6 +352,17 @@ function validate(input: Json): { errors: string[]; model?: Model } {
     };
   });
 
+  const proposedNames = new Set(
+    features.filter((f) => f.availability === "proposed").map((f) => f.name),
+  );
+  changes.forEach((c, i) => {
+    if (c.status !== "removed" && proposedNames.has(c.feature))
+      err(
+        `model.changes[${i}].feature`,
+        `機能「${c.feature}」は proposed のため、${STATUS_LABEL[c.status] ?? c.status}として載せられません（removed のみ可）`,
+      );
+  });
+
   if (errors.length) return { errors };
   return {
     errors,
@@ -867,16 +878,30 @@ if (command === "validate" && file && rest.length === 0) {
     parent,
     `${model.target.commit}${model.baseline ? `-vs-${model.baseline.commit}` : ""}-${audience}`,
   );
-  mkdirSync(parent, { recursive: true });
+  // 親は描画と検査がすべて成功した後に作る。以降の失敗では、作った分を取り除いて何も残さない。
+  let created: string | undefined;
+  const cleanup = () => {
+    if (created) rmSync(created, { recursive: true, force: true });
+  };
+  const cannotCreate = (e: unknown) => fail(1, `出力先を作成できません: ${(e as Error).message}`);
+  try {
+    created = mkdirSync(parent, { recursive: true });
+  } catch (e) {
+    cannotCreate(e);
+  }
   try {
     mkdirSync(dir); // 既存なら EEXIST。強制上書きは提供しない。
-  } catch {
-    fail(1, `出力先が既に存在します。上書きしません: ${basename(dir)}`);
+  } catch (e) {
+    cleanup();
+    if ((e as NodeJS.ErrnoException).code === "EEXIST")
+      fail(1, `出力先が既に存在します。上書きしません: ${basename(dir)}`);
+    cannotCreate(e);
   }
   try {
     writeFileSync(join(dir, "index.html"), html, { flag: "wx" });
   } catch (e) {
     rmSync(dir, { recursive: true, force: true });
+    cleanup();
     fail(1, `書込みに失敗しました: ${(e as Error).message}`);
   }
   console.log(join(dir, "index.html"));
