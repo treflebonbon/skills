@@ -190,6 +190,43 @@ test("public は根拠・コミット ID・パス・シンボルを出さない"
   expect(g.text).toContain("コードで確認");
 });
 
+test("目次リンクと見出しリンクの飛び先 ID が実在する", () => {
+  const { text } = generate(model(), "internal");
+  const ids = new Set([...text.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]));
+  const hrefs = [...text.matchAll(/href="#([^"]+)"/g)].map((m) => m[1]);
+  expect(hrefs.length).toBeGreaterThan(5);
+  for (const h of hrefs) expect(ids.has(h)).toBe(true);
+  expect(text).toContain('href="#main"'); // スキップリンク
+  expect(text).toContain('<nav aria-label="機能目次">');
+});
+
+test("折りたたみは native の details で、キーボード操作と印刷展開を備える", () => {
+  const { text } = generate(model(), "internal");
+  expect(text).toContain("<details><summary>根拠を表示</summary>");
+  expect(text).toContain(":focus-visible");
+  expect(text).toContain("@media print");
+  expect(text).toContain("::details-content{content-visibility:visible");
+  expect(text).toContain(':target) nav a[href="#feature-1"]');
+});
+
+test("外部通信・外部フォントを前提にしない（参照なし）", () => {
+  for (const audience of ["internal", "public"]) {
+    const { text } = generate(model(), audience);
+    expect(text).not.toMatch(/@font-face|@import|url\(|<link|<img|<iframe|src=|https?:/);
+    expect(text).toContain('<html lang="ja">');
+    expect(text).toMatch(/font:\s*1rem\//);
+  }
+});
+
+test("状態と注意は文字でも示される（色だけに頼らない）", () => {
+  const { text } = generate(model(), "public");
+  expect(text).toContain("利用可能");
+  expect(text).toContain("提案（現行の機能ではありません）");
+  expect(text).toContain("注意");
+  expect(text).toContain("未調査");
+  expect(text).toContain("未確認");
+});
+
 test("public は自由記述への内部情報の混入を拒否し、成果物を残さない", () => {
   const leaks = [
     "src/invoice/submit.ts を参照する。",

@@ -468,9 +468,21 @@ a{color:var(--accent)}a:focus-visible,summary:focus-visible{outline:3px solid va
 .badge{display:inline-block;border:1px solid var(--fg);border-radius:.25rem;padding:0 .4rem;margin-left:.4rem;font-size:.875rem;line-height:1.6}
 .muted{color:var(--muted)}.box{border:1px solid var(--line);border-left:6px solid var(--fg);padding:.5rem 1rem;margin:1rem 0}
 details{margin:.25rem 0 .75rem}summary{cursor:pointer}ol,ul{padding-left:1.5rem}code{font-family:ui-monospace,monospace}
-@media print{a{color:inherit}main{max-width:none}details>*{display:block}}`;
+section[id],h2,h3{scroll-margin-top:1rem}
+.skip{position:absolute;left:-999px}.skip:focus{left:1rem;top:1rem;background:var(--bg);padding:.25rem .5rem;z-index:2}
+.box>strong:first-child{display:block}.box>strong:first-child::before{content:"\\26A0 "}
+main:focus{outline:none}
+@media(min-width:80rem){nav{position:fixed;top:1rem;left:1rem;width:14rem;max-height:calc(100vh - 2rem);overflow:auto;font-size:.9375rem}nav h2{margin-top:0;font-size:1.1rem}}
+@media print{details:not([open])::details-content{content-visibility:visible;display:block}body{background:#fff;color:#000;font-size:11pt;line-height:1.7}nav{position:static}a{color:inherit;text-decoration:none}main{max-width:none;padding:0}.skip{display:none}li,.box{break-inside:avoid}h2,h3,h4{break-after:avoid}}`;
 
 function render(v: View): string {
+  // 現在位置: 目次から飛んだ節（:target）を、文字の印（▶）と太字で示す。script は使わない。
+  const sel = v.current.map(
+    (_, i) => `body:has(#feature-${i + 1}:target) nav a[href="#feature-${i + 1}"]`,
+  );
+  const current = sel.length
+    ? `${sel.join(",")}{font-weight:700}${sel.map((x) => `${x}::before`).join(",")}{content:"\\25B6 "}`
+    : "";
   const internal = v.audience === "internal";
   const badges = (kinds: string[]) =>
     kinds.map((k) => `<span class="badge">${esc(KIND_LABEL[k])}</span>`).join("");
@@ -516,7 +528,7 @@ function render(v: View): string {
     ? `<section id="conflicts"><h2><a href="#conflicts">コードと業務判断の食い違い</a></h2>${v.conflicts
         .map(
           (c) =>
-            `<div class="box"><p>${esc(c.summary)}</p><ul><li>コード: ${esc(c.code.text)}${ev(c.code)}</li><li>業務判断: ${esc(c.decision.text)}${ev(c.decision)}</li></ul></div>`,
+            `<div class="box"><strong>注意</strong><p>${esc(c.summary)}</p><ul><li>コード: ${esc(c.code.text)}${ev(c.code)}</li><li>業務判断: ${esc(c.decision.text)}${ev(c.decision)}</li></ul></div>`,
         )
         .join("")}</section>`
     : "";
@@ -527,8 +539,8 @@ function render(v: View): string {
     ? `<ul>${v.scope.notInvestigated.map((s) => `<li>${esc(s)}<span class="badge">未調査</span></li>`).join("")}</ul>`
     : "<p>未調査として宣言された機能はありません。</p>";
   return `<!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(v.title)}</title><style>${CSS}</style></head>
-<body><main>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(v.title)}</title><style>${CSS}${current}</style></head>
+<body><a class="skip" href="#main">本文へ移動</a><main id="main" tabindex="-1">
 <h1>${esc(v.title)}</h1><p>${esc(v.summary)}</p>
 <p class="muted">対象版: ${ver}${internal && v.version.commit ? ` / コミット <code>${esc(v.version.commit)}</code>` : ""}</p>
 ${changes}
