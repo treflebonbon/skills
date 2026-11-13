@@ -3,26 +3,32 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import dagre from "../vendor/dagre.esm.js"; // 同梱 bundle。node_modules には依存しない（references/dependencies.md）
 
-const KINDS = ["code-verified", "approved-decision", "inferred", "unverified"] as const;
-const AVAILABILITY = ["available", "in-development", "proposed", "unknown"] as const;
-const KIND_LABEL: Record<string, string> = {
+// 区分の定義表。区分を足すときはここだけを直す（型・検証・表示ラベルはここから導く）。
+const KIND_LABEL = {
   "code-verified": "コードで確認",
   "approved-decision": "承認済み判断",
   inferred: "推測",
   unverified: "未確認",
-};
-const AVAIL_LABEL: Record<string, string> = {
+} as const;
+const AVAIL_LABEL = {
   available: "利用可能",
   "in-development": "開発中",
   proposed: "提案",
   unknown: "不明",
-};
-const STATUS_LABEL: Record<string, string> = {
+} as const;
+const STATUS_LABEL = {
   added: "追加",
   changed: "変更",
   removed: "削除",
   unchanged: "変更なし",
-};
+} as const;
+const AUDIENCES = ["internal", "public"] as const;
+type Kind = keyof typeof KIND_LABEL;
+type Availability = keyof typeof AVAIL_LABEL;
+type Status = keyof typeof STATUS_LABEL;
+type Audience = (typeof AUDIENCES)[number];
+type Side = "target" | "baseline";
+const KINDS = Object.keys(KIND_LABEL) as Kind[]; // 挿入順 = 確かな順
 const COMMIT = /^[0-9a-f]{40}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -31,8 +37,8 @@ type Rec = Record<string, unknown>;
 type Claim = { text: string; evidence: string[]; group?: string[] };
 type Evidence = {
   id: string;
-  kind: string;
-  version: "target" | "baseline";
+  kind: Kind;
+  version: Side;
   commit?: string;
   path?: string;
   symbol?: string;
@@ -40,7 +46,7 @@ type Evidence = {
 };
 type Feature = {
   name: string;
-  availability: string;
+  availability: Availability;
   purpose: string;
   operations: string[];
   flow: Claim[];
@@ -51,17 +57,18 @@ type Feature = {
 };
 type Change = {
   feature: string;
-  status: string;
+  status: Status;
   who: string;
   summary: string;
   action: string;
   evidence: string[];
 };
+type Release = { commit: string; versionName?: string; confirmedOn: string };
 type Model = {
   title: string;
   summary: string;
-  target: { commit: string; versionName?: string; confirmedOn: string };
-  baseline?: { commit: string; versionName?: string; confirmedOn: string };
+  target: Release;
+  baseline?: Release;
   changes: Change[];
   scope: { investigated: string[]; notInvestigated: string[] };
   evidence: Evidence[];
@@ -106,6 +113,17 @@ function validate(input: Json): { errors: string[]; model?: Model } {
   };
   const strs = (v: Json, path: string, optional = false) =>
     arr(v, path, optional).map((x, i) => str(x, `${path}[${i}]`));
+  // 定義表のキーであることを確かめる。外れたら誤りを記録する（その場合 model は返らないので、型は表のキーとして扱う）。
+  const pick = <T extends string>(
+    table: Record<T, string>,
+    v: string,
+    path: string,
+    what: string,
+  ) => {
+    if (v && !Object.hasOwn(table, v))
+      err(path, `${what}は ${Object.keys(table).join(" / ")} のいずれかです`);
+    return v as T;
+  };
 
   const root = obj(
     input,
@@ -129,183 +147,160 @@ function validate(input: Json): { errors: string[]; model?: Model } {
   const title = str(root.title, "model.title");
   const summary = str(root.summary, "model.summary");
 
-  const t =
-    obj(
-      root.target,
-      "model.target",
-      ["commit", "versionName", "confirmedOn"],
-      ["commit", "confirmedOn"],
-    ) ?? {};
-  const commit = str(t.commit, "model.target.commit");
-  if (commit && !COMMIT.test(commit))
-    err("model.target.commit", "対象版は 40 桁の小文字 16 進のコミット ID である必要があります");
-  const confirmedOn = str(t.confirmedOn, "model.target.confirmedOn");
-  if (confirmedOn && !DATE.test(confirmedOn))
-    err("model.target.confirmedOn", "YYYY-MM-DD 形式である必要があります");
-  const versionName = str(t.versionName, "model.target.versionName", true);
+  // 対象版・比較元に共通の「コミット ID + 確認日 + 版名」の検証。
+  const release = (v: Json, path: string, label: string): Release => {
+    const fields =
+      obj(v, path, ["commit", "versionName", "confirmedOn"], ["commit", "confirmedOn"]) ?? {};
+    const commit = str(fields.commit, `${path}.commit`);
+    if (commit && !COMMIT.test(commit))
+      err(`${path}.commit`, `${label}は 40 桁の小文字 16 進のコミット ID である必要があります`);
+    const confirmedOn = str(fields.confirmedOn, `${path}.confirmedOn`);
+    if (confirmedOn && !DATE.test(confirmedOn))
+      err(`${path}.confirmedOn`, "YYYY-MM-DD 形式である必要があります");
+    const versionName = str(fields.versionName, `${path}.versionName`, true) || undefined;
+    return { commit, versionName, confirmedOn };
+  };
 
-  let baseline: Model["baseline"];
+  const target = release(root.target, "model.target", "対象版");
+  let baseline: Release | undefined;
   if (root.baseline !== undefined) {
-    const b =
-      obj(
-        root.baseline,
-        "model.baseline",
-        ["commit", "versionName", "confirmedOn"],
-        ["commit", "confirmedOn"],
-      ) ?? {};
-    const bc = str(b.commit, "model.baseline.commit");
-    if (bc && !COMMIT.test(bc))
-      err(
-        "model.baseline.commit",
-        "比較元は 40 桁の小文字 16 進のコミット ID である必要があります",
-      );
-    if (bc && bc === commit) err("model.baseline.commit", "比較元が対象版と同じです");
-    const bd = str(b.confirmedOn, "model.baseline.confirmedOn");
-    if (bd && !DATE.test(bd))
-      err("model.baseline.confirmedOn", "YYYY-MM-DD 形式である必要があります");
-    baseline = {
-      commit: bc,
-      versionName: str(b.versionName, "model.baseline.versionName", true) || undefined,
-      confirmedOn: bd,
-    };
+    baseline = release(root.baseline, "model.baseline", "比較元");
+    if (baseline.commit && baseline.commit === target.commit)
+      err("model.baseline.commit", "比較元が対象版と同じです");
   }
 
-  const sc =
+  const scopeIn =
     obj(root.scope, "model.scope", ["investigated", "notInvestigated"], ["investigated"]) ?? {};
   const scope = {
-    investigated: strs(sc.investigated, "model.scope.investigated"),
-    notInvestigated: strs(sc.notInvestigated, "model.scope.notInvestigated", true),
+    investigated: strs(scopeIn.investigated, "model.scope.investigated"),
+    notInvestigated: strs(scopeIn.notInvestigated, "model.scope.notInvestigated", true),
   };
 
   const evidence: Evidence[] = [];
-  const kinds = new Map<string, string>();
-  const versions = new Map<string, "target" | "baseline">();
+  const kindById = new Map<string, Kind>();
+  const sideById = new Map<string, Side>();
   arr(root.evidence, "model.evidence").forEach((v, i) => {
     const p = `model.evidence[${i}]`;
-    const e = obj(
+    const item = obj(
       v,
       p,
       ["id", "kind", "version", "commit", "path", "symbol", "note"],
       ["id", "kind"],
     );
-    if (!e) return;
-    const id = str(e.id, `${p}.id`);
-    const version = e.version === undefined ? "target" : e.version;
-    if (version !== "target" && version !== "baseline")
+    if (!item) return;
+    const id = str(item.id, `${p}.id`);
+    if (item.version !== undefined && item.version !== "target" && item.version !== "baseline")
       err(`${p}.version`, "根拠の版は target / baseline のいずれかです");
-    if (version === "baseline" && !baseline)
+    const side: Side = item.version === "baseline" ? "baseline" : "target";
+    if (side === "baseline" && !baseline)
       err(`${p}.version`, "baseline の根拠には model.baseline が必要です");
-    const kind = str(e.kind, `${p}.kind`);
-    if (kind && !(KINDS as readonly string[]).includes(kind))
-      err(`${p}.kind`, `根拠区分は ${KINDS.join(" / ")} のいずれかです`);
-    if (id && kinds.has(id)) err(`${p}.id`, `根拠 ID "${id}" が重複しています`);
-    kinds.set(id, kind);
-    versions.set(id, version === "baseline" ? "baseline" : "target");
-    const ec = str(e.commit, `${p}.commit`, true);
-    if (ec && !COMMIT.test(ec))
+    const kind = pick(KIND_LABEL, str(item.kind, `${p}.kind`), `${p}.kind`, "根拠区分");
+    if (id && kindById.has(id)) err(`${p}.id`, `根拠 ID "${id}" が重複しています`);
+    kindById.set(id, kind);
+    sideById.set(id, side);
+    const commit = str(item.commit, `${p}.commit`, true);
+    if (commit && !COMMIT.test(commit))
       err(`${p}.commit`, "40 桁の小文字 16 進のコミット ID である必要があります");
-    if (kind === "code-verified" && !ec)
+    if (kind === "code-verified" && !commit)
       err(`${p}.commit`, "code-verified の根拠にはコミット ID が必要です");
-    if (kind === "code-verified" && !e.path)
+    if (kind === "code-verified" && !item.path)
       err(`${p}.path`, "code-verified の根拠にはファイルパスが必要です");
-    const expected = version === "baseline" ? baseline?.commit : commit;
-    if (ec && expected && ec !== expected)
+    const expected = side === "baseline" ? baseline?.commit : target.commit;
+    if (commit && expected && commit !== expected)
       err(
         `${p}.commit`,
-        version === "baseline"
-          ? "根拠の版が比較元と一致しません"
-          : "根拠の版が対象版と一致しません",
+        side === "baseline" ? "根拠の版が比較元と一致しません" : "根拠の版が対象版と一致しません",
       );
     evidence.push({
       id,
       kind,
-      version: version === "baseline" ? "baseline" : "target",
-      commit: ec || undefined,
-      path: str(e.path, `${p}.path`, true) || undefined,
-      symbol: str(e.symbol, `${p}.symbol`, true) || undefined,
-      note: str(e.note, `${p}.note`, true) || undefined,
+      version: side,
+      commit: commit || undefined,
+      path: str(item.path, `${p}.path`, true) || undefined,
+      symbol: str(item.symbol, `${p}.symbol`, true) || undefined,
+      note: str(item.note, `${p}.note`, true) || undefined,
     });
   });
 
+  // 主張・変更点が参照する根拠 ID の共通検証（1 件以上、存在すること）。
+  const evidenceRefs = (v: Json, p: string): string[] => {
+    const ids = strs(v, p);
+    if (Array.isArray(v) && ids.length === 0) err(p, "根拠を 1 件以上参照する必要があります");
+    for (const id of ids)
+      if (id && !kindById.has(id)) err(p, `存在しない根拠 "${id}" を参照しています`);
+    return ids;
+  };
+
   const claim = (v: Json, p: string, grouped = false): Claim => {
-    const c =
+    const fields =
       obj(v, p, grouped ? ["text", "evidence", "group"] : ["text", "evidence"], [
         "text",
         "evidence",
       ]) ?? {};
     let group: string[] | undefined;
-    if (c.group !== undefined) {
-      group = strs(c.group, `${p}.group`);
-      if (Array.isArray(c.group) && group.length === 0)
+    if (fields.group !== undefined) {
+      group = strs(fields.group, `${p}.group`);
+      if (Array.isArray(fields.group) && group.length === 0)
         err(`${p}.group`, "業務区分は 1 段以上の文字列の配列である必要があります");
     }
-    const ids = arr(c.evidence, `${p}.evidence`).map((x, i) => str(x, `${p}.evidence[${i}]`));
-    if (Array.isArray(c.evidence) && ids.length === 0)
-      err(`${p}.evidence`, "根拠を 1 件以上参照する必要があります");
+    const ids = evidenceRefs(fields.evidence, `${p}.evidence`);
     for (const id of ids)
-      if (id && !kinds.has(id)) err(`${p}.evidence`, `存在しない根拠 "${id}" を参照しています`);
-      else if (id && versions.get(id) !== "target")
+      if (sideById.has(id) && sideById.get(id) !== "target")
         err(`${p}.evidence`, `根拠 "${id}" は比較元のものです。対象版の主張には使えません`);
-    return { text: str(c.text, `${p}.text`), evidence: ids, ...(group ? { group } : {}) };
+    return { text: str(fields.text, `${p}.text`), evidence: ids, ...(group ? { group } : {}) };
   };
   const claims = (v: Json, p: string, optional = true, grouped = false) =>
     arr(v, p, optional).map((x, i) => claim(x, `${p}[${i}]`, grouped));
 
   const glossary = arr(root.glossary, "model.glossary", true).map((v, i) => {
     const p = `model.glossary[${i}]`;
-    const g = obj(v, p, ["term", "meaning"], ["term", "meaning"]) ?? {};
-    return { term: str(g.term, `${p}.term`), meaning: str(g.meaning, `${p}.meaning`) };
+    const entry = obj(v, p, ["term", "meaning"], ["term", "meaning"]) ?? {};
+    return { term: str(entry.term, `${p}.term`), meaning: str(entry.meaning, `${p}.meaning`) };
   });
   const unconfirmed = strs(root.unconfirmed, "model.unconfirmed", true);
   const conflicts = arr(root.conflicts, "model.conflicts", true).map((v, i) => {
     const p = `model.conflicts[${i}]`;
-    const c = obj(v, p, ["summary", "code", "decision"], ["summary", "code", "decision"]) ?? {};
-    const code = claim(c.code, `${p}.code`);
-    const decision = claim(c.decision, `${p}.decision`);
-    if (!code.evidence.some((id) => kinds.get(id) === "code-verified"))
+    const entry = obj(v, p, ["summary", "code", "decision"], ["summary", "code", "decision"]) ?? {};
+    const code = claim(entry.code, `${p}.code`);
+    const decision = claim(entry.decision, `${p}.decision`);
+    if (!code.evidence.some((id) => kindById.get(id) === "code-verified"))
       err(`${p}.code`, "コード側の主張には code-verified の根拠が必要です");
-    if (!decision.evidence.some((id) => kinds.get(id) === "approved-decision"))
+    if (!decision.evidence.some((id) => kindById.get(id) === "approved-decision"))
       err(`${p}.decision`, "業務判断側の主張には approved-decision の根拠が必要です");
-    return { summary: str(c.summary, `${p}.summary`), code, decision };
+    return { summary: str(entry.summary, `${p}.summary`), code, decision };
   });
 
+  const SIDE_LABEL: Record<Side, string> = { target: "対象版", baseline: "比較元" };
+  const needs: Partial<Record<Status, Side[]>> = {
+    added: ["target"],
+    removed: ["baseline"],
+    changed: ["target", "baseline"],
+  };
   const changes = arr(root.changes, "model.changes", true).map((v, i): Change => {
     const p = `model.changes[${i}]`;
-    const c =
-      obj(
-        v,
-        p,
-        ["feature", "status", "who", "summary", "action", "evidence"],
-        ["feature", "status", "who", "summary", "action", "evidence"],
-      ) ?? {};
-    const status = str(c.status, `${p}.status`);
-    if (status && !(status in STATUS_LABEL))
-      err(`${p}.status`, `変更の種別は ${Object.keys(STATUS_LABEL).join(" / ")} のいずれかです`);
-    const ids = arr(c.evidence, `${p}.evidence`).map((x, j) => str(x, `${p}.evidence[${j}]`));
-    if (Array.isArray(c.evidence) && ids.length === 0)
-      err(`${p}.evidence`, "根拠を 1 件以上参照する必要があります");
-    for (const id of ids)
-      if (id && !kinds.has(id)) err(`${p}.evidence`, `存在しない根拠 "${id}" を参照しています`);
-    const has = (v: string) => ids.some((id) => versions.get(id) === v);
-    const need = { added: ["target"], removed: ["baseline"], changed: ["target", "baseline"] }[
-      status as string
-    ];
-    for (const v of need ?? [])
-      if (!has(v))
-        err(
-          `${p}.evidence`,
-          `${STATUS_LABEL[status]}には${v === "target" ? "対象版" : "比較元"}の根拠が必要です`,
-        );
+    const keys = ["feature", "status", "who", "summary", "action", "evidence"];
+    const entry = obj(v, p, keys, keys) ?? {};
+    const status = pick(
+      STATUS_LABEL,
+      str(entry.status, `${p}.status`),
+      `${p}.status`,
+      "変更の種別",
+    );
+    const ids = evidenceRefs(entry.evidence, `${p}.evidence`);
+    const has = (side: Side) => ids.some((id) => sideById.get(id) === side);
+    for (const side of needs[status] ?? [])
+      if (!has(side))
+        err(`${p}.evidence`, `${STATUS_LABEL[status]}には${SIDE_LABEL[side]}の根拠が必要です`);
     if (status === "added" && has("baseline"))
       err(`${p}.evidence`, "追加に比較元の根拠は使えません");
     if (status === "removed" && has("target"))
       err(`${p}.evidence`, "削除に対象版の根拠は使えません");
     return {
-      feature: str(c.feature, `${p}.feature`),
+      feature: str(entry.feature, `${p}.feature`),
       status,
-      who: str(c.who, `${p}.who`),
-      summary: str(c.summary, `${p}.summary`),
-      action: str(c.action, `${p}.action`),
+      who: str(entry.who, `${p}.who`),
+      summary: str(entry.summary, `${p}.summary`),
+      action: str(entry.action, `${p}.action`),
       evidence: ids,
     };
   });
@@ -316,7 +311,7 @@ function validate(input: Json): { errors: string[]; model?: Model } {
 
   const features = arr(root.features, "model.features").map((v, i): Feature => {
     const p = `model.features[${i}]`;
-    const f =
+    const featureIn =
       obj(
         v,
         p,
@@ -333,33 +328,38 @@ function validate(input: Json): { errors: string[]; model?: Model } {
         ],
         ["name", "purpose", "flow"],
       ) ?? {};
-    const availability =
-      f.availability === undefined ? "unknown" : str(f.availability, `${p}.availability`);
-    if (!(AVAILABILITY as readonly string[]).includes(availability))
-      err(`${p}.availability`, `提供状況は ${AVAILABILITY.join(" / ")} のいずれかです`);
-    const flow = claims(f.flow, `${p}.flow`, false, true);
-    if (Array.isArray(f.flow) && f.flow.length === 0) err(`${p}.flow`, "手順が 1 件以上必要です");
+    const availability = pick(
+      AVAIL_LABEL,
+      featureIn.availability === undefined
+        ? "unknown"
+        : str(featureIn.availability, `${p}.availability`),
+      `${p}.availability`,
+      "提供状況",
+    );
+    const flow = claims(featureIn.flow, `${p}.flow`, false, true);
+    if (Array.isArray(featureIn.flow) && featureIn.flow.length === 0)
+      err(`${p}.flow`, "手順が 1 件以上必要です");
     return {
-      name: str(f.name, `${p}.name`),
+      name: str(featureIn.name, `${p}.name`),
       availability,
-      purpose: str(f.purpose, `${p}.purpose`),
-      operations: strs(f.operations, `${p}.operations`, true),
+      purpose: str(featureIn.purpose, `${p}.purpose`),
+      operations: strs(featureIn.operations, `${p}.operations`, true),
       flow,
-      conditions: claims(f.conditions, `${p}.conditions`),
-      exceptions: claims(f.exceptions, `${p}.exceptions`),
-      constraints: claims(f.constraints, `${p}.constraints`),
-      actions: claims(f.actions, `${p}.actions`),
+      conditions: claims(featureIn.conditions, `${p}.conditions`),
+      exceptions: claims(featureIn.exceptions, `${p}.exceptions`),
+      constraints: claims(featureIn.constraints, `${p}.constraints`),
+      actions: claims(featureIn.actions, `${p}.actions`),
     };
   });
 
   const proposedNames = new Set(
     features.filter((f) => f.availability === "proposed").map((f) => f.name),
   );
-  changes.forEach((c, i) => {
-    if (c.status !== "removed" && proposedNames.has(c.feature))
+  changes.forEach((change, i) => {
+    if (change.status !== "removed" && proposedNames.has(change.feature))
       err(
         `model.changes[${i}].feature`,
-        `機能「${c.feature}」は proposed のため、${STATUS_LABEL[c.status] ?? c.status}として載せられません（removed のみ可）`,
+        `機能「${change.feature}」は proposed のため、${STATUS_LABEL[change.status]}として載せられません（removed のみ可）`,
       );
   });
 
@@ -369,7 +369,7 @@ function validate(input: Json): { errors: string[]; model?: Model } {
     model: {
       title,
       summary,
-      target: { commit, versionName: versionName || undefined, confirmedOn },
+      target,
       baseline,
       changes,
       scope,
@@ -384,60 +384,61 @@ function validate(input: Json): { errors: string[]; model?: Model } {
 
 // ---- 投影 ----
 // 出力に渡す項目だけを新しいデータへ写す。public は根拠・コミット ID を含めない。
-function project(m: Model, audience: string) {
+function project(m: Model, audience: Audience) {
   const internal = audience === "internal";
   const byId = new Map(m.evidence.map((e) => [e.id, e]));
-  const c = (x: Claim) => ({
+  const find = (id: string): Evidence => {
+    const found = byId.get(id);
+    if (!found) throw new Error(`根拠 ${id} がありません（validate を通ったモデルでは起きません）`);
+    return found;
+  };
+  // 根拠 ID の列から、出力に渡す「根拠区分の集合」と（internal のみ）根拠本体を作る。
+  const cite = (ids: string[]) => ({
+    kinds: [...new Set(ids.map((id) => find(id).kind))],
+    ...(internal ? { evidence: ids.map(find) } : {}),
+  });
+  const claim = (x: Claim) => ({
     text: x.text,
-    kinds: [...new Set(x.evidence.map((id) => byId.get(id)!.kind))],
     ...(x.group ? { group: x.group } : {}),
-    ...(internal ? { evidence: x.evidence.map((id) => byId.get(id)!) } : {}),
+    ...cite(x.evidence),
   });
   const feature = (f: Feature) => ({
     name: f.name,
     availability: f.availability,
     purpose: f.purpose,
     operations: f.operations,
-    flow: f.flow.map(c),
-    conditions: f.conditions.map(c),
-    exceptions: f.exceptions.map(c),
-    constraints: f.constraints.map(c),
-    actions: f.actions.map(c),
+    flow: f.flow.map(claim),
+    conditions: f.conditions.map(claim),
+    exceptions: f.exceptions.map(claim),
+    constraints: f.constraints.map(claim),
+    actions: f.actions.map(claim),
+  });
+  const release = (r: Release) => ({
+    name: r.versionName ?? "",
+    confirmedOn: r.confirmedOn,
+    ...(internal ? { commit: r.commit } : {}),
   });
   return {
     audience,
     title: m.title,
     summary: m.summary,
-    version: {
-      name: m.target.versionName ?? "",
-      confirmedOn: m.target.confirmedOn,
-      ...(internal ? { commit: m.target.commit } : {}),
-    },
-    ...(m.baseline
-      ? {
-          baseline: {
-            name: m.baseline.versionName ?? "",
-            confirmedOn: m.baseline.confirmedOn,
-            ...(internal ? { commit: m.baseline.commit } : {}),
-          },
-        }
-      : {}),
+    version: release(m.target),
+    ...(m.baseline ? { baseline: release(m.baseline) } : {}),
     changes: m.changes.map((x) => ({
       feature: x.feature,
       status: x.status,
       who: x.who,
       summary: x.summary,
       action: x.action,
-      kinds: [...new Set(x.evidence.map((id) => byId.get(id)!.kind))],
-      ...(internal ? { evidence: x.evidence.map((id) => byId.get(id)!) } : {}),
+      ...cite(x.evidence),
     })),
     scope: m.scope,
     glossary: m.glossary,
     unconfirmed: m.unconfirmed,
     conflicts: m.conflicts.map((x) => ({
       summary: x.summary,
-      code: c(x.code),
-      decision: c(x.decision),
+      code: claim(x.code),
+      decision: claim(x.decision),
     })),
     current: m.features.filter((f) => f.availability !== "proposed").map(feature),
     proposed: m.features.filter((f) => f.availability === "proposed").map(feature),
@@ -501,7 +502,7 @@ figure.flow{margin:1rem 0}.diagram{overflow:auto;border:1px solid var(--line);pa
 
 // ---- 流れの図（Dagre） ----
 const MAX_STEPS = 30; // これを超える流れは単純フローとして読めないので、配置せず失敗させる。
-const DASH: Record<string, string> = {
+const DASH: Record<Kind, string> = {
   "code-verified": "",
   "approved-decision": "6 3",
   inferred: "2 3",
@@ -523,7 +524,7 @@ function wrap(s: string, max: number): string[] {
   return [...lines, cur];
 }
 
-type Step = { text: string; kinds: string[]; group?: string[] };
+type Step = { text: string; kinds: Kind[]; group?: string[] };
 const layoutFail = (name: string, why: string): never => {
   throw new Error(`図の配置に失敗しました（機能「${name}」: ${why}）`);
 };
@@ -541,31 +542,35 @@ function stepBox(s: Step, i: number) {
     label,
     width: Math.max(...body.map(textWidth), textWidth(label)) + 24,
     height: (body.length + 1) * 20 + 16,
-    dash: DASH[KINDS.filter((k) => s.kinds.includes(k)).pop()!], // 最も確かでない区分で線種を決める
+    dash: DASH[KINDS.findLast((k) => s.kinds.includes(k)) ?? "unverified"], // 最も確かでない区分で線種を決める
   };
 }
 type Box = ReturnType<typeof stepBox>;
 
-function nodeSvg(name: string, b: Box, n: { x: number; y: number; width: number; height: number }) {
-  const [x, y, w, h] = [n.x, n.y, n.width, n.height].map((v) => num(name, v));
-  const lines = [...b.body, b.label];
+function nodeSvg(
+  name: string,
+  box: Box,
+  pos: { x: number; y: number; width: number; height: number },
+) {
+  const [x, y, w, h] = [pos.x, pos.y, pos.width, pos.height].map((v) => num(name, v));
+  const lines = [...box.body, box.label];
   const texts = lines
     .map(
       (l, j) =>
         `<text x="${num(name, x + 12)}" y="${num(name, y + 24 + j * 20)}"${j === lines.length - 1 ? ' font-weight="bold"' : ""}>${esc(l)}</text>`,
     )
     .join("");
-  return `<g class="node"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6"${b.dash ? ` stroke-dasharray="${b.dash}"` : ""}/>${texts}</g>`;
+  return `<g class="node"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6"${box.dash ? ` stroke-dasharray="${box.dash}"` : ""}/>${texts}</g>`;
 }
 
 function edgeSvg(name: string, p: { x: number; y: number }[]) {
-  const [q, e] = [p[p.length - 2], p[p.length - 1]];
-  const a = Math.atan2(e.y - q.y, e.x - q.x);
+  const [prev, tip] = [p[p.length - 2], p[p.length - 1]];
+  const angle = Math.atan2(tip.y - prev.y, tip.x - prev.x);
   const wing = (d: number) =>
-    `${num(name, e.x - 9 * Math.cos(a - d))},${num(name, e.y - 9 * Math.sin(a - d))}`;
+    `${num(name, tip.x - 9 * Math.cos(angle - d))},${num(name, tip.y - 9 * Math.sin(angle - d))}`;
   return (
-    `<polyline class="edge" points="${p.map((t) => `${num(name, t.x)},${num(name, t.y)}`).join(" ")}"/>` +
-    `<polygon class="head" points="${num(name, e.x)},${num(name, e.y)} ${wing(0.4)} ${wing(-0.4)}"/>`
+    `<polyline class="edge" points="${p.map((pt) => `${num(name, pt.x)},${num(name, pt.y)}`).join(" ")}"/>` +
+    `<polygon class="head" points="${num(name, tip.x)},${num(name, tip.y)} ${wing(0.4)} ${wing(-0.4)}"/>`
   );
 }
 
@@ -594,27 +599,29 @@ const STATE_NOTE =
 function flowDiagram(name: string, steps: Step[], id: string) {
   if (steps.length > MAX_STEPS)
     layoutFail(name, `手順が ${MAX_STEPS} 件を超え、単純フローとして配置できません`);
-  const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: "TB", nodesep: 24, ranksep: 36, marginx: 16, marginy: 16 });
-  g.setDefaultEdgeLabel(() => ({}));
+  const graph = new dagre.graphlib.Graph();
+  graph.setGraph({ rankdir: "TB", nodesep: 24, ranksep: 36, marginx: 16, marginy: 16 });
+  graph.setDefaultEdgeLabel(() => ({}));
   const boxes = steps.map((s, i) => {
-    const b = stepBox(s, i);
-    g.setNode(`n${i}`, { width: b.width, height: b.height });
-    if (i) g.setEdge(`n${i - 1}`, `n${i}`);
-    return b;
+    const box = stepBox(s, i);
+    graph.setNode(`n${i}`, { width: box.width, height: box.height });
+    if (i) graph.setEdge(`n${i - 1}`, `n${i}`);
+    return box;
   });
   try {
-    dagre.layout(g);
+    dagre.layout(graph);
   } catch (e) {
     layoutFail(name, (e as Error).message);
   }
-  const nodes = boxes.map((b, i) => {
-    const n = g.node(`n${i}`);
-    return nodeSvg(name, b, { ...n, x: n.x - n.width / 2, y: n.y - n.height / 2 });
+  const nodes = boxes.map((box, i) => {
+    const pos = graph.node(`n${i}`);
+    return nodeSvg(name, box, { ...pos, x: pos.x - pos.width / 2, y: pos.y - pos.height / 2 });
   });
-  const edges = steps.slice(1).map((_, i) => edgeSvg(name, g.edge(`n${i}`, `n${i + 1}`).points));
+  const edges = steps
+    .slice(1)
+    .map((_, i) => edgeSvg(name, graph.edge(`n${i}`, `n${i + 1}`).points));
   const caption = `この図は ${steps.length} 件の手順を上から下へ順に示します。${firstLast(steps)}${STATE_NOTE}`;
-  return figureSvg(name, id, g.graph(), edges.join("") + nodes.join(""), caption);
+  return figureSvg(name, id, graph.graph(), edges.join("") + nodes.join(""), caption);
 }
 
 // ---- 入れ子の流れの図（ELK.js） ----
@@ -729,7 +736,7 @@ async function nestedFlowDiagram(name: string, steps: Step[], id: string) {
       return `<g class="group"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" stroke-dasharray="10 4"/><text x="${num(name, x + 12)}" y="${num(name, y + 22)}" font-weight="bold">${esc(label)}</text></g>`;
     })
     .join("");
-  const nodes = boxes.map((b, i) => nodeSvg(name, b, at(`n${i}`) as Required<ElkNode>));
+  const nodes = boxes.map((box, i) => nodeSvg(name, box, at(`n${i}`) as Required<ElkNode>));
   const edges = (laid.edges ?? []).map((e) => {
     const sec = e.sections?.[0];
     if (!sec) return layoutFail(name, "配置結果に矢印の経路がありません");
@@ -743,22 +750,22 @@ async function nestedFlowDiagram(name: string, steps: Step[], id: string) {
 async function render(v: View): Promise<string> {
   const nested = new Map<unknown, string>(); // group を持つ flow だけ ELK.js（非同期）で先に配置する
   for (const [i, f] of [...v.current, ...v.proposed].entries())
-    if (f.flow.some((c) => "group" in c))
+    if (f.flow.some((step) => "group" in step))
       nested.set(f, await nestedFlowDiagram(f.name, f.flow, `nested-${i}-flow`));
   // 現在位置: 目次から飛んだ節（:target）を、文字の印（▶）と太字で示す。script は使わない。
-  const sel = v.current.map(
+  const tocSelectors = v.current.map(
     (_, i) => `body:has(#feature-${i + 1}:target) nav a[href="#feature-${i + 1}"]`,
   );
-  const current = sel.length
-    ? `${sel.join(",")}{font-weight:700}${sel.map((x) => `${x}::before`).join(",")}{content:"\\25B6 "}`
+  const current = tocSelectors.length
+    ? `${tocSelectors.join(",")}{font-weight:700}${tocSelectors.map((x) => `${x}::before`).join(",")}{content:"\\25B6 "}`
     : "";
   const internal = v.audience === "internal";
-  const badges = (kinds: string[]) =>
+  const badges = (kinds: Kind[]) =>
     kinds.map((k) => `<span class="badge">${esc(KIND_LABEL[k])}</span>`).join("");
-  const ev = (c: { evidence?: Evidence[] }) =>
-    !internal || !c.evidence
+  const evidenceHtml = (cited: { evidence?: Evidence[] }) =>
+    !internal || !cited.evidence
       ? ""
-      : `<details><summary>根拠を表示</summary><ul>${c.evidence
+      : `<details><summary>根拠を表示</summary><ul>${cited.evidence
           .map(
             (e) =>
               `<li><code>${esc(e.id)}</code> ${esc(KIND_LABEL[e.kind])}${v.baseline ? (e.version === "baseline" ? "（比較元）" : "（対象版）") : ""}${e.path ? ` ${esc(e.path)}` : ""}${e.symbol ? ` <code>${esc(e.symbol)}</code>` : ""}${e.commit ? ` @<code>${esc(e.commit)}</code>` : ""}${e.note ? ` - ${esc(e.note)}` : ""}</li>`,
@@ -768,7 +775,7 @@ async function render(v: View): Promise<string> {
   type C = F["flow"][number];
   const list = (tag: "ol" | "ul", items: C[]) =>
     items.length
-      ? `<${tag}>${items.map((c) => `<li>${"group" in c ? `<span class="muted">［${esc((c as { group: string[] }).group.join(" / "))}］</span>` : ""}${esc(c.text)}${badges(c.kinds)}${ev(c)}</li>`).join("")}</${tag}>`
+      ? `<${tag}>${items.map((item) => `<li>${"group" in item ? `<span class="muted">［${esc((item as { group: string[] }).group.join(" / "))}］</span>` : ""}${esc(item.text)}${badges(item.kinds)}${evidenceHtml(item)}</li>`).join("")}</${tag}>`
       : "";
   const section = (label: string, items: C[]) =>
     items.length ? `<h4>${label}</h4>${list("ul", items)}` : "";
@@ -782,8 +789,8 @@ async function render(v: View): Promise<string> {
   const changes = v.baseline
     ? `<section id="changes"><h2><a href="#changes">前回からの変更点</a></h2><p class="muted">比較元: ${v.baseline.name ? `${esc(v.baseline.name)} / ` : ""}確認日 ${esc(v.baseline.confirmedOn)}${internal && v.baseline.commit ? ` / コミット <code>${esc(v.baseline.commit)}</code>` : ""}</p>${v.changes
         .map(
-          (c) =>
-            `<div class="box"><h3>${esc(c.feature)}<span class="badge">${STATUS_LABEL[c.status]}</span></h3><ul><li>誰に何が変わるか: ${esc(c.who)} ${esc(c.summary)}${badges(c.kinds)}</li><li>必要な対応: ${esc(c.action)}</li></ul>${ev(c)}</div>`,
+          (change) =>
+            `<div class="box"><h3>${esc(change.feature)}<span class="badge">${STATUS_LABEL[change.status]}</span></h3><ul><li>誰に何が変わるか: ${esc(change.who)} ${esc(change.summary)}${badges(change.kinds)}</li><li>必要な対応: ${esc(change.action)}</li></ul>${evidenceHtml(change)}</div>`,
         )
         .join("")}</section>`
     : "";
@@ -796,8 +803,8 @@ async function render(v: View): Promise<string> {
   const conflicts = v.conflicts.length
     ? `<section id="conflicts"><h2><a href="#conflicts">コードと業務判断の食い違い</a></h2>${v.conflicts
         .map(
-          (c) =>
-            `<div class="box"><strong>注意</strong><p>${esc(c.summary)}</p><ul><li>コード: ${esc(c.code.text)}${ev(c.code)}</li><li>業務判断: ${esc(c.decision.text)}${ev(c.decision)}</li></ul></div>`,
+          (conflict) =>
+            `<div class="box"><strong>注意</strong><p>${esc(conflict.summary)}</p><ul><li>コード: ${esc(conflict.code.text)}${evidenceHtml(conflict.code)}</li><li>業務判断: ${esc(conflict.decision.text)}${evidenceHtml(conflict.decision)}</li></ul></div>`,
         )
         .join("")}</section>`
     : "";
@@ -818,7 +825,7 @@ ${changes}
 <section id="features"><h2><a href="#features">機能</a></h2>${v.current.map((f, i) => feature(f, `feature-${i + 1}`)).join("")}</section>
 ${conflicts}${proposed}
 <section id="unconfirmed"><h2><a href="#unconfirmed">未確認事項</a></h2>${v.unconfirmed.length ? `<ul>${v.unconfirmed.map((u) => `<li>${esc(u)}<span class="badge">未確認</span></li>`).join("")}</ul>` : "<p>なし</p>"}</section>
-<section id="glossary"><h2><a href="#glossary">用語集</a></h2><dl>${v.glossary.map((g) => `<dt>${esc(g.term)}</dt><dd>${esc(g.meaning)}</dd>`).join("")}</dl></section>
+<section id="glossary"><h2><a href="#glossary">用語集</a></h2><dl>${v.glossary.map((entry) => `<dt>${esc(entry.term)}</dt><dd>${esc(entry.meaning)}</dd>`).join("")}</dl></section>
 </main></body></html>
 `;
 }
@@ -828,10 +835,10 @@ const usage = `使い方:
   product-guide validate <model.json>
   product-guide generate <model.json> --audience internal|public --out <出力親ディレクトリ>`;
 // 比較元はモデルの baseline で指定する（CLI 引数では受けない）。
-const fail = (code: number, ...lines: string[]): never => {
+function fail(code: number, ...lines: string[]): never {
   console.error(lines.join("\n"));
   process.exit(code);
-};
+}
 
 function load(path: string): Model {
   let json: Json;
@@ -857,11 +864,11 @@ if (command === "validate" && file && rest.length === 0) {
       fail(2, `未対応または不正な引数: ${k}`, usage);
     opts.set(k, rest[i + 1]);
   }
-  const audience = opts.get("--audience");
+  const audience = AUDIENCES.find((a) => a === opts.get("--audience"));
   const out = opts.get("--out");
-  if ((audience !== "internal" && audience !== "public") || !out) fail(2, usage);
+  if (!audience || !out) fail(2, usage);
   const model = load(file);
-  const view = project(model, audience as string);
+  const view = project(model, audience);
   if (audience === "public") {
     const found = leaks(model, view);
     if (found.length)
@@ -873,7 +880,7 @@ if (command === "validate" && file && rest.length === 0) {
   } catch (e) {
     fail(1, (e as Error).message);
   }
-  const parent = resolve(out as string);
+  const parent = resolve(out);
   const dir = join(
     parent,
     `${model.target.commit}${model.baseline ? `-vs-${model.baseline.commit}` : ""}-${audience}`,
