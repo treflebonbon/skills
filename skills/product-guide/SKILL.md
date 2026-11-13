@@ -14,7 +14,8 @@ disable-model-invocation: true
 2. 対象版のコードと、承認済みの用語・仕様・ADR を調べ、[モデル仕様](references/model.md)の JSON を書く。モデルは session 所有の scratch に置く。
 3. 各主張に根拠を付ける。根拠区分は `code-verified`（対象版のコードで確認した事実）、`approved-decision`（承認済みの業務判断）、`inferred`、`unverified`。コードの事実と業務判断が食い違うときは `conflicts` に両方の主張を残す。どちらかへ寄せない。
 4. 提供状況（`available` / `in-development` / `proposed` / `unknown`）は人から指定された値だけを書く。コミットから推定しない。未指定は `unknown`。`proposed` は現行機能と別枠に出る。
-5. `validate` で検証し、`generate` で出力する。
+5. TypeScript/JavaScript のソースは、手順 2 で `collect-evidence` により対象版の構文上の根拠（シンボルと位置）を集められる（下記）。他の言語は、対象版のソースを読み、その根拠を `evidence` に手で記録する（自動抽出はない）。
+6. `validate` で検証し、`generate` で出力する。
 
 ```bash
 skill_dir="<読み込んだ SKILL.md の絶対パスの親 directory>"
@@ -24,6 +25,14 @@ plugin_root="$(cd -- "$skill_dir/../.." && pwd -P)"
 ```
 
 `--audience` は `internal` か `public`。出力は `<out>/<完全なコミット ID>-<audience>/index.html`。既存があれば上書きせず失敗し、強制上書きの手段はない。比較するときはモデルの `baseline` と `changes` を書く（[モデル仕様](references/model.md)）。出力先は `<out>/<対象版>-vs-<比較元>-<audience>/index.html`。未対応の入力は、黙って無視せずエラーになる。
+
+## TypeScript/JavaScript の根拠収集
+
+```bash
+"$plugin_root/lib/bun/run" run "$skill_dir/scripts/collect-evidence.ts" <git repo> --commit <完全なコミット ID> --out evidence.json [--path <接頭辞>]
+```
+
+指定コミットの版（作業ツリーではない）から、関数・クラス・メソッド・インターフェース・型・enum・関数値の const の名前と位置を、ast-grep で集める。出力 `evidence.json` の `evidence` 配列を、モデルの `evidence` へそのまま取り込める（ID は `AG1`…。モデルの他の ID と重ならないようにする）。**収集した根拠の `kind` は全て `unverified`。** 構文上の宣言があるだけで、業務上の意味は何も示さない。ソースを読んで事実を確かめた根拠だけ、あなたが `code-verified` に変える。出力先が既にあれば上書きせず失敗する。
 
 ## 保証の範囲
 

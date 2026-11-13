@@ -387,6 +387,11 @@ class PluginPackageContractTest(unittest.TestCase):
             with self.subTest(bundle=file):
                 bundle = (skill / "vendor" / file).read_text(encoding="utf-8")
                 self.assertTrue(bundle.startswith(header))
+        for name, version in {"@ast-grep/wasm": "0.51.0", "web-tree-sitter": "0.26.13"}.items():
+            self.assertEqual(lock["packages"][f"node_modules/{name}"]["version"], version)
+        for wasm in ("wasm_bg.wasm", "web-tree-sitter.wasm", "tree-sitter-typescript.wasm",
+                     "tree-sitter-tsx.wasm", "tree-sitter-javascript.wasm"):
+            self.assertTrue((skill / "vendor/ast-grep" / wasm).is_file(), wasm)
         self.assertFalse((skill / "node_modules").exists())
 
     def test_npm_locks_use_public_registry_urls_and_integrity(self):
