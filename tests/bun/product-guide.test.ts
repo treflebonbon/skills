@@ -150,7 +150,7 @@ test("validate は不正なモデルを理由付きで拒否する", () => {
 });
 
 test("未対応の入力（比較元など）はエラーになる", () => {
-  const baseline = cli("validate", setup(model({ baseline: { commit: COMMIT } })).file);
+  const baseline = cli("validate", setup(model({ compareTo: { commit: COMMIT } })).file);
   expect(baseline.code).toBe(1);
   expect(baseline.err).toContain("未対応");
   const s = setup(model());
@@ -277,4 +277,98 @@ test("validate は根拠のない code-verified と、根拠区分の合わな�
   });
   bad(model(conflict("E3", "E2")), "code-verified の根拠が必要");
   bad(model(conflict("E1", "E9")), "存在しない根拠");
+});
+
+const BASE = "fedcba9876543210fedcba9876543210fedcba98";
+const cmpEvidence = [
+  ...evidence,
+  { id: "B1", kind: "code-verified", version: "baseline", commit: BASE, path: "src/old.ts" },
+];
+function cmp(changes: unknown[], patch: Record<string, unknown> = {}) {
+  return model({
+    baseline: { commit: BASE, versionName: "v1.1", confirmedOn: "2026-10-01" },
+    evidence: cmpEvidence,
+    changes,
+    ...patch,
+  });
+}
+const change = (status: string, feature: string, ev: string[]) => ({
+  feature,
+  status,
+  who: "経理担当者に",
+  summary: `${feature}が${status}されます。`,
+  action: `${feature}の確認が必要です。`,
+  evidence: ev,
+});
+const allChanges = () => [
+  change("added", "一括申請", ["E1"]),
+  change("changed", "請求書の申請", ["E1", "B1"]),
+  change("removed", "FAX 申請", ["B1"]),
+  change("unchanged", "下書き保存", ["E1"]),
+];
+
+test("比較元ありで、追加・変更・削除・変更なしが誰に何が変わるかと必要な対応の形で出る", () => {
+  const dir = (a: string) => `${COMMIT}-vs-${BASE}-${a}`;
+  const s = setup(cmp(allChanges()));
+  expect(cli("generate", s.file, "--audience", "internal", "--out", s.out).code).toBe(0);
+  const text = readFileSync(join(s.out, dir("internal"), "index.html"), "utf8");
+  for (const l of [
+    "前回からの変更点",
+    "追加",
+    "変更",
+    "削除",
+    "変更なし",
+    "誰に何が変わるか",
+    "必要な対応",
+  ])
+    expect(text).toContain(l);
+  expect(text).toContain("FAX 申請");
+  expect(text).toContain("（比較元）");
+  expect(text).toContain("src/old.ts");
+  // 再実行は上書きせず失敗、対象版のみの出力とは別名
+  expect(cli("generate", s.file, "--audience", "internal", "--out", s.out).code).toBe(1);
+  expect(readdirSync(s.out)).toEqual([dir("internal")]);
+});
+
+test("比較元なしでは変更点の節が出ない", () => {
+  expect(generate(model(), "internal").text).not.toContain("前回からの変更点");
+});
+
+test("根拠の版の不一致は validate が拒否する", () => {
+  const bad = (m: unknown, reason: string) => {
+    const r = cli("validate", setup(m).file);
+    expect(r.code).toBe(1);
+    expect(r.err).toContain(reason);
+  };
+  bad(cmp([change("added", "x", ["B1"])]), "対象版の根拠が必要");
+  bad(cmp([change("removed", "x", ["E1"])]), "比較元の根拠が必要");
+  bad(cmp([change("changed", "x", ["E1"])]), "比較元の根拠が必要");
+  bad(cmp([change("added", "x", ["E1", "B1"])]), "比較元の根拠は使えません");
+  bad(
+    cmp(allChanges(), {
+      evidence: [...evidence, { ...cmpEvidence[3], commit: COMMIT }],
+    }),
+    "比較元と一致しません",
+  );
+  bad(
+    cmp(allChanges(), {
+      features: [{ name: "x", purpose: "y", flow: [{ text: "a", evidence: ["B1"] }] }],
+    }),
+    "比較元のものです",
+  );
+  bad(model({ changes: allChanges() }), "baseline");
+  bad(cmp([]), "1 件以上");
+  expect(cli("validate", setup(cmp(allChanges())).file).code).toBe(0);
+});
+
+test("public の比較版にもコミット ID・パスは出ず、混入は拒否される", () => {
+  const s = setup(cmp(allChanges()));
+  expect(cli("generate", s.file, "--audience", "public", "--out", s.out).code).toBe(0);
+  const text = readFileSync(join(s.out, `${COMMIT}-vs-${BASE}-public`, "index.html"), "utf8");
+  expect(text).toContain("前回からの変更点");
+  expect(text).toContain("v1.1");
+  for (const x of [COMMIT, BASE, "src/old.ts", "<details"]) expect(text).not.toContain(x);
+  const leaky = setup(cmp([{ ...change("added", "x", ["E1"]), summary: `比較元 ${BASE} から` }]));
+  expect(cli("generate", leaky.file, "--audience", "public", "--out", leaky.out).code).toBe(1);
+  expect(existsSync(leaky.out)).toBe(false);
 });

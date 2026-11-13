@@ -23,7 +23,7 @@ plugin_root="$(cd -- "$skill_dir/../.." && pwd -P)"
 "$plugin_root/lib/bun/run" run "$skill_dir/scripts/product-guide.ts" generate model.json --audience internal --out <出力親 directory>
 ```
 
-`--audience` は `internal` か `public`。出力は `<out>/<完全なコミット ID>-<audience>/index.html`。既存があれば上書きせず失敗し、強制上書きの手段はない。比較元などの未対応の入力は、黙って無視せずエラーになる。
+`--audience` は `internal` か `public`。出力は `<out>/<完全なコミット ID>-<audience>/index.html`。既存があれば上書きせず失敗し、強制上書きの手段はない。比較するときはモデルの `baseline` と `changes` を書く（[モデル仕様](references/model.md)）。出力先は `<out>/<対象版>-vs-<比較元>-<audience>/index.html`。未対応の入力は、黙って無視せずエラーになる。
 
 ## 保証の範囲
 
