@@ -261,3 +261,99 @@ test("public は自由記述への内部情報の混入を拒否し、成果物�
   m.features[0].flow[0].text = "submitInvoice を呼ぶ。";
   expect(generate(m, "internal").r.code).toBe(0);
 });
+
+test("根拠区分と提供状況は別の軸で、同じ文書に複数の提供状況が混在する", () => {
+  const m = model();
+  (m.features as unknown[]).push(
+    {
+      name: "開発中の機能",
+      availability: "in-development",
+      purpose: "p",
+      flow: [{ text: "手順", evidence: ["E1"] }],
+    },
+    { name: "状態未指定の機能", purpose: "p", flow: [{ text: "手順", evidence: ["E3"] }] },
+  );
+  for (const audience of ["internal", "public"]) {
+    const { text } = generate(m, audience);
+    const current = text.slice(text.indexOf('id="features"'), text.indexOf('id="proposed"'));
+    for (const label of ["利用可能", "開発中", "不明"]) expect(current).toContain(label);
+    expect(current).not.toContain("提案");
+    for (const label of ["コードで確認", "承認済み判断", "未確認"])
+      expect(current).toContain(label);
+    expect(text).toContain("未調査");
+  }
+});
+
+test("矛盾は、コード側と業務判断側の両方の根拠参照付きで表示される", () => {
+  const { text } = generate(model(), "internal");
+  const block = text.slice(text.indexOf('id="conflicts"'), text.indexOf('id="proposed"'));
+  expect(block).toContain("<code>E1</code>");
+  expect(block).toContain("src/invoice/submit.ts");
+  expect(block).toContain("<code>E2</code>");
+  expect(block).toContain("経理部の承認済み方針");
+});
+
+test("validate は根拠のない code-verified と、根拠区分の合わない矛盾を拒否する", () => {
+  const bad = (m: unknown, reason: string) => {
+    const r = cli("validate", setup(m).file);
+    expect(r.code).toBe(1);
+    expect(r.err).toContain(reason);
+  };
+  bad(
+    model({
+      evidence: [{ id: "E1", kind: "code-verified", commit: COMMIT }, ...evidence.slice(1)],
+    }),
+    "ファイルパスが必要",
+  );
+  const conflict = (code: string, decision: string) => ({
+    conflicts: [
+      {
+        summary: "s",
+        code: { text: "c", evidence: [code] },
+        decision: { text: "d", evidence: [decision] },
+      },
+    ],
+  });
+  bad(model(conflict("E3", "E2")), "code-verified の根拠が必要");
+  bad(model(conflict("E1", "E9")), "存在しない根拠");
+});
+
+test("public: 出力全体（本文・属性・コメント・title・ID）に禁止情報が出ない", () => {
+  const m = model({
+    evidence: [
+      { ...evidence[0], note: "内部メモ-SECRETNOTE" },
+      { ...evidence[1], note: "ADR-7 の判断" },
+      evidence[2],
+    ],
+  });
+  const g = generate(m, "public");
+  expect(g.r.code).toBe(0);
+  for (const s of [COMMIT, "src/", "submit.ts", "submitInvoice", "SECRETNOTE", "ADR-7", "<!--"])
+    expect(g.text).not.toContain(s);
+  expect(g.text).not.toMatch(/\b[0-9a-f]{7,40}\b/);
+  expect(g.text).not.toMatch(/<script|<link|<meta http|data:/);
+  expect(readdirSync(join(g.out, `${COMMIT}-public`))).toEqual(["index.html"]);
+});
+
+test("public: 公開操作名と未知の項目への混入も拒否し、internal では操作名と根拠が別々に出る", () => {
+  const ops = model();
+  ops.features[0].operations = ["submitInvoice"];
+  const unknown = model({ embedded: { path: "src/a.ts" } });
+  for (const m of [ops, unknown]) {
+    const g = generate(m, "public");
+    expect(g.r.code).toBe(1);
+    expect(existsSync(g.out)).toBe(false);
+  }
+  const g = generate(model(), "internal");
+  expect(g.text).toContain("申請する");
+  expect(g.text).toContain("submitInvoice");
+});
+
+test("既知の限界: 拡張子形式を含む通常の文章も public では誤検知して拒否される", () => {
+  const m = model();
+  m.features[0].flow[0].text = "手順書.md を開く。";
+  const g = generate(m, "public");
+  expect(g.r.code).toBe(1);
+  expect(existsSync(g.out)).toBe(false);
+  expect(generate(m, "internal").r.code).toBe(0);
+});
