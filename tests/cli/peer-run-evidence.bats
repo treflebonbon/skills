@@ -3,6 +3,7 @@
 bats_require_minimum_version 1.5.0
 
 setup_file() {
+  "$BATS_TEST_DIRNAME/../../bin/prepare-file-safety" >/dev/null
   # 並列実行の別ファイルが先に作った場合も、次行で種類と所有者を確かめる。
   mkdir -m 700 /tmp/codex 2>/dev/null || :
   [ -d /tmp/codex ] && [ ! -L /tmp/codex ] && [ -O /tmp/codex ]
@@ -12,8 +13,8 @@ setup() {
   unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_PREFIX
   local project_root
   project_root="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-  SCRIPT="$project_root/skills/herdr-peer-refactor/scripts/run-evidence.py"
-  PIN="$project_root/skills/herdr-peer-refactor/scripts/candidate-record.py"
+  SCRIPT="$project_root/skills/herdr-peer-refactor/scripts/run-evidence"
+  PIN="$project_root/skills/herdr-peer-refactor/scripts/candidate-record"
   EVIDENCE="$(mktemp -d /tmp/codex/peer-evidence-test.XXXXXX)"
   REPO="$BATS_TEST_TMPDIR/repo"
   mkdir -p "$REPO" "$EVIDENCE/peer"
@@ -26,7 +27,7 @@ setup() {
   REPORT="$EVIDENCE/report.md"
   printf '# Gateway preparation\n' >"$REPORT"
   printf '%s\n' '[{"id":"C2","title":"Gateway preparation","acceptance":["ready"],"non_goals":[],"owned_files":["gateway.py"]}]' >"$CANDIDATES"
-  FINGERPRINT="$(cd "$REPO" && python3 "$PIN" pin "$REPORT" "$COMMON" "$SHA" "$CANDIDATES" "$RECORD")"
+  FINGERPRINT="$(cd "$REPO" && "$PIN" pin "$REPORT" "$COMMON" "$SHA" "$CANDIDATES" "$RECORD")"
   printf 'run-1\n' >"$EVIDENCE/peer/run-id"
   printf '271\n' >"$EVIDENCE/peer/waited-s"
   printf '2\n' >"$EVIDENCE/peer/round"
@@ -41,42 +42,37 @@ teardown() {
 }
 
 checkpoint() {
-  (cd "$REPO" && python3 "$SCRIPT" checkpoint "$RECORD" "$CANDIDATES" "$FINGERPRINT" "$@")
+  (cd "$REPO" && "$SCRIPT" checkpoint "$RECORD" "$CANDIDATES" "$FINGERPRINT" "$@")
 }
 
 save_checkpoint() {
   run checkpoint "$EVIDENCE/peer/run-id" "$EVIDENCE/peer/waited-s" "$EVIDENCE/peer/round" "$EVIDENCE/peer/REQ-1.failures" "$EVIDENCE/mutation.log" "$@"
   [ "$status" -eq 0 ]
-  CHECKPOINT="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["checkpoint"])' "$output")"
+  CHECKPOINT="$(node -e 'console.log(JSON.parse(process.argv[1]).checkpoint)' "$output")"
   ARCHIVE="$COMMON/peer-refactor-evidence/$FINGERPRINT/$CHECKPOINT.json"
   [ -f "$ARCHIVE" ]
 }
 
 restore() {
-  (cd "$REPO" && python3 "$SCRIPT" restore "$FINGERPRINT" "$CHECKPOINT")
+  (cd "$REPO" && "$SCRIPT" restore "$FINGERPRINT" "$CHECKPOINT")
 }
 
 probe() {
-  (cd "$REPO" && python3 "$SCRIPT" probe "$RECORD" "$CANDIDATES" "$FINGERPRINT" "${1-0123456789abcdef}" "${2-$EVIDENCE/probe.json}")
+  (cd "$REPO" && "$SCRIPT" probe "$RECORD" "$CANDIDATES" "$FINGERPRINT" "${1-0123456789abcdef}" "${2-$EVIDENCE/probe.json}")
 }
 
 bounded_probe() {
-  (cd "$REPO" && python3 - "$SCRIPT" probe "$RECORD" "$CANDIDATES" "$FINGERPRINT" 0123456789abcdef "$EVIDENCE/probe.json" <<'PY'
-import os, signal, subprocess, sys
-
-process = subprocess.Popen([sys.executable, *sys.argv[1:]], start_new_session=True)
-try:
-    code = process.wait(timeout=45)
-except subprocess.TimeoutExpired:
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
-    process.wait()
-    print('テスト外側の制限時間を超えました', file=sys.stderr)
-    code = 125
-sys.exit(code)
-PY
+  (cd "$REPO" && node - "$SCRIPT" probe "$RECORD" "$CANDIDATES" "$FINGERPRINT" 0123456789abcdef "$EVIDENCE/probe.json" <<'JS'
+const { spawn } = require('node:child_process');
+const child = spawn(process.argv[2], process.argv.slice(3), { detached: true, stdio: 'inherit' });
+let expired = false;
+const timer = setTimeout(() => {
+  expired = true;
+  try { process.kill(-child.pid, 'SIGKILL'); } catch {}
+  console.error('テスト外側の制限時間を超えました');
+}, 45000);
+child.on('exit', code => { clearTimeout(timer); process.exitCode = expired ? 125 : code ?? 1; });
+JS
   )
 }
 
@@ -93,39 +89,36 @@ PY
   mkfifo "$REPORT"
   run -124 --separate-stderr bounded_probe
   [[ "$stderr" == *'タイムアウト'* ]]
-  python3 - "$EVIDENCE/probe.json" "$output" "$SHA" "$FINGERPRINT" <<'PY'
-import json, sys
-from pathlib import Path
-
-receipt = json.loads(Path(sys.argv[1]).read_text())
-assert receipt == json.loads(sys.argv[2])
-assert receipt['exit_code'] == 124
-assert receipt['head'] == sys.argv[3]
-assert receipt['fingerprint'] == sys.argv[4]
-assert receipt['nonce'] == '0123456789abcdef'
-PY
+  node - "$EVIDENCE/probe.json" "$output" "$SHA" "$FINGERPRINT" <<'JS'
+const fs = require('node:fs'), assert = require('node:assert/strict');
+const [path, output, sha, fingerprint] = process.argv.slice(2);
+const receipt = JSON.parse(fs.readFileSync(path));
+assert.deepEqual(receipt, JSON.parse(output));
+assert.equal(receipt.exit_code, 124);
+assert.equal(receipt.head, sha);
+assert.equal(receipt.fingerprint, fingerprint);
+assert.equal(receipt.nonce, '0123456789abcdef');
+JS
 }
 
 @test "probe runs the pinned checker and saves its result with the current HEAD and nonce" {
   run probe
   [ "$status" -eq 0 ]
-  python3 - "$EVIDENCE/probe.json" "$SHA" "$FINGERPRINT" "$PIN" "$RECORD" "$CANDIDATES" "$output" "$REPO" <<'PY'
-import json, stat, sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-receipt = json.loads(path.read_text())
-assert receipt == json.loads(sys.argv[7])
-assert set(receipt) == {'version', 'nonce', 'head', 'cwd', 'fingerprint', 'command', 'exit_code'}
-assert receipt['version'] == 1
-assert receipt['nonce'] == '0123456789abcdef'
-assert receipt['head'] == sys.argv[2]
-assert receipt['cwd'] == str(Path(sys.argv[8]).resolve())
-assert receipt['fingerprint'] == sys.argv[3]
-assert receipt['command'][1:] == ['-B', sys.argv[4], 'check', sys.argv[5], sys.argv[6], sys.argv[3]]
-assert receipt['exit_code'] == 0
-assert stat.S_IMODE(path.stat().st_mode) == 0o600
-PY
+  node - "$EVIDENCE/probe.json" "$SHA" "$FINGERPRINT" "$PIN" "$RECORD" "$CANDIDATES" "$output" "$REPO" <<'JS'
+const fs = require('node:fs'), assert = require('node:assert/strict');
+const [path, sha, fingerprint, pin, record, candidates, output, repo] = process.argv.slice(2);
+const receipt = JSON.parse(fs.readFileSync(path));
+assert.deepEqual(receipt, JSON.parse(output));
+assert.deepEqual(Object.keys(receipt).sort(), ['version', 'nonce', 'head', 'cwd', 'fingerprint', 'command', 'exit_code'].sort());
+assert.equal(receipt.version, 1);
+assert.equal(receipt.nonce, '0123456789abcdef');
+assert.equal(receipt.head, sha);
+assert.equal(receipt.cwd, fs.realpathSync(repo));
+assert.equal(receipt.fingerprint, fingerprint);
+assert.deepEqual(receipt.command, [pin, 'check', record, candidates, fingerprint]);
+assert.equal(receipt.exit_code, 0);
+assert.equal(fs.statSync(path).mode & 0o777, 0o600);
+JS
 }
 
 @test "probe preserves a checker failure without recording public input bodies" {
@@ -133,17 +126,15 @@ PY
   run --separate-stderr probe
   [ "$status" -eq 1 ]
   [[ "$stderr" == *'変更または移動'* ]]
-  python3 - "$EVIDENCE/probe.json" "$output" <<'PY'
-import json, sys
-from pathlib import Path
-
-raw = Path(sys.argv[1]).read_text()
-receipt = json.loads(raw)
-assert receipt == json.loads(sys.argv[2])
-assert receipt['exit_code'] == 1
-assert receipt['nonce'] == '0123456789abcdef'
-assert 'public-body-not-for-receipt' not in raw
-PY
+  node - "$EVIDENCE/probe.json" "$output" <<'JS'
+const fs = require('node:fs'), assert = require('node:assert/strict');
+const [path, output] = process.argv.slice(2);
+const raw = fs.readFileSync(path, 'utf8'), receipt = JSON.parse(raw);
+assert.deepEqual(receipt, JSON.parse(output));
+assert.equal(receipt.exit_code, 1);
+assert.equal(receipt.nonce, '0123456789abcdef');
+assert(!raw.includes('public-body-not-for-receipt'));
+JS
 }
 
 @test "probe refuses unsafe paths invalid nonces and existing receipts" {
@@ -192,7 +183,7 @@ PY
   rm -- "$RECORD" "$CANDIDATES" "$REPORT" "$EVIDENCE/mutation.log" "$EVIDENCE/peer/"*
   git -C "$REPO" -c user.name=Fixture -c user.email=fixture@example.invalid commit -qm descendant --allow-empty
   git -C "$REPO" worktree add -qb task "$BATS_TEST_TMPDIR/linked"
-  run bash -c 'cd "$1" && python3 "$2" restore "$3" "$4"' _ "$BATS_TEST_TMPDIR/linked" "$SCRIPT" "$FINGERPRINT" "$CHECKPOINT"
+  run bash -c 'cd "$1" && "$2" restore "$3" "$4"' _ "$BATS_TEST_TMPDIR/linked" "$SCRIPT" "$FINGERPRINT" "$CHECKPOINT"
   [ "$status" -eq 0 ]
   [ "$(sha256sum "$RECORD")" = "$original" ]
   [ "$(cat "$EVIDENCE/peer/waited-s")" = 271 ]
@@ -270,7 +261,7 @@ PY
   REPORT="$BATS_TEST_TMPDIR/external.md"
   cp "$previous" "$REPORT"
   rm -- "$RECORD"
-  FINGERPRINT="$(cd "$REPO" && python3 "$PIN" pin "$REPORT" "$COMMON" "$SHA" "$CANDIDATES" "$RECORD")"
+  FINGERPRINT="$(cd "$REPO" && "$PIN" pin "$REPORT" "$COMMON" "$SHA" "$CANDIDATES" "$RECORD")"
   save_checkpoint
   rm -- "$REPORT"
   run restore
@@ -310,7 +301,7 @@ PY
   mkdir -p "$other/.git/peer-refactor-evidence/$FINGERPRINT"
   cp "$ARCHIVE" "$other/.git/peer-refactor-evidence/$FINGERPRINT/"
   rm -- "$REPORT"
-  run bash -c 'cd "$1" && python3 "$2" restore "$3" "$4"' _ "$other" "$SCRIPT" "$FINGERPRINT" "$CHECKPOINT"
+  run bash -c 'cd "$1" && "$2" restore "$3" "$4"' _ "$other" "$SCRIPT" "$FINGERPRINT" "$CHECKPOINT"
   [ "$status" -ne 0 ]
   [[ "$output" == *'別の Git リポジトリ'* ]]
   [ ! -e "$REPORT" ]
@@ -319,20 +310,17 @@ PY
 @test "restore validates candidate provenance even for an internally consistent checkpoint" {
   save_checkpoint
   CHECKPOINT="$(
-    python3 - "$ARCHIVE" <<'PY'
-import base64, hashlib, json, sys
-from pathlib import Path
-p = Path(sys.argv[1])
-data = json.loads(p.read_bytes())
-record_path = data['record_path']
-record = json.loads(base64.b64decode(data['files'][record_path]))
-record['candidates'][0]['acceptance'] = ['changed intent']
-data['files'][record_path] = base64.b64encode(json.dumps(record).encode()).decode()
-raw = json.dumps(data).encode()
-digest = hashlib.sha256(raw).hexdigest()
-p.with_name(digest + '.json').write_bytes(raw)
-print(digest)
-PY
+    node - "$ARCHIVE" <<'JS'
+const fs = require('node:fs'), crypto = require('node:crypto'), path = require('node:path');
+const archive = process.argv[2], data = JSON.parse(fs.readFileSync(archive));
+const record = JSON.parse(Buffer.from(data.files[data.record_path], 'base64'));
+record.candidates[0].acceptance = ['changed intent'];
+data.files[data.record_path] = Buffer.from(JSON.stringify(record)).toString('base64');
+const raw = Buffer.from(JSON.stringify(data));
+const digest = crypto.createHash('sha256').update(raw).digest('hex');
+fs.writeFileSync(path.join(path.dirname(archive), digest + '.json'), raw);
+console.log(digest);
+JS
   )"
   rm -- "$REPORT"
   run restore
@@ -342,378 +330,54 @@ PY
 }
 
 @test "standalone evidence tests prepare a private shared root and reject unsafe roots" {
-  run python3 - "$BATS_TEST_DIRNAME/../.." "$EVIDENCE" <<'PY'
-import os, re, shlex, stat, subprocess, sys
-from pathlib import Path
-
-root = Path(sys.argv[1]).resolve()
-evidence = Path(sys.argv[2])
-source = (root / 'tests/cli/peer-run-evidence.bats').read_text()
-assignment = '  project_root="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"'
-assert source.splitlines().count(assignment) == 1
-for kind in ['missing', 'owned', 'file', 'symlink', 'dangling']:
-    shared = evidence / f'shared-{kind}'
-    if kind == 'owned':
-        shared.mkdir(mode=0o700)
-        (shared / 'keep').write_text('unchanged')
-    elif kind == 'file':
-        shared.write_text('unchanged')
-    elif kind == 'symlink':
-        (evidence / 'link-target').mkdir(mode=0o700)
-        (evidence / 'link-target' / 'keep').write_text('unchanged')
-        shared.symlink_to(evidence / 'link-target')
-    elif kind == 'dangling':
-        shared.symlink_to(evidence / 'missing-target')
-    fixture = evidence / f'{kind}.bats'
-    fixture.write_text(source.replace('/tmp/codex', str(shared)).replace(assignment, '  project_root=' + shlex.quote(str(root)), 1))
-    result = subprocess.run(['bats', '--tap', '--print-output-on-failure', '--filter', '^checkpoint validates the original fingerprint', str(fixture)], capture_output=True, text=True)
-    if kind in ['missing', 'owned']:
-        assert result.returncode == 0, result.stdout + result.stderr
-        assert shared.is_dir() and not shared.is_symlink()
-        assert shared.stat().st_uid == os.getuid()
-        assert stat.S_IMODE(shared.stat().st_mode) == 0o700
-        assert list(shared.iterdir()) == ([] if kind == 'missing' else [shared / 'keep'])
-    else:
-        assert result.returncode != 0, kind
-        assert 'setup_file failed' in result.stdout, result.stdout
-        if kind == 'file':
-            assert shared.read_text() == 'unchanged'
-        elif kind == 'symlink':
-            assert shared.is_symlink()
-            assert list((evidence / 'link-target').iterdir()) == [evidence / 'link-target' / 'keep']
-        else:
-            assert shared.is_symlink() and not (evidence / 'missing-target').exists()
-
-setup_file = re.search(r'^setup_file\(\) \{\n.*?^\}', source, re.M | re.S).group()
-if Path('/').stat().st_uid != os.getuid():
-    rejected = subprocess.run(['bash', '-c', setup_file.replace('/tmp/codex', '/') + '\nsetup_file'], capture_output=True, text=True)
-    assert rejected.returncode != 0
-teardown = re.search(r'^teardown\(\) \{\n.*?^\}', source, re.M | re.S).group()
-for state in ['unset EVIDENCE', "EVIDENCE=''"]:
-    result = subprocess.run(['bash', '-c', 'set -u\n' + teardown + '\n' + state + '\nteardown'], capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr
-PY
-  [ "$status" -eq 0 ]
+  run node - "$BATS_TEST_DIRNAME/../.." "$EVIDENCE" <<'JS'
+const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const [root, evidence] = process.argv.slice(2).map(p => path.resolve(p));
+const source = fs.readFileSync(path.join(root, 'tests/cli/peer-run-evidence.bats'), 'utf8');
+const assignment = '  project_root="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"';
+assert.equal(source.split('\n').filter(line => line === assignment).length, 1);
+const quote = s => "'" + s.replaceAll("'", "'\\''") + "'";
+for (const kind of ['missing', 'owned', 'file', 'symlink', 'dangling']) {
+  const shared = path.join(evidence, 'shared-' + kind);
+  if (kind === 'owned') {
+    fs.mkdirSync(shared, { mode: 0o700 });
+    fs.writeFileSync(path.join(shared, 'keep'), 'unchanged');
+  } else if (kind === 'file') fs.writeFileSync(shared, 'unchanged');
+  else if (kind === 'symlink') {
+    const target = path.join(evidence, 'link-target');
+    fs.mkdirSync(target, { mode: 0o700 });
+    fs.writeFileSync(path.join(target, 'keep'), 'unchanged');
+    fs.symlinkSync(target, shared);
+  } else if (kind === 'dangling') fs.symlinkSync(path.join(evidence, 'missing-target'), shared);
+  const fixture = path.join(evidence, kind + '.bats');
+  fs.writeFileSync(fixture, source.replaceAll('/tmp/codex', shared).replace(assignment, '  project_root=' + quote(root)).replace('"$BATS_TEST_DIRNAME/../../bin/prepare-file-safety"', quote(path.join(root, 'bin/prepare-file-safety'))));
+  const result = spawnSync('bats', ['--tap', '--print-output-on-failure', '--filter', '^checkpoint validates the original fingerprint', fixture], { encoding: 'utf8' });
+  if (['missing', 'owned'].includes(kind)) {
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const stat = fs.lstatSync(shared);
+    assert(stat.isDirectory() && stat.uid === process.getuid());
+    assert.equal(stat.mode & 0o777, 0o700);
+    assert.deepEqual(fs.readdirSync(shared), kind === 'missing' ? [] : ['keep']);
+  } else {
+    assert.notEqual(result.status, 0, kind);
+    assert(result.stdout.includes('setup_file failed'), result.stdout);
+    if (kind === 'file') assert.equal(fs.readFileSync(shared, 'utf8'), 'unchanged');
+    else assert(fs.lstatSync(shared).isSymbolicLink());
+    if (kind === 'symlink') assert.deepEqual(fs.readdirSync(path.join(evidence, 'link-target')), ['keep']);
+    if (kind === 'dangling') assert(!fs.existsSync(path.join(evidence, 'missing-target')));
+  }
 }
-
-@test "restore cleans up failed writes but preserves a concurrently created destination" {
-  save_checkpoint
-  run python3 - "$SCRIPT" "$REPO" "$REPORT" "$FINGERPRINT" "$CHECKPOINT" <<'PY'
-import os, runpy, sys
-from pathlib import Path
-from unittest.mock import patch
-
-script, repo, report, fingerprint, checkpoint = sys.argv[1:]
-os.chdir(repo)
-restore = runpy.run_path(script)['restore']
-report = Path(report)
-original = report.read_bytes()
-actual_open, actual_chmod = Path.open, os.fchmod
-
-class FailingStream:
-    def __init__(self, stream, fault):
-        self.stream, self.fault = stream, fault
-    def __enter__(self):
-        self.stream.__enter__()
-        return self
-    def __exit__(self, *args):
-        self.stream.__exit__(*args)
-        if self.fault == 'close':
-            raise OSError('injected close failure')
-    def fileno(self):
-        return self.stream.fileno()
-    def write(self, content):
-        if self.fault == 'write':
-            self.stream.write(content[:3])
-            self.stream.flush()
-            raise OSError('injected write failure')
-        return self.stream.write(content)
-
-for fault in ['chmod', 'write', 'close', 'concurrent']:
-    report.unlink()
-    def faulty_open(path, mode='r', *args, **kwargs):
-        if path != report or mode != 'xb':
-            return actual_open(path, mode, *args, **kwargs)
-        if fault == 'concurrent':
-            with actual_open(path, 'xb') as stream:
-                stream.write(b'newer evidence')
-        stream = actual_open(path, mode, *args, **kwargs)
-        return FailingStream(stream, fault)
-    chmod = OSError('injected chmod failure') if fault == 'chmod' else actual_chmod
-    with patch.object(Path, 'open', faulty_open), patch.object(os, 'fchmod', side_effect=chmod):
-        try:
-            restore(fingerprint, checkpoint)
-        except OSError as error:
-            if fault == 'concurrent':
-                assert isinstance(error, FileExistsError), error
-            else:
-                assert str(error) == f'injected {fault} failure', error
-        else:
-            raise AssertionError(f'{fault}: expected restore failure')
-    if fault == 'concurrent':
-        assert report.read_bytes() == b'newer evidence'
-        report.unlink()
-    else:
-        assert not report.exists(), f'{fault}: incomplete evidence remains'
-    restore(fingerprint, checkpoint)
-    assert report.read_bytes() == original
-PY
-  [ "$status" -eq 0 ]
+const setup = source.match(/^setup_file\(\) \{\n.*?^\}/ms)[0];
+if (fs.statSync('/').uid !== process.getuid()) {
+  const result = spawnSync('bash', ['-c', setup.replaceAll('/tmp/codex', '/').replace('"$BATS_TEST_DIRNAME/../../bin/prepare-file-safety"', quote(path.join(root, 'bin/prepare-file-safety'))) + '\nsetup_file'], { encoding: 'utf8' });
+  assert.notEqual(result.status, 0);
 }
-
-@test "restore removes every file it created when a later write fails" {
-  save_checkpoint
-  run python3 - "$SCRIPT" "$REPO" "$REPORT" "$EVIDENCE/mutation.log" "$FINGERPRINT" "$CHECKPOINT" <<'PY'
-import os, runpy, sys
-from pathlib import Path
-from unittest.mock import patch
-
-script, repo, first, second, fingerprint, checkpoint = sys.argv[1:]
-os.chdir(repo)
-restore = runpy.run_path(script)['restore']
-first, second = Path(first), Path(second)
-originals = {path: path.read_bytes() for path in (first, second)}
-actual_open = Path.open
-
-for path in originals:
-    path.unlink()
-created = []
-def faulty_open(path, mode='r', *args, **kwargs):
-    if mode == 'xb':
-        created.append(path)
-        if len(created) == 2:
-            raise OSError('injected second-file failure')
-    return actual_open(path, mode, *args, **kwargs)
-with patch.object(Path, 'open', faulty_open):
-    try:
-        restore(fingerprint, checkpoint)
-    except OSError as error:
-        assert str(error) == 'injected second-file failure', error
-    else:
-        raise AssertionError('expected restore failure')
-assert len(created) == 2, created
-assert not any(path.exists() for path in originals), 'partial evidence remains'
-restore(fingerprint, checkpoint)
-assert all(path.read_bytes() == content for path, content in originals.items())
-PY
-  [ "$status" -eq 0 ]
+const teardown = source.match(/^teardown\(\) \{\n.*?^\}/ms)[0];
+for (const state of ['unset EVIDENCE', "EVIDENCE=''"]) {
+  const result = spawnSync('bash', ['-c', 'set -u\n' + teardown + '\n' + state + '\nteardown'], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
 }
-
-@test "restore rollback preserves a destination another writer replaced after creation" {
-  save_checkpoint
-  run python3 - "$SCRIPT" "$REPO" "$REPORT" "$EVIDENCE/mutation.log" "$FINGERPRINT" "$CHECKPOINT" <<'PY'
-import os, runpy, sys
-from pathlib import Path
-from unittest.mock import patch
-
-script, repo, first, second, fingerprint, checkpoint = sys.argv[1:]
-os.chdir(repo)
-restore = runpy.run_path(script)['restore']
-first, second = Path(first), Path(second)
-originals = {path: path.read_bytes() for path in (first, second)}
-actual_open = Path.open
-
-for path in originals:
-    path.unlink()
-created = []
-def faulty_open(path, mode='r', *args, **kwargs):
-    if mode == 'xb':
-        created.append(path)
-        if len(created) == 2:
-            # 別 writer が先に作った宛先を、旧 inode が残るうちに新しい inode で置き換える。
-            victim = created[0]
-            replacement = victim.with_name(victim.name + '.other')
-            replacement.write_bytes(b'newer evidence')
-            os.replace(replacement, victim)
-            raise OSError('injected second-file failure')
-    return actual_open(path, mode, *args, **kwargs)
-with patch.object(Path, 'open', faulty_open):
-    try:
-        restore(fingerprint, checkpoint)
-    except OSError as error:
-        assert str(error) == 'injected second-file failure', error
-    else:
-        raise AssertionError('expected restore failure')
-victim = created[0]
-assert victim.exists(), 'replaced destination was deleted'
-assert victim.read_bytes() == b'newer evidence', 'replaced destination was deleted'
-assert not (set(originals) - {victim}) & {p for p in originals if p.exists()}, 'other created file remains'
-PY
+JS
   [ "$status" -eq 0 ]
-}
-
-@test "Orca receipt example validates before publishing and reuses saved worker receipts" {
-  run python3 - "$BATS_TEST_DIRNAME/../.." "$EVIDENCE" <<'PY'
-import json, os, subprocess, sys
-from pathlib import Path
-from unittest.mock import patch
-
-root, run = (Path(p).resolve() for p in sys.argv[1:])
-receipt = run / 'worker-one'
-receipt.mkdir()
-(run / 'run-create.json').write_text(json.dumps({'ok': True, 'result': {'run': {'id': 'run-1', 'coordinator_handle': 'parent-1'}}}))
-(receipt / 'worker-start.json').write_text(json.dumps({'result': {'dispatchId': 'dispatch-1', 'taskId': 'task-1', 'effects': [{'kind': 'terminal', 'role': 'agent', 'id': 'worker-1'}]}}))
-doc = root / 'skills/orca-peer-refactor/references/orca.md'
-source = doc.read_text().split("<<'PY'\n", 1)[1].split('\nPY\n```', 1)[0]
-source = source.replace('<skill-dir>', str(root / 'skills/orca-peer-refactor'))
-actual_run = subprocess.run
-queries = []
-worker_output = json.dumps({'ok': True, 'result': {'dispatch': {'id': 'dispatch-1', 'taskId': 'task-1', 'assigneeHandle': 'worker-1', 'status': 'dispatched'}}})
-def fake_orca(argv, **kwargs):
-    if argv[0] != 'orca-ide':
-        return actual_run(argv, **kwargs)
-    if 'worker-show' in argv:
-        queries.append(argv)
-        return subprocess.CompletedProcess(argv, 0, stdout=worker_output)
-    return subprocess.CompletedProcess(argv, 0, stdout=json.dumps({'result': {'runId': 'run-1'}}))
-
-valid_output = worker_output
-for name, worker_output in [('malformed', '{"ok":'), ('rejected', '{"ok":false,"result":{}}'), ('mismatch', valid_output.replace('dispatch-1', 'dispatch-other'))]:
-    failed_receipt = run / name
-    failed_receipt.mkdir()
-    (failed_receipt / 'worker-start.json').write_bytes((receipt / 'worker-start.json').read_bytes())
-    with patch.object(sys, 'argv', ['example', str(run), str(failed_receipt)]), patch.dict(os.environ, {'ORCA_TERMINAL_HANDLE': 'parent-1', 'ORCA_CLI': 'orca-ide', 'SKILL_DIR': str(root / 'skills/orca-peer-refactor')}), patch.object(subprocess, 'run', fake_orca):
-        try:
-            exec(compile(source, str(doc), 'exec'), {})
-        except subprocess.CalledProcessError:
-            pass
-        else:
-            raise AssertionError(f'{name}: invalid receipt was accepted')
-        assert not (failed_receipt / 'worker-show.json').exists(), name
-        pending = failed_receipt / 'worker-show.json.part'
-        assert pending.read_text() == worker_output, name
-        before_retry = len(queries)
-        try:
-            exec(compile(source, str(doc), 'exec'), {})
-        except SystemExit:
-            pass
-        else:
-            raise AssertionError(f'{name}: unfinished receipt was ignored')
-        assert len(queries) == before_retry, name
-        assert pending.read_text() == worker_output, name
-
-worker_output = valid_output
-queries.clear()
-
-with patch.object(sys, 'argv', ['example', str(run), str(receipt)]), patch.dict(os.environ, {'ORCA_TERMINAL_HANDLE': 'parent-1', 'ORCA_CLI': 'orca-ide', 'SKILL_DIR': str(root / 'skills/orca-peer-refactor')}), patch.object(subprocess, 'run', fake_orca):
-    exec(compile(source, str(doc), 'exec'), {})
-    original = (receipt / 'worker-show.json').read_bytes()
-    exec(compile(source, str(doc), 'exec'), {})
-assert len(queries) == 1, queries
-assert (receipt / 'worker-show.json').read_bytes() == original
-PY
-  [ "$status" -eq 0 ]
-}
-
-@test "Orca shell receipt examples publish only complete successful output and preserve failed attempts" {
-  run python3 - "$BATS_TEST_DIRNAME/../.." "$EVIDENCE" <<'PY'
-import json, os, re, subprocess, sys
-from pathlib import Path
-
-root, evidence = (Path(p).resolve() for p in sys.argv[1:])
-doc = root / 'skills/orca-peer-refactor/references/orca.md'
-examples = re.findall(r'\(set -C\b.*?\)', doc.read_text(), re.S)
-assert len(examples) == 5, examples
-binary = evidence / 'bin'
-binary.mkdir()
-fake = binary / 'ORCA'
-fake.write_text('''#!/usr/bin/env python3
-import os, signal, sys
-with open(os.environ['RECEIPT_CALLS'], 'a') as stream:
-    stream.write('called\\n')
-sys.stdout.write(os.environ['RECEIPT_OUTPUT'])
-sys.stdout.flush()
-if os.environ['RECEIPT_MODE'] == 'interrupted':
-    os.kill(os.getpid(), signal.SIGTERM)
-sys.exit(1 if os.environ['RECEIPT_MODE'] == 'failed' else 0)
-''')
-fake.chmod(0o700)
-complete = json.dumps({'ok': True, 'result': {'id': 'receipt-1'}})
-for index, example in enumerate(examples):
-    command = re.sub(r'<[^>]+>', 'fixture', example)
-    operation = re.search(r'ORCA orchestration (run-create|worker-start|worker-show)', command).group(1)
-    for mode, output in [('failed', complete), ('interrupted', '{"ok":'), ('empty', ''), ('malformed', '{"ok":'), ('success', complete), ('existing', complete)]:
-        folder = evidence / f'{index}-{mode}'
-        folder.mkdir()
-        final = folder / f'{operation}.json'
-        pending = folder / f'{operation}.json.part'
-        calls = folder / 'calls'
-        env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ['PATH'], RECEIPT_MODE=mode, RECEIPT_OUTPUT=output, RECEIPT_CALLS=str(calls))
-        env.update({key: str(folder) for key in ['run_dir', 'receipt_dir', 'child_run_dir', 'child_receipt_dir']})
-        if mode == 'existing':
-            final.write_text('original receipt\n')
-        result = subprocess.run(['bash', '-c', command], env=env, capture_output=True, text=True)
-        if mode == 'success':
-            assert result.returncode == 0, result.stderr
-            assert final.read_text() == complete
-        elif mode == 'existing':
-            assert result.returncode != 0
-            assert final.read_text() == 'original receipt\n'
-            assert not calls.exists(), command
-        else:
-            assert result.returncode != 0, (mode, command)
-            assert not final.exists(), (mode, command)
-            assert pending.read_text() == output
-            before_retry = calls.read_bytes()
-            retried = subprocess.run(['bash', '-c', command], env=env, capture_output=True, text=True)
-            assert retried.returncode != 0
-            assert calls.read_bytes() == before_retry, command
-            assert pending.read_text() == output
-
-for index, heading in enumerate(['### coordinator\n', '### nested coordinator\n']):
-    block = doc.read_text().split(heading, 1)[1].split('```text\n', 1)[1].split('\n```', 1)[0]
-    block = block.replace('<skill-dir>', str(root / 'skills/orca-peer-refactor'))
-    command = re.sub(r'<[^>]+>', 'fixture', block)
-    for mode in ['failed', 'interrupted', 'malformed']:
-        folder = evidence / f'sequence-{index}-{mode}'
-        folder.mkdir()
-        calls = folder / 'calls'
-        env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ['PATH'], run_dir=str(folder), RECEIPT_MODE=mode, RECEIPT_OUTPUT='{"ok":', RECEIPT_CALLS=str(calls))
-        result = subprocess.run(['bash', '-c', command], env=env, capture_output=True, text=True)
-        assert result.returncode != 0, (heading, mode)
-        assert calls.read_text().splitlines() == ['called'], (heading, mode, 'later operation ran')
-PY
-  [ "$status" -eq 0 ]
-}
-
-@test "read_public は検査後に祖先 directory が symlink へ差し替えられても外部を読まない" {
-  mkdir -p "$EVIDENCE/dir" "$BATS_TEST_TMPDIR/outside"
-  printf 'inside\n' >"$EVIDENCE/dir/f"
-  printf 'outside\n' >"$BATS_TEST_TMPDIR/outside/f"
-  run python3 -B -I - "$SCRIPT" "$EVIDENCE/dir/f" "$EVIDENCE/dir" "$BATS_TEST_TMPDIR/outside" <<'PY'
-import importlib.util, os, sys
-spec = importlib.util.spec_from_file_location("run_evidence", sys.argv[1])
-m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-target, anc, outside = sys.argv[2:5]
-checked = m.public_path
-def swap(value, artifact_path=None):
-    path = checked(value, artifact_path)
-    os.rename(anc, anc + ".moved")
-    os.symlink(outside, anc)
-    return path
-m.public_path = swap
-try:
-    data = m.read_public(target)
-except ValueError:
-    data = b"rejected"
-print(data.decode().strip())
-PY
-  [ "$status" -eq 0 ]
-  [ "$output" = rejected ]
-}
-
-@test "read_public は共有 directory 自体が system の symlink 配下にあっても読める" {
-  mkdir -p "$BATS_TEST_TMPDIR/real/codex"
-  ln -s "$BATS_TEST_TMPDIR/real" "$BATS_TEST_TMPDIR/tmp"
-  printf 'inside\n' >"$BATS_TEST_TMPDIR/real/codex/f"
-  run python3 -B -I - "$SCRIPT" "$BATS_TEST_TMPDIR/tmp/codex" <<'PY'
-import importlib.util, sys
-from pathlib import Path
-spec = importlib.util.spec_from_file_location("run_evidence", sys.argv[1])
-m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-m.SHARED = Path(sys.argv[2])
-print(m.read_public(str(m.SHARED / "f")).decode().strip())
-PY
-  [ "$status" -eq 0 ]
-  [ "$output" = inside ]
 }

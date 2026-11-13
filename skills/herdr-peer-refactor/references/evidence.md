@@ -2,12 +2,14 @@
 
 作業中の共有ファイルは `mktemp -d /tmp/codex/peer-refactor.XXXXXX` で作成した directory に置く。`/tmp` の永続性に依存せず、親が公開に必要なファイルを明示して checkpoint を作る。保管先は現在の repo の Git common dir 配下の `peer-refactor-evidence/<record fingerprint>/<checkpoint hash>.json`。別 worktree からも同じ保管先を使える。権限設定や raw 隔離境界は変更しない。保管先が読めない場合はアクセス権を拡大せず、その不足を報告する。
 
+候補・証跡 helper は Bash と Bun 1.4.4 以上を使う。利用前に [native module の明示的な準備](../../../docs/bun-peer-evidence-proof.md#入口と準備)を終え、利用する peer から準備先が読めることを確認する。不足時は権限を拡大せず保留する。
+
 ## 公開入力の probe
 
-利用中の skill が probe を要求する場合は、起動後の同じ native peer から、固定 record・候補・元 artifact を既存の `candidate-record.py check` で照合し、実行結果を公開 receipt に保存する。nonce と保存先は親が試行ごとに指定する。
+利用中の skill が probe を要求する場合は、起動後の同じ native peer から、固定 record・候補・元 artifact を既存の `candidate-record check` で照合し、実行結果を公開 receipt に保存する。nonce と保存先は親が試行ごとに指定する。
 
 ```bash
-python3 "$skill_dir/scripts/run-evidence.py" probe \
+"$skill_dir/scripts/run-evidence" probe \
   "$record" "$candidates" "$record_fingerprint" \
   "$probe_nonce" "$probe_receipt"
 ```
@@ -21,7 +23,7 @@ nonce は16〜64桁の小文字の16進数、receipt は `/tmp/codex` 配下の�
 元 record・候補一覧・元 artifact は自動で含める。record・候補と追加入力は `/tmp/codex` 配下に置く。元 artifact は、元 fingerprint が固定する絶対パスに限り、共有領域外にある既存レポートも保存・復元できる。追加するのは確認済みの公開ファイルだけとし、run 全体や session transcript を一括コピーしない。既定の認証 directory と helper に列挙した機密名、symlink は元 artifact にも適用して拒否する。公開ファイルであることは親が確認し、helper は内容の機密判定を行わない。
 
 ```bash
-python3 "$skill_dir/scripts/run-evidence.py" checkpoint \
+"$skill_dir/scripts/run-evidence" checkpoint \
   "$record" "$candidates" "$record_fingerprint" \
   "$run_dir/run-scope.md"
 ```
@@ -40,7 +42,7 @@ python3 "$skill_dir/scripts/run-evidence.py" checkpoint \
 2. 会話に残した最新の checkpoint hash と元 record fingerprint で復元する。directory の mtime から最新を推測せず、古い checkpoint を新しい状態として採用しない。
 
    ```bash
-   python3 "$skill_dir/scripts/run-evidence.py" restore \
+   "$skill_dir/scripts/run-evidence" restore \
      "$record_fingerprint" "$checkpoint_hash"
    ```
 
@@ -50,7 +52,7 @@ python3 "$skill_dir/scripts/run-evidence.py" checkpoint \
 4. 復旧後も既存の照合を行う。
 
    ```bash
-   python3 "$skill_dir/scripts/candidate-record.py" check \
+   "$skill_dir/scripts/candidate-record" check \
      "$record" "$candidates" "$record_fingerprint"
    ```
 

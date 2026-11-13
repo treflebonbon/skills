@@ -1,7 +1,4 @@
-import hashlib
 import re
-import os
-import subprocess
 import unittest
 from pathlib import Path
 
@@ -61,45 +58,19 @@ class PeerRefactorSkillTests(unittest.TestCase):
 
     def test_shared_public_helpers_have_the_same_behavior_source(self):
         shared_helpers = (
-            "candidate-record.py",
+            "candidate-record",
+            "candidate-record.ts",
             "check-architecture-report",
             "check-owned.sh",
             "gh-once.sh",
-            "run-evidence.py",
+            "run-evidence",
+            "run-evidence.ts",
         )
         for filename in shared_helpers:
             with self.subTest(helper=filename):
                 herdr = (SKILLS / PEER_NAMES[0] / "scripts" / filename).read_bytes()
                 orca = (SKILLS / PEER_NAMES[1] / "scripts" / filename).read_bytes()
                 self.assertEqual(herdr, orca)
-
-    def test_run_evidence_does_not_write_bytecode_or_change_script_payload(self):
-        scripts = [
-            *sorted((SKILLS / PEER_NAMES[0] / "scripts").glob("*.py")),
-            *sorted((SKILLS / PEER_NAMES[1] / "scripts").glob("*.py")),
-        ]
-        self.assertTrue(scripts)
-        before = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in scripts}
-        child_env = dict(os.environ)
-        child_env.pop("PYTHONDONTWRITEBYTECODE", None)
-        result = subprocess.run(
-            ["python3", str(SKILLS / PEER_NAMES[0] / "scripts" / "run-evidence.py")],
-            env=child_env,
-            capture_output=True,
-            text=True,
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(
-            {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in scripts},
-            before,
-        )
-        for skill_name in PEER_NAMES:
-            with self.subTest(skill=skill_name):
-                self.assertFalse(
-                    list((SKILLS / skill_name).rglob("__pycache__")),
-                    "Python helper wrote bytecode into the shipped skill",
-                )
-
 
 if __name__ == "__main__":
     unittest.main()

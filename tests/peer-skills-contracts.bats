@@ -9,10 +9,11 @@ setup() {
 
 @test "Herdr and Orca keep shared helpers, evidence, and workflow sections aligned" {
   local script section
-  for script in run-evidence.py candidate-record.py check-owned.sh gh-once.sh check-architecture-report check-architecture-render.js; do
+  for script in run-evidence run-evidence.ts candidate-record candidate-record.ts check-owned.sh gh-once.sh check-architecture-report check-architecture-render.js; do
     cmp "$HERDR/scripts/$script" "$ORCA/scripts/$script"
   done
   cmp "$HERDR/references/evidence.md" "$ORCA/references/evidence.md"
+  cmp "$PROJECT_ROOT/lib/bun/file-safety-native.c" "$PROJECT_ROOT/tests/fixtures/bun-file-safety-native.c"
   for section in '1\. 元の候補を固定' '3\. peer と設計' '4\. 実装と検証' '5\. 独立レビュー' '6\. PR と報告'; do
     cmp <(sed -n "/^## $section/,/^## [0-9]\\./p" "$HERDR/SKILL.md") \
       <(sed -n "/^## $section/,/^## [0-9]\\./p" "$ORCA/SKILL.md")
@@ -48,7 +49,7 @@ setup() {
     skill="$PROJECT_ROOT/skills/$name-peer-refactor/SKILL.md"
     candidates="$(sed -n '/^## 1\. 元の候補を固定/,/^## 2\./p' "$skill")"
     design="$(sed -n '/^## 3\. peer と設計/,/^## 4\./p' "$skill")"
-    printf '%s\n' "$candidates" | grep -Fq 'candidate-record.py pin'
+    printf '%s\n' "$candidates" | grep -Fq 'candidate-record pin'
     printf '%s\n' "$candidates" | grep -Fq '提示済み artifact'
     for field in artifact repo 'source SHA' acceptance non_goals owned_files; do
       grep -Fq "$field" "$skill"
@@ -57,7 +58,7 @@ setup() {
     printf '%s\n' "$candidates" | grep -Fq '人が選んだ候補'
     printf '%s\n' "$candidates" | grep -Fq '未選択なら'
     printf '%s\n' "$design" | grep -Fq '根拠'
-    pin_line="$(grep -n 'candidate-record.py pin' "$skill" | head -1 | cut -d: -f1)"
+    pin_line="$(grep -n 'candidate-record pin' "$skill" | head -1 | cut -d: -f1)"
     check_line="$(grep -n '`check` は設計前、再開時、公開前' "$skill" | cut -d: -f1)"
     design_line="$(grep -n '^## 3\. peer と設計' "$skill" | cut -d: -f1)"
     [ -n "$pin_line" ] && [ -n "$check_line" ]

@@ -5,7 +5,7 @@
 # usage: peer-request.sh <peer> <req-id> <sha> <workdir> <request-file> [round]
 #
 # <workdir> is the run directory under /tmp/codex. The parent checkpoints
-# completed evidence with run-evidence.py. If the peer cannot write there,
+# completed evidence with run-evidence. If the peer cannot write there,
 # capture its complete terminal answer without changing its permissions.
 #
 # Completion = <workdir>/<req-id>.md exists, its first line is

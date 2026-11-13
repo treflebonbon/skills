@@ -41,6 +41,7 @@ environment = git_environment()
 | `gh-review-thread` | Python 3.9+、GitHub CLI `gh` と、その通常の認証設定 | `inspect` は PR / review thread を読む。`--checks` を加えると対象 HEAD の GitHub 検査と CodeRabbit の pre-merge 判定を集計する。`reply-resolve` は対象 PR、thread、commit、返信内容を検証してから返信し、その後に resolve する。返信に失敗した場合は resolve しない。 |
 | `serve-local` | Bash、Bun 1.4.4+ | `serve-local <document-root> <port>` で専用 root を `127.0.0.1` のみへ配信する。port `0` は OS が空きを選び、listen 後に `{root,url}` の JSON を1行出す。foreground の process を runtime の session handle で管理する。GET/HEAD、通常ファイルと `index.html`、directory の末尾 `/` redirect を扱い、root 外の参照と index のない directory は404。追加 install と payload 書込みは不要。 |
 | `orca-send` | Bash、Bun 1.4.4+、選択済み Orca CLI | UTF-8 本文ファイルを最大 8 KiB まで読み、空本文・NUL・不正 UTF-8・重複 body 引数を拒否する。`--body` は shell を通さず literal のまま一度だけ渡す。本文は Orca CLI の argv に入るため、同一 host 上の process から見える可能性がある。 |
+| `prepare-file-safety` | Bash、Bun 1.4.4+、導入済み Node.js と対応する Node-API header、`cc` | candidate/evidence の利用前に、採用済み6操作の native module を payload 外へ source build する明示的な準備入口。保存先・保護・既存 module の検査は[移行手順](bun-peer-evidence-proof.md#入口と準備)を参照する。通常の helper 実行は自動 build / install しない。 |
 | `codex-reviewer` | Bash、Python 3.9+、Git、Codex CLI | linked worktree だけを受け入れ、`-C <root>` で起動する。worktree 固有 Git dir と common Git dir だけを、選択した既存 profile の read-only filesystem 許可として渡す。 |
 
 `git-push-topic` と `git-push-reviewed` は実際の push を行う入口であり、検証では mock のみを使う。`gh-review-thread reply-resolve` と `orca-send` も外部への書込みを行うため、skill とその利用者が通常の承認契約を確認してから実行する。
@@ -69,7 +70,7 @@ CodeRabbit の `head_evidence` は、サマリーで見つけた HEAD を `{sour
 
 ## Bun CLI の起動
 
-`orca-send` と `serve-local` は Bash の privileged mode（`#!/bin/bash -p`）から `lib/bun/run` を使う。`BASH_ENV` と exported shell function を起動前に読み込ませず、symlink の実体から package root を解決する。呼び出し方と選択済み Orca CLI への native 引数は従来どおりである。
+`orca-send`、`serve-local`、`prepare-file-safety` と両 peer の candidate/evidence wrapper は Bash の privileged mode（`#!/bin/bash -p`）から `lib/bun/run` を使う。`BASH_ENV` と exported shell function を起動前に読み込ませず、symlink の実体から package root を解決する。呼び出し方と選択済み Orca CLI への native 引数は従来どおりである。
 
 共用起動は `BUN_*`・`JSC_*`・`NODE_OPTIONS`・`NODE_PATH` を除去してから Bun を起動し、package の bunfig と tsconfig を絶対パスで指定する。dotenv、auto-install、macro、transpiler cache と crash report upload を無効にする。これらの runtime 設定は子 CLI にも引き継がれない。`PATH`、`HOME`、`XDG_CONFIG_HOME`、proxy や認証用の環境、cwd は保つ。Bun 自体と選択済み CLI、package payload は信頼済みの実体を使う。これはそれらの実体を隔離する sandbox ではない。
 

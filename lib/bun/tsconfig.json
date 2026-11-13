@@ -15,6 +15,7 @@
     "./**/*.ts",
     "../../skills/product-guide/scripts/*.ts",
     "../../tests/bun/**/*.ts",
-    "../../development/*.ts"
+    "../../development/*.ts",
+    "../../skills/*-peer-refactor/scripts/*.ts"
   ]
 }

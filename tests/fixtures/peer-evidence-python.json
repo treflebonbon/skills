@@ -1,0 +1,60 @@
+{
+  "sourceCommit": "0c61435fa7ebf585789f851cf046efbe9e4ec2a1",
+  "sourceHashes": {
+    "candidate-record.py": "9fa12f06d349015c7f2a05685e75496ed688634840b2490a0613594f71821532",
+    "run-evidence.py": "c3bd924d5bf3597dc20213f4db70dd70f707cf08548c7832c2fe22cbfd9615e3"
+  },
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [GCC 15.3.0]",
+  "base": "/tmp/codex/peer-python-38-corpus-v1",
+  "sourceSha": "90217c8bab15292039ae57541dd73205ac799d5e",
+  "commit": "tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904\nauthor Corpus <corpus@example.invalid> 1577836800 +0000\ncommitter Corpus <corpus@example.invalid> 1577836800 +0000\n\ncorpus\n",
+  "recordPath": "/tmp/codex/peer-python-38-corpus-v1/record.json",
+  "candidatesPath": "/tmp/codex/peer-python-38-corpus-v1/candidates.json",
+  "receiptPath": "/tmp/codex/peer-python-38-corpus-v1/receipt.json",
+  "artifactPath": "/tmp/codex/peer-python-38-corpus-v1/report.html",
+  "fingerprint": "52cedda741bf1a973243cfca6f95efbcb01e8a90f53033018f0024f63508b896",
+  "checkpoint": "75a78225cd19fcf8926f320bdc6bdfed20e3afcf30c83fee590723a122b91960",
+  "files": {
+    "/tmp/codex/peer-python-38-corpus-v1/report.html": {
+      "base64": "PGgxPuS/neWtmCBTdHJhw59lIM6jIO+sgzwvaDE+Cg==",
+      "sha256": "c1996b70612dd4aec60db3d3f375bccee089f70a3fc50ff347a145a6aa39d24f"
+    },
+    "/tmp/codex/peer-python-38-corpus-v1/candidates.json": {
+      "base64": "WwogIHsKICAgICJpZCI6ICJDMSIsCiAgICAidGl0bGUiOiAi5L+d5a2YIFN0cmHDn2UgzqMg76yDIiwKICAgICJhY2NlcHRhbmNlIjogWwogICAgICAi5pei5a2YIGJ5dGVzIOOCkue2reaMgSIKICAgIF0sCiAgICAibm9uX2dvYWxzIjogW10sCiAgICAib3duZWRfZmlsZXMiOiBbCiAgICAgICJzcmMvYS50cyIKICAgIF0sCiAgICAiZXh0cmEiOiB7CiAgICAgICIxMCI6IDkwMDcxOTkyNTQ3NDA5OTMsCiAgICAgICIyIjogLTkwMDcxOTkyNTQ3NDA5OTMsCiAgICAgICJmcmFjdGlvbiI6IDEuMCwKICAgICAgInplcm8iOiAtMC4wLAogICAgICAiZW1vamkiOiAi8J+NgCIsCiAgICAgICJzcGVjaWFsIjogWwogICAgICAgIE5hTiwKICAgICAgICBJbmZpbml0eSwKICAgICAgICAtSW5maW5pdHkKICAgICAgXQogICAgfQogIH0KXQo=",
+      "sha256": "02a4fd9af37002f339f2e5e2e29373c106f05ea7fbe01b8cd22d4a5f6f4627e7"
+    },
+    "/tmp/codex/peer-python-38-corpus-v1/record.json": {
+      "base64": "ewogICJ2ZXJzaW9uIjogMSwKICAicmVwb19jb21tb25fZGlyIjogIi90bXAvY29kZXgvcGVlci1weXRob24tMzgtY29ycHVzLXYxL3JlcG8vLmdpdCIsCiAgImFydGlmYWN0X3BhdGgiOiAiL3RtcC9jb2RleC9wZWVyLXB5dGhvbi0zOC1jb3JwdXMtdjEvcmVwb3J0Lmh0bWwiLAogICJhcnRpZmFjdF9zaGEyNTYiOiAiYzE5OTZiNzA2MTJkZDRhZWM2MGRiM2QzZjM3NWJjY2VlMDg5ZjcwYTNmYzUwZmYzNDdhMTQ1YTZhYTM5ZDI0ZiIsCiAgInNvdXJjZV9jb21taXQiOiAiOTAyMTdjOGJhYjE1MjkyMDM5YWU1NzU0MWRkNzMyMDVhYzc5OWQ1ZSIsCiAgImNhbmRpZGF0ZXMiOiBbCiAgICB7CiAgICAgICJpZCI6ICJDMSIsCiAgICAgICJ0aXRsZSI6ICLkv53lrZggU3RyYcOfZSDOoyDvrIMiLAogICAgICAiYWNjZXB0YW5jZSI6IFsKICAgICAgICAi5pei5a2YIGJ5dGVzIOOCkue2reaMgSIKICAgICAgXSwKICAgICAgIm5vbl9nb2FscyI6IFtdLAogICAgICAib3duZWRfZmlsZXMiOiBbCiAgICAgICAgInNyYy9hLnRzIgogICAgICBdLAogICAgICAiZXh0cmEiOiB7CiAgICAgICAgIjEwIjogOTAwNzE5OTI1NDc0MDk5MywKICAgICAgICAiMiI6IC05MDA3MTk5MjU0NzQwOTkzLAogICAgICAgICJmcmFjdGlvbiI6IDEuMCwKICAgICAgICAiemVybyI6IC0wLjAsCiAgICAgICAgImVtb2ppIjogIvCfjYAiLAogICAgICAgICJzcGVjaWFsIjogWwogICAgICAgICAgTmFOLAogICAgICAgICAgSW5maW5pdHksCiAgICAgICAgICAtSW5maW5pdHkKICAgICAgICBdCiAgICAgIH0KICAgIH0KICBdCn0K",
+      "sha256": "52cedda741bf1a973243cfca6f95efbcb01e8a90f53033018f0024f63508b896"
+    },
+    "/tmp/codex/peer-python-38-corpus-v1/receipt.json": {
+      "base64": "ewogICJ2ZXJzaW9uIjogMSwKICAibm9uY2UiOiAiMDEyMzQ1Njc4OWFiY2RlZiIsCiAgImZpbmdlcnByaW50IjogIjUyY2VkZGE3NDFiZjFhOTczMjQzY2ZjYTZmOTVlZmJjYjAxZThhOTBmNTMwMzMwMThmMDAyNGY2MzUwOGI4OTYiLAogICJoZWFkIjogIjkwMjE3YzhiYWIxNTI5MjAzOWFlNTc1NDFkZDczMjA1YWM3OTlkNWUiLAogICJjd2QiOiAiL3RtcC9jb2RleC9wZWVyLXB5dGhvbi0zOC1jb3JwdXMtdjEvcmVwbyIsCiAgImNvbW1hbmQiOiBbCiAgICAiL25peC9zdG9yZS81a2NoMGcwN2lpMHoyZjUxMTUzcHo3OTNmM2JrNmFjZC1weXRob24zLTMuMTQuNy9iaW4vcHl0aG9uMyIsCiAgICAiLUIiLAogICAgIi9ob21lL3VidW50dS9vcmNhL3dvcmtzcGFjZXMvc2tpbGxzL2J1bi1jYW5kaWRhdGUtZXZpZGVuY2Uvc2tpbGxzL29yY2EtcGVlci1yZWZhY3Rvci9zY3JpcHRzL2NhbmRpZGF0ZS1yZWNvcmQucHkiLAogICAgImNoZWNrIiwKICAgICIvdG1wL2NvZGV4L3BlZXItcHl0aG9uLTM4LWNvcnB1cy12MS9yZWNvcmQuanNvbiIsCiAgICAiL3RtcC9jb2RleC9wZWVyLXB5dGhvbi0zOC1jb3JwdXMtdjEvY2FuZGlkYXRlcy5qc29uIiwKICAgICI1MmNlZGRhNzQxYmYxYTk3MzI0M2NmY2E2Zjk1ZWZiY2IwMWU4YTkwZjUzMDMzMDE4ZjAwMjRmNjM1MDhiODk2IgogIF0sCiAgImV4aXRfY29kZSI6IDAKfQo=",
+      "sha256": "0944cfdcbf3095fe6df343f4f48f5924f912e2b0c93407a0099b546de3a43751"
+    },
+    "/tmp/codex/peer-python-38-corpus-v1/waited-s": {
+      "base64": "MjcxCg==",
+      "sha256": "123b8a895b694ee1d8b609ef177179f52a500128b15b71e95b0daf75503cb0c5"
+    },
+    "/tmp/codex/peer-python-38-corpus-v1/repo/.git/peer-refactor-evidence/52cedda741bf1a973243cfca6f95efbcb01e8a90f53033018f0024f63508b896/75a78225cd19fcf8926f320bdc6bdfed20e3afcf30c83fee590723a122b91960.json": {
+      "base64": "ewogICJ2ZXJzaW9uIjogMSwKICAicmVjb3JkX3BhdGgiOiAiL3RtcC9jb2RleC9wZWVyLXB5dGhvbi0zOC1jb3JwdXMtdjEvcmVjb3JkLmpzb24iLAogICJjYW5kaWRhdGVzX3BhdGgiOiAiL3RtcC9jb2RleC9wZWVyLXB5dGhvbi0zOC1jb3JwdXMtdjEvY2FuZGlkYXRlcy5qc29uIiwKICAiZmluZ2VycHJpbnQiOiAiNTJjZWRkYTc0MWJmMWE5NzMyNDNjZmNhNmY5NWVmYmNiMDFlOGE5MGY1MzAzMzAxOGYwMDI0ZjYzNTA4Yjg5NiIsCiAgImZpbGVzIjogewogICAgIi90bXAvY29kZXgvcGVlci1weXRob24tMzgtY29ycHVzLXYxL2NhbmRpZGF0ZXMuanNvbiI6ICJXd29nSUhzS0lDQWdJQ0pwWkNJNklDSkRNU0lzQ2lBZ0lDQWlkR2wwYkdVaU9pQWk1TCtkNWEyWUlGTjBjbUhEbjJVZ3pxTWc3NnlESWl3S0lDQWdJQ0poWTJObGNIUmhibU5sSWpvZ1d3b2dJQ0FnSUNBaTVwZWk1YTJZSUdKNWRHVnpJT09Da3VlMnJlYU1nU0lLSUNBZ0lGMHNDaUFnSUNBaWJtOXVYMmR2WVd4eklqb2dXMTBzQ2lBZ0lDQWliM2R1WldSZlptbHNaWE1pT2lCYkNpQWdJQ0FnSUNKemNtTXZZUzUwY3lJS0lDQWdJRjBzQ2lBZ0lDQWlaWGgwY21FaU9pQjdDaUFnSUNBZ0lDSXhNQ0k2SURrd01EY3hPVGt5TlRRM05EQTVPVE1zQ2lBZ0lDQWdJQ0l5SWpvZ0xUa3dNRGN4T1RreU5UUTNOREE1T1RNc0NpQWdJQ0FnSUNKbWNtRmpkR2x2YmlJNklERXVNQ3dLSUNBZ0lDQWdJbnBsY204aU9pQXRNQzR3TEFvZ0lDQWdJQ0FpWlcxdmFta2lPaUFpOEorTmdDSXNDaUFnSUNBZ0lDSnpjR1ZqYVdGc0lqb2dXd29nSUNBZ0lDQWdJRTVoVGl3S0lDQWdJQ0FnSUNCSmJtWnBibWwwZVN3S0lDQWdJQ0FnSUNBdFNXNW1hVzVwZEhrS0lDQWdJQ0FnWFFvZ0lDQWdmUW9nSUgwS1hRbz0iLAogICAgIi90bXAvY29kZXgvcGVlci1weXRob24tMzgtY29ycHVzLXYxL3JlY2VpcHQuanNvbiI6ICJld29nSUNKMlpYSnphVzl1SWpvZ01Td0tJQ0FpYm05dVkyVWlPaUFpTURFeU16UTFOamM0T1dGaVkyUmxaaUlzQ2lBZ0ltWnBibWRsY25CeWFXNTBJam9nSWpVeVkyVmtaR0UzTkRGaVpqRmhPVGN6TWpRelkyWmpZVFptT1RWbFptSmpZakF4WlRoaE9UQm1OVE13TXpNd01UaG1NREF5TkdZMk16VXdPR0k0T1RZaUxBb2dJQ0pvWldGa0lqb2dJamt3TWpFM1l6aGlZV0l4TlRJNU1qQXpPV0ZsTlRjMU5ERmtaRGN6TWpBMVlXTTNPVGxrTldVaUxBb2dJQ0pqZDJRaU9pQWlMM1J0Y0M5amIyUmxlQzl3WldWeUxYQjVkR2h2Ymkwek9DMWpiM0p3ZFhNdGRqRXZjbVZ3YnlJc0NpQWdJbU52YlcxaGJtUWlPaUJiQ2lBZ0lDQWlMMjVwZUM5emRHOXlaUzgxYTJOb01HY3dOMmxwTUhveVpqVXhNVFV6Y0hvM09UTm1NMkpyTm1GalpDMXdlWFJvYjI0ekxUTXVNVFF1Tnk5aWFXNHZjSGwwYUc5dU15SXNDaUFnSUNBaUxVSWlMQW9nSUNBZ0lpOW9iMjFsTDNWaWRXNTBkUzl2Y21OaEwzZHZjbXR6Y0dGalpYTXZjMnRwYkd4ekwySjFiaTFqWVc1a2FXUmhkR1V0WlhacFpHVnVZMlV2YzJ0cGJHeHpMMjl5WTJFdGNHVmxjaTF5WldaaFkzUnZjaTl6WTNKcGNIUnpMMk5oYm1ScFpHRjBaUzF5WldOdmNtUXVjSGtpTEFvZ0lDQWdJbU5vWldOcklpd0tJQ0FnSUNJdmRHMXdMMk52WkdWNEwzQmxaWEl0Y0hsMGFHOXVMVE00TFdOdmNuQjFjeTEyTVM5eVpXTnZjbVF1YW5OdmJpSXNDaUFnSUNBaUwzUnRjQzlqYjJSbGVDOXdaV1Z5TFhCNWRHaHZiaTB6T0MxamIzSndkWE10ZGpFdlkyRnVaR2xrWVhSbGN5NXFjMjl1SWl3S0lDQWdJQ0kxTW1ObFpHUmhOelF4WW1ZeFlUazNNekkwTTJObVkyRTJaamsxWldaaVkySXdNV1U0WVRrd1pqVXpNRE16TURFNFpqQXdNalJtTmpNMU1EaGlPRGsySWdvZ0lGMHNDaUFnSW1WNGFYUmZZMjlrWlNJNklEQUtmUW89IiwKICAgICIvdG1wL2NvZGV4L3BlZXItcHl0aG9uLTM4LWNvcnB1cy12MS9yZWNvcmQuanNvbiI6ICJld29nSUNKMlpYSnphVzl1SWpvZ01Td0tJQ0FpY21Wd2IxOWpiMjF0YjI1ZlpHbHlJam9nSWk5MGJYQXZZMjlrWlhndmNHVmxjaTF3ZVhSb2IyNHRNemd0WTI5eWNIVnpMWFl4TDNKbGNHOHZMbWRwZENJc0NpQWdJbUZ5ZEdsbVlXTjBYM0JoZEdnaU9pQWlMM1J0Y0M5amIyUmxlQzl3WldWeUxYQjVkR2h2Ymkwek9DMWpiM0p3ZFhNdGRqRXZjbVZ3YjNKMExtaDBiV3dpTEFvZ0lDSmhjblJwWm1GamRGOXphR0V5TlRZaU9pQWlZekU1T1RaaU56QTJNVEprWkRSaFpXTTJNR1JpTTJRelpqTTNOV0pqWTJWbE1EZzVaamN3WVRObVl6VXdabVl6TkRkaE1UUTFZVFpoWVRNNVpESTBaaUlzQ2lBZ0luTnZkWEpqWlY5amIyMXRhWFFpT2lBaU9UQXlNVGRqT0dKaFlqRTFNamt5TURNNVlXVTFOelUwTVdSa056TXlNRFZoWXpjNU9XUTFaU0lzQ2lBZ0ltTmhibVJwWkdGMFpYTWlPaUJiQ2lBZ0lDQjdDaUFnSUNBZ0lDSnBaQ0k2SUNKRE1TSXNDaUFnSUNBZ0lDSjBhWFJzWlNJNklDTGt2NTNsclpnZ1UzUnlZY09mWlNET295RHZySU1pTEFvZ0lDQWdJQ0FpWVdOalpYQjBZVzVqWlNJNklGc0tJQ0FnSUNBZ0lDQWk1cGVpNWEyWUlHSjVkR1Z6SU9PQ2t1ZTJyZWFNZ1NJS0lDQWdJQ0FnWFN3S0lDQWdJQ0FnSW01dmJsOW5iMkZzY3lJNklGdGRMQW9nSUNBZ0lDQWliM2R1WldSZlptbHNaWE1pT2lCYkNpQWdJQ0FnSUNBZ0luTnlZeTloTG5Seklnb2dJQ0FnSUNCZExBb2dJQ0FnSUNBaVpYaDBjbUVpT2lCN0NpQWdJQ0FnSUNBZ0lqRXdJam9nT1RBd056RTVPVEkxTkRjME1EazVNeXdLSUNBZ0lDQWdJQ0FpTWlJNklDMDVNREEzTVRrNU1qVTBOelF3T1RrekxBb2dJQ0FnSUNBZ0lDSm1jbUZqZEdsdmJpSTZJREV1TUN3S0lDQWdJQ0FnSUNBaWVtVnlieUk2SUMwd0xqQXNDaUFnSUNBZ0lDQWdJbVZ0YjJwcElqb2dJdkNmallBaUxBb2dJQ0FnSUNBZ0lDSnpjR1ZqYVdGc0lqb2dXd29nSUNBZ0lDQWdJQ0FnVG1GT0xBb2dJQ0FnSUNBZ0lDQWdTVzVtYVc1cGRIa3NDaUFnSUNBZ0lDQWdJQ0F0U1c1bWFXNXBkSGtLSUNBZ0lDQWdJQ0JkQ2lBZ0lDQWdJSDBLSUNBZ0lIMEtJQ0JkQ24wSyIsCiAgICAiL3RtcC9jb2RleC9wZWVyLXB5dGhvbi0zOC1jb3JwdXMtdjEvcmVwb3J0Lmh0bWwiOiAiUEdneFB1Uy9uZVd0bUNCVGRISmh3NTlsSU02aklPK3Nnend2YURFK0NnPT0iLAogICAgIi90bXAvY29kZXgvcGVlci1weXRob24tMzgtY29ycHVzLXYxL3dhaXRlZC1zIjogIk1qY3hDZz09IgogIH0KfQo=",
+      "sha256": "75a78225cd19fcf8926f320bdc6bdfed20e3afcf30c83fee590723a122b91960"
+    }
+  },
+  "cases": [
+    {
+      "candidates": "[{\"id\": \"C1\", \"title\": \"保存 Straße Σ ﬃ\", \"acceptance\": [\"既存 bytes を維持\"], \"non_goals\": [], \"owned_files\": [\"src/a.ts\"], \"extra\": {\"10\": 9007199254740993, \"2\": -9007199254740993, \"fraction\": 1.0, \"zero\": -0.0, \"emoji\": \"🍀\", \"special\": [NaN, Infinity, -Infinity]}}]\n",
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "candidates": "[{\"id\": \"C1\", \"title\": \"保存 STRASSE σ ffi\", \"acceptance\": [\"既存 bytes を維持\"], \"non_goals\": [], \"owned_files\": [\"src/a.ts\"], \"extra\": {\"10\": 9007199254740993, \"2\": -9007199254740993, \"fraction\": 1.0, \"zero\": -0.0, \"emoji\": \"🍀\", \"special\": [NaN, Infinity, -Infinity]}}]\n",
+      "exitCode": 1,
+      "stderr": "エラー: 候補 title がレポートにありません: 保存 STRASSE σ ffi\n"
+    },
+    {
+      "candidates": "[{\"id\": \"C1\", \"title\": \"missing\", \"acceptance\": [\"既存 bytes を維持\"], \"non_goals\": [], \"owned_files\": [\"src/a.ts\"], \"extra\": {\"10\": 9007199254740993, \"2\": -9007199254740993, \"fraction\": 1.0, \"zero\": -0.0, \"emoji\": \"🍀\", \"special\": [NaN, Infinity, -Infinity]}}]\n",
+      "exitCode": 1,
+      "stderr": "エラー: 候補 title がレポートにありません: missing\n"
+    }
+  ]
+}

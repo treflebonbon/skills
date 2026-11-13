@@ -34,7 +34,7 @@ peer-dir と request-file は親と peer の両方から読書きできる Git �
 
 - 今回の依頼 ID と対象 SHA の応答があり、probe の実行と終了を確認できる。
 - receipt は完全な JSON で、version は1、nonce・fingerprint・実 HEAD・cwd が依頼値と一致する。
-- 実行コマンドは指定した skill の `candidate-record.py check` と元の record・候補・fingerprint を指し、終了コードは0である。
+- 実行コマンドは指定した skill の `candidate-record check` と元の record・候補・fingerprint を指し、終了コードは0である。
 
 receipt がない、不完全、不一致、または非0なら readiness 未完了とし、設計へ進まない。tool 実行前の peer の判断は「未実行」と記録し、実際の tool 拒否とは区別する。実行済みの失敗は receipt と観測したエラーの要約を残す。親側の sandbox 成功だけを peer の成功にせず、既存の再照会・保留規則と待機台帳を引き継ぐ。採用した receipt は checkpoint と独立レビューへの入力に含める。
 
