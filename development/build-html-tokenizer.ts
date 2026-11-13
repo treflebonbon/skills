@@ -19,5 +19,6 @@ writeFileSync(
       (name) =>
         `${name}\n\n${readFileSync(resolve(import.meta.dir, "node_modules", name, "LICENSE"), "utf8")}`,
     )
-    .join("\n"),
+    .join("\n")
+    .replace(/[ \t]+$/gm, ""),
 );
