@@ -1,0 +1,805 @@
+{
+  "sourceRevision": "2a894eb1d3932cd800cdd40255690832ea57b354",
+  "pythonVersion": "3.14.7",
+  "sources": {
+    "skills/herdr-peer-refactor/scripts/check-architecture-report.py": "caed5ffc8230471786fd1eaf9a5fc9831305b2f660f3472a25bcab4317e8ff51",
+    "skills/herdr-peer-refactor/scripts/candidate-record.py": "9fa12f06d349015c7f2a05685e75496ed688634840b2490a0613594f71821532",
+    "skills/orca-peer-refactor/scripts/check-architecture-report.py": "caed5ffc8230471786fd1eaf9a5fc9831305b2f660f3472a25bcab4317e8ff51",
+    "skills/orca-peer-refactor/scripts/candidate-record.py": "9fa12f06d349015c7f2a05685e75496ed688634840b2490a0613594f71821532"
+  },
+  "cases": [
+    {
+      "name": "empty",
+      "inputBase64": "",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": ""
+      }
+    },
+    {
+      "name": "text-only",
+      "inputBase64": "cGxhaW4gdGV4dCA8IDUgJmFtcDsgbW9yZQ==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "plain text < 5 & more"
+      }
+    },
+    {
+      "name": "one-diagram",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+Zmxvd2NoYXJ0IFRECkEgLS0+IEI8L3ByZT4=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "flowchart TD A --> B"
+      }
+    },
+    {
+      "name": "two-diagrams",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QTwvcHJlPjxwcmUgY2xhc3M9Im1lcm1haWQiPkI8L3ByZT4=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 2, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "AB"
+      }
+    },
+    {
+      "name": "escaped-markup",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QVsiJmx0O2xhYmVsJmd0OyJdICZhbXA7IEI8L3ByZT4=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A[\"<label>\"] & B"
+      }
+    },
+    {
+      "name": "case-and-class",
+      "inputBase64": "PFBSRSBDTEFTUz0iY29kZSBtZXJtYWlkIG90aGVyIj5BPC9QUkU+",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "class-entity",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybSYjOTc7aWQiPkE8L3ByZT4=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "class-last-wins",
+      "inputBase64": "PHByZSBjbGFzcz0ib3RoZXIiIGNsYXNzPSJtZXJtYWlkIj5BPC9wcmU+",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "class-last-empty",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCIgY2xhc3M+QTwvcHJlPg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "unquoted-class",
+      "inputBase64": "PHByZSBjbGFzcz1tZXJtYWlkPkE8L3ByZT4=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "unicode-class-space",
+      "inputBase64": "PHByZSBjbGFzcz0iY29kZcKFbWVybWFpZBxvdGhlciI+QTwvcHJlPg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "bom-is-not-space",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZO+7vyI+QTwvcHJlPg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "start-markup",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QSA8c3Bhbj54PC9zcGFuPjwvcHJlPg==",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に <span> markup があります; Mermaid の <pre> 内に </span> markup があります\n"
+      },
+      "text": {
+        "value": "A x"
+      }
+    },
+    {
+      "name": "self-closing-markup",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QTxiciAvPkI8L3ByZT4=",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に <br/> markup があります\n"
+      },
+      "text": {
+        "value": "AB"
+      }
+    },
+    {
+      "name": "self-closing-pre",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCIgLz4=",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> が self-closing です\n"
+      },
+      "text": {
+        "value": ""
+      }
+    },
+    {
+      "name": "unquoted-trailing-slash",
+      "inputBase64": "PHByZSBjbGFzcz1tZXJtYWlkLz4=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": ""
+      }
+    },
+    {
+      "name": "nested-pre",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+PHByZSBjbGFzcz0ibWVybWFpZCI+QTwvcHJlPjwvcHJlPg==",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に <pre> markup があります\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "stray-endtag",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QTwvdW5rbm93bj48L3ByZT4=",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に </unknown> markup があります\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "comment",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QTwhLS0gaGlkZGVuIC0tPkI8L3ByZT4=",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に HTML comment があります\n"
+      },
+      "text": {
+        "value": "AB"
+      }
+    },
+    {
+      "name": "declaration",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+PCFET0NUWVBFIGh0bWw+QTwvcHJlPg==",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に HTML declaration があります\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "bogus-declaration",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+PCF1bmtub3duPkE8L3ByZT4=",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に HTML comment があります\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "cdata",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+PCFbQ0RBVEFbQSA8c3Bhbj4gQl1dPjwvcHJlPg==",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に HTML declaration があります\n"
+      },
+      "text": {
+        "value": ""
+      }
+    },
+    {
+      "name": "processing-instruction",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+PD9wcm9iZSB2YWx1ZT8+QTwvcHJlPg==",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に processing instruction があります\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "unterminated-pre",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QQ==",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> が閉じていません\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "unterminated-starttag",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QSA8c3Bhbg==",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> が閉じていません\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "unterminated-attribute",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QSA8c3BhbiB0aXRsZT0ieD4=",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> が閉じていません\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "unterminated-comment",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QTwhLS0gaGlkZGVu",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に HTML comment があります; Mermaid の <pre> が閉じていません\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "unterminated-declaration",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+PCFET0NUWVBFIGh0bWw=",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に HTML declaration があります; Mermaid の <pre> が閉じていません\n"
+      },
+      "text": {
+        "value": ""
+      }
+    },
+    {
+      "name": "unterminated-pi",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+PD9wcm9iZQ==",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に processing instruction があります; Mermaid の <pre> が閉じていません\n"
+      },
+      "text": {
+        "value": ""
+      }
+    },
+    {
+      "name": "endtag-attributes",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QTwvcHJlIGlnbm9yZWQ9IngiPg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "endtag-invalid",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QTwvMT5CPC9wcmU+",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に HTML comment があります\n"
+      },
+      "text": {
+        "value": "AB"
+      }
+    },
+    {
+      "name": "raw-script",
+      "inputBase64": "PHNjcmlwdD5pZiAoYSA8IGIpIHsgeD0iJmFtcDsiOyB9PC9zY3JpcHQ+PHByZSBjbGFzcz0ibWVybWFpZCI+QTwvcHJlPg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "if (a < b) { x=\"&amp;\"; }A"
+      }
+    },
+    {
+      "name": "raw-script-unclosed",
+      "inputBase64": "PHNjcmlwdD5BICZhbXA7IDxwcmUgY2xhc3M9Im1lcm1haWQiPkI=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A &amp; <pre class=\"mermaid\">B"
+      }
+    },
+    {
+      "name": "raw-style",
+      "inputBase64": "PHN0eWxlPkEgPiBCICZhbXA7IEM8L3N0eWxlPg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A > B &amp; C"
+      }
+    },
+    {
+      "name": "rcdata-textarea",
+      "inputBase64": "PHRleHRhcmVhPkEgJmFtcDsgPHByZSBjbGFzcz0ibWVybWFpZCI+QjwvdGV4dGFyZWE+",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A & <pre class=\"mermaid\">B"
+      }
+    },
+    {
+      "name": "rcdata-title",
+      "inputBase64": "PHRpdGxlPkEgJmFtcDsgPGI+QjwvYj48L3RpdGxlPg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A & <b>B</b>"
+      }
+    },
+    {
+      "name": "plaintext",
+      "inputBase64": "PHBsYWludGV4dD5BICZhbXA7IDxwcmUgY2xhc3M9Im1lcm1haWQiPkI8L3ByZT4=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A &amp; <pre class=\"mermaid\">B</pre>"
+      }
+    },
+    {
+      "name": "noscript",
+      "inputBase64": "PG5vc2NyaXB0PjxwcmUgY2xhc3M9Im1lcm1haWQiPkE8L3ByZT48L25vc2NyaXB0Pg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "foreign-cdata",
+      "inputBase64": "PHN2Zz48IVtDREFUQVtBICZhbXA7IDxiPkI8L2I+XV0+PC9zdmc+",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": ""
+      }
+    },
+    {
+      "name": "entities",
+      "inputBase64": "JmFtcDsmbHQ7Jmd0OyZxdW90OyZhcG9zOyZuYnNwOyZOb3RFcXVhbFRpbGRlOyZDb3VudGVyQ2xvY2t3aXNlQ29udG91ckludGVncmFsOyAmbm90aXQ7ICZjb3B5IHRleHQgJiM2NTsmI3gxZjYwMDsmIzA7JiN4RDgwMDsmI3gxMTAwMDA7JiN4ODA7JiN4MGQ7",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "&<>\"' ≂̸∳ ¬it; © text A😀���€"
+      }
+    },
+    {
+      "name": "attribute-entity-tail",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCZub3RpdDsiPkE8L3ByZT4=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "text-concatenation",
+      "inputBase64": "PGgxPuWAmeijnDwvaDE+PHA+5pys5paHPC9wPjwhLS0gaGlkZGVuIC0tPjxzY3JpcHQ+c2NyaXB0IHRleHQ8L3NjcmlwdD4=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "候補本文script text"
+      }
+    },
+    {
+      "name": "unicode-whitespace",
+      "inputBase64": "77u/QRxCwoVDwqBE4oCDReKAqEbjgIBHCiBI77u/",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "﻿A B C D E F G H﻿"
+      }
+    },
+    {
+      "name": "nul-and-crlf",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QQANCkINQzwvcHJlPg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A\u0000 B C"
+      }
+    },
+    {
+      "name": "utf8-bom",
+      "inputBase64": "77u/PHByZSBjbGFzcz0ibWVybWFpZCI+QTwvcHJlPg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "﻿A"
+      }
+    },
+    {
+      "name": "unterminated-endtag",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QTwvcHJl",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> が閉じていません\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "unterminated-end-attribute",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QTwvcHJlIGlnbm9yZWQ9Ing+",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> が閉じていません\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "numeric-controls",
+      "inputBase64": "QSYjMTE7QiYjMTtDJiN4RkREMDtEJiN4MUZGRkU7RSYjeDgxO0Y=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "ABCDEF"
+      }
+    },
+    {
+      "name": "attribute-ambiguous-entity",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCZub3Q9Ij5BPC9wcmU+",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "cdata-unclosed",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+PCFbQ0RBVEFbQSA8Yj5C",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に HTML declaration があります; Mermaid の <pre> が閉じていません\n"
+      },
+      "text": {
+        "value": ""
+      }
+    },
+    {
+      "name": "cdata-following-text",
+      "inputBase64": "PCFbQ0RBVEFbQSA8Yj5CXV0+dGFpbDxwcmUgY2xhc3M9Im1lcm1haWQiPkM8L3ByZT4=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "tailC"
+      }
+    },
+    {
+      "name": "self-closing-script",
+      "inputBase64": "PHNjcmlwdC8+QSAmYW1wOyA8cHJlIGNsYXNzPSJtZXJtYWlkIj5CPC9wcmU+",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A & B"
+      }
+    },
+    {
+      "name": "raw-noembed",
+      "inputBase64": "PG5vZW1iZWQ+QSAmYW1wOyA8cHJlIGNsYXNzPSJtZXJtYWlkIj5CPC9wcmU+PC9ub2VtYmVkPg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A &amp; <pre class=\"mermaid\">B</pre>"
+      }
+    },
+    {
+      "name": "raw-xmp",
+      "inputBase64": "PHhtcD5BICZhbXA7IDxwcmUgY2xhc3M9Im1lcm1haWQiPkI8L3ByZT48L3htcD4=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "A &amp; <pre class=\"mermaid\">B</pre>"
+      }
+    },
+    {
+      "name": "doctype-no-space",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+PCFET0NUWVBFaHRtbD5BPC9wcmU+",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に HTML declaration があります\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "tag-unicode-case",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+PFjihKo+QTwvWOKEqj48L3ByZT4=",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に <xk> markup があります; Mermaid の <pre> 内に </xk> markup があります\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "pre-comment-close",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+PCEtLT5BPC9wcmU+",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に HTML comment があります\n"
+      },
+      "text": {
+        "value": "A"
+      }
+    },
+    {
+      "name": "tests/fixtures/architecture-render/console-error.html",
+      "inputBase64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KICA8aGVhZD4KICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04IiAvPgogICAgPGxpbmsgcmVsPSJpY29uIiBocmVmPSIvZmF2aWNvbi5pY28iIC8+CiAgICA8c2NyaXB0PmNvbnNvbGUuZXJyb3IoImZpeHR1cmUgY29uc29sZSBlcnJvciIpOzwvc2NyaXB0PgogICAgPHNjcmlwdCBzcmM9Ii9yZW5kZXItZml4dHVyZS5qcyIgZGVmZXI+PC9zY3JpcHQ+CiAgPC9oZWFkPgogIDxib2R5PjxwcmUgY2xhc3M9Im1lcm1haWQiPmZsb3djaGFydCBURAogIEEgLS0+IEIKPC9wcmU+PC9ib2R5Pgo8L2h0bWw+Cg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "console.error(\"fixture console error\"); flowchart TD A --> B"
+      }
+    },
+    {
+      "name": "tests/fixtures/architecture-render/invalid-syntax.html",
+      "inputBase64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KICA8aGVhZD4KICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04IiAvPgogICAgPGxpbmsgcmVsPSJpY29uIiBocmVmPSIvZmF2aWNvbi5pY28iIC8+CiAgICA8c2NyaXB0IHNyYz0iL3JlbmRlci1maXh0dXJlLmpzIiBkZWZlcj48L3NjcmlwdD4KICA8L2hlYWQ+CiAgPGJvZHk+PHByZSBjbGFzcz0ibWVybWFpZCI+Zmxvd2NoYXJ0IFRECiAgQSAtLSZndDsKPC9wcmU+PC9ib2R5Pgo8L2h0bWw+Cg==",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "flowchart TD A -->"
+      }
+    },
+    {
+      "name": "tests/fixtures/architecture-render/no-diagrams.html",
+      "inputBase64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KICA8aGVhZD4KICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04IiAvPgogICAgPGxpbmsgcmVsPSJpY29uIiBocmVmPSIvZmF2aWNvbi5pY28iIC8+CiAgICA8c2NyaXB0IHNyYz0iL3JlbmRlci1maXh0dXJlLmpzIiBkZWZlcj48L3NjcmlwdD4KICA8L2hlYWQ+CiAgPGJvZHk+PG1haW4+UmVwb3J0IHdpdGhvdXQgYSBkaWFncmFtLjwvbWFpbj48L2JvZHk+CjwvaHRtbD4K",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 0, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "Report without a diagram."
+      }
+    },
+    {
+      "name": "tests/fixtures/architecture-render/original-error.html",
+      "inputBase64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KICA8aGVhZD4KICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04IiAvPgogICAgPGxpbmsgcmVsPSJpY29uIiBocmVmPSIvZmF2aWNvbi5pY28iIC8+CiAgICA8c2NyaXB0IHNyYz0iL3JlbmRlci1maXh0dXJlLmpzIiBkZWZlcj48L3NjcmlwdD4KICA8L2hlYWQ+CiAgPGJvZHk+PHByZSBjbGFzcz0ibWVybWFpZCIgdGFiaW5kZXg9IjAiIGFyaWEtbGFiZWw9IuWkieabtOWJjeOBruS+neWtmOmWouS/giI+PGNvZGU+Zmxvd2NoYXJ0IFRCCiAgSFsiQ1NWIHByaW1hcnkgYWRhcHRlciJdIC0tPiBMWyIxMDDku7bjgZTjgajjga7lt6Hlm57jg7vntYLkuobliKTlrpoiXQogIEwgLS0+IFNbInNlYXJjaCBpbnRlcmZhY2UiXQogIFMgLS0+IFJbIlBvc3RncmVzIGFkYXB0ZXIiXQogIFIgLS0+IFFbIuaknOe0oiArIENPVU5UIl0KICBjbGFzcyBMIGxlYWs7PC9jb2RlPjwvcHJlPjwvYm9keT4KPC9odG1sPgo=",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: Mermaid の <pre> 内に <code> markup があります; Mermaid の <pre> 内に </code> markup があります\n"
+      },
+      "text": {
+        "value": "flowchart TB H[\"CSV primary adapter\"] --> L[\"100件ごとの巡回・終了判定\"] L --> S[\"search interface\"] S --> R[\"Postgres adapter\"] R --> Q[\"検索 + COUNT\"] class L leak;"
+      }
+    },
+    {
+      "name": "tests/fixtures/architecture-render/two-svgs.html",
+      "inputBase64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KICA8aGVhZD4KICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04IiAvPgogICAgPGxpbmsgcmVsPSJpY29uIiBocmVmPSIvZmF2aWNvbi5pY28iIC8+CiAgICA8c2NyaXB0IHNyYz0iL3JlbmRlci1maXh0dXJlLmpzIiBkZWZlcj48L3NjcmlwdD4KICA8L2hlYWQ+CiAgPGJvZHk+PHByZSBjbGFzcz0ibWVybWFpZCI+Zmxvd2NoYXJ0IFRECiAgQSAtLT4gQgo8L3ByZT48L2JvZHk+CjwvaHRtbD4K",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "flowchart TD A --> B"
+      }
+    },
+    {
+      "name": "tests/fixtures/architecture-render/valid.html",
+      "inputBase64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KICA8aGVhZD4KICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04IiAvPgogICAgPGxpbmsgcmVsPSJpY29uIiBocmVmPSIvZmF2aWNvbi5pY28iIC8+CiAgICA8c2NyaXB0IHNyYz0iL3JlbmRlci1maXh0dXJlLmpzIiBkZWZlcj48L3NjcmlwdD4KICA8L2hlYWQ+CiAgPGJvZHk+PHByZSBjbGFzcz0ibWVybWFpZCI+Zmxvd2NoYXJ0IFRECiAgQSAtLT4gQgo8L3ByZT48L2JvZHk+CjwvaHRtbD4K",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "flowchart TD A --> B"
+      }
+    },
+    {
+      "name": "invalid-utf8",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+/zwvcHJlPg==",
+      "checker": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "エラー: HTML report を UTF-8 で読めません\n"
+      },
+      "text": {
+        "error": "レポートは UTF-8 で読めません"
+      }
+    },
+    {
+      "name": "endtag-quoted-angle",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QTwvcHJlIGlnbm9yZWQ9Ij4iPnRhaWw=",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "Atail"
+      }
+    },
+    {
+      "name": "endtag-embedded-pre",
+      "inputBase64": "PHByZSBjbGFzcz0ibWVybWFpZCI+QTwvcHJlIGlnbm9yZWQ9Ij48cHJlIGNsYXNzPW1lcm1haWQ+Ij50YWls",
+      "checker": {
+        "status": 0,
+        "stdout": "{\"static_check\": \"passed\", \"expected_mermaid_diagrams\": 1, \"render_check\": \"not_performed\"}\n",
+        "stderr": ""
+      },
+      "text": {
+        "value": "Atail"
+      }
+    }
+  ],
+  "additionalCasesFromPinnedSource": ["endtag-quoted-angle", "endtag-embedded-pre"]
+}

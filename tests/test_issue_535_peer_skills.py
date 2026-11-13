@@ -1,9 +1,7 @@
 import hashlib
 import re
-import json
 import os
 import subprocess
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -64,7 +62,7 @@ class PeerRefactorSkillTests(unittest.TestCase):
     def test_shared_public_helpers_have_the_same_behavior_source(self):
         shared_helpers = (
             "candidate-record.py",
-            "check-architecture-report.py",
+            "check-architecture-report",
             "check-owned.sh",
             "gh-once.sh",
             "run-evidence.py",
@@ -74,48 +72,6 @@ class PeerRefactorSkillTests(unittest.TestCase):
                 herdr = (SKILLS / PEER_NAMES[0] / "scripts" / filename).read_bytes()
                 orca = (SKILLS / PEER_NAMES[1] / "scripts" / filename).read_bytes()
                 self.assertEqual(herdr, orca)
-
-    def test_static_html_inspection_reports_that_rendering_is_pending(self):
-        report = ROOT / "tests" / "fixtures" / "architecture-render" / "valid.html"
-        checker = SKILLS / PEER_NAMES[0] / "scripts" / "check-architecture-report.py"
-        result = subprocess.run(
-            ["python3", str(checker), str(report)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        receipt = json.loads(result.stdout)
-        self.assertGreater(receipt["expected_mermaid_diagrams"], 0)
-        self.assertEqual(receipt["static_check"], "passed")
-        self.assertEqual(receipt["render_check"], "not_performed")
-        self.assertTrue((SKILLS / PEER_NAMES[0] / "scripts" / "check-architecture-render.js").is_file())
-
-    def test_html_static_checker_accepts_text_and_rejects_markup_inside_mermaid(self):
-        checker = SKILLS / PEER_NAMES[0] / "scripts" / "check-architecture-report.py"
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            report = Path(temporary_directory) / "report.html"
-            report.write_text(
-                '<pre class="mermaid">flowchart TD\nA["&lt;label&gt;"] --> B\n</pre>',
-                encoding="utf-8",
-            )
-            accepted = subprocess.run(
-                ["python3", str(checker), str(report)],
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(accepted.returncode, 0, accepted.stderr)
-            self.assertEqual(json.loads(accepted.stdout)["expected_mermaid_diagrams"], 1)
-
-            report.write_text(
-                '<pre class="mermaid">flowchart TD<br />A --> B</pre>',
-                encoding="utf-8",
-            )
-            rejected = subprocess.run(
-                ["python3", str(checker), str(report)],
-                capture_output=True,
-                text=True,
-            )
-            self.assertNotEqual(rejected.returncode, 0)
 
     def test_run_evidence_does_not_write_bytecode_or_change_script_payload(self):
         scripts = [

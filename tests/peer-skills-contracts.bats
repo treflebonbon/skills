@@ -9,7 +9,7 @@ setup() {
 
 @test "Herdr and Orca keep shared helpers, evidence, and workflow sections aligned" {
   local script section
-  for script in run-evidence.py candidate-record.py check-owned.sh gh-once.sh check-architecture-report.py check-architecture-render.js; do
+  for script in run-evidence.py candidate-record.py check-owned.sh gh-once.sh check-architecture-report check-architecture-render.js; do
     cmp "$HERDR/scripts/$script" "$ORCA/scripts/$script"
   done
   cmp "$HERDR/references/evidence.md" "$ORCA/references/evidence.md"

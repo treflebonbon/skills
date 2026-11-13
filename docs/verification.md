@@ -62,7 +62,9 @@ npm run lint
 npm run lint:sh
 ```
 
-`lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `lib/bun/run`、`tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトと `lib/bun/run`です（`-S warning` 以上。info と style は見ません）。対象のファイルを commit するときは、pre-commit hook が実行します。CI では走りません。
+`lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `lib/bun/run`、両 peer の `scripts/check-architecture-report`、`tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトと `lib/bun/run`、両 peer の `scripts/check-architecture-report` です（`-S warning` 以上。info と style は見ません）。対象のファイルを commit するときは、pre-commit hook が実行します。CI では走りません。
+
+HTML report の静的 checker と text 抽出の比較 corpus、同梱 parser、入口の更新は [移行記録](html-report-parser-proof.md) を参照してください。
 
 他のシェルファイルは対象外です。そのうち次の Bats 7 ファイルは、`.editorconfig` の `indent_size = 2` で `shfmt -l` に差分が出ることを確認しました。対象へ足すときは、先に整形を揃えます。`peer-peer-request`、`peer-run-evidence`、`peer-skills-contracts`、`devshell-env`、`isolated-github`、`raw-codex-integration`、`secret-isolation-worktree`。他の対象外のファイルは、差分の有無を確認していません。
 

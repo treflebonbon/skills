@@ -11,7 +11,7 @@ description: "明示依頼された元候補を Orca の native orchestration �
 
 提示済み artifact と、その提示時の repo・source SHA を読む。提示時に記録された repo の共通 Git dir の絶対パスを使い、未記録なら artifact が示す元 repo から read-only で解決する。出所が確認できない場合、現在の cwd で補わず保留する。候補がゼロなら Top recommendation は「該当候補なし」とし、候補選択質問をせず、完了 report を出す。候補があるのに peer 依頼未承認で未選択なら pin しない。人が選んだ候補（「両方」など）は保持する。人が peer 協働を明示依頼して選択を委任した場合だけ、推薦順位を渡さず peer にコード・ADR・反例から元候補を選ばせ、その候補を pin する。artifact 不明時は [証跡の保存と復旧](references/evidence.md) で同内容を復旧できるか確認し、照合できなければ再探索で補わず保留する。別 repo・出所不明も保留する。
 
-HTML report の pin は、静的検査と実ブラウザ描画検査が成功し、その後に同じ artifact を提示した場合だけ行う。`python3 <skill-dir>/scripts/check-architecture-report.py <report.html>` は Mermaid `<pre>` の raw text と期待図数を検査するだけで、実描画を証明しない。提示前に検査されていない report は、検査後に提示し直す。HTML 検査の失敗時は pin しない。Markdown artifact は従来経路を保ち、HTML 描画検査を要求しない。候補ゼロ、または peer 依頼未承認で未選択ならこの pin 手順へ入らない。peer 協働の明示依頼で選択を委任された場合は、peer が元候補一覧から選んだ候補を pin してよい。
+HTML report の pin は、静的検査と実ブラウザ描画検査が成功し、その後に同じ artifact を提示した場合だけ行う。`<skill-dir>/scripts/check-architecture-report <report.html>` は Mermaid `<pre>` の raw text と期待図数を検査するだけで、実描画を証明しない。提示前に検査されていない report は、検査後に提示し直す。HTML 検査の失敗時は pin しない。Markdown artifact は従来経路を保ち、HTML 描画検査を要求しない。候補ゼロ、または peer 依頼未承認で未選択ならこの pin 手順へ入らない。peer 協働の明示依頼で選択を委任された場合は、peer が元候補一覧から選んだ候補を pin してよい。
 
 `skill_dir` はロードされた `SKILL.md` の絶対 path の親 directory にする。共用 CLI が必要なときは [共用 CLI の説明](../../docs/shared-cli.md) に従い、`plugin_root` を `skill_dir` から解決して `"$plugin_root/bin/<command>"` を絶対 path で使う。cwd や `PATH`、別の skill install location から推測しない。Orca 内蔵 page 操作には別途導入した `orca-cli` skill を使う。HTML report の browser 検査は [WSL2 browser package](../../packages/wsl2-browser/USAGE.md) の条件が満たされる場合にだけ `"$plugin_root/packages/wsl2-browser/bin/playwright-cli"` で行う。`file:` URL は使わず、report directory を loopback のみで listen する HTTP server で配信し、server URL と artifact path を照合してから server を止める。実 browser を使えなければ HTML report は検査済みと扱わず、Markdown artifact の経路を案内する。
 
@@ -19,7 +19,7 @@ HTML report の pin は、静的検査と実ブラウザ描画検査が成功し
 : "${skill_dir:?現在の skill directory を指定してください}"
 plugin_root="$(cd "$skill_dir/../.." && pwd)"
 report="/absolute/path/to/report.html"
-python3 "$skill_dir/scripts/check-architecture-report.py" "$report"
+"$skill_dir/scripts/check-architecture-report" "$report"
 python3 -m http.server 8765 --bind 127.0.0.1 --directory "$(dirname "$report")"
 ```
 

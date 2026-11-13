@@ -14,6 +14,7 @@ pre-commit:
       glob:
         - "bin/**"
         - "lib/bun/run"
+        - "skills/*-peer-refactor/scripts/check-architecture-report"
         - "tests/cli/git-push-topic.bats"
         - ".editorconfig"
         - "package.json"
