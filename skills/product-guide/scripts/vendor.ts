@@ -65,10 +65,20 @@ for (const { pkg, from, replace } of ASSETS) {
 }
 
 // lock の全 package（推移依存を含む）の license を notice に集める。
-const notices = Object.entries<{ version: string }>(lock.packages)
+// 各項目には、配布物のソースの入手元（lock の resolved と、package.json の repository）を添える。
+// EPL-2.0 など、ソースの入手方法を伝えることを求める license があるため。
+const notices = Object.entries<{ version: string; resolved?: string }>(lock.packages)
   .filter(([name]) => name)
-  .map(([name, { version }]) => {
+  .map(([name, { version, resolved }]) => {
     const dir = join(nodeModules, name.replace(/^node_modules\//, ""));
+    const repository = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).repository;
+    const repositoryUrl = typeof repository === "string" ? repository : repository?.url;
+    const source = [
+      resolved && `入手元（registry の tarball）: ${resolved}`,
+      repositoryUrl && `ソースの repository: ${repositoryUrl}（版 ${version}）`,
+    ]
+      .filter(Boolean)
+      .join("\n");
     const texts = readdirSync(dir)
       .filter((f) => /^licen[sc]e(?:\.|$)/iu.test(f))
       .map((f) => readFileSync(join(dir, f), "utf8"));
@@ -76,6 +86,6 @@ const notices = Object.entries<{ version: string }>(lock.packages)
     if (!texts.length && name.endsWith("@ast-grep/wasm"))
       texts.push(readFileSync(join(skill, "references/ast-grep-wasm.LICENSE"), "utf8"));
     if (!texts.length) throw new Error(`${name}: license ファイルがありません`);
-    return `${name.replace(/^node_modules\//, "")}@${version}\n${texts.join("\n")}`;
+    return `${name.replace(/^node_modules\//, "")}@${version}\n${source ? `${source}\n\n` : ""}${texts.join("\n")}`;
   });
 writeFileSync(join(vendor, "THIRD-PARTY-LICENSES.txt"), notices.join("\n\n---\n\n"));
