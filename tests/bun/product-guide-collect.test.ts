@@ -112,14 +112,39 @@ test("--path で範囲を絞れる", () => {
 
 test("不正な入力は失敗し、出力を作らない", () => {
   const { dir, a } = repo();
-  for (const commit of ["main", a.slice(0, 7), "0".repeat(40)]) {
+  // [入力, 期待する拒否理由]。形式の誤りは --commit の検査、形式が正しくても存在しなければ git の失敗。
+  const rejected: [string, string][] = [
+    ["main", "--commit は 40 桁の小文字 16 進のコミット ID が必要です"],
+    [a.slice(0, 7), "--commit は 40 桁の小文字 16 進のコミット ID が必要です"],
+    [a.toUpperCase(), "--commit は 40 桁の小文字 16 進のコミット ID が必要です"],
+    ["0".repeat(40), "git cat-file に失敗しました"],
+  ];
+  for (const [commit, reason] of rejected) {
     const { r, json } = collectAt(dir, commit);
-    expect(r.code).not.toBe(0);
+    expect(r.code, commit).toBe(1);
+    expect(r.err, commit).toContain(reason);
     expect(json).toBeUndefined();
   }
   const first = collectAt(dir, a);
+  expect(first.r.code).toBe(0); // 境界の 1 つ手前: 正しい完全なコミット ID は通る
   const again = spawn([run, "run", collect, dir, "--commit", a, "--out", first.out]);
-  expect(again.code).not.toBe(0); // 既存の出力は上書きしない
+  expect(again.code).toBe(1); // 既存の出力は上書きしない
+  expect(again.err).toContain("出力先が既に存在します。上書きしません");
+});
+
+test("repo のパスや出力先が使えないときは、スタックトレースではなく使い方のエラーにする", () => {
+  const { dir, a } = repo();
+  const missingRepo = collectAt(join(dir, "no-such-repo"), a);
+  expect(missingRepo.r.code).toBe(1);
+  expect(missingRepo.r.err).toContain("git を実行できません");
+  expect(missingRepo.r.err).not.toContain("    at ");
+  // 出力先のディレクトリが無ければ書けない。理由を報告し、何も作らない。
+  const out = join(dir, "no-such-dir", "evidence.json");
+  const noDir = spawn([run, "run", collect, dir, "--commit", a, "--out", out]);
+  expect(noDir.code).toBe(1);
+  expect(noDir.err).toContain("出力を書けません");
+  expect(noDir.err).not.toContain("    at ");
+  expect(existsSync(out)).toBe(false);
 });
 
 // 括弧付きの関数値は収集し、メソッドは直近の所有ノード（クラス宣言）の名前だけを所属として記録する。

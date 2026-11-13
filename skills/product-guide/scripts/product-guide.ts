@@ -31,6 +31,12 @@ type Side = "target" | "baseline";
 const KINDS = Object.keys(KIND_LABEL) as Kind[]; // 挿入順 = 確かな順
 const COMMIT = /^[0-9a-f]{40}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+// 形式だけでなく、実在する日付か（2026-13-45 や 2026-02-29 を拒否する）。Date で往復して一致を確かめる。
+const isDate = (s: string) => {
+  if (!DATE.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+};
 
 type Json = unknown;
 type Rec = Record<string, unknown>;
@@ -155,8 +161,8 @@ function validate(input: Json): { errors: string[]; model?: Model } {
     if (commit && !COMMIT.test(commit))
       err(`${path}.commit`, `${label}は 40 桁の小文字 16 進のコミット ID である必要があります`);
     const confirmedOn = str(fields.confirmedOn, `${path}.confirmedOn`);
-    if (confirmedOn && !DATE.test(confirmedOn))
-      err(`${path}.confirmedOn`, "YYYY-MM-DD 形式である必要があります");
+    if (confirmedOn && !isDate(confirmedOn))
+      err(`${path}.confirmedOn`, "実在する日付の YYYY-MM-DD 形式である必要があります");
     const versionName = str(fields.versionName, `${path}.versionName`, true) || undefined;
     return { commit, versionName, confirmedOn };
   };
@@ -448,9 +454,26 @@ type View = ReturnType<typeof project>;
 
 // 最後の安全網。完全な保証ではなく、登録済みの値と典型的な形だけを検出する。
 function leaks(m: Model, view: View): string[] {
-  const secrets = new Set<string>([m.target.commit]);
-  if (m.baseline) secrets.add(m.baseline.commit);
-  for (const e of m.evidence) for (const s of [e.path, e.symbol, e.commit]) if (s) secrets.add(s);
+  // 登録済みの値。symbol は短い識別子（`D` など）が通常の文章（`PDF`）に紛れて一致しないよう、識別子の境界で照合する。
+  // path と commit は部分一致のまま。拒否メッセージには、一致した根拠の ID と項目だけを出し、値は出さない。
+  const IDENT = "A-Za-z0-9_$";
+  const quote = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const secrets: { where: string; test: (text: string) => boolean }[] = [];
+  const addExact = (where: string, value?: string) => {
+    if (value) secrets.push({ where, test: (text) => text.includes(value) });
+  };
+  const addIdentifier = (where: string, value?: string) => {
+    if (!value) return;
+    const re = new RegExp(`(?<![${IDENT}])${quote(value)}(?![${IDENT}])`);
+    secrets.push({ where, test: (text) => re.test(text) });
+  };
+  addExact("target.commit", m.target.commit);
+  if (m.baseline) addExact("baseline.commit", m.baseline.commit);
+  for (const e of m.evidence) {
+    addExact(`根拠 ${e.id} の path`, e.path);
+    addIdentifier(`根拠 ${e.id} の symbol`, e.symbol);
+    addExact(`根拠 ${e.id} の commit`, e.commit);
+  }
   const patterns = [
     /\b[0-9a-f]{40}\b/,
     /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,39}\b/,
@@ -467,7 +490,7 @@ function leaks(m: Model, view: View): string[] {
   const walk = (v: unknown, path: string) => {
     if (typeof v === "string") {
       for (const s of secrets)
-        if (v.includes(s)) found.push(`${path}: 登録済みの内部情報を含みます`);
+        if (s.test(v)) found.push(`${path}: 登録済みの内部情報を含みます（${s.where}）`);
       for (const re of patterns)
         if (re.test(v)) found.push(`${path}: 内部情報の形式 ${re} に一致します`);
     } else if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${path}[${i}]`));

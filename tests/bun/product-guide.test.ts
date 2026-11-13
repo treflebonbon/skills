@@ -246,9 +246,17 @@ test("public は自由記述への内部情報の混入を、形式ごとに拒�
   };
   // [混入する文, 期待するメッセージ, 境界の 1 つ手前（同じ形式に一致しない）]
   const cases: [string, string, string][] = [
-    ["src/invoice/submit.ts を参照する。", "登録済みの内部情報", "src を参照する。"],
-    ["submitInvoice を呼ぶ。", "登録済みの内部情報", "submit を呼ぶ。"],
-    [`版 ${COMMIT} を使う。`, "登録済みの内部情報", "版 0123 を使う。"],
+    [
+      "src/invoice/submit.ts を参照する。",
+      "登録済みの内部情報を含みます（根拠 E1 の path）",
+      "src を参照する。",
+    ],
+    [
+      "submitInvoice を呼ぶ。",
+      "登録済みの内部情報を含みます（根拠 E1 の symbol）",
+      "submit を呼ぶ。",
+    ],
+    [`版 ${COMMIT} を使う。`, "登録済みの内部情報を含みます（target.commit）", "版 0123 を使う。"],
     [`版 ${"f".repeat(40)} を使う。`, "{40}", `版 ${"f".repeat(41)} を使う。`],
     ["短縮 ID 0123abc を使う。", "{7,39}", "短縮 ID 0123ab を使う。"],
     ["ADR-12 に従う。", "ADR", "ADR に従う。"],
@@ -283,6 +291,40 @@ test("public は自由記述への内部情報の混入を、形式ごとに拒�
   const m = model();
   m.features[0].flow[0].text = "submitInvoice を呼ぶ。";
   expect(generate(m, "internal").r.code).toBe(0);
+});
+
+test("public: 登録済みのシンボルは識別子の境界で照合し、短い識別子が通常の文章に紛れても拒否しない", () => {
+  // 収集した根拠には `D` や `P` のような 1 文字のシンボルが入る（例: minify 済みの JS）。
+  const withSymbols = (text: string) => {
+    const m = model({
+      evidence: [
+        ...evidence,
+        { id: "AG1", kind: "unverified", commit: COMMIT, path: "dist/a.js", symbol: "D" },
+        { id: "AG2", kind: "unverified", commit: COMMIT, path: "dist/a.js", symbol: "P" },
+      ],
+    });
+    m.features[0].flow[0].text = text;
+    return generate(m, "public");
+  };
+  // 境界の 1 つ手前: `PDF` の中の `D` と `P` は識別子ではないので通る。
+  const ok = withSymbols("「PDF で出力」を押す。");
+  expect(ok.r.code).toBe(0);
+  // 混入: 識別子として単独で現れれば拒否し、メッセージに根拠の ID と項目を出す（値は出さない）。
+  const bad = withSymbols("D を押す。");
+  expect(bad.r.code).toBe(1);
+  expect(bad.r.err).toContain(
+    "出力.current[0].flow[0].text: 登録済みの内部情報を含みます（根拠 AG1 の symbol）",
+  );
+  expect(bad.r.err).not.toContain("根拠 AG2");
+  expect(existsSync(bad.out)).toBe(false);
+  // 識別子の区切りは、記号・空白・日本語。英数字・`_`・`$` が続くものは識別子の一部。
+  expect(withSymbols("(D) を押す。").r.code).toBe(1);
+  expect(withSymbols("D_ready を押す。").r.code).toBe(0);
+  expect(withSymbols("$D を押す。").r.code).toBe(0);
+  // 長いシンボルも同じ規則: 前後に識別子の文字が続けば別の語。
+  const long = model();
+  long.features[0].flow[0].text = "submitInvoiceNow を呼ぶ。";
+  expect(generate(long, "public").r.code).toBe(0);
 });
 
 test("flow は Dagre の SVG 図になり、手順リスト・文章説明と同じモデルに由来する", () => {
@@ -570,8 +612,17 @@ test("public の比較版にもコミット ID・パスは出ず、混入は拒�
   expect(text).toContain("v1.1");
   for (const x of [COMMIT, BASE, "src/old.ts", "<details"]) expect(text).not.toContain(x);
   const leaky = setup(cmp([{ ...change("added", "x", ["E1"]), summary: `比較元 ${BASE} から` }]));
-  expect(cli("generate", leaky.file, "--audience", "public", "--out", leaky.out).code).toBe(1);
+  const refused = cli("generate", leaky.file, "--audience", "public", "--out", leaky.out);
+  expect(refused.code).toBe(1);
+  expect(refused.err).toContain(
+    "出力.changes[0].summary: 登録済みの内部情報を含みます（baseline.commit）",
+  );
   expect(existsSync(leaky.out)).toBe(false);
+  // 境界の 1 つ手前: 比較元の ID の一部（短縮の 6 桁）だけなら、同じ位置でも通る。
+  const near = setup(
+    cmp([{ ...change("added", "x", ["E1"]), summary: `比較元 ${BASE.slice(0, 6)} から` }]),
+  );
+  expect(cli("generate", near.file, "--audience", "public", "--out", near.out).code).toBe(0);
 });
 
 test("public: 出力全体（本文・属性・コメント・title・ID）に禁止情報が出ない", () => {
@@ -591,15 +642,25 @@ test("public: 出力全体（本文・属性・コメント・title・ID）に�
   expect(readdirSync(join(g.out, `${COMMIT}-public`))).toEqual(["index.html"]);
 });
 
-test("public: 公開操作名と未知の項目への混入も拒否し、internal では操作名と根拠が別々に出る", () => {
+test("public: 公開操作名への混入は漏洩の検査で、未知の項目は validate で拒否する。internal では操作名と根拠が別々に出る", () => {
+  // 公開操作名にシンボル名が入ると、漏洩の検査が位置付きで拒否する。
   const ops = model();
   ops.features[0].operations = ["submitInvoice"];
-  const unknown = model({ embedded: { path: "src/a.ts" } });
-  for (const m of [ops, unknown]) {
-    const g = generate(m, "public");
-    expect(g.r.code).toBe(1);
-    expect(existsSync(g.out)).toBe(false);
-  }
+  const leaked = generate(ops, "public");
+  expect(leaked.r.code).toBe(1);
+  expect(leaked.r.err).toContain(
+    "出力.current[0].operations[0]: 登録済みの内部情報を含みます（根拠 E1 の symbol）",
+  );
+  expect(existsSync(leaked.out)).toBe(false);
+  // 未知の項目は、漏洩の検査より前の validate が拒否する（投影されないので、埋め込みの経路にならない）。
+  const unknown = generate(model({ embedded: { path: "src/a.ts" } }), "public");
+  expect(unknown.r.code).toBe(1);
+  expect(unknown.r.err).toContain("embedded");
+  expect(unknown.r.err).toContain("未対応の項目です");
+  expect(unknown.r.err).not.toContain("登録済みの内部情報");
+  expect(existsSync(unknown.out)).toBe(false);
+  // 境界の 1 つ手前: 公開操作名が通常の表記なら通る。
+  expect(generate(model(), "public").r.code).toBe(0);
   const g = generate(model(), "internal");
   expect(g.text).toContain("申請する");
   expect(g.text).toContain("submitInvoice");
@@ -610,8 +671,13 @@ test("既知の限界: 拡張子形式を含む通常の文章も public では�
   m.features[0].flow[0].text = "手順書.md を開く。";
   const g = generate(m, "public");
   expect(g.r.code).toBe(1);
+  expect(g.r.err).toContain("出力.current[0].flow[0].text: 内部情報の形式");
+  expect(g.r.err).toContain("(?:ts|js");
   expect(existsSync(g.out)).toBe(false);
   expect(generate(m, "internal").r.code).toBe(0);
+  // 境界の 1 つ手前: 拡張子のない書き方なら通る。
+  m.features[0].flow[0].text = "手順書を開く。";
+  expect(generate(m, "public").r.code).toBe(0);
 });
 
 // ---- #74: 実文の fixture と、表示の磨き込み（実ブラウザでの確認は docs/verification.md） ----
@@ -788,10 +854,13 @@ test("検査や描画に失敗したら、存在しない親ディレクトリ�
   const deep = join(s.dir, "a", "b");
   const r = cli("generate", s.file, "--audience", "public", "--out", deep);
   expect(r.code).toBe(1);
+  expect(r.err).toContain("登録済みの内部情報を含みます");
   expect(existsSync(join(s.dir, "a"))).toBe(false);
   const bad = model();
   bad.features[0].flow = manySteps(31);
-  expect(cli("generate", setup(bad).file, "--audience", "internal", "--out", deep).code).toBe(1);
+  const broken = cli("generate", setup(bad).file, "--audience", "internal", "--out", deep);
+  expect(broken.code).toBe(1);
+  expect(broken.err).toContain("図の配置に失敗");
   expect(existsSync(join(s.dir, "a"))).toBe(false);
 });
 
@@ -807,4 +876,22 @@ test("public: 固定の項目（audience・根拠区分など）は検査せず�
   expect(bad.r.err).toContain("出力.current[0].flow[0].text: 登録済みの内部情報を含みます");
   expect(bad.r.err).not.toContain("出力.audience");
   expect(bad.r.err).not.toContain("kinds");
+});
+
+test("confirmedOn は形式だけでなく実在する日付として検証する", () => {
+  const validate = (confirmedOn: string) =>
+    cli(
+      "validate",
+      setup(model({ target: { commit: COMMIT, versionName: "v1.2", confirmedOn } })).file,
+    );
+  // 形式は合っていても、存在しない日付は拒否する（月・日の範囲、月末、うるう日）。
+  for (const bad of ["2026-13-45", "2026-02-30", "2026-04-31", "2026-02-29", "2026-00-10"]) {
+    const r = validate(bad);
+    expect(r.code, bad).toBe(1);
+    expect(r.err, bad).toContain("confirmedOn");
+    expect(r.err, bad).toContain("実在する日付");
+  }
+  // 境界の 1 つ手前: 月末の最終日と、うるう年のうるう日は通る。
+  for (const ok of ["2026-02-28", "2026-04-30", "2024-02-29"])
+    expect(validate(ok).code, ok).toBe(0);
 });
