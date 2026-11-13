@@ -90,7 +90,7 @@ test("internal: 比較元なしで単体 HTML を生成し、根拠を辿れる"
   expect(g.text).toContain("上限は 100 万円です。");
   expect(g.text).toContain("上限は 200 万円とする方針です。");
   expect(g.text).not.toMatch(/https?:\/\//);
-  expect(g.text).not.toContain("<script src");
+  expect(g.text).not.toContain("<script");
 });
 
 test("同じモデルから同じ出力が得られる", () => {
@@ -205,15 +205,13 @@ test("折りたたみは native の details で、キーボード操作と印刷
   expect(text).toContain("<details><summary>根拠を表示</summary>");
   expect(text).toContain(":focus-visible");
   expect(text).toContain("@media print");
-  expect(text).toContain("beforeprint");
-  expect(text).toContain("aria-current");
+  expect(text).toContain("::details-content{content-visibility:visible");
+  expect(text).toContain(':target) nav a[href="#feature-1"]');
 });
 
-test("外部通信・外部フォントを前提にしない（CSP と参照なし）", () => {
+test("外部通信・外部フォントを前提にしない（参照なし）", () => {
   for (const audience of ["internal", "public"]) {
     const { text } = generate(model(), audience);
-    expect(text).toContain("Content-Security-Policy");
-    expect(text).toContain("default-src 'none'");
     expect(text).not.toMatch(/@font-face|@import|url\(|<link|<img|<iframe|src=|https?:/);
     expect(text).toContain('<html lang="ja">');
     expect(text).toMatch(/font:\s*1rem\//);
