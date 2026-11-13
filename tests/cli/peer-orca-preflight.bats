@@ -153,10 +153,13 @@ JS
   [ "$status" -eq 0 ]
   branch=worker
   head="$(readiness_git_value -C "$WORKER_WORKTREE" rev-parse --verify HEAD)"
+  run worker_readiness_verify "$observation" "$WORKER_WORKTREE" "$branch" "$head" task-1 dispatch-1 term-1
+  [ "$status" -eq 0 ]
   printf '{not-json\n' >"$invalid"
   cp "$invalid" "$BATS_TEST_TMPDIR/invalid.original.json"
   run worker_readiness_verify "$invalid" "$WORKER_WORKTREE" "$branch" "$head" task-1 dispatch-1 term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"worker readiness JSON を読み取れません"* ]]
   cmp "$BATS_TEST_TMPDIR/invalid.original.json" "$invalid"
 
   for field in missing empty non-string duplicate; do
@@ -207,18 +210,34 @@ JS
 }
 
 @test "coordinator rejects errors, malformed envelopes, and missing Run identity" {
+  write_coordinator_receipt
+  run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
+  [ "$status" -eq 0 ]
   printf '{"ok":false,"error":{"code":"failed"}}\n' >"$RECEIPT"
   run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"receipt が成功応答ではありません"* ]]
+  write_coordinator_receipt
+  run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
+  [ "$status" -eq 0 ]
   printf '{not-json\n' >"$RECEIPT"
   run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"receipt を読み取れません"* ]]
+  write_coordinator_receipt
+  run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
+  [ "$status" -eq 0 ]
   printf '{"ok":true,"result":{}}\n' >"$RECEIPT"
   run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"result.run がありません"* ]]
+  write_coordinator_receipt
+  run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
+  [ "$status" -eq 0 ]
   printf '{"ok":true,"error":{"code":"failed"},"result":{"run":{"id":"run-1","coordinator_handle":"term-1"}}}\n' >"$RECEIPT"
   run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"receipt に error があります"* ]]
 }
 
 @test "worker-show receipt must match the dispatched Task, Dispatch, and assignee" {
@@ -240,24 +259,39 @@ JS
 
 @test "worker-show rejects settled or errored Dispatches" {
   write_worker_receipt
+  run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
+  [ "$status" -eq 0 ]
   node - "$RECEIPT" <<'JS'
 const fs=require('node:fs');const path=process.argv[2];const doc=JSON.parse(fs.readFileSync(path,'utf8'));
 doc.result.dispatch.status='completed';fs.writeFileSync(path,JSON.stringify(doc));
 JS
   run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"Dispatch status が期待値と一致しません"* ]]
+  write_worker_receipt
+  run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
+  [ "$status" -eq 0 ]
   printf '{"ok":false,"error":{"code":"failed"},"result":{"dispatch":{"id":"dispatch-1","taskId":"task-1","assigneeHandle":"term-1","status":"dispatched"}}}\n' >"$RECEIPT"
   run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"receipt が成功応答ではありません"* ]]
 }
 
 @test "worker-show rejects missing and malformed dispatch identities" {
+  write_worker_receipt
+  run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
+  [ "$status" -eq 0 ]
   printf '{"ok":true,"result":{}}\n' >"$RECEIPT"
   run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"result.dispatch がありません"* ]]
+  write_worker_receipt
+  run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
+  [ "$status" -eq 0 ]
   printf '{"ok":true,"result":{"dispatch":{"id":"dispatch-1","taskId":"task-1","status":"dispatched"}}}\n' >"$RECEIPT"
   run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"assignee handle が期待値と一致しません"* ]]
 }
 
 @test "the documented Bash sender calls orca-send and preserves shell-looking body text" {
