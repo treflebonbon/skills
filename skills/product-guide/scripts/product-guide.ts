@@ -28,7 +28,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 type Json = unknown;
 type Rec = Record<string, unknown>;
-type Claim = { text: string; evidence: string[] };
+type Claim = { text: string; evidence: string[]; group?: string[] };
 type Evidence = {
   id: string;
   kind: string;
@@ -227,8 +227,18 @@ function validate(input: Json): { errors: string[]; model?: Model } {
     });
   });
 
-  const claim = (v: Json, p: string): Claim => {
-    const c = obj(v, p, ["text", "evidence"], ["text", "evidence"]) ?? {};
+  const claim = (v: Json, p: string, grouped = false): Claim => {
+    const c =
+      obj(v, p, grouped ? ["text", "evidence", "group"] : ["text", "evidence"], [
+        "text",
+        "evidence",
+      ]) ?? {};
+    let group: string[] | undefined;
+    if (c.group !== undefined) {
+      group = strs(c.group, `${p}.group`);
+      if (Array.isArray(c.group) && group.length === 0)
+        err(`${p}.group`, "業務区分は 1 段以上の文字列の配列である必要があります");
+    }
     const ids = arr(c.evidence, `${p}.evidence`).map((x, i) => str(x, `${p}.evidence[${i}]`));
     if (Array.isArray(c.evidence) && ids.length === 0)
       err(`${p}.evidence`, "根拠を 1 件以上参照する必要があります");
@@ -236,10 +246,10 @@ function validate(input: Json): { errors: string[]; model?: Model } {
       if (id && !kinds.has(id)) err(`${p}.evidence`, `存在しない根拠 "${id}" を参照しています`);
       else if (id && versions.get(id) !== "target")
         err(`${p}.evidence`, `根拠 "${id}" は比較元のものです。対象版の主張には使えません`);
-    return { text: str(c.text, `${p}.text`), evidence: ids };
+    return { text: str(c.text, `${p}.text`), evidence: ids, ...(group ? { group } : {}) };
   };
-  const claims = (v: Json, p: string, optional = true) =>
-    arr(v, p, optional).map((x, i) => claim(x, `${p}[${i}]`));
+  const claims = (v: Json, p: string, optional = true, grouped = false) =>
+    arr(v, p, optional).map((x, i) => claim(x, `${p}[${i}]`, grouped));
 
   const glossary = arr(root.glossary, "model.glossary", true).map((v, i) => {
     const p = `model.glossary[${i}]`;
@@ -327,7 +337,7 @@ function validate(input: Json): { errors: string[]; model?: Model } {
       f.availability === undefined ? "unknown" : str(f.availability, `${p}.availability`);
     if (!(AVAILABILITY as readonly string[]).includes(availability))
       err(`${p}.availability`, `提供状況は ${AVAILABILITY.join(" / ")} のいずれかです`);
-    const flow = claims(f.flow, `${p}.flow`, false);
+    const flow = claims(f.flow, `${p}.flow`, false, true);
     if (Array.isArray(f.flow) && f.flow.length === 0) err(`${p}.flow`, "手順が 1 件以上必要です");
     return {
       name: str(f.name, `${p}.name`),
@@ -369,6 +379,7 @@ function project(m: Model, audience: string) {
   const c = (x: Claim) => ({
     text: x.text,
     kinds: [...new Set(x.evidence.map((id) => byId.get(id)!.kind))],
+    ...(x.group ? { group: x.group } : {}),
     ...(internal ? { evidence: x.evidence.map((id) => byId.get(id)!) } : {}),
   });
   const feature = (f: Feature) => ({
@@ -474,7 +485,7 @@ section[id],h2,h3{scroll-margin-top:1rem}
 .box>strong:first-child{display:block}.box>strong:first-child::before{content:"\\26A0 "}
 main:focus{outline:none}
 @media(min-width:80rem){nav{position:fixed;top:1rem;left:1rem;width:14rem;max-height:calc(100vh - 2rem);overflow:auto;font-size:.9375rem}nav h2{margin-top:0;font-size:1.1rem}}
-figure.flow{margin:1rem 0}.diagram{overflow:auto;border:1px solid var(--line);padding:.5rem}.diagram:focus-visible{outline:3px solid var(--accent)}svg{display:block;max-width:none;color:var(--fg)}svg text{fill:var(--fg)}svg .node rect{fill:var(--bg);stroke:var(--fg);stroke-width:2}svg .edge{fill:none;stroke:var(--fg);stroke-width:2}svg .head{fill:var(--fg)}figcaption{color:var(--muted)}
+figure.flow{margin:1rem 0}.diagram{overflow:auto;border:1px solid var(--line);padding:.5rem}.diagram:focus-visible{outline:3px solid var(--accent)}svg{display:block;max-width:none;color:var(--fg)}svg text{fill:var(--fg)}svg .node rect{fill:var(--bg);stroke:var(--fg);stroke-width:2}svg .edge{fill:none;stroke:var(--fg);stroke-width:2}svg .head{fill:var(--fg)}svg .group rect{fill:none;stroke:var(--muted);stroke-width:2}figcaption{color:var(--muted)}
 @media print{details:not([open])::details-content{content-visibility:visible;display:block}body{background:#fff;color:#000;font-size:11pt;line-height:1.7}nav{position:static}a{color:inherit;text-decoration:none}main{max-width:none;padding:0}.skip{display:none}li,.box{break-inside:avoid}h2,h3,h4{break-after:avoid}.diagram{overflow:visible}svg{max-width:100%;height:auto}}`;
 
 // ---- 流れの図（Dagre） ----
@@ -501,78 +512,227 @@ function wrap(s: string, max: number): string[] {
   return [...lines, cur];
 }
 
-// flow の手順を上から下へ並べた SVG を返す。配置できなければ例外（呼び出し側が生成を止める）。
-function flowDiagram(name: string, steps: { text: string; kinds: string[] }[], id: string) {
-  const fail = (why: string): never => {
-    throw new Error(`図の配置に失敗しました（機能「${name}」: ${why}）`);
+type Step = { text: string; kinds: string[]; group?: string[] };
+const layoutFail = (name: string, why: string): never => {
+  throw new Error(`図の配置に失敗しました（機能「${name}」: ${why}）`);
+};
+const num = (name: string, n: number | undefined) =>
+  n === undefined || !Number.isFinite(n)
+    ? layoutFail(name, "配置結果の座標が不正です")
+    : Math.round(n * 10) / 10;
+
+// 手順の枠の寸法・文言・線種。Dagre と ELK.js の図で共有する。
+function stepBox(s: Step, i: number) {
+  const body = wrap(`${i + 1}. ${s.text}`, 280);
+  const label = s.kinds.map((k) => KIND_LABEL[k]).join("・");
+  return {
+    body,
+    label,
+    width: Math.max(...body.map(textWidth), textWidth(label)) + 24,
+    height: (body.length + 1) * 20 + 16,
+    dash: DASH[KINDS.filter((k) => s.kinds.includes(k)).pop()!], // 最も確かでない区分で線種を決める
   };
+}
+type Box = ReturnType<typeof stepBox>;
+
+function nodeSvg(name: string, b: Box, n: { x: number; y: number; width: number; height: number }) {
+  const [x, y, w, h] = [n.x, n.y, n.width, n.height].map((v) => num(name, v));
+  const lines = [...b.body, b.label];
+  const texts = lines
+    .map(
+      (l, j) =>
+        `<text x="${num(name, x + 12)}" y="${num(name, y + 24 + j * 20)}"${j === lines.length - 1 ? ' font-weight="bold"' : ""}>${esc(l)}</text>`,
+    )
+    .join("");
+  return `<g class="node"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6"${b.dash ? ` stroke-dasharray="${b.dash}"` : ""}/>${texts}</g>`;
+}
+
+function edgeSvg(name: string, p: { x: number; y: number }[]) {
+  const [q, e] = [p[p.length - 2], p[p.length - 1]];
+  const a = Math.atan2(e.y - q.y, e.x - q.x);
+  const wing = (d: number) =>
+    `${num(name, e.x - 9 * Math.cos(a - d))},${num(name, e.y - 9 * Math.sin(a - d))}`;
+  return (
+    `<polyline class="edge" points="${p.map((t) => `${num(name, t.x)},${num(name, t.y)}`).join(" ")}"/>` +
+    `<polygon class="head" points="${num(name, e.x)},${num(name, e.y)} ${wing(0.4)} ${wing(-0.4)}"/>`
+  );
+}
+
+function figureSvg(
+  name: string,
+  id: string,
+  size: { width?: number; height?: number },
+  body: string,
+  caption: string,
+) {
+  const W = num(name, size.width);
+  const H = num(name, size.height);
+  return (
+    `<figure class="flow"><div class="diagram" tabindex="0" role="region" aria-label="${esc(name)}の流れの図（スクロールできます）">` +
+    `<svg role="img" aria-labelledby="${id}-title" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-size="${PX}">` +
+    `<title id="${id}-title">${esc(name)}の流れの図</title>${body}</svg></div><figcaption>${esc(caption)}</figcaption></figure>`
+  );
+}
+
+const firstLast = (steps: Step[]) =>
+  `最初は「${steps[0].text}」、最後は「${steps[steps.length - 1].text}」です。`;
+const STATE_NOTE =
+  "各手順の枠には番号と根拠区分の文字があり、根拠区分は枠線の種類（実線・破線・点線）でも区別できます。";
+
+// flow の手順を上から下へ並べた SVG を返す。配置できなければ例外（呼び出し側が生成を止める）。
+function flowDiagram(name: string, steps: Step[], id: string) {
   if (steps.length > MAX_STEPS)
-    fail(`手順が ${MAX_STEPS} 件を超え、単純フローとして配置できません`);
+    layoutFail(name, `手順が ${MAX_STEPS} 件を超え、単純フローとして配置できません`);
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "TB", nodesep: 24, ranksep: 36, marginx: 16, marginy: 16 });
   g.setDefaultEdgeLabel(() => ({}));
   const boxes = steps.map((s, i) => {
-    const body = wrap(`${i + 1}. ${s.text}`, 280);
-    const label = s.kinds.map((k) => KIND_LABEL[k]).join("・");
-    const width = Math.max(...body.map(textWidth), textWidth(label)) + 24;
-    const height = (body.length + 1) * 20 + 16;
-    g.setNode(`n${i}`, { width, height });
+    const b = stepBox(s, i);
+    g.setNode(`n${i}`, { width: b.width, height: b.height });
     if (i) g.setEdge(`n${i - 1}`, `n${i}`);
-    return { body, label, dash: DASH[KINDS.filter((k) => s.kinds.includes(k)).pop()!] }; // 最も確かでない区分で線種を決める
+    return b;
   });
   try {
     dagre.layout(g);
   } catch (e) {
-    fail((e as Error).message);
+    layoutFail(name, (e as Error).message);
   }
-  const { width, height } = g.graph();
-  const num = (n: number | undefined) => {
-    if (n === undefined || !Number.isFinite(n)) return fail("配置結果の座標が不正です");
-    return Math.round(n * 10) / 10;
-  };
-  const nodes = boxes
-    .map((b, i) => {
-      const n = g.node(`n${i}`);
-      const x = num(n.x - n.width / 2);
-      const y = num(n.y - n.height / 2);
-      const w = num(n.width);
-      const h = num(n.height);
-      const lines = [...b.body, b.label];
-      const texts = lines
-        .map(
-          (l, j) =>
-            `<text x="${num(x + 12)}" y="${num(y + 24 + j * 20)}"${j === lines.length - 1 ? ' font-weight="bold"' : ""}>${esc(l)}</text>`,
-        )
-        .join("");
-      return `<g class="node"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6"${b.dash ? ` stroke-dasharray="${b.dash}"` : ""}/>${texts}</g>`;
-    })
-    .join("");
-  const edges = steps
-    .slice(1)
-    .map((_, i) => {
-      const p = g.edge(`n${i}`, `n${i + 1}`).points;
-      const [q, e] = [p[p.length - 2], p[p.length - 1]];
-      const a = Math.atan2(e.y - q.y, e.x - q.x);
-      const wing = (d: number) =>
-        `${num(e.x - 9 * Math.cos(a - d))},${num(e.y - 9 * Math.sin(a - d))}`;
-      return (
-        `<polyline class="edge" points="${p.map((t) => `${num(t.x)},${num(t.y)}`).join(" ")}"/>` +
-        `<polygon class="head" points="${num(e.x)},${num(e.y)} ${wing(0.4)} ${wing(-0.4)}"/>`
-      );
-    })
-    .join("");
-  const W = num(width);
-  const H = num(height);
-  const caption = `この図は ${steps.length} 件の手順を上から下へ順に示します。最初は「${steps[0].text}」、最後は「${steps[steps.length - 1].text}」です。各手順の枠には番号と根拠区分の文字があり、根拠区分は枠線の種類（実線・破線・点線）でも区別できます。`;
-  return (
-    `<figure class="flow"><div class="diagram" tabindex="0" role="region" aria-label="${esc(name)}の流れの図（スクロールできます）">` +
-    `<svg role="img" aria-labelledby="${id}-title" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-size="${PX}">` +
-    `<title id="${id}-title">${esc(name)}の流れの図</title>` +
-    `${edges}${nodes}</svg></div><figcaption>${esc(caption)}</figcaption></figure>`
-  );
+  const nodes = boxes.map((b, i) => {
+    const n = g.node(`n${i}`);
+    return nodeSvg(name, b, { ...n, x: n.x - n.width / 2, y: n.y - n.height / 2 });
+  });
+  const edges = steps.slice(1).map((_, i) => edgeSvg(name, g.edge(`n${i}`, `n${i + 1}`).points));
+  const caption = `この図は ${steps.length} 件の手順を上から下へ順に示します。${firstLast(steps)}${STATE_NOTE}`;
+  return figureSvg(name, id, g.graph(), edges.join("") + nodes.join(""), caption);
 }
 
-function render(v: View): string {
+// ---- 入れ子の流れの図（ELK.js） ----
+const MAX_GROUP_DEPTH = 4;
+type ElkNode = {
+  id: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  children?: ElkNode[];
+  edges?: ElkEdge[];
+  layoutOptions?: Record<string, string>;
+};
+type ElkEdge = {
+  id: string;
+  sources: string[];
+  targets: string[];
+  sections?: {
+    startPoint: { x: number; y: number };
+    bendPoints?: { x: number; y: number }[];
+    endPoint: { x: number; y: number };
+  }[];
+};
+
+// ELK.js は入れ子のフローを描くときだけ読む。同期実行の worker は `self` があると worker 側として
+// 動いてしまう（Bun は `self` を持つ）ため、読み込み中だけ `self` を隠す。
+async function elk(): Promise<{ layout(g: object): Promise<object> }> {
+  const g = globalThis as { self?: unknown };
+  const saved = g.self;
+  g.self = undefined;
+  try {
+    const { default: Api } = await import("../vendor/elk-api.js");
+    const { Worker } = await import("../vendor/elk-worker.min.js");
+    return new Api({ workerFactory: (url: string) => new Worker(url) });
+  } finally {
+    g.self = saved;
+  }
+}
+
+// 入れ子の業務区分（group）を持つ flow を、区分の枠で囲んだ SVG にする。配置できなければ例外。
+async function nestedFlowDiagram(name: string, steps: Step[], id: string) {
+  if (steps.length > MAX_STEPS) layoutFail(name, `手順が ${MAX_STEPS} 件を超え、配置できません`);
+  if (steps.some((s) => (s.group?.length ?? 0) > MAX_GROUP_DEPTH))
+    layoutFail(name, `業務区分の入れ子が ${MAX_GROUP_DEPTH} 段を超え、配置できません`);
+  const boxes = steps.map(stepBox);
+  const root: ElkNode = {
+    id: "root",
+    children: [],
+    edges: [],
+    layoutOptions: {
+      "elk.algorithm": "layered",
+      "elk.direction": "DOWN",
+      "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+      "elk.json.shapeCoords": "ROOT",
+      "elk.json.edgeCoords": "ROOT",
+      "elk.padding": "[top=16,left=16,bottom=16,right=16]",
+      "elk.spacing.nodeNode": "24",
+      "elk.layered.spacing.nodeNodeBetweenLayers": "36",
+    },
+  };
+  const groups = new Map<string, { node: ElkNode; label: string }>();
+  const parentOf = (path: string[]): ElkNode => {
+    let parent = root;
+    path.forEach((label, depth) => {
+      const key = JSON.stringify(path.slice(0, depth + 1));
+      let g = groups.get(key);
+      if (!g) {
+        const node: ElkNode = {
+          id: `g${groups.size}`,
+          children: [],
+          layoutOptions: {
+            "elk.padding": "[top=32,left=12,bottom=12,right=12]",
+            "elk.nodeSize.constraints": "MINIMUM_SIZE",
+            "elk.nodeSize.minimum": `(${textWidth(label) + 24},40)`,
+          },
+        };
+        g = { node, label };
+        groups.set(key, g);
+        parent.children!.push(node);
+      }
+      parent = g.node;
+    });
+    return parent;
+  };
+  steps.forEach((s, i) => {
+    parentOf(s.group ?? []).children!.push({
+      id: `n${i}`,
+      width: boxes[i].width,
+      height: boxes[i].height,
+    });
+    if (i) root.edges!.push({ id: `e${i}`, sources: [`n${i - 1}`], targets: [`n${i}`] });
+  });
+  let laid: ElkNode;
+  try {
+    laid = (await (await elk()).layout(root)) as ElkNode;
+  } catch (e) {
+    return layoutFail(name, (e as Error).message);
+  }
+  const found = new Map<string, ElkNode>();
+  const collect = (n: ElkNode) => {
+    found.set(n.id, n);
+    n.children?.forEach(collect);
+  };
+  collect(laid);
+  const at = (nid: string) => found.get(nid) ?? layoutFail(name, "配置結果に枠がありません");
+  const frames = [...groups.values()]
+    .map(({ node, label }) => {
+      const n = at(node.id);
+      const [x, y, w, h] = [n.x, n.y, n.width, n.height].map((v) => num(name, v));
+      return `<g class="group"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" stroke-dasharray="10 4"/><text x="${num(name, x + 12)}" y="${num(name, y + 22)}" font-weight="bold">${esc(label)}</text></g>`;
+    })
+    .join("");
+  const nodes = boxes.map((b, i) => nodeSvg(name, b, at(`n${i}`) as Required<ElkNode>));
+  const edges = (laid.edges ?? []).map((e) => {
+    const sec = e.sections?.[0];
+    if (!sec) return layoutFail(name, "配置結果に矢印の経路がありません");
+    return edgeSvg(name, [sec.startPoint, ...(sec.bendPoints ?? []), sec.endPoint]);
+  });
+  const names = [...new Set(steps.flatMap((s) => s.group ?? []))];
+  const caption = `この図は ${steps.length} 件の手順を、業務区分（${names.join("、")}）の枠で囲んで上から下へ順に示します。入れ子の区分は外側の枠の中に内側の枠が入ります。${firstLast(steps)}${STATE_NOTE}`;
+  return figureSvg(name, id, laid, frames + edges.join("") + nodes.join(""), caption);
+}
+
+async function render(v: View): Promise<string> {
+  const nested = new Map<unknown, string>(); // group を持つ flow だけ ELK.js（非同期）で先に配置する
+  for (const [i, f] of [...v.current, ...v.proposed].entries())
+    if (f.flow.some((c) => "group" in c))
+      nested.set(f, await nestedFlowDiagram(f.name, f.flow, `nested-${i}-flow`));
   // 現在位置: 目次から飛んだ節（:target）を、文字の印（▶）と太字で示す。script は使わない。
   const sel = v.current.map(
     (_, i) => `body:has(#feature-${i + 1}:target) nav a[href="#feature-${i + 1}"]`,
@@ -596,7 +756,7 @@ function render(v: View): string {
   type C = F["flow"][number];
   const list = (tag: "ol" | "ul", items: C[]) =>
     items.length
-      ? `<${tag}>${items.map((c) => `<li>${esc(c.text)}${badges(c.kinds)}${ev(c)}</li>`).join("")}</${tag}>`
+      ? `<${tag}>${items.map((c) => `<li>${"group" in c ? `<span class="muted">［${esc((c as { group: string[] }).group.join(" / "))}］</span>` : ""}${esc(c.text)}${badges(c.kinds)}${ev(c)}</li>`).join("")}</${tag}>`
       : "";
   const section = (label: string, items: C[]) =>
     items.length ? `<h4>${label}</h4>${list("ul", items)}` : "";
@@ -605,7 +765,7 @@ function render(v: View): string {
     (f.operations.length
       ? `<h4>画面上の表記</h4><ul>${f.operations.map((o) => `<li>${esc(o)}</li>`).join("")}</ul>`
       : "") +
-    `<h4>通常の流れ</h4>${list("ol", f.flow)}${f.flow.length ? flowDiagram(f.name, f.flow, `${id}-flow`) : ""}${section("条件", f.conditions)}${section("例外", f.exceptions)}${section("制約", f.constraints)}${section("必要な対応", f.actions)}</section>`;
+    `<h4>通常の流れ</h4>${list("ol", f.flow)}${nested.get(f) ?? flowDiagram(f.name, f.flow, `${id}-flow`)}${section("条件", f.conditions)}${section("例外", f.exceptions)}${section("制約", f.constraints)}${section("必要な対応", f.actions)}</section>`;
   const ver = `${v.version.name ? `${esc(v.version.name)} / ` : ""}確認日 ${esc(v.version.confirmedOn)}`;
   const changes = v.baseline
     ? `<section id="changes"><h2><a href="#changes">前回からの変更点</a></h2><p class="muted">比較元: ${v.baseline.name ? `${esc(v.baseline.name)} / ` : ""}確認日 ${esc(v.baseline.confirmedOn)}${internal && v.baseline.commit ? ` / コミット <code>${esc(v.baseline.commit)}</code>` : ""}</p>${v.changes
@@ -697,7 +857,7 @@ if (command === "validate" && file && rest.length === 0) {
   }
   let html = "";
   try {
-    html = render(view); // 図の配置失敗はここで止め、書込み前なので成果物は残らない。
+    html = await render(view); // 図の配置失敗はここで止め、書込み前なので成果物は残らない。
   } catch (e) {
     fail(1, (e as Error).message);
   }

@@ -319,6 +319,86 @@ test("配置に失敗したら明示して失敗し、図を省いた成果物�
   }
 });
 
+function nestedModel() {
+  const m = model();
+  (m.features as unknown[]).push({
+    name: "経費精算",
+    availability: "available",
+    purpose: "経費を精算する。",
+    flow: [
+      { text: "申請書を作る。", group: ["申請部門"], evidence: ["E1"] },
+      { text: "上長が確認する。", group: ["申請部門", "上長"], evidence: ["E1"] },
+      { text: "経理が支払う。", group: ["経理部"], evidence: ["E3"] },
+    ],
+  });
+  return m;
+}
+
+test("入れ子の業務区分を持つ flow は ELK.js の SVG 図になり、文章説明も同じモデルに由来する", () => {
+  const { r, text } = generate(nestedModel(), "internal");
+  expect(r.code).toBe(0);
+  const start = text.indexOf("経費精算の流れの図");
+  const figure = text.slice(text.lastIndexOf("<figure", start), text.indexOf("</figure>", start));
+  expect(figure).toContain("<svg");
+  expect(figure).toContain('class="group"');
+  for (const s of [
+    "申請書を作る。",
+    "上長が確認する。",
+    "経理が支払う。",
+    "申請部門",
+    "上長",
+    "経理部",
+  ])
+    expect(figure).toContain(s);
+  // 手順リストにも区分が文字で出る
+  expect(text).toContain("申請部門 / 上長");
+  expect(figure).toContain("<figcaption");
+  expect(figure).toContain("3 件の手順");
+  expect(figure).toContain("経理部");
+  expect(figure).toContain("stroke-dasharray");
+  expect(figure).not.toContain("url(");
+  // 区分のない既存の flow は Dagre のまま（group クラスを持たない）
+  expect(text.slice(0, start)).not.toContain('class="group"');
+});
+
+test("入れ子の図も外部通信・script なしで、public に内部情報を含めない", () => {
+  for (const audience of ["internal", "public"]) {
+    const { r, text } = generate(nestedModel(), audience);
+    expect(r.code).toBe(0);
+    expect(text).not.toMatch(/https?:\/\//);
+    expect(text).not.toContain("<script");
+    expect(text).not.toContain("url(");
+  }
+  const m = nestedModel();
+  (m.features as any)[2].flow[0].group = ["src/billing.ts"];
+  const g = generate(m, "public");
+  expect(g.r.code).toBe(1);
+  expect(existsSync(g.out)).toBe(false);
+});
+
+test("不正な group は理由付きで失敗する", () => {
+  for (const bad of [[], [""], "経理部", [1]]) {
+    const m = nestedModel();
+    (m.features as any)[2].flow[0].group = bad;
+    const s = setup(m);
+    const r = cli("validate", s.file);
+    expect(r.code).toBe(1);
+    expect(r.err).toContain("group");
+  }
+});
+
+test("入れ子の配置に失敗したら明示して失敗し、図を省いた成果物を残さない", () => {
+  const m = nestedModel();
+  (m.features as any)[2].flow[0].group = ["a", "b", "c", "d", "e"]; // 深さ上限を超える
+  for (const audience of ["internal", "public"]) {
+    const g = generate(m, audience);
+    expect(g.r.code).toBe(1);
+    expect(g.r.err).toContain("図の配置に失敗");
+    expect(g.r.err).toContain("経費精算");
+    expect(existsSync(g.out)).toBe(false);
+  }
+});
+
 test("根拠区分と提供状況は別の軸で、同じ文書に複数の提供状況が混在する", () => {
   const m = model();
   (m.features as unknown[]).push(

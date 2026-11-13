@@ -24,7 +24,7 @@
       "availability": "available | in-development | proposed | unknown（既定 unknown）",
       "purpose": "…",
       "operations": ["画面表示のままの操作名・選択肢・制限値"],
-      "flow": [<claim>],
+      "flow": [<claim>（任意で "group": ["外側の区分", "内側の区分"] を追加できる）],
       "conditions": [<claim>],
       "exceptions": [<claim>],
       "constraints": [<claim>],
@@ -36,6 +36,7 @@
 
 - `evidence.kind` は `code-verified` / `approved-decision` / `inferred` / `unverified`。`code-verified` には `commit` と `path` が必須で、`commit` は対象版と一致する。
 - `conflicts` のコード側は `code-verified`、業務判断側は `approved-decision` の根拠を含む。
+- `flow` の各手順には、任意の `group`（業務区分の入れ子。外側から内側の順の文字列配列で、1 段以上、4 段まで）を付けられる。`group` を持つ手順が 1 件でもある `flow` は、ELK.js が区分の枠で囲んで配置した SVG 図になり、手順リストにも区分が文字で出る。`group` を持たない `flow`（既存のモデル）は従来どおり Dagre の単純な図になる。`group` は出力に渡る自由記述なので、`public` では他の自由記述と同じ検査を受け、実装詳細を書かない。入れ子が 4 段を超える等で配置できなければ、Dagre と同じく「図の配置に失敗」で失敗する。
 - `flow` は番号付き手順リストと、同じ手順から Dagre で配置した SVG 図（文章説明付き）として表示する。1 件以上必要。手順が 30 件を超える等で配置できなければ、`generate` は「図の配置に失敗」で終了コード 1 になり、成果物を作らない（図を省いて生成しない）。
 - `evidence.version` は `target`（既定）か `baseline`。`target` の根拠の `commit` は対象版、`baseline` は比較元と一致する。機能・矛盾の主張は対象版の根拠だけを参照できる。
 - `baseline` と `changes` は両方あるか両方ないかのどちらか。`added` は対象版の根拠のみ、`removed` は比較元の根拠のみ、`changed` は両方、`unchanged` はどちらでもよい。

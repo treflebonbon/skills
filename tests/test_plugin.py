@@ -376,9 +376,17 @@ class PluginPackageContractTest(unittest.TestCase):
             if name:
                 with self.subTest(notice=name):
                     self.assertIn(f"{name.removeprefix('node_modules/')}@{package['version']}", notice)
-                    self.assertIn("Permission is hereby granted", notice)
-        bundle = (skill / "vendor/dagre.esm.js").read_text(encoding="utf-8")
-        self.assertTrue(bundle.startswith("/* @dagrejs/dagre@3.1.3 "))
+                    self.assertRegex(
+                        notice, r"Permission is hereby granted|Eclipse Public License"
+                    )
+        for file, header in (
+            ("dagre.esm.js", "/* @dagrejs/dagre@3.1.3 "),
+            ("elk-api.js", "/* elkjs@0.11.1 "),
+            ("elk-worker.min.js", "/* elkjs@0.11.1 "),
+        ):
+            with self.subTest(bundle=file):
+                bundle = (skill / "vendor" / file).read_text(encoding="utf-8")
+                self.assertTrue(bundle.startswith(header))
         self.assertFalse((skill / "node_modules").exists())
 
     def test_npm_locks_use_public_registry_urls_and_integrity(self):

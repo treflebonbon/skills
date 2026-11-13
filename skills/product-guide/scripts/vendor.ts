@@ -7,7 +7,12 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 // package の dist 内の単一ファイル bundle を vendor/<to> へ写す。
-const VENDORED = [{ pkg: "@dagrejs/dagre", from: "dist/dagre.esm.js", to: "dagre.esm.js" }];
+const VENDORED = [
+  { pkg: "@dagrejs/dagre", from: "dist/dagre.esm.js", to: "dagre.esm.js" },
+  // ELK.js は elk-api と同期実行の worker を組み合わせて使う（bundled 版は browser 用で Bun では動かない）
+  { pkg: "elkjs", from: "lib/elk-api.js", to: "elk-api.js" },
+  { pkg: "elkjs", from: "lib/elk-worker.min.js", to: "elk-worker.min.js" },
+];
 
 const skill = resolve(import.meta.dir, "..");
 const nodeModules = process.argv[2];
