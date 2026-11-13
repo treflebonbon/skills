@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
+#include <limits.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,11 +33,11 @@ static char *next_nul_field(char **cursor, char *end) {
   return value;
 }
 
-static long parse_nonnegative_integer(const char *value) {
+static long parse_nonnegative_integer(const char *value, long maximum) {
   char *end;
   errno = 0;
   long result = strtol(value, &end, 10);
-  if (errno || !*value || *end || result < 0 || result > 1048576) invalid();
+  if (errno || !*value || *end || result < 0 || result > maximum) invalid();
   return result;
 }
 
@@ -57,8 +58,8 @@ static int same_key(const char *entry, const char *key, size_t length) {
 
 int main(int argc, char **argv) {
   if (argc != 3 || strncmp(argv[1], "/dev/fd/", 8)) invalid();
-  int descriptor = (int)parse_nonnegative_integer(argv[1] + 8);
-  preparation = (pid_t)parse_nonnegative_integer(argv[2]);
+  int descriptor = (int)parse_nonnegative_integer(argv[1] + 8, 1048576);
+  preparation = (pid_t)parse_nonnegative_integer(argv[2], INT_MAX) /* kernel.pid_max は 4194304 まで上がる */;
   if (descriptor < 3 || preparation <= 1) invalid();
   const int signals[] = {SIGINT, SIGTERM, SIGHUP};
   struct sigaction saved[3], action;
@@ -112,19 +113,19 @@ int main(int argc, char **argv) {
   char *mode = next_nul_field(&cursor, end);
   if (strcmp(mode, "reviewer") && strcmp(mode, "search")) invalid();
   char *executable = next_nul_field(&cursor, end);
-  long argument_count = parse_nonnegative_integer(next_nul_field(&cursor, end));
+  long argument_count = parse_nonnegative_integer(next_nul_field(&cursor, end), 1048576);
   if (!*executable || !argument_count) invalid();
   char **arguments = calloc((size_t)argument_count + 1, sizeof(char *));
   if (!arguments) invalid();
   for (long i = 0; i < argument_count; i++) arguments[i] = next_nul_field(&cursor, end);
-  long removed_count = parse_nonnegative_integer(next_nul_field(&cursor, end));
+  long removed_count = parse_nonnegative_integer(next_nul_field(&cursor, end), 1048576);
   char **removed = calloc((size_t)removed_count + 1, sizeof(char *));
   if (!removed) invalid();
   for (long i = 0; i < removed_count; i++) {
     removed[i] = next_nul_field(&cursor, end);
     if (!*removed[i] || strchr(removed[i], '=')) invalid();
   }
-  long changed_count = parse_nonnegative_integer(next_nul_field(&cursor, end));
+  long changed_count = parse_nonnegative_integer(next_nul_field(&cursor, end), 1048576);
   char **changed = calloc((size_t)changed_count + 1, sizeof(char *));
   if (!changed) invalid();
   for (long i = 0; i < changed_count; i++) {
