@@ -36,7 +36,7 @@ htmlparser2 / entities の [MIT license](../lib/bun/vendor/html-tokenizer.LICENS
 
 2026-11-13 の Linux / WSL2 x86_64、Bun 1.4.4 で確認した。両 CLI の66入力と text 抽出の66入力を [Bun suite](../tests/bun/html-report.test.ts) で照合する。JSON は公開フィールドの値、拒否は終了状態と診断全文を比較する。
 
-読み取り専用にした runtime copy に、wrapper・runner・config・TypeScript・同梱 Tokenizer だけを配置して起動した。`node_modules` を配置せず、PATH から Python を除き、cwd / HOME の preload 設定と `BUN_OPTIONS` を注入しても marker を作らず、payload の bytes・mode・inventory を保持した。これは PATH 上の Python 不在の検査であり、絶対 path の interpreter まで排除する repo 全体の最終検査は #51 が担当する。
+読み取り専用にした runtime copy に、wrapper・runner・config・TypeScript・同梱 Tokenizer だけを配置して起動した。`node_modules` を配置せず、fixture 専用の `bin` に Bun・`dirname`・`readlink` だけを置いて Python を PATH から除く。cwd / HOME の preload 設定と `BUN_OPTIONS` を注入しても marker を作らず、payload の bytes・mode・inventory を保持した。ホストの coreutils と Python が同じ directory にある場合も、この専用 PATH で検査できる。これは PATH 上の Python 不在の検査であり、絶対 path の interpreter まで排除する repo 全体の最終検査は #51 が担当する。
 
 利用環境の保護された検証入口から、checkout の root で次を実行する。
 

@@ -75,10 +75,19 @@ test("読み取り専用 payload は node_modules なしで起動し、cwd と�
   const before = fingerprint(payload);
   const report = resolve(temporary, "report.html");
   writeFileSync(report, '<pre class="mermaid">A --> B</pre>');
+  const commands = resolve(temporary, "bin");
+  mkdirSync(commands);
+  for (const [name, executable] of [
+    ["bun", process.execPath],
+    ["dirname", Bun.which("dirname")!],
+    ["readlink", Bun.which("readlink")!],
+  ] as const) {
+    symlinkSync(realpathSync(executable), resolve(commands, name));
+  }
   const env = {
     ...process.env,
     HOME: poison,
-    PATH: `${dirname(realpathSync(process.execPath))}:${dirname(realpathSync(Bun.which("dirname")!))}`,
+    PATH: commands,
     BUN_OPTIONS: `--preload=${resolve(poison, "preload.ts")}`,
     BUN_RUNTIME_TRANSPILER_CACHE_PATH: resolve(payload, "forbidden-cache"),
     HTML_REPORT_CAPTURE: marker,
