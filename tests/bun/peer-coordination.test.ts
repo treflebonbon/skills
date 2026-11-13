@@ -181,6 +181,8 @@ test("両 peer の変更所有範囲は Python なしで旧 corpus の行範囲�
       "user.name=Fixture",
       "-c",
       "user.email=fixture@example.invalid",
+      "-c",
+      "commit.gpgsign=false",
       "commit",
       "-qm",
       "owned base",
@@ -303,6 +305,7 @@ process.exit(0);
       }),
     );
     const started = {
+      ok: true,
       result: {
         dispatchId: "dispatch-1",
         taskId: "task-1",
@@ -329,15 +332,24 @@ process.exit(0);
             .map((line) => JSON.parse(line))
             .filter((args) => args[1] === "worker-show").length
         : 0;
-    for (const [name, output] of [
-      ["valid", valid],
-      ["malformed", '{"ok":'],
-      ["rejected", '{"ok":false,"result":{}}'],
-      ["mismatch", valid.replace("dispatch-1", "dispatch-other")],
+    for (const [name, output, startReceipt] of [
+      ["valid", valid, started],
+      ["valid-null-error", valid, { ...started, error: null }],
+      ["malformed", '{"ok":', started],
+      ["rejected", '{"ok":false,"result":{}}', started],
+      ["mismatch", valid.replace("dispatch-1", "dispatch-other"), started],
+      ["failed-start", valid, { ...started, ok: false }],
+      ["errored-start", valid, { ...started, error: { code: "failed" } }],
+      ["missing-ok-start", valid, { result: started.result }],
+      ["non-boolean-ok-start", valid, { ...started, ok: "true" }],
+      ["null-start", valid, null],
+      ["array-start", valid, []],
     ] as const) {
       const receipt = resolve(directory, name);
       fs.mkdirSync(receipt);
-      fs.writeFileSync(resolve(receipt, "worker-start.json"), JSON.stringify(started));
+      const startedPath = resolve(receipt, "worker-start.json"),
+        startBytes = JSON.stringify(startReceipt);
+      fs.writeFileSync(startedPath, startBytes);
       const invoke = () =>
         spawnSync(
           resolve(root, "lib/bun/run"),
@@ -363,7 +375,16 @@ process.exit(0);
         result = invoke();
       const final = resolve(receipt, "worker-show.json"),
         part = final + ".part";
-      if (name === "valid") {
+      if (name.endsWith("-start")) {
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain("worker-start receipt が成功応答ではありません");
+        expect(fs.existsSync(final)).toBe(false);
+        expect(fs.existsSync(part)).toBe(false);
+        expect(fs.readFileSync(startedPath, "utf8")).toBe(startBytes);
+        expect(queries()).toBe(before);
+        continue;
+      }
+      if (name.startsWith("valid")) {
         expect(result.status, result.stderr).toBe(0);
         expect(fs.readFileSync(final, "utf8")).toBe(output);
         const repeated = invoke();
@@ -397,6 +418,11 @@ test("手順の JSON 検査は入れ子・escape 後の重複と旧 Python の�
       ['{"ok":true,"ok":true}', "重複キー"],
       ['{"number":' + "1".repeat(4300) + "}", ""],
       ['{"number":' + "1".repeat(4301) + "}", "4300"],
+      ['{"text":"\\\"' + "1".repeat(100_000) + '\\u0031"}', ""],
+      ['{"number":-' + "1".repeat(100_000) + "}", "4300"],
+      ['{"number":' + "1".repeat(100_000) + ".0}", ""],
+      ['{"number":' + "1".repeat(100_000) + "e1}", ""],
+      ['{"number":' + "1".repeat(100_000) + ',"truncated":', "4300"],
     ]) {
       const result = invoke(input!);
       expect(result.status, result.stderr).toBe(diagnostic ? 1 : 0);
@@ -574,7 +600,7 @@ test("coordination helper は Python・compiler・native cache がない読み�
       );
       fs.writeFileSync(
         resolve(receipt, "worker-start.json"),
-        '{"result":{"dispatchId":"dispatch-1","taskId":"task-1","effects":[{"kind":"terminal","role":"agent","id":"worker-1"}]}}',
+        '{"ok":true,"result":{"dispatchId":"dispatch-1","taskId":"task-1","effects":[{"kind":"terminal","role":"agent","id":"worker-1"}]}}',
       );
       invoke(runner, [
         "run",

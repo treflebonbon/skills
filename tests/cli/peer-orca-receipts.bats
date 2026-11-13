@@ -31,7 +31,7 @@ fs.writeFileSync(cli, [
   "process.stdout.write(args[1] === 'worker-show' ? process.env.WORKER_OUTPUT : JSON.stringify({result:{runId:'run-1'}}));",
 ].join('\n')+'\n', { mode: 0o700 });
 fs.writeFileSync(path.join(run, 'run-create.json'), JSON.stringify({ok:true,result:{run:{id:'run-1',coordinator_handle:'parent-1'}}}));
-const started = {result:{dispatchId:'dispatch-1',taskId:'task-1',effects:[{kind:'terminal',role:'agent',id:'worker-1'}]}};
+const started = {ok:true,result:{dispatchId:'dispatch-1',taskId:'task-1',effects:[{kind:'terminal',role:'agent',id:'worker-1'}]}};
 const valid = JSON.stringify({ok:true,result:{dispatch:{id:'dispatch-1',taskId:'task-1',assigneeHandle:'worker-1',status:'dispatched'}}});
 const recorded = () => fs.existsSync(calls) ? fs.readFileSync(calls,'utf8').trim().split('\n').map(JSON.parse) : [];
 const queries = () => recorded().filter(args => args[1] === 'worker-show');

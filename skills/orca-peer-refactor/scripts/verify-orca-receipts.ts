@@ -44,9 +44,12 @@ function main(): void {
     "45000",
     "--json",
   ]);
-  const started = coordinationJSON(
+  const startedReceipt = coordinationJSON(
     readFileSync(join(receiptDirectory!, "worker-start.json")),
-  )?.result;
+  );
+  if (!object(startedReceipt) || startedReceipt.ok !== true || startedReceipt.error != null)
+    throw new Error("worker-start receipt が成功応答ではありません");
+  const started = startedReceipt.result;
   if (!object(started) || !Array.isArray(started.effects))
     throw new Error("worker-start receipt の形式が不正です");
   const effect = started.effects.find(

@@ -22,7 +22,7 @@ Orca の `scripts/orca-preflight.py` は撤去し、同じ引数を受ける拡�
 
 readiness の元 bytes の SHA-256 は `8984a2f5780ecfc82dd509031906c375a5677008f8630c304a32c5bf6f5ec6ae`。テストでは同じ空 Git commit を再現し、一時 fixture の物理 path だけを対応させる。元 bytes の hash も別に照合し、path を変えた値を旧 hash として扱わない。これは Linux で採取した corpus で、macOS の実採取結果ではない。
 
-native receipt の重複 JSON key は受入条件に合わせて拒否へ強化する。旧 Python が最後の値を採ったケースは corpus の `tightened` で区別する。readiness と手順の JSON 検査も、escape 後に同じになる key と入れ子の key を含めて重複を拒否する。数値と非有限値の読込みには既存の peer JSON codec を使う。
+native receipt の重複 JSON key は受入条件に合わせて拒否へ強化する。旧 Python が最後の値を採ったケースは corpus の `tightened` で区別する。readiness と手順の JSON 検査も、escape 後に同じになる key と入れ子の key を含めて重複を拒否する。整数トークンの4300桁上限は codec の BigInt 変換より前に検査し、文字列内の数字と float はこの制限に数えない。数値と非有限値の読込みには既存の peer JSON codec を使う。
 
 変更所有範囲の数字は Python の Unicode 16.0.0 の Nd 760文字を固定した [table](../lib/bun/vendor/peer-decimal.json) と [Unicode license](../lib/bun/vendor/peer-decimal.LICENSE) を同梱する。Bun の Unicode 分類が追加で認識する U+11DE0–U+11DE9 は旧版と同じく行番号にしない。整数は BigInt で比較し、旧 Python の4300桁上限も維持する。通常の数字・上限の直前と、不適合の数字・上限超過を対にして検査する。
 
@@ -30,7 +30,7 @@ native receipt の重複 JSON key は受入条件に合わせて拒否へ強化�
 
 native receipt は期待する Run / handle、Task / Dispatch / assignee と照合する。worker の readiness は worker 自身の観測として保存し、親が割当時に固定した branch / HEAD と、独立して読み取った linked worktree の物理 root / Git dir / common dir と照合する。別 checkout、primary checkout、不正 ID、未知 schema、余分な field、欠落・空・非文字列、重複 key を拒否する。Git 観測は ambient な `GIT_*` を外し、JSON 内の shell 記号を literal な値として扱う。
 
-Orca 手順は bound inbox の Run ID と runtime の handle を独立した期待値として使い、worker-start から Task / Dispatch / assignee を取り出す。worker-show の取得が成功し、preflight を通った `.part` だけを非上書きの link で公開する。未確定の `.part` は保持して停止し、検査済みの最終 receipt は再利用する。保存済みの ID を shell command に展開しない。
+Orca 手順は bound inbox の Run ID と runtime の handle を独立した期待値として使い、worker-start が object・`ok: true`・`error` が null または未設定であることを検証してから Task / Dispatch / assignee を取り出す。失敗 receipt は worker-show の取得と保存より前に拒否する。worker-show の取得が成功し、preflight を通った `.part` だけを非上書きの link で公開する。未確定の `.part` は保持して停止し、検査済みの最終 receipt は再利用する。保存済みの ID を shell command に展開しない。
 
 peer-request の shell / Perl による lock・signal・待機台帳・nonce・Review Round と再質問の上限を維持する。Bun の子にも lock FD 9 を継承させない。terminal 応答は最初の一致する DONE から最後の一致する END までを取り、旧版と同じ空白集合・字下げ・改行で保存する。quoted marker、旧 nonce、別 ID / SHA、空本文、bare CR を完了の根拠にしない。
 
