@@ -460,6 +460,9 @@ function leaks(m: Model, view: View): string[] {
     /\b(?:refs\/heads|origin)\/[\w./-]+/,
     /\.(?:ts|js|mjs|py|md|json|tsx|rs|go)\b/,
   ];
+  // 列挙値と日付は、利用者の自由記述ではなくスキルが定めた固定の値。登録済みの短い値（例: シンボル `i`）に
+  // 偶然一致して、正当な public の生成を妨げないよう、走査から除く。それ以外の項目は新しく足しても走査される。
+  const fixed = new Set(["audience", "kinds", "availability", "status", "confirmedOn"]);
   const found: string[] = [];
   const walk = (v: unknown, path: string) => {
     if (typeof v === "string") {
@@ -469,7 +472,7 @@ function leaks(m: Model, view: View): string[] {
         if (re.test(v)) found.push(`${path}: 内部情報の形式 ${re} に一致します`);
     } else if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${path}[${i}]`));
     else if (v && typeof v === "object")
-      for (const [k, x] of Object.entries(v)) walk(x, `${path}.${k}`);
+      for (const [k, x] of Object.entries(v)) if (!fixed.has(k)) walk(x, `${path}.${k}`);
   };
   walk(view, "出力");
   return found;

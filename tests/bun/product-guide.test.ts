@@ -794,3 +794,17 @@ test("検査や描画に失敗したら、存在しない親ディレクトリ�
   expect(cli("generate", setup(bad).file, "--audience", "internal", "--out", deep).code).toBe(1);
   expect(existsSync(join(s.dir, "a"))).toBe(false);
 });
+
+test("public: 固定の項目（audience・根拠区分など）は検査せず、短いシンボルでも生成できる。自由記述の混入は引き続き拒否する", () => {
+  const short = model({ evidence: [{ ...evidence[0], symbol: "i" }, ...evidence.slice(1)] });
+  const ok = generate(short, "public");
+  expect(ok.r.code).toBe(0);
+  expect(ok.text).not.toContain("src/invoice/submit.ts");
+  // 対比: 同じシンボルでも、自由記述に含まれていれば拒否する。
+  short.features[0].flow[0].text = "i を押す。";
+  const bad = generate(short, "public");
+  expect(bad.r.code).toBe(1);
+  expect(bad.r.err).toContain("出力.current[0].flow[0].text: 登録済みの内部情報を含みます");
+  expect(bad.r.err).not.toContain("出力.audience");
+  expect(bad.r.err).not.toContain("kinds");
+});
