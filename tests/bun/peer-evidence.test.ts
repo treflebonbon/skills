@@ -1,13 +1,29 @@
-import { expect, test } from "bun:test";
+import { beforeAll, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import { resolve } from "node:path";
-import corpus from "../fixtures/peer-evidence-python.json";
+import linuxCorpus from "../fixtures/peer-evidence-python.json";
+import macosCorpus from "../fixtures/peer-evidence-macos-python.json";
+
+const corpus: Omit<typeof linuxCorpus, "files"> & {
+  files: Record<string, { base64: string; sha256: string }>;
+} = process.platform === "darwin" ? macosCorpus : linuxCorpus;
 
 const root = resolve(import.meta.dir, "../..");
 const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 const peers = ["herdr-peer-refactor", "orca-peer-refactor"];
+
+beforeAll(() => {
+  try {
+    fs.mkdirSync("/tmp/codex", { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+  const shared = fs.lstatSync("/tmp/codex");
+  if (!shared.isDirectory() || shared.uid !== process.getuid!())
+    throw new Error("テスト共有先は実 owner の directory が必要です");
+});
 
 function payloadState(directory: string): string {
   const entries = fs.readdirSync(directory, { recursive: true, encoding: "utf8" }).sort();
@@ -410,7 +426,7 @@ for (const damage of [
       expect(fs.existsSync(resolve(corpus.base, "rejected.json"))).toBe(false);
       expect(payloadState(cache)).toBe(before);
     });
-  });
+  }, 45_000); // 明示 build の30秒上限に、CLI の成功・拒否対照の時間を加える。
 }
 
 for (const fault of [

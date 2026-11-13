@@ -24,6 +24,8 @@
 
 テストは元の絶対パスと Git commit を再現する。既存 directory があれば排他的な作成に失敗し、その中を削除しない。旧 record の fingerprint・artifact hash・repo common dir・source commit を検査し、旧 checkpoint から receipt と待機台帳を含む全ファイルを元 bytes に復元する。同じ入力で再 checkpoint した hash も旧値と照合する。receipt 内の旧 command は履歴として保持し、復旧中に実行しない。
 
+macOS の `/tmp -> /private/tmp` は common Git dir の canonical path を変えるため、[system alias 用 corpus](../tests/fixtures/peer-evidence-macos-python.json)も用意した。source revision を固定した旧 Python の pin/checkpoint を実行し、`Path.resolve` の common Git dir 返却値だけを macOS の alias として合成している。保存先の物理配置は Linux の作業 repo に対応付け、receipt は元の旧実行 bytes を保持する。実 macOS で採取した証拠ではなく、新実装で期待 bytes を作り直したものでもない。この区別は corpus 自体にも記録する。
+
 新しい probe は、実際に起動した同じ skill の `candidate-record check` の argv を保存する。nonce・fingerprint・実 HEAD・cwd・終了状態を記録し、checker の30秒 timeout は kill 後に124として保存する。元資料の本文と checker の生出力は receipt に含めない。
 
 候補の JSON は、大きな整数を BigInt として比較・保存し、非有限値を `null` に置換しない。float は旧 Python と同じ IEEE 754 として扱い、整数との比較で丸めを許さない。元 bytes の hash を JSON の再 serialize で代用しない。文字列の空白集合と title の casefold は旧 Python の Unicode 16.0.0 を引き継ぐ。固定 casefold table は移植前の Python `str.casefold()` から生成し、[Unicode license](../lib/bun/vendor/peer-casefold.LICENSE)を同梱する。
