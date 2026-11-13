@@ -149,14 +149,17 @@ test("validate は不正なモデルを理由付きで拒否する", () => {
   expect(cli("validate", setup(model()).file).code).toBe(0);
 });
 
-test("未対応の入力（比較元など）はエラーになる", () => {
+test("未対応の入力（比較元など）は理由付きでエラーになり、1 つ手前の入力は通る", () => {
   const baseline = cli("validate", setup(model({ compareTo: { commit: COMMIT } })).file);
   expect(baseline.code).toBe(1);
-  expect(baseline.err).toContain("未対応");
+  expect(baseline.err).toContain("model.compareTo: 未対応の項目です");
   const s = setup(model());
   const flag = cli("generate", s.file, "--audience", "internal", "--out", s.out, "--base", "main");
   expect(flag.code).toBe(2);
+  expect(flag.err).toContain("未対応または不正な引数: --base");
   expect(existsSync(s.out)).toBe(false);
+  const ok = cli("generate", s.file, "--audience", "internal", "--out", s.out);
+  expect(ok.code).toBe(0);
 });
 
 test("HTML 入力は実行可能な内容として出力されない", () => {
@@ -227,31 +230,45 @@ test("状態と注意は文字でも示される（色だけに頼らない）",
   expect(text).toContain("未確認");
 });
 
-test("public は自由記述への内部情報の混入を拒否し、成果物を残さない", () => {
-  const leaks = [
-    "src/invoice/submit.ts を参照する。",
-    "submitInvoice を呼ぶ。",
-    `版 ${COMMIT} を使う。`,
-    "短縮 ID 0123abc を使う。",
-    "ADR-12 に従う。",
-    "issue #56 を参照。",
-    "origin/feat/x ブランチ。",
-  ];
-  for (const leak of leaks) {
+test("public は自由記述への内部情報の混入を、形式ごとに拒否メッセージ付きで拒否し、1 つ手前は通す", () => {
+  const publicFlow = (text: string) => {
     const m = model();
-    m.features[0].flow[0].text = leak;
-    const g = generate(m, "public");
-    expect(g.r.code).toBe(1);
-    expect(existsSync(g.out)).toBe(false);
+    m.features[0].flow[0].text = text;
+    return generate(m, "public");
+  };
+  // [混入する文, 期待するメッセージ, 境界の 1 つ手前（同じ形式に一致しない）]
+  const cases: [string, string, string][] = [
+    ["src/invoice/submit.ts を参照する。", "登録済みの内部情報", "src を参照する。"],
+    ["submitInvoice を呼ぶ。", "登録済みの内部情報", "submit を呼ぶ。"],
+    [`版 ${COMMIT} を使う。`, "登録済みの内部情報", "版 0123 を使う。"],
+    [`版 ${"f".repeat(40)} を使う。`, "{40}", `版 ${"f".repeat(41)} を使う。`],
+    ["短縮 ID 0123abc を使う。", "{7,39}", "短縮 ID 0123ab を使う。"],
+    ["ADR-12 に従う。", "ADR", "ADR に従う。"],
+    ["issue 56 を参照。", "issues?", "issue を参照。"],
+    ["手順 #56 を参照。", "#", "手順 #タグ を参照。"],
+    ["origin/feat/x ブランチ。", "origin", "origin の説明。"],
+    ["手順書.md を開く。", "(?:ts|js", "手順書を開く。"],
+  ];
+  for (const [leak, message, ok] of cases) {
+    const g = publicFlow(leak);
+    expect(g.r.code, leak).toBe(1);
+    expect(g.r.err, leak).toContain("出力.current[0].flow[0].text");
+    expect(g.r.err, leak).toContain(message);
+    expect(g.r.err, leak).toMatch(/登録済みの内部情報|内部情報の形式/);
+    expect(existsSync(g.out), leak).toBe(false);
+    expect(publicFlow(ok).r.code, ok).toBe(0);
   }
-  // 自由記述以外（用語集・未確認・矛盾・用語）への混入も拒否する
-  for (const patch of [
-    { glossary: [{ term: "t", meaning: "submitInvoice のこと" }] },
-    { unconfirmed: ["src/invoice/submit.ts の挙動"] },
-    { title: `ガイド ${COMMIT}` },
-  ]) {
+  // 自由記述以外（用語集・未確認・題名）への混入も、出力上の位置付きで拒否する
+  const others: [Record<string, unknown>, string][] = [
+    [{ glossary: [{ term: "t", meaning: "submitInvoice のこと" }] }, "出力.glossary[0].meaning"],
+    [{ unconfirmed: ["src/invoice/submit.ts の挙動"] }, "出力.unconfirmed[0]"],
+    [{ title: `ガイド ${COMMIT}` }, "出力.title"],
+  ];
+  for (const [patch, where] of others) {
     const g = generate(model(patch), "public");
     expect(g.r.code).toBe(1);
+    expect(g.r.err).toContain(where);
+    expect(g.r.err).toContain("登録済みの内部情報");
     expect(existsSync(g.out)).toBe(false);
   }
   // internal では同じ内容でも生成できる
@@ -634,4 +651,77 @@ test("入れ子の図: 区分をまたいで往復する流れは、連続する
   const feature = text.slice(text.indexOf('id="feature-1"'), text.indexOf('id="feature-2"'));
   expect(feature.match(/<g class="group">/g)?.length).toBe(3);
   expect(feature.match(/>社員<\/text>/g)?.length).toBe(2);
+});
+
+// ---- validate / generate の境界値（拒否メッセージと、1 つ手前の通る対比） ----
+const rejects = (m: unknown, reason: string) => {
+  const r = cli("validate", setup(m).file);
+  expect(r.code, reason).toBe(1);
+  expect(r.err, reason).toContain(reason);
+};
+const accepts = (m: unknown) => {
+  const r = cli("validate", setup(m).file);
+  expect(r.err).toBe("");
+  expect(r.code).toBe(0);
+};
+
+test("changes は status ごとに必要な版の根拠を要求し、満たせば通る", () => {
+  const one = (status: string, ev: string[]) => cmp([change(status, "請求書の申請", ev)]);
+  rejects(one("added", ["B1"]), "追加には対象版の根拠が必要です");
+  rejects(one("added", ["E1", "B1"]), "追加に比較元の根拠は使えません");
+  rejects(one("removed", ["E1"]), "削除には比較元の根拠が必要です");
+  rejects(one("removed", ["E1", "B1"]), "削除に対象版の根拠は使えません");
+  rejects(one("changed", ["E1"]), "変更には比較元の根拠が必要です");
+  rejects(one("changed", ["B1"]), "変更には対象版の根拠が必要です");
+  rejects(one("moved", ["E1"]), "変更の種別は");
+  accepts(one("added", ["E1"]));
+  accepts(one("removed", ["B1"]));
+  accepts(one("changed", ["E1", "B1"]));
+  accepts(one("unchanged", ["B1"]));
+});
+
+test("比較元が対象版と同じコミットなら拒否し、1 文字違えば通る", () => {
+  const withBase = (commit: string) =>
+    cmp(allChanges(), {
+      baseline: { commit, confirmedOn: "2026-10-01" },
+      evidence: [...evidence, { ...cmpEvidence[3], commit }],
+    });
+  rejects(withBase(COMMIT), "比較元が対象版と同じです");
+  accepts(withBase(`${COMMIT.slice(0, 39)}8`));
+});
+
+const manySteps = (n: number, group?: string[]) =>
+  Array.from({ length: n }, (_, i) => ({
+    text: `手順 ${i + 1}`,
+    evidence: ["E1"],
+    ...(group ? { group } : {}),
+  }));
+
+test("手順数の上限 MAX_STEPS は 30 件まで通り、31 件で拒否される（単純・入れ子とも）", () => {
+  for (const group of [undefined, ["区分"]]) {
+    const at = (n: number) => {
+      const m = model();
+      m.features[0].flow = manySteps(n, group);
+      return generate(m, "internal");
+    };
+    expect(at(30).r.code).toBe(0);
+    const over = at(31);
+    expect(over.r.code).toBe(1);
+    expect(over.r.err).toContain("手順が 30 件を超え");
+    expect(over.r.err).toContain("請求書の申請");
+    expect(existsSync(over.out)).toBe(false);
+  }
+});
+
+test("業務区分の深さ MAX_GROUP_DEPTH は 4 段まで通り、5 段で拒否される", () => {
+  const at = (depth: number) => {
+    const m = model();
+    m.features[0].flow = manySteps(2, ["a", "b", "c", "d", "e"].slice(0, depth));
+    return generate(m, "internal");
+  };
+  expect(at(4).r.code).toBe(0);
+  const over = at(5);
+  expect(over.r.code).toBe(1);
+  expect(over.r.err).toContain("業務区分の入れ子が 4 段を超え");
+  expect(existsSync(over.out)).toBe(false);
 });
