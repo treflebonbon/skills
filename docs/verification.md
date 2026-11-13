@@ -50,6 +50,8 @@ process 置換・TTY・signal・FD と lock の比較は [Bun process / lock の
 
 namespace・UID/GID mapping・capability・loopback の比較は [Bun namespace の実証](bun-namespace-proof.md)に記録します。実 namespace のテストは Linux / WSL2 で `NAMESPACE_PROOF_REAL=1` を明示して実行します。通常 CI の skip と実測の成功を区別し、必要な OS と配布環境の確認が揃うまで採用と後続の依存解除を判断しません。
 
+Nix store の Bun・closure・生成 wrapper と書込み先の実証は [Bun Nix runtime の実証](bun-nix-runtime-proof.md)に記録します。実隔離の検査は Linux / WSL2 で `NIX_BUN_PROOF_REAL=1` を明示し、Nix store の tool と bubblewrap を使って実行します。通常 CI の skip を採用や本番 runtime の受入の証拠にはしません。
+
 CI の `typescript-evidence` は Bun 1.4.4 と `ast-grep 0.42.1` で抽出テストを実行し、別の Bun 1.2.14 ジョブで `unavailable` による拒否を確認します。対応版では実物の `ast-grep` の版を先に確認するため、ツール不足で native テストがスキップされた結果を成功扱いしません。旧版の拒否テストは専用ジョブで必ず実行します。
 
 ```sh
