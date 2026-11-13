@@ -30,13 +30,14 @@ const out = resolve(outArg);
 if (existsSync(out)) fail(1, `出力先が既に存在します。上書きしません: ${out}`);
 
 const git = (...a: string[]) => {
-  let p: ReturnType<typeof Bun.spawnSync>;
-  try {
-    p = Bun.spawnSync(["git", ...a], { cwd: repo, stderr: "pipe", stdout: "pipe" });
-  } catch (e) {
-    // repo のパスが存在しない、git が実行できない、など。スタックトレースではなく使い方のエラーにする。
-    return fail(1, `git を実行できません（repo: ${repo}）: ${(e as Error).message}`);
-  }
+  const p = (() => {
+    try {
+      return Bun.spawnSync(["git", ...a], { cwd: repo, stderr: "pipe", stdout: "pipe" });
+    } catch (e) {
+      // repo のパスが存在しない、git が実行できない、など。スタックトレースではなく使い方のエラーにする。
+      return fail(1, `git を実行できません（repo: ${repo}）: ${(e as Error).message}`);
+    }
+  })();
   if (p.exitCode !== 0) fail(1, `git ${a[0]} に失敗しました: ${p.stderr.toString().trim()}`);
   return p.stdout;
 };
