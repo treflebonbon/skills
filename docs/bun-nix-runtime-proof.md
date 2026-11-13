@@ -4,7 +4,7 @@
 
 ## 比較する境界と選択する tool
 
-[既存の隔離処理](../share/codex-isolation/secret-isolation-worktree.py)は、選択した tool の実体を Nix store に限定し、`nix copy --to DIRECTORY --no-check-sigs` と `nix-store --query --requisites` で専用 store と closure の読み取り専用 mount を準備する。今回の[実証 CLI](../tests/fixtures/bun-nix-runtime.ts)は同じ OS コマンドと bubblewrap の構成を使い、Bun・Bash・coreutils を roots とする。製品関数を呼び出した end-to-end の検査ではなく、Bun の追加に必要な closure と起動条件を切り出した合成 fixture である。
+[既存の隔離処理](../share/codex-isolation/secret-isolation-worktree.py)は、選択した tool の実体を Nix store に限定し、`nix copy --to DIRECTORY --no-check-sigs` と `nix-store --query --requisites` で専用 store と closure の読み取り専用 mount を準備する。今回の[実証 CLI](../tests/fixtures/bun-nix-runtime.ts)は同じ OS コマンドと bubblewrap の構成を使い、Bun・Bash・coreutils を roots とする。これに加えて[既存の raw fixture](../tests/helpers/raw-codex.bash)と公開 `approve/run` 入口を通し、既存境界への closure 取り込みとダミー entrypoint の起動も検査する。
 
 ```mermaid
 flowchart TD
@@ -52,9 +52,17 @@ payload の書込み拒否と正常起動を併せて確認する。読み取り
 - `--version` に1.2.14を返す合成 executable を内側の選択 Bun に重ねた対照は、既存 `lib/bun/run` が終了2で拒否し、本体実行の marker を作らない。旧 Nix Bun の実バイナリを入手して動かした証拠とは区別する。
 - 未導入 package の import は実際の隔離内 Bun まで到達した後に拒否される。自動 install や隔離なしの再実行を行わない。
 
+## 既存の隔離入口を通した検証
+
+`raw_fixture` が合成 repository と linked worktree を作り、公開 `approve/run` 入口に既存の `lib/bun/run`・config とダミー entrypoint を渡す。fixture の PATH 上に限り、既存の `codex` tool slot を選択済み Nix Bun への symlink にする。これにより本番 tools 一覧を変えず、実際の `run_isolated` に Bun の closure をコピーさせる。通常の製品起動が既に Bun を選ぶようになったという意味ではない。
+
+既存の生成 `/inside.sh`、copied store、clearenv と専用 HOME の内側でも Bun 1.4.4 が起動し、終了37と HOME / scratch の書込みを確認した。host の canary と未登録の合成 `.env` は見えず、外側の合成変数も届かない。コピー先の Bun binary の hash は選択元と一致した。入口の source hash と観測値を JSON の `existingBoundary` に残す。
+
+`/inside.sh` の書込みは `EROFS`。既存の Bun file を書込み用に開く操作では permission による `EACCES` も先に返るため、errno だけでは mount の性質を断定しない。Bun package の mount point を `/proc/self/mountinfo` で特定し、`ro` であることも別に確認する。完全な runtime session と実モデルを起動する検査は対象外で、TypeScript runtime copy の読み取り専用配置は前述の独立 fixture が担当する。
+
 ## 対応環境と再実行
 
-2026-11-13 に確認した環境は Linux / WSL2 x86_64、kernel `6.18.58.1-microsoft-standard-WSL2`、Bun 1.4.4、Nix 2.34.6、Bash 5.3p9、coreutils 9.11、bubblewrap 0.12.0。7件が pass、失敗・skip は0。Bun 1.4.4 以上という既存 runner の条件を維持し、移行全体の最低版や Nix の下限をこの1環境から推定しない。
+2026-11-13 に確認した環境は Linux / WSL2 x86_64、kernel `6.18.58.1-microsoft-standard-WSL2`、Bun 1.4.4、Nix 2.34.6、Bash 5.3p9、coreutils 9.11、bubblewrap 0.12.0。8件が pass、失敗・skip は0。Bun 1.4.4 以上という既存 runner の条件を維持し、移行全体の最低版や Nix の下限をこの1環境から推定しない。
 
 `~/runtime/skill-harness.md` の保護された検証入口から task worktree を指定する。
 
@@ -64,9 +72,9 @@ python3 -B /home/ubuntu/ghq/github.com/treflebonbon/dotfiles/scripts/verificatio
   env NIX_BUN_PROOF_REAL=1 lib/bun/run test tests/bun/nix-runtime.test.ts
 ```
 
-末尾の `boundary: "nix-runtime"` の JSON に source revision、fixture source hash、選択 tool と closure、準備時間、不変性の結果を残す。dirty checkout では HEAD と fixture source hash を併せて照合する。準備は test file ごとに一度だけ行い、終了後に自分が作った専用 store を片付ける。追加の npm package、FFI、native build は不要。
+末尾の `boundary: "nix-runtime"` の JSON に source revision、fixture / test source hash、選択 tool と closure、準備時間、不変性の結果を残す。dirty checkout では HEAD と両方の source hash を併せて照合する。準備は test file ごとに一度だけ行い、終了後に自分が作った専用 store を片付ける。追加の npm package、FFI、native build は不要。既存入口の検査には通常の raw fixture と同じ Nix tool 群・Python・Git・GitHub CLI も必要だが、実モデル・認証・外部サービスは使用しない。
 
-通常の Bun suite は Nix store 外の Bun の拒否を検査し、実隔離の6件は明示 opt-in まで skip する。未実行時の JSON は `realIsolation: "not-requested"` とし、Nix がない CI の成功を実証の成功に数えない。opt-in 時の tool・権限・版の不足は失敗にする。通常 Linux / aarch64、WSL2 aarch64 は未確認。macOS と Windows native は raw isolation の対象外。
+通常の Bun suite は Nix store 外の Bun の拒否を検査し、実隔離の7件は明示 opt-in まで skip する。未実行時の JSON は `realIsolation: "not-requested"` とし、Nix がない CI の成功を実証の成功に数えない。opt-in 時の tool・権限・版の不足は失敗にする。通常 Linux / aarch64、WSL2 aarch64 は未確認。macOS と Windows native は raw isolation の対象外。
 
 ## repo 外の切り替えと残る判断
 

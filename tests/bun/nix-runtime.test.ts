@@ -5,6 +5,7 @@ import {
   chmodSync,
   existsSync,
   lstatSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -51,6 +52,9 @@ function record(details: object) {
       bun: Bun.version,
       sourceRevision: source.stdout.trim(),
       fixtureSourceHash: createHash("sha256").update(readFileSync(fixture)).digest("hex"),
+      testSourceHash: createHash("sha256")
+        .update(readFileSync(import.meta.filename))
+        .digest("hex"),
       realIsolation: real ? "executed-see-results" : "not-requested",
       adoption: "not-decided",
       ...details,
@@ -85,6 +89,7 @@ describe.skipIf(!real)("Nix closure の実隔離（明示 opt-in）", () => {
   let payloadBefore: string;
   let sourceBefore: string;
   let setupMilliseconds: number;
+  let existingBoundary: object | undefined;
   beforeAll(() => {
     const started = performance.now();
     sourceBefore = digest(resolve(root, "lib/bun"));
@@ -112,7 +117,13 @@ describe.skipIf(!real)("Nix closure の実隔離（明示 opt-in）", () => {
       if (manifest) {
         const payloadUnchanged = digest(resolve(state, "runtime")) === payloadBefore;
         const sourceUnchanged = digest(resolve(root, "lib/bun")) === sourceBefore;
-        record({ manifest, setupMilliseconds, payloadUnchanged, sourceUnchanged });
+        record({
+          manifest,
+          setupMilliseconds,
+          payloadUnchanged,
+          sourceUnchanged,
+          existingBoundary,
+        });
         expect(payloadUnchanged).toBe(true);
         expect(sourceUnchanged).toBe(true);
         expect(readFileSync(resolve(state, "outside"), "utf8")).toBe("host-only-fixture");
@@ -217,4 +228,95 @@ describe.skipIf(!real)("Nix closure の実隔離（明示 opt-in）", () => {
       writeFileSync(file, saved);
     }
   });
+  test("既存 raw fixture と公開 run 入口でも Bun closure・書込み制限を維持する", () => {
+    const integration = resolve(temporary, "existing-boundary");
+    mkdirSync(integration, { mode: 0o700 });
+    const unusedCa = resolve(integration, "unused-ca");
+    writeFileSync(unusedCa, "fixture-only-unused-ca");
+    const script = String.raw`
+set -euo pipefail
+source "$PROJECT_ROOT/tests/helpers/raw-codex.bash"
+raw_fixture
+# 合成 entrypoint として既存の codex tool slot に Bun を選ぶ。本番一覧は変更しない。
+ln -s "$SELECTED_BUN" "$RAW_BASE/bin/codex"
+export PATH="$RAW_BASE/bin:$PATH"
+for file in run bunfig.toml tsconfig.json; do
+  cp "$PROJECT_ROOT/lib/bun/$file" "$RAW_BASE/work/$file"
+done
+cat > "$RAW_BASE/work/probe.ts" <<'PROBE'
+import * as fs from 'node:fs';
+const denied = (path) => {
+  try { const fd = fs.openSync(path, 'a'); fs.closeSync(fd); return 'writable'; }
+  catch (error) { return error.code; }
+};
+const home = process.env.HOME;
+const scratch = home + '/proof-scratch';
+const bunRoot = process.execPath.split('/').slice(0, 4).join('/');
+const bunMount = fs.readFileSync('/proc/self/mountinfo', 'utf8').split('\n')
+  .map(line => line.split(' ')).find(fields => fields[4] === bunRoot);
+fs.mkdirSync(scratch, { recursive: true });
+fs.writeFileSync(home + '/proof-written', 'private-home');
+fs.writeFileSync(scratch + '/written', 'private-scratch');
+console.log(JSON.stringify({ event: 'legacy-target', version: Bun.version,
+  executable: fs.realpathSync(process.execPath), poison: process.env.NIX_BUN_PROOF_POISON ?? null,
+  readonly: { wrapper: denied('/inside.sh'), bun: denied(process.execPath) },
+  bunMountReadonly: bunMount?.[5].split(',').includes('ro') ?? false,
+  home, homeWrite: fs.readFileSync(home + '/proof-written', 'utf8'),
+  scratchWrite: fs.readFileSync(scratch + '/written', 'utf8'),
+  hostVisible: fs.existsSync(process.argv[2]), dotenvVisible: fs.existsSync('.env') }));
+process.exit(37);
+PROBE
+head=$(git -C "$RAW_BASE/work" rev-parse HEAD)
+python3 -I -B "$PROJECT_ROOT/share/codex-isolation/secret-isolation-worktree.py" approve \
+  --root "$RAW_BASE/work" --policy "$RAW_BASE/policy.json" --git-head "$head" -- run bunfig.toml tsconfig.json probe.ts
+NIX_BUN_PROOF_POISON=must-not-enter python3 -I -B "$PROJECT_ROOT/share/codex-isolation/secret-isolation-worktree.py" run \
+  --root "$RAW_BASE/work" --policy "$RAW_BASE/policy.json" --output "$RAW_BASE/session" -- \
+  "$SELECTED_BASH" "$RAW_BASE/work/run" run "$RAW_BASE/work/probe.ts" "$HOST_CANARY"
+`;
+    const result = spawnSync(manifest.tools.bash, ["-c", script], {
+      encoding: "utf8",
+      timeout: 90_000,
+      env: {
+        ...process.env,
+        PROJECT_ROOT: root,
+        BATS_TEST_TMPDIR: integration,
+        CODEX_ISOLATION_CA_BUNDLE: unusedCa,
+        SELECTED_BUN: manifest.tools.bun,
+        SELECTED_BASH: manifest.tools.bash,
+        HOST_CANARY: resolve(state, "outside"),
+      },
+    });
+    if (result.error || result.status !== 37)
+      throw new Error(
+        `既存境界の実証失敗: status=${result.status}, signal=${result.signal}, error=${result.error?.message}\n${result.stdout}\n${result.stderr}`,
+      );
+    const target = result.stdout
+      .split("\n")
+      .filter((line) => line.startsWith("{"))
+      .map((line) => JSON.parse(line))
+      .find((event) => event.event === "legacy-target");
+    expect(target).toBeDefined();
+    expect(target.version).toBe(manifest.bunVersion);
+    expect(target.executable).toBe(manifest.tools.bun);
+    expect(target.poison).toBeNull();
+    expect(target.readonly.wrapper).toBe("EROFS");
+    expect(["EROFS", "EACCES"]).toContain(target.readonly.bun);
+    expect(target.bunMountReadonly).toBe(true);
+    expect(target.home).toBe("/home/agent");
+    expect(target.homeWrite).toBe("private-home");
+    expect(target.scratchWrite).toBe("private-scratch");
+    expect(target.hostVisible).toBe(false);
+    expect(target.dotenvVisible).toBe(false);
+    const copiedBunHash = createHash("sha256")
+      .update(readFileSync(resolve(integration, "raw/session/store", manifest.tools.bun.slice(1))))
+      .digest("hex");
+    expect(copiedBunHash).toBe(manifest.bunHash);
+    existingBoundary = {
+      target,
+      copiedBunHash,
+      sourceHash: createHash("sha256")
+        .update(readFileSync(resolve(root, "share/codex-isolation/secret-isolation-worktree.py")))
+        .digest("hex"),
+    };
+  }, 95_000);
 });
