@@ -62,6 +62,7 @@ class PeerRefactorSkillTests(unittest.TestCase):
             "candidate-record.ts",
             "check-architecture-report",
             "check-owned.sh",
+            "check-owned.ts",
             "gh-once.sh",
             "run-evidence",
             "run-evidence.ts",

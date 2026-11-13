@@ -1,0 +1,298 @@
+{
+  "sourceCommit": "be6a6aaa0c2d5841ea90e594119058832e8f04a6",
+  "sourceHash": "82be9f809a280bf955e19bf97b014fea6e5eff2ed21064b5f40ddaf470bc0ac4",
+  "python": "Python 3.14.7",
+  "receipts": [
+    {
+      "name": "coordinator",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAicnVuLTEiLCAiY29vcmRpbmF0b3JfaGFuZGxlIjogInRlcm0tMSJ9fX0K",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 0,
+      "stdout": "preflight OK: receipt identity matches\n",
+      "stderr": "",
+      "tightened": false
+    },
+    {
+      "name": "wrong-run",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAicnVuLTEiLCAiY29vcmRpbmF0b3JfaGFuZGxlIjogInRlcm0tMSJ9fX0K",
+      "args": ["coordinator", "--run", "other", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: Run ID が期待値と一致しません\n",
+      "tightened": false
+    },
+    {
+      "name": "wrong-handle",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAicnVuLTEiLCAiY29vcmRpbmF0b3JfaGFuZGxlIjogInRlcm0tMSJ9fX0K",
+      "args": ["coordinator", "--run", "run-1", "--handle", "other"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: coordinator handle が期待値と一致しません\n",
+      "tightened": false
+    },
+    {
+      "name": "list",
+      "base64": "W10K",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: receipt が成功応答ではありません\n",
+      "tightened": false
+    },
+    {
+      "name": "null",
+      "base64": "bnVsbAo=",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: receipt が成功応答ではありません\n",
+      "tightened": false
+    },
+    {
+      "name": "false",
+      "base64": "eyJvayI6IGZhbHNlfQo=",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: receipt が成功応答ではありません\n",
+      "tightened": false
+    },
+    {
+      "name": "number-ok",
+      "base64": "eyJvayI6IDEsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAicnVuLTEiLCAiY29vcmRpbmF0b3JfaGFuZGxlIjogInRlcm0tMSJ9fX0K",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: receipt が成功応答ではありません\n",
+      "tightened": false
+    },
+    {
+      "name": "error",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAicnVuLTEiLCAiY29vcmRpbmF0b3JfaGFuZGxlIjogInRlcm0tMSJ9fSwgImVycm9yIjoge319Cg==",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: receipt に error があります\n",
+      "tightened": false
+    },
+    {
+      "name": "null-error",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAicnVuLTEiLCAiY29vcmRpbmF0b3JfaGFuZGxlIjogInRlcm0tMSJ9fSwgImVycm9yIjogbnVsbH0K",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 0,
+      "stdout": "preflight OK: receipt identity matches\n",
+      "stderr": "",
+      "tightened": false
+    },
+    {
+      "name": "result-list",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiBbXX0K",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: receipt に result がありません\n",
+      "tightened": false
+    },
+    {
+      "name": "missing-run",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7fX0K",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: result.run がありません\n",
+      "tightened": false
+    },
+    {
+      "name": "run-list",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IFtdfX0K",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: result.run がありません\n",
+      "tightened": false
+    },
+    {
+      "name": "empty",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAiIiwgImNvb3JkaW5hdG9yX2hhbmRsZSI6ICJ0ZXJtLTEifX19Cg==",
+      "args": ["coordinator", "--run", "", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: Run ID が期待値と一致しません\n",
+      "tightened": false
+    },
+    {
+      "name": "python-whitespace",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAiXHUwMDFjwoXjgIAiLCAiY29vcmRpbmF0b3JfaGFuZGxlIjogInRlcm0tMSJ9fX0K",
+      "args": ["coordinator", "--run", "\u001c　", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: Run ID が期待値と一致しません\n",
+      "tightened": false
+    },
+    {
+      "name": "bom-id",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAi77u/IiwgImNvb3JkaW5hdG9yX2hhbmRsZSI6ICJ0ZXJtLTEifX19Cg==",
+      "args": ["coordinator", "--run", "﻿", "--handle", "term-1"],
+      "status": 0,
+      "stdout": "preflight OK: receipt identity matches\n",
+      "stderr": "",
+      "tightened": false
+    },
+    {
+      "name": "unicode",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAi5a6f6KGMIPCfmoAiLCAiY29vcmRpbmF0b3JfaGFuZGxlIjogInRlcm0tMSJ9fX0K",
+      "args": ["coordinator", "--run", "実行 🚀", "--handle", "term-1"],
+      "status": 0,
+      "stdout": "preflight OK: receipt identity matches\n",
+      "stderr": "",
+      "tightened": false
+    },
+    {
+      "name": "literal",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAiJChsaXRlcmFsKSBgdGV4dGAgXCJxdW90ZWRcIiIsICJjb29yZGluYXRvcl9oYW5kbGUiOiAidGVybS0xIn19fQo=",
+      "args": ["coordinator", "--run", "$(literal) `text` \"quoted\"", "--handle", "term-1"],
+      "status": 0,
+      "stdout": "preflight OK: receipt identity matches\n",
+      "stderr": "",
+      "tightened": false
+    },
+    {
+      "name": "invalid",
+      "base64": "e25vdC1qc29u",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: receipt を読み取れません\n",
+      "tightened": false
+    },
+    {
+      "name": "invalid-utf8",
+      "base64": "/w==",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: receipt を読み取れません\n",
+      "tightened": false
+    },
+    {
+      "name": "bom",
+      "base64": "77u/eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAicnVuLTEiLCAiY29vcmRpbmF0b3JfaGFuZGxlIjogInRlcm0tMSJ9fX0=",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: receipt を読み取れません\n",
+      "tightened": false
+    },
+    {
+      "name": "nonfinite",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7InJ1biI6IHsiaWQiOiAicnVuLTEiLCAiY29vcmRpbmF0b3JfaGFuZGxlIjogInRlcm0tMSJ9fSwgImV4dHJhIjogTmFOfQ==",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 0,
+      "stdout": "preflight OK: receipt identity matches\n",
+      "stderr": "",
+      "tightened": false
+    },
+    {
+      "name": "duplicate",
+      "base64": "eyJvayI6ZmFsc2UsIm9rIjp0cnVlLCJyZXN1bHQiOnsicnVuIjp7ImlkIjoicnVuLTEiLCJjb29yZGluYXRvcl9oYW5kbGUiOiJ0ZXJtLTEifX19",
+      "args": ["coordinator", "--run", "run-1", "--handle", "term-1"],
+      "status": 0,
+      "stdout": "preflight OK: receipt identity matches\n",
+      "stderr": "",
+      "tightened": true
+    },
+    {
+      "name": "worker",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7ImRpc3BhdGNoIjogeyJpZCI6ICJkaXNwYXRjaC0xIiwgInRhc2tJZCI6ICJ0YXNrLTEiLCAiYXNzaWduZWVIYW5kbGUiOiAidGVybS0xIiwgInN0YXR1cyI6ICJkaXNwYXRjaGVkIn19fQo=",
+      "args": [
+        "worker-show",
+        "--dispatch",
+        "dispatch-1",
+        "--task",
+        "task-1",
+        "--assignee",
+        "term-1"
+      ],
+      "status": 0,
+      "stdout": "preflight OK: receipt identity matches\n",
+      "stderr": "",
+      "tightened": false
+    },
+    {
+      "name": "worker-id",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7ImRpc3BhdGNoIjogeyJpZCI6ICJvdGhlciIsICJ0YXNrSWQiOiAidGFzay0xIiwgImFzc2lnbmVlSGFuZGxlIjogInRlcm0tMSIsICJzdGF0dXMiOiAiZGlzcGF0Y2hlZCJ9fX0K",
+      "args": [
+        "worker-show",
+        "--dispatch",
+        "dispatch-1",
+        "--task",
+        "task-1",
+        "--assignee",
+        "term-1"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: Dispatch ID が期待値と一致しません\n",
+      "tightened": false
+    },
+    {
+      "name": "worker-taskId",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7ImRpc3BhdGNoIjogeyJpZCI6ICJkaXNwYXRjaC0xIiwgInRhc2tJZCI6ICJvdGhlciIsICJhc3NpZ25lZUhhbmRsZSI6ICJ0ZXJtLTEiLCAic3RhdHVzIjogImRpc3BhdGNoZWQifX19Cg==",
+      "args": [
+        "worker-show",
+        "--dispatch",
+        "dispatch-1",
+        "--task",
+        "task-1",
+        "--assignee",
+        "term-1"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: Task ID が期待値と一致しません\n",
+      "tightened": false
+    },
+    {
+      "name": "worker-assigneeHandle",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7ImRpc3BhdGNoIjogeyJpZCI6ICJkaXNwYXRjaC0xIiwgInRhc2tJZCI6ICJ0YXNrLTEiLCAiYXNzaWduZWVIYW5kbGUiOiAib3RoZXIiLCAic3RhdHVzIjogImRpc3BhdGNoZWQifX19Cg==",
+      "args": [
+        "worker-show",
+        "--dispatch",
+        "dispatch-1",
+        "--task",
+        "task-1",
+        "--assignee",
+        "term-1"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: assignee handle が期待値と一致しません\n",
+      "tightened": false
+    },
+    {
+      "name": "worker-status",
+      "base64": "eyJvayI6IHRydWUsICJyZXN1bHQiOiB7ImRpc3BhdGNoIjogeyJpZCI6ICJkaXNwYXRjaC0xIiwgInRhc2tJZCI6ICJ0YXNrLTEiLCAiYXNzaWduZWVIYW5kbGUiOiAidGVybS0xIiwgInN0YXR1cyI6ICJvdGhlciJ9fX0K",
+      "args": [
+        "worker-show",
+        "--dispatch",
+        "dispatch-1",
+        "--task",
+        "task-1",
+        "--assignee",
+        "term-1"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "preflight 拒否: Dispatch status が期待値と一致しません\n",
+      "tightened": false
+    }
+  ],
+  "readiness": {
+    "base": "/tmp/codex/peer-coordination-39-corpus-v1",
+    "commit": "tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904\nauthor Fixture <fixture@example.invalid> 1600000000 +0000\ncommitter Fixture <fixture@example.invalid> 1600000000 +0000\n\ncoordination corpus\n",
+    "head": "65ec06f904d15dd5cdb6e333f797b35d433fe12e",
+    "base64": "ewogICJzY2hlbWEiOiAib3JjYS13b3JrZXItcmVhZGluZXNzLW9ic2VydmF0aW9uL3YxIiwKICAidGFza19pZCI6ICJ0YXNrLTEiLAogICJkaXNwYXRjaF9pZCI6ICJkaXNwYXRjaC0xIiwKICAiYXNzaWduZWVfaGFuZGxlIjogInRlcm0tMSIsCiAgImN3ZCI6ICIvdG1wL2NvZGV4L3BlZXItY29vcmRpbmF0aW9uLTM5LWNvcnB1cy12MS93b3JrZXIiLAogICJwaHlzaWNhbF9yb290IjogIi90bXAvY29kZXgvcGVlci1jb29yZGluYXRpb24tMzktY29ycHVzLXYxL3dvcmtlciIsCiAgImJyYW5jaCI6ICJ3b3JrZXIiLAogICJoZWFkIjogIjY1ZWMwNmY5MDRkMTVkZDVjZGI2ZTMzM2Y3OTdiMzVkNDMzZmUxMmUiLAogICJnaXRfZGlyIjogIi90bXAvY29kZXgvcGVlci1jb29yZGluYXRpb24tMzktY29ycHVzLXYxL3JlcG8vLmdpdC93b3JrdHJlZXMvd29ya2VyIiwKICAiY29tbW9uX2RpciI6ICIvdG1wL2NvZGV4L3BlZXItY29vcmRpbmF0aW9uLTM5LWNvcnB1cy12MS9yZXBvLy5naXQiCn0K",
+    "sha256": "8984a2f5780ecfc82dd509031906c375a5677008f8630c304a32c5bf6f5ec6ae",
+    "stdout": "preflight OK: worker checkout observation saved\n"
+  }
+}

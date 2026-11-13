@@ -4,7 +4,7 @@ bats_require_minimum_version 1.5.0
 
 setup() {
   PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-  SCRIPT="$PROJECT_ROOT/skills/orca-peer-refactor/scripts/orca-preflight.py"
+  SCRIPT="$PROJECT_ROOT/skills/orca-peer-refactor/scripts/orca-preflight"
   ORCA_DOC="$PROJECT_ROOT/skills/orca-peer-refactor/references/orca.md"
   ORCA_SEND="$PROJECT_ROOT/bin/orca-send"
   RECEIPT="$BATS_TEST_TMPDIR/receipt.json"
@@ -22,32 +22,18 @@ write_worker_receipt() {
 JSON
 }
 
-readiness_git() {
-  python3 - "$@" <<'PY'
-import os, subprocess, sys
-env = {key: os.environ[key] for key in os.environ if not key.startswith("GIT_")}
-subprocess.run(["git", *sys.argv[1:]], env=env, check=True)
-PY
-}
+readiness_git() (
+  unset "${!GIT_@}"
+  git "$@"
+)
 
-readiness_git_value() {
-  python3 - "$@" <<'PY'
-import os, subprocess, sys
-env = {key: os.environ[key] for key in os.environ if not key.startswith("GIT_")}
-result = subprocess.run(["git", *sys.argv[1:]], env=env, check=True, capture_output=True, text=True)
-sys.stdout.write(result.stdout[:-1] if result.stdout.endswith("\n") else result.stdout)
-PY
-}
+readiness_git_value() { readiness_git "$@"; }
 
 readiness_git_identity() {
-  python3 - "$1" <<'PY'
-import os, subprocess, sys
-env = {key: os.environ[key] for key in os.environ if not key.startswith("GIT_")}
-root = sys.argv[1]
-branch = subprocess.run(["git", "-C", root, "branch", "--show-current"], env=env, check=True, capture_output=True, text=True).stdout.rstrip("\n")
-head = subprocess.run(["git", "-C", root, "rev-parse", "--verify", "HEAD"], env=env, check=True, capture_output=True, text=True).stdout.rstrip("\n")
-print(f"{branch}\t{head}")
-PY
+  local branch head
+  branch="$(readiness_git -C "$1" branch --show-current)"
+  head="$(readiness_git -C "$1" rev-parse --verify HEAD)"
+  printf '%s\t%s\n' "$branch" "$head"
 }
 
 setup_readiness_fixture() {
@@ -67,31 +53,32 @@ setup_readiness_fixture() {
 }
 
 worker_readiness_verify() {
-  python3 "$SCRIPT" worker-readiness verify "$1" --worktree "$2" --branch "$3" --head "$4" --task "$5" --dispatch "$6" --assignee "$7"
+  "$SCRIPT" worker-readiness verify "$1" --worktree "$2" --branch "$3" --head "$4" --task "$5" --dispatch "$6" --assignee "$7"
 }
 
 @test "coordinator receipt must match the expected Run and handle without changing it" {
   write_coordinator_receipt
   cp "$RECEIPT" "$BATS_TEST_TMPDIR/original.json"
-  run python3 "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
+  run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
   [ "$status" -eq 0 ]
-  run python3 "$SCRIPT" coordinator "$RECEIPT" --run run-other --handle term-1
+  run "$SCRIPT" coordinator "$RECEIPT" --run run-other --handle term-1
   [ "$status" -ne 0 ]
-  run python3 "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-other
+  [[ "$output" == *"Run ID が期待値と一致しません"* ]]
+  run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-other
   [ "$status" -ne 0 ]
-  run python3 "$SCRIPT" coordinator "$RECEIPT" --run '' --handle term-1
+  [[ "$output" == *"coordinator handle が期待値と一致しません"* ]]
+  run "$SCRIPT" coordinator "$RECEIPT" --run '' --handle term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"Run ID が期待値と一致しません"* ]]
   cmp "$BATS_TEST_TMPDIR/original.json" "$RECEIPT"
-  python3 - "$RECEIPT" <<'PY'
-import json, sys
-path = sys.argv[1]
-doc = json.load(open(path, encoding="utf-8"))
-doc["result"]["run"]["id"] = ""
-json.dump(doc, open(path, "w", encoding="utf-8"))
-PY
+  node - "$RECEIPT" <<'JS'
+const fs=require('node:fs');const path=process.argv[2];const doc=JSON.parse(fs.readFileSync(path,'utf8'));
+doc.result.run.id='';fs.writeFileSync(path,JSON.stringify(doc));
+JS
   cp "$RECEIPT" "$BATS_TEST_TMPDIR/empty.json"
-  run python3 "$SCRIPT" coordinator "$RECEIPT" --run '' --handle term-1
+  run "$SCRIPT" coordinator "$RECEIPT" --run '' --handle term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"Run ID が期待値と一致しません"* ]]
   cmp "$BATS_TEST_TMPDIR/empty.json" "$RECEIPT"
 }
 
@@ -103,7 +90,7 @@ PY
   IFS=$'\t' read -r primary_branch primary_head <<<"$(readiness_git_identity "$PRIMARY_WORKTREE")"
 
   cd "$WORKER_WORKTREE"
-  run python3 "$SCRIPT" worker-readiness record "$observation" --task task-1 --dispatch dispatch-1 --assignee term-1
+  run "$SCRIPT" worker-readiness record "$observation" --task task-1 --dispatch dispatch-1 --assignee term-1
   [ "$status" -eq 0 ]
   [[ "$output" == *"observation saved"* ]]
   cp "$observation" "$BATS_TEST_TMPDIR/worker-readiness.original.json"
@@ -114,20 +101,22 @@ PY
 
   run worker_readiness_verify "$observation" "$OTHER_WORKTREE" "$other_branch" "$other_head" task-1 dispatch-1 term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"cwd が期待値と一致しません"* ]]
   cmp "$BATS_TEST_TMPDIR/worker-readiness.original.json" "$observation"
 
   cd "$PRIMARY_WORKTREE"
-  run python3 "$SCRIPT" worker-readiness record "$primary_observation" --task task-1 --dispatch dispatch-1 --assignee term-1
+  run "$SCRIPT" worker-readiness record "$primary_observation" --task task-1 --dispatch dispatch-1 --assignee term-1
   [ "$status" -eq 0 ]
   run worker_readiness_verify "$primary_observation" "$PRIMARY_WORKTREE" "$primary_branch" "$primary_head" task-1 dispatch-1 term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"割当先が linked worktree ではありません"* ]]
 }
 
 @test "worker readiness rejects every changed checkout and native assignment field" {
   local observation="$BATS_TEST_TMPDIR/worker-readiness.json" variant="$BATS_TEST_TMPDIR/variant.json" field branch head wrong_head
   setup_readiness_fixture
   cd "$WORKER_WORKTREE"
-  run python3 "$SCRIPT" worker-readiness record "$observation" --task task-1 --dispatch dispatch-1 --assignee term-1
+  run "$SCRIPT" worker-readiness record "$observation" --task task-1 --dispatch dispatch-1 --assignee term-1
   [ "$status" -eq 0 ]
   cp "$observation" "$BATS_TEST_TMPDIR/worker-readiness.original.json"
   branch=worker
@@ -136,20 +125,21 @@ PY
 
   run worker_readiness_verify "$observation" "$WORKER_WORKTREE" "${branch}-different" "$head" task-1 dispatch-1 term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"割当 branch が期待値と一致しません"* ]]
   run worker_readiness_verify "$observation" "$WORKER_WORKTREE" "$branch" "$wrong_head" task-1 dispatch-1 term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"割当 HEAD が期待値と一致しません"* ]]
 
   for field in cwd physical_root branch head git_dir common_dir task_id dispatch_id assignee_handle; do
-    python3 - "$observation" "$variant" "$field" <<'PY'
-import json, sys
-source, target, field = sys.argv[1:]
-doc = json.load(open(source, encoding="utf-8"))
-doc[field] = "f" * 40 if field == "head" else doc[field] + "-different"
-json.dump(doc, open(target, "w", encoding="utf-8"))
-PY
+    node - "$observation" "$variant" "$field" <<'JS'
+const fs=require('node:fs');const [source,target,field]=process.argv.slice(2);const doc=JSON.parse(fs.readFileSync(source,'utf8'));
+doc[field]=field==='head'?'f'.repeat(40):doc[field]+'-different';fs.writeFileSync(target,JSON.stringify(doc));
+JS
     cp "$variant" "$BATS_TEST_TMPDIR/variant.original.json"
     run worker_readiness_verify "$variant" "$WORKER_WORKTREE" "$branch" "$head" task-1 dispatch-1 term-1
     [ "$status" -ne 0 ]
+    case "$field" in task_id) label="Task ID" ;; dispatch_id) label="Dispatch ID" ;; assignee_handle) label="assignee handle" ;; *) label="$field" ;; esac
+    [[ "$output" == *"$label が期待値と一致しません"* ]]
     cmp "$BATS_TEST_TMPDIR/variant.original.json" "$variant"
   done
   cmp "$BATS_TEST_TMPDIR/worker-readiness.original.json" "$observation"
@@ -159,7 +149,7 @@ PY
   local observation="$BATS_TEST_TMPDIR/worker-readiness.json" invalid="$BATS_TEST_TMPDIR/invalid.json" branch head
   setup_readiness_fixture
   cd "$WORKER_WORKTREE"
-  run python3 "$SCRIPT" worker-readiness record "$observation" --task task-1 --dispatch dispatch-1 --assignee term-1
+  run "$SCRIPT" worker-readiness record "$observation" --task task-1 --dispatch dispatch-1 --assignee term-1
   [ "$status" -eq 0 ]
   branch=worker
   head="$(readiness_git_value -C "$WORKER_WORKTREE" rev-parse --verify HEAD)"
@@ -170,30 +160,23 @@ PY
   cmp "$BATS_TEST_TMPDIR/invalid.original.json" "$invalid"
 
   for field in missing empty non-string duplicate; do
-    python3 - "$observation" "$invalid" "$field" <<'PY'
-import json, sys
-source, target, mutation = sys.argv[1:]
-doc = json.load(open(source, encoding="utf-8"))
-if mutation == "missing":
-    del doc["head"]
-elif mutation == "empty":
-    doc["head"] = ""
-elif mutation == "non-string":
-    doc["branch"] = 42
-else:
-    with open(target, "w", encoding="utf-8") as stream:
-        stream.write(json.dumps(doc)[:-1] + ', "branch": "duplicate"}\n')
-        raise SystemExit(0)
-with open(target, "w", encoding="utf-8") as stream:
-    json.dump(doc, stream)
-PY
+    node - "$observation" "$invalid" "$field" <<'JS'
+const fs=require('node:fs');const [source,target,mutation]=process.argv.slice(2);const doc=JSON.parse(fs.readFileSync(source,'utf8'));
+if(mutation==='missing')delete doc.head;
+else if(mutation==='empty')doc.head='';
+else if(mutation==='non-string')doc.branch=42;
+fs.writeFileSync(target,mutation==='duplicate'?JSON.stringify(doc).slice(0,-1)+', "branch": "duplicate"}\n':JSON.stringify(doc));
+JS
     cp "$invalid" "$BATS_TEST_TMPDIR/invalid.original.json"
     run worker_readiness_verify "$invalid" "$WORKER_WORKTREE" "$branch" "$head" task-1 dispatch-1 term-1
     [ "$status" -ne 0 ]
+    case "$field" in missing) diagnostic="schema が不正" ;; empty) diagnostic="head が空または不正" ;; non-string) diagnostic="branch が空または不正" ;; duplicate) diagnostic="重複キー" ;; esac
+    [[ "$output" == *"$diagnostic"* ]]
     cmp "$BATS_TEST_TMPDIR/invalid.original.json" "$invalid"
   done
-  run python3 "$SCRIPT" worker-readiness record "$BATS_TEST_TMPDIR/empty.json" --task task-1 --dispatch dispatch-1 --assignee ''
+  run "$SCRIPT" worker-readiness record "$BATS_TEST_TMPDIR/empty.json" --task task-1 --dispatch dispatch-1 --assignee ''
   [ "$status" -ne 0 ]
+  [[ "$output" == *"assignee が空または不正です"* ]]
 }
 
 @test "worker readiness ignores ambient Git overrides and never executes shell-looking JSON" {
@@ -202,81 +185,78 @@ PY
   branch=worker
   head="$(readiness_git_value -C "$WORKER_WORKTREE" rev-parse --verify HEAD)"
   cd "$WORKER_WORKTREE"
-  run env GIT_DIR="$BATS_TEST_TMPDIR/not-a-git-dir" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.worktree GIT_CONFIG_VALUE_0="$BATS_TEST_TMPDIR/not-a-worktree" python3 "$SCRIPT" worker-readiness record "$observation" --task task-1 --dispatch dispatch-1 --assignee term-1
+  run env GIT_DIR="$BATS_TEST_TMPDIR/not-a-git-dir" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.worktree GIT_CONFIG_VALUE_0="$BATS_TEST_TMPDIR/not-a-worktree" "$SCRIPT" worker-readiness record "$observation" --task task-1 --dispatch dispatch-1 --assignee term-1
   [ "$status" -eq 0 ]
   [[ "$output" != *"not-a-worktree"* ]]
   run grep -Fq "not-a-worktree" "$observation"
   [ "$status" -eq 1 ]
-  run env GIT_DIR="$BATS_TEST_TMPDIR/not-a-git-dir" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.worktree GIT_CONFIG_VALUE_0="$BATS_TEST_TMPDIR/not-a-worktree" python3 "$SCRIPT" worker-readiness verify "$observation" --worktree "$WORKER_WORKTREE" --branch "$branch" --head "$head" --task task-1 --dispatch dispatch-1 --assignee term-1
+  run env GIT_DIR="$BATS_TEST_TMPDIR/not-a-git-dir" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.worktree GIT_CONFIG_VALUE_0="$BATS_TEST_TMPDIR/not-a-worktree" "$SCRIPT" worker-readiness verify "$observation" --worktree "$WORKER_WORKTREE" --branch "$branch" --head "$head" --task task-1 --dispatch dispatch-1 --assignee term-1
   [ "$status" -eq 0 ]
   [[ "$output" != *"not-a-worktree"* ]]
 
-  python3 - "$observation" "$variant" "$marker" <<'PY'
-import json, sys
-source, target, marker = sys.argv[1:]
-doc = json.load(open(source, encoding="utf-8"))
-doc["branch"] = f"$(touch {marker})"
-with open(target, "w", encoding="utf-8") as stream:
-    json.dump(doc, stream)
-PY
+  node - "$observation" "$variant" "$marker" <<'JS'
+const fs=require('node:fs');const [source,target,marker]=process.argv.slice(2);const doc=JSON.parse(fs.readFileSync(source,'utf8'));
+doc.branch='$(touch '+marker+')';fs.writeFileSync(target,JSON.stringify(doc));
+JS
   cp "$variant" "$BATS_TEST_TMPDIR/variant.original.json"
   run worker_readiness_verify "$variant" "$WORKER_WORKTREE" "$branch" "$head" task-1 dispatch-1 term-1
   [ "$status" -ne 0 ]
+  [[ "$output" == *"branch が期待値と一致しません"* ]]
   [ ! -e "$marker" ]
   cmp "$BATS_TEST_TMPDIR/variant.original.json" "$variant"
 }
 
 @test "coordinator rejects errors, malformed envelopes, and missing Run identity" {
   printf '{"ok":false,"error":{"code":"failed"}}\n' >"$RECEIPT"
-  run python3 "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
+  run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
   [ "$status" -ne 0 ]
   printf '{not-json\n' >"$RECEIPT"
-  run python3 "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
+  run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
   [ "$status" -ne 0 ]
   printf '{"ok":true,"result":{}}\n' >"$RECEIPT"
-  run python3 "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
+  run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
   [ "$status" -ne 0 ]
   printf '{"ok":true,"error":{"code":"failed"},"result":{"run":{"id":"run-1","coordinator_handle":"term-1"}}}\n' >"$RECEIPT"
-  run python3 "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
+  run "$SCRIPT" coordinator "$RECEIPT" --run run-1 --handle term-1
   [ "$status" -ne 0 ]
 }
 
 @test "worker-show receipt must match the dispatched Task, Dispatch, and assignee" {
   write_worker_receipt
   cp "$RECEIPT" "$BATS_TEST_TMPDIR/original.json"
-  run python3 "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
+  run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
   [ "$status" -eq 0 ]
-  run python3 "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-other --task task-1 --assignee term-1
+  run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-other --task task-1 --assignee term-1
   [ "$status" -ne 0 ]
-  run python3 "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-other --assignee term-1
+  [[ "$output" == *"Dispatch ID が期待値と一致しません"* ]]
+  run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-other --assignee term-1
   [ "$status" -ne 0 ]
-  run python3 "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-other
+  [[ "$output" == *"Task ID が期待値と一致しません"* ]]
+  run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-other
   [ "$status" -ne 0 ]
+  [[ "$output" == *"assignee handle が期待値と一致しません"* ]]
   cmp "$BATS_TEST_TMPDIR/original.json" "$RECEIPT"
 }
 
 @test "worker-show rejects settled or errored Dispatches" {
   write_worker_receipt
-  python3 - "$RECEIPT" <<'PY'
-import json, sys
-path = sys.argv[1]
-doc = json.load(open(path, encoding="utf-8"))
-doc["result"]["dispatch"]["status"] = "completed"
-json.dump(doc, open(path, "w", encoding="utf-8"))
-PY
-  run python3 "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
+  node - "$RECEIPT" <<'JS'
+const fs=require('node:fs');const path=process.argv[2];const doc=JSON.parse(fs.readFileSync(path,'utf8'));
+doc.result.dispatch.status='completed';fs.writeFileSync(path,JSON.stringify(doc));
+JS
+  run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
   [ "$status" -ne 0 ]
   printf '{"ok":false,"error":{"code":"failed"},"result":{"dispatch":{"id":"dispatch-1","taskId":"task-1","assigneeHandle":"term-1","status":"dispatched"}}}\n' >"$RECEIPT"
-  run python3 "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
+  run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
   [ "$status" -ne 0 ]
 }
 
 @test "worker-show rejects missing and malformed dispatch identities" {
   printf '{"ok":true,"result":{}}\n' >"$RECEIPT"
-  run python3 "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
+  run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
   [ "$status" -ne 0 ]
   printf '{"ok":true,"result":{"dispatch":{"id":"dispatch-1","taskId":"task-1","status":"dispatched"}}}\n' >"$RECEIPT"
-  run python3 "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
+  run "$SCRIPT" worker-show "$RECEIPT" --dispatch dispatch-1 --task task-1 --assignee term-1
   [ "$status" -ne 0 ]
 }
 
@@ -375,48 +355,29 @@ SH
 本文:
 literal $READINESS_LITERAL、$(touch "$READINESS_SHELL_MARKER")、`touch "$READINESS_BACKTICK_MARKER"`、"二重引用符"、'一重引用符'
 BODY
-  python3 - "$ORCA_DOC" "$example" "$body_file" <<'PY'
-from pathlib import Path
-import sys
-doc, target, body_file = map(Path, sys.argv[1:])
-lines = [line for line in doc.read_text().splitlines() if line.startswith(("task_body=", "ORCA orchestration send --to "))]
-script = "\n".join(lines)
-for placeholder, value in (
-    ("<dispatch-id>", "dispatch-1"),
-    ("<child-dispatch-id>", "dispatch-child"),
-    ("<nested-dispatch-id>", "dispatch-nested"),
-    ("<coordinator-handle>", "term-parent"),
-):
-    script = script.replace(placeholder, value)
-for placeholder in ("<確定済みの実タスク本文>", "<確定済みのchild task本文>", "<literal body>"):
-    script = script.replace(placeholder, body_file.read_text().rstrip("\n"))
-target.write_text(script + "\n")
-PY
-  cat >"$fake_cli" <<'PY'
-#!/usr/bin/env python3
-import json, os, sys
-with open(os.environ["ARGV_CAPTURE"], "a", encoding="utf-8") as stream:
-    stream.write(json.dumps(sys.argv[1:], ensure_ascii=False) + "\n")
-PY
+  node - "$ORCA_DOC" "$example" "$body_file" <<'JS'
+const fs=require('node:fs');const [doc,target,bodyFile]=process.argv.slice(2);
+let script=fs.readFileSync(doc,'utf8').split('\n').filter(line=>line.startsWith('task_body=')||line.startsWith('ORCA orchestration send --to ')).join('\n');
+for(const [placeholder,value] of [['<dispatch-id>','dispatch-1'],['<child-dispatch-id>','dispatch-child'],['<nested-dispatch-id>','dispatch-nested'],['<coordinator-handle>','term-parent']])script=script.replaceAll(placeholder,value);
+for(const placeholder of ['<確定済みの実タスク本文>','<確定済みのchild task本文>','<literal body>'])script=script.replaceAll(placeholder,fs.readFileSync(bodyFile,'utf8').replace(/\n+$/,''));
+fs.writeFileSync(target,script+'\n');
+JS
+  cat >"$fake_cli" <<'JS'
+#!/usr/bin/env node
+const fs=require('node:fs');fs.appendFileSync(process.env.ARGV_CAPTURE,JSON.stringify(process.argv.slice(2))+'\n');
+JS
   chmod +x "$fake_cli"
   run env ARGV_CAPTURE="$BATS_TEST_TMPDIR/argv.jsonl" PATH="$BATS_TEST_TMPDIR:$PATH" task_body_file="$body_file" READINESS_LITERAL=expanded READINESS_SHELL_MARKER="$BATS_TEST_TMPDIR/shell-marker" READINESS_BACKTICK_MARKER="$BATS_TEST_TMPDIR/backtick-marker" bash "$example"
   [ "$status" -eq 0 ]
   [ ! -e "$BATS_TEST_TMPDIR/shell-marker" ]
   [ ! -e "$BATS_TEST_TMPDIR/backtick-marker" ]
-  python3 - "$BATS_TEST_TMPDIR/argv.jsonl" "$body_file" <<'PY'
-import json, sys
-from pathlib import Path
-calls = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
-body = Path(sys.argv[2]).read_text().rstrip("\n")
-expected = []
-for target, sender, subject, kind in (
-    ("dispatch-1", [], "実タスク開始", "dispatch"),
-    ("dispatch-child", [], "実タスク開始", "dispatch"),
-    ("dispatch-nested", ["--from", "term-parent"], "follow-up", "status"),
-):
-    expected.append(["orchestration", "send", "--to", f"dispatch:{target}", *sender, "--subject", subject, "--body", body, "--type", kind, "--json"])
-assert calls == expected, calls
-PY
+  node - "$BATS_TEST_TMPDIR/argv.jsonl" "$body_file" <<'JS'
+const fs=require('node:fs'),assert=require('node:assert/strict');const [source,bodyFile]=process.argv.slice(2);
+const calls=fs.readFileSync(source,'utf8').trim().split('\n').map(JSON.parse),body=fs.readFileSync(bodyFile,'utf8').replace(/\n+$/,'');
+const expected=[];
+for(const [target,sender,subject,kind] of [['dispatch-1',[],'実タスク開始','dispatch'],['dispatch-child',[],'実タスク開始','dispatch'],['dispatch-nested',['--from','term-parent'],'follow-up','status']])expected.push(['orchestration','send','--to','dispatch:'+target,...sender,'--subject',subject,'--body',body,'--type',kind,'--json']);
+assert.deepEqual(calls,expected);
+JS
 }
 
 @test "Orca guidance separates worker, coordinator, nested inbox, and report evidence" {

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 # peer-request.sh: send one request to a herdr peer, confirm it started, wait,
 # and accept completion only from the response file.
 #
@@ -27,6 +27,15 @@
 # 15 hold: peer state cannot be verified, or another helper holds the workdir |
 # 2 usage
 set -euo pipefail
+
+source_path="${BASH_SOURCE[0]}"
+while [[ -L "$source_path" ]]; do
+  source_dir="$(cd -- "$(dirname -- "$source_path")" && pwd -P)"
+  source_path="$(readlink -- "$source_path")"
+  [[ "$source_path" = /* ]] || source_path="$source_dir/$source_path"
+done
+source_dir="$(cd -- "$(dirname -- "$source_path")" && pwd -P)"
+package_root="$(cd -- "$source_dir/../../.." && pwd -P)"
 
 PEER_TIMEOUT_S=1200
 TOTAL_WAIT_S=7200
@@ -72,23 +81,8 @@ capture() {
   # at it nor swap one in, because the helper never reopens an existing file.
   term="$workdir/.$id.term.$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
   set -C
-  python3 -I -c '
-import re, sys
-head, want_start, want_end = sys.argv[1], sys.argv[2], sys.argv[3]
-def norm(line):
-    return re.sub(r"^[\s•]+", "", line).rstrip()
-lines = sys.stdin.read().split("\n")
-starts = [i for i, l in enumerate(lines) if norm(l) == want_start]
-if starts:
-    i = starts[0]
-    ends = [j for j in range(i + 1, len(lines)) if norm(lines[j]) == want_end]
-    if ends:
-        body = [re.sub(r"^ {1,2}", "", l).rstrip() for l in lines[i + 1 : ends[-1]]]
-        if any(l.strip() for l in body):
-            print(head + "\n" + "\n".join(body))
-            sys.exit(0)
-sys.exit(3)
-' "DONE $id $sha" "DONE $id $sha $nonce" "END $id $nonce" <<<"$text" >"$term"
+  "$package_root/lib/bun/run" run "$package_root/lib/bun/peer-response.ts" \
+    "DONE $id $sha" "DONE $id $sha $nonce" "END $id $nonce" 9>&- <<<"$text" >"$term"
   rc=$?
   set +C
   case $rc in
@@ -110,8 +104,8 @@ sys.exit(3)
 is_blocked() { grep -qE '"code": *"agent_blocked"|"agent_status": *"blocked"' <<<"$1"; }
 # A state is trusted only if it parses as JSON: a truncated or garbled body that
 # merely contains an idle/working fragment cannot be verified (fail closed; this
-# also holds when python3 is missing).
-json_ok() { python3 -c 'import json,sys; json.load(sys.stdin)' <<<"$1" >/dev/null 2>&1; }
+# also holds when the JSON validator is unavailable).
+json_ok() { "$package_root/lib/bun/run" run "$package_root/lib/bun/coordination-json.ts" - 9>&- <<<"$1" >/dev/null 2>&1; }
 is_working() { json_ok "$1" && grep -qE '"agent_status": *"working"' <<<"$1"; }
 is_ready() { json_ok "$1" && grep -qE '"agent_status": *"(idle|done)"' <<<"$1"; }
 # Children must not inherit the lock descriptor (fd 9): a process that outlives
