@@ -473,8 +473,8 @@ const esc = (s: string) =>
     .replace(/'/g, "&#39;");
 const CSS = `:root{color-scheme:light dark;--bg:#fff;--fg:#1a1a1a;--muted:#555;--line:#c8c8c8;--accent:#0b5cad}
 @media(prefers-color-scheme:dark){:root{--bg:#161616;--fg:#eee;--muted:#aaa;--line:#444;--accent:#7ab7ff}}
-body{margin:0;background:var(--bg);color:var(--fg);font:1rem/1.85 "Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,system-ui,sans-serif;overflow-wrap:anywhere}
-main{max-width:48rem;margin:0 auto;padding:1rem 1.25rem 4rem}
+body{margin:0;background:var(--bg);color:var(--fg);font:1rem/1.85 "Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,system-ui,sans-serif;overflow-wrap:anywhere;word-break:auto-phrase}h1,h2,h3{text-wrap:balance}p,li,figcaption{text-wrap:pretty}
+main{max-width:42rem;margin:0 auto;padding:1rem 1.25rem 4rem}
 h1{font-size:1.75rem;line-height:1.4}h2{font-size:1.4rem;border-bottom:2px solid var(--line);padding-bottom:.25rem;margin-top:2.5rem}h3{font-size:1.15rem;margin-top:1.75rem}
 a{color:var(--accent)}a:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .badge{display:inline-block;border:1px solid var(--fg);border-radius:.25rem;padding:0 .4rem;margin-left:.4rem;font-size:.875rem;line-height:1.6}
@@ -484,7 +484,7 @@ section[id],h2,h3{scroll-margin-top:1rem}
 .skip{position:absolute;left:-999px}.skip:focus{left:1rem;top:1rem;background:var(--bg);padding:.25rem .5rem;z-index:2}
 .box>strong:first-child{display:block}.box>strong:first-child::before{content:"\\26A0 "}
 main:focus{outline:none}
-@media(min-width:80rem){nav{position:fixed;top:1rem;left:1rem;width:14rem;max-height:calc(100vh - 2rem);overflow:auto;font-size:.9375rem}nav h2{margin-top:0;font-size:1.1rem}}
+@media(min-width:88rem){nav{position:fixed;top:1rem;left:1rem;width:14rem;max-height:calc(100vh - 2rem);overflow:auto;font-size:.9375rem}nav h2{margin-top:0;font-size:1.1rem}}
 figure.flow{margin:1rem 0}.diagram{overflow:auto;border:1px solid var(--line);padding:.5rem}.diagram:focus-visible{outline:3px solid var(--accent)}svg{display:block;max-width:none;color:var(--fg)}svg text{fill:var(--fg)}svg .node rect{fill:var(--bg);stroke:var(--fg);stroke-width:2}svg .edge{fill:none;stroke:var(--fg);stroke-width:2}svg .head{fill:var(--fg)}svg .group rect{fill:none;stroke:var(--muted);stroke-width:2}figcaption{color:var(--muted)}
 @media print{details:not([open])::details-content{content-visibility:visible;display:block}body{background:#fff;color:#000;font-size:11pt;line-height:1.7}nav{position:static}a{color:inherit;text-decoration:none}main{max-width:none;padding:0}.skip{display:none}li,.box{break-inside:avoid}h2,h3,h4{break-after:avoid}.diagram{overflow:visible}svg{max-width:100%;height:auto}}`;
 
@@ -666,28 +666,29 @@ async function nestedFlowDiagram(name: string, steps: Step[], id: string) {
     },
   };
   const groups = new Map<string, { node: ElkNode; label: string }>();
+  // 同じ区分でも、手順が連続している間だけ 1 つの枠にする。離れた手順を 1 枠へ集めると、
+  // 区分をまたいで往復する流れで矢印が枠の外を大きく迂回し、上から下への順に読めなくなる。
+  const live: { label: string; node: ElkNode }[] = [];
   const parentOf = (path: string[]): ElkNode => {
-    let parent = root;
-    path.forEach((label, depth) => {
-      const key = JSON.stringify(path.slice(0, depth + 1));
-      let g = groups.get(key);
-      if (!g) {
-        const node: ElkNode = {
-          id: `g${groups.size}`,
-          children: [],
-          layoutOptions: {
-            "elk.padding": "[top=32,left=12,bottom=12,right=12]",
-            "elk.nodeSize.constraints": "MINIMUM_SIZE",
-            "elk.nodeSize.minimum": `(${textWidth(label) + 24},40)`,
-          },
-        };
-        g = { node, label };
-        groups.set(key, g);
-        parent.children!.push(node);
-      }
-      parent = g.node;
-    });
-    return parent;
+    let common = 0;
+    while (common < live.length && common < path.length && live[common].label === path[common])
+      common++;
+    live.length = common;
+    for (const label of path.slice(common)) {
+      const node: ElkNode = {
+        id: `g${groups.size}`,
+        children: [],
+        layoutOptions: {
+          "elk.padding": "[top=32,left=12,bottom=12,right=12]",
+          "elk.nodeSize.constraints": "MINIMUM_SIZE",
+          "elk.nodeSize.minimum": `(${textWidth(label) + 24},40)`,
+        },
+      };
+      groups.set(node.id, { node, label });
+      (live.at(-1)?.node ?? root).children!.push(node);
+      live.push({ label, node });
+    }
+    return live.at(-1)?.node ?? root;
   };
   steps.forEach((s, i) => {
     parentOf(s.group ?? []).children!.push({

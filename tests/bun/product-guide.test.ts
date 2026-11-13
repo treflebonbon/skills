@@ -588,3 +588,50 @@ test("既知の限界: 拡張子形式を含む通常の文章も public では�
   expect(existsSync(g.out)).toBe(false);
   expect(generate(m, "internal").r.code).toBe(0);
 });
+
+// ---- #74: 実文の fixture と、表示の磨き込み（実ブラウザでの確認は docs/verification.md） ----
+const FIXTURE = JSON.parse(
+  readFileSync(resolve(root, "tests/fixtures/product-guide-model.json"), "utf8"),
+);
+const FIXTURE_COMMIT = FIXTURE.target.commit as string;
+
+function generateFixture(audience: string) {
+  const s = setup(FIXTURE);
+  const r = cli("generate", s.file, "--audience", audience, "--out", s.out);
+  const html = join(s.out, `${FIXTURE_COMMIT}-${audience}`, "index.html");
+  return { ...s, r, text: existsSync(html) ? readFileSync(html, "utf8") : "" };
+}
+
+test("実文の fixture: internal と public の両方が生成でき、public に内部情報・実行可能な内容がない", () => {
+  const i = generateFixture("internal");
+  const p = generateFixture("public");
+  expect(i.r.code).toBe(0);
+  expect(p.r.code).toBe(0);
+  expect(i.text).toContain("src/loan/request.ts");
+  for (const s of [FIXTURE_COMMIT, "src/loan", "requestLoan", "returnItem", "extendLoan"])
+    expect(p.text).not.toContain(s);
+  for (const t of [i.text, p.text]) expect(t).not.toMatch(/<script|<meta http|url\(|https?:\/\//);
+  // 長い見出しは省略せず、目次と本文の両方に出る。提案は現行の節に出ない。
+  const long = FIXTURE.features[2].name as string;
+  expect(p.text.split(long).length - 1).toBeGreaterThanOrEqual(2);
+  expect(p.text.slice(0, p.text.indexOf('id="proposed"'))).not.toContain("備品の自動予約");
+  expect(p.text).toContain("<svg");
+});
+
+test("読みやすさ: 本文 1rem 以上・行長の上限・目次固定の下限幅・日本語の折返しを CSS で指定する", () => {
+  const { text } = generateFixture("public");
+  expect(text).toMatch(/font:1rem\/1\.85 /);
+  expect(text).toContain("main{max-width:42rem;");
+  // 固定の目次(14rem)と本文(42rem)が重ならない幅からだけ固定する。
+  expect(text).toContain("@media(min-width:88rem){nav{position:fixed");
+  expect(text).toContain("word-break:auto-phrase");
+  expect(text).toContain("overflow-wrap:anywhere");
+});
+
+test("入れ子の図: 区分をまたいで往復する流れは、連続する手順ごとに別の枠になる", () => {
+  const { text } = generateFixture("public");
+  // 「備品を借りる」の流れは 社員 → 上長 → 社員。同じ区分でも離れた手順は別の枠。
+  const feature = text.slice(text.indexOf('id="feature-1"'), text.indexOf('id="feature-2"'));
+  expect(feature.match(/<g class="group">/g)?.length).toBe(3);
+  expect(feature.match(/>社員<\/text>/g)?.length).toBe(2);
+});
