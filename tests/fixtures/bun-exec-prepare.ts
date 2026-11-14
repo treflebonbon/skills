@@ -4,13 +4,17 @@ function holdPreparation() {
   process.on("SIGTERM", () => {});
   const disposition = requestedMode!.endsWith("blocked") ? "blocked" : "ignored";
   Bun.spawn([executable!, "hold", disposition], { stdout: "inherit", stderr: "inherit" });
-  console.error(`prep-ready:${process.pid}`);
+  const event = requestedMode!.startsWith("prep-before-ready-") ? "prep-started" : "prep-ready";
+  console.error(`${event}:${process.pid}`);
   setInterval(() => {}, 1_000);
 }
-if (requestedMode?.startsWith("prep-stubborn-")) {
+if (
+  requestedMode?.startsWith("prep-stubborn-") ||
+  requestedMode?.startsWith("prep-before-ready-")
+) {
   holdPreparation();
-} else if (requestedMode === "prep-hang" || requestedMode === "prep-before-ready") {
-  console.error(`${requestedMode === "prep-hang" ? "prep-ready" : "prep-started"}:${process.pid}`);
+} else if (requestedMode === "prep-hang") {
+  console.error(`prep-ready:${process.pid}`);
   setInterval(() => {}, 1_000);
 } else {
   const mode = requestedMode?.startsWith("search") ? "search" : "reviewer";

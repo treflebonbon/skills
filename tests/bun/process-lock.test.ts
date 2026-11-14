@@ -382,6 +382,25 @@ test("同じ binary は mode 0600 で EACCES、0700 で実行できる", () => {
   expect(accepted.reports.map((item) => item.event)).toEqual(["seed", "target"]);
 });
 
+test("stdin と stdout が閉じた入口でも準備用 pipe を誤って閉じない", () => {
+  for (const command of [
+    [observer, "report", "37"],
+    [entry, runner, prepare, launcher, "reviewer", observer],
+  ]) {
+    const result = spawnSync(
+      "/bin/bash",
+      ["-p", "-c", 'exec 0<&- 1>&-; exec "$@"', "bash", ...command],
+      {
+        encoding: "utf8",
+        timeout: 5_000,
+      },
+    );
+    expect(result.status).toBe(37);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe("");
+  }
+});
+
 test("親の SIGCHLD ignore を target に維持し、準備子は回収できる", () => {
   for (const mode of ["posix-control", "launcher"]) {
     const result = run(mode, "inherit", "chld-ignored");
@@ -400,6 +419,7 @@ test("exec の ELOOP は errno 名・対象・説明を示し、正常な対照�
   expect(refused.status).toBe(1);
   expect(refused.stderr).toContain("exec-error:ELOOP");
   expect(refused.stderr).toContain(target);
+  expect(refused.stderr).toMatch(/; .+\n$/);
   expect(refused.reports.map((report) => report.event)).toEqual(["seed"]);
   const accepted = run("launcher", "inherit", "clear", observer);
   expect(accepted.status).toBe(37);
@@ -553,6 +573,7 @@ test("OS が受け入れる argv 上限を準備 frame が狭めず、超過は 
   expect(refused.status).toBe(1);
   expect(refused.stderr).toContain("codex-reviewer: exec-error:E2BIG");
   expect(refused.stderr).toContain(`target=${observer}; `);
+  expect(refused.stderr).toMatch(/; .+\n$/);
   argumentLimitObservation = {
     argMax,
     maximum1024ByteArguments: low,
@@ -665,95 +686,6 @@ test("prep-complete-fail は読み取りが遅い大きな frame も全て送っ
   }
 });
 
-for (const beforeReady of [false, true]) {
-  test(
-    beforeReady
-      ? "ready 前の期限切れでも準備 group 全体を終了して stderr の待機を終える"
-      : "準備中に親を SIGTERM 終了すると準備子も終了し、親が回収する",
-    async () => {
-      const child = spawn(
-        entry,
-        [runner, prepare, launcher, beforeReady ? "prep-before-ready" : "prep-hang", observer],
-        {
-          detached: true,
-          stdio: ["ignore", "ignore", "pipe"],
-        },
-      );
-      const ended = once(child, "exit");
-      const lines = createInterface({ input: child.stderr });
-      let preparationPid: number | undefined;
-      let expired = false;
-      function killGroup() {
-        if (!child.pid) return;
-        try {
-          process.kill(-child.pid, "SIGKILL");
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
-        }
-      }
-      function expire() {
-        expired = true;
-        try {
-          killGroup();
-        } finally {
-          lines.close();
-          child.stderr.destroy();
-        }
-      }
-      let deadline = setTimeout(expire, 4_000);
-      try {
-        for await (const line of lines) {
-          const prefix = beforeReady ? "prep-started:" : "prep-ready:";
-          if (line.startsWith(prefix)) {
-            preparationPid = Number(line.slice(prefix.length));
-            const groups = spawnSync(
-              "ps",
-              ["-o", "pid=,pgid=", "-p", `${child.pid},${preparationPid}`],
-              { encoding: "utf8", timeout: 1_000 },
-            );
-            expect(groups.status).toBe(0);
-            const observed = groups.stdout
-              .trim()
-              .split("\n")
-              .map((row) => row.trim().split(/\s+/).map(Number));
-            expect(observed).toHaveLength(2);
-            expect(observed.find(([pid]) => pid === child.pid)?.[1]).toBe(child.pid!);
-            const preparationGroup = observed.find(([pid]) => pid === preparationPid)?.[1];
-            expect(preparationGroup).toBeGreaterThan(1);
-            expect(preparationGroup).not.toBe(child.pid!);
-            if (beforeReady) {
-              clearTimeout(deadline);
-              deadline = setTimeout(expire, 50);
-            } else child.kill("SIGTERM");
-          }
-        }
-        expect(await ended).toEqual([null, beforeReady ? "SIGKILL" : "SIGTERM"]);
-        expect(expired).toBe(beforeReady);
-        expect(preparationPid).toBeGreaterThan(1);
-        if (!beforeReady) expect(() => process.kill(preparationPid!, 0)).toThrow();
-        let groupGone = false;
-        for (let attempt = 0; attempt < 100; attempt++) {
-          try {
-            process.kill(-child.pid!, 0);
-          } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
-            groupGone = true;
-            break;
-          }
-          await new Promise((resolve) => setTimeout(resolve, 10));
-        }
-        expect(groupGone).toBe(true);
-      } finally {
-        clearTimeout(deadline);
-        lines.close();
-        killGroup();
-        child.stderr.destroy();
-        await ended;
-      }
-    },
-  );
-}
-
 test("launcher だけへの SIGKILL で準備子が5秒以内に終了し target を起動しない", async () => {
   const child = spawn(entry, [runner, prepare, launcher, "prep-hang", observer], {
     stdio: ["ignore", "pipe", "pipe"],
@@ -810,7 +742,7 @@ test("launcher だけへの SIGKILL で準備子が5秒以内に終了し target
 }, 10_000);
 
 for (const signal of ["SIGTERM", "SIGKILL"] as const) {
-  for (const phase of ["prep-stubborn-", "prep-complete-hang-"]) {
+  for (const phase of ["prep-before-ready-", "prep-stubborn-", "prep-complete-hang-"]) {
     for (const disposition of ["blocked", "ignored"]) {
       test(`${signal} は ${phase}${disposition} の準備子と子孫を5秒以内に終了する`, async () => {
         const child = spawn(
@@ -838,7 +770,8 @@ for (const signal of ["SIGTERM", "SIGKILL"] as const) {
               expect(observedDisposition).toBe(disposition);
               owned.push(Number(pid));
             }
-            if (line.startsWith("prep-ready:")) preparationPid = Number(line.slice(11));
+            const prefix = phase === "prep-before-ready-" ? "prep-started:" : "prep-ready:";
+            if (line.startsWith(prefix)) preparationPid = Number(line.slice(prefix.length));
             if (preparationPid && owned.length === 2) break;
           }
           clearTimeout(readyTimeout);

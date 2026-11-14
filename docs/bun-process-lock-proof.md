@@ -129,7 +129,7 @@ Python は起動時に SIGPIPE / SIGXFSZ（定義される環境では SIGXFZ �
 - PID / PPID / PGID / SID、FD の identity と CLOEXEC、3/9/63 の継承と範囲3〜127の余分な FD、blocked mask、3種の signal disposition、空引数・Unicode・literal shell 記号、GIT_* 除去と marker を確認する。
 - 既存の PTY 対照に launcher を加え、TTY / foreground、入力、Ctrl-C・SIGTERM・timeout の終了を比較する。
 - 部分 frame・余分な field・準備の非0終了は、完全な frame が出力済みでも target を起動しない。pipe buffer より大きい準備結果も比較する。準備中の親の SIGTERM では子を終了させ、回収してから同じ signal で終了する。
-- テスト harness の期限処理は launcher の group を終了し、stderr と読み取りを閉じる。ready 前に停止する準備子でも待機が終わることと、launcher と実際の Bun 準備子の PGID が別であることを確認する。出力の読み取りを遅らせた2 MiB超の frame でも、`prep-complete-fail` が全 byte を送ってから終了17になることを正常終了の対照と比較する。この harness の cleanup は、製品候補の SIGKILL 後の子の寿命の採用判断とは区別する。
+- ready 前・準備中・frame 出力済みの各 phase で、親 PID だけへの SIGTERM／SIGKILL を対照する。ready 前は started だけを出す準備子を使い、子孫の生存を確認した後で送信する。harness による group 強制終了で成功を代用しない。出力の読み取りを遅らせた2 MiB超の frame でも、`prep-complete-fail` が全 byte を送ってから終了17になることを正常終了の対照と比較する。
 - `lib/bun/` と `tests/fixtures/` の bytes・mode・file inventory を実行前後で比較する。生成 binary はテストの一時領域だけに build する。これは今回の fixture の不変性検査であり、製品配布物の導入・受入の証拠ではない。
 - lock の追加 case は旧 Python と同じ O_WRONLY / O_APPEND / O_CREAT、0666 & ~umask を使う。Perl は書込み専用 FD を受け取り、競合・close 後の再取得を検査する。
 
@@ -143,11 +143,11 @@ Python は起動時に SIGPIPE / SIGXFSZ（定義される環境では SIGXFZ �
 
 ### 承認済み条件への追実証（2026-11-14）
 
-変更前の source `623d60c12d13672e8412b88e507f26c565f78c73c91c92133576b96ddddcf382` では、launcher だけへの SIGKILL 後も準備子が5秒近く生存し、追加試験が失敗した。これを契機に上記 guardian を fixture に追加した。別の失敗対照では ELOOP が OTHER に集約され、SIGCHLD ignore を継承すると準備子の wait に失敗した。各修正の前に失敗を記録した。
+変更前の source `623d60c12d13672e8412b88e507f26c565f78c73c91c92133576b96ddddcf382` では、launcher だけへの SIGKILL 後も準備子が5秒近く生存し、追加試験が失敗した。これを契機に上記 guardian を fixture に追加した。別の失敗対照では ELOOP が OTHER に集約され、SIGCHLD ignore を継承すると準備子の wait に失敗した。stdin と stdout を両方閉じた入口では、新 pipe の FD と準備用 stdout が衝突して失敗したため、内部 pipe は FD3 以上に確保する。各修正の前に失敗を記録した。
 
 - launcher だけへの SIGKILL、中断の SIGTERM、frame の出力前／出力済みを組み合わせる。準備子とその子・孫に TERM の block／ignore を設定し、同じ子孫が TERM だけでは終了しない対照を先に確認する。送信時点の単調時計から5秒以内の終了と、target 未起動、無関係な process の生存を観測する。harness の強制 cleanup は assertion の後だけに行う。終了した zombie と生存中の process を区別し、回収は別の事実として扱う。
 - 5.2秒待つ正常な準備は最後まで成功する。target の mask／ignore・元の process group・TTY・FD は旧 corpus と比較する。SIGCHLD ignore については、独立した POSIX 対照でも target に維持されることを確認する。
 - OS の `ARG_MAX` と、準備を介さない POSIX execve 対照で1024 byte引数の最大個数を測る。Bun の準備内で同じ argv を生成し、上限を通すことと、1個超過で E2BIG・対象・説明を出すことを確認する。これは argv の transport／frame 境界の試験であり、製品 caller の最大入力全体を受け入れた証拠ではない。
 - 環境は既存の NODE／BUN／JSC の変数に加え、DYLD の marker、非 identifier の key、Unicode、macOS の encoding marker を、同じ Bash を通る独立対照と比較する。macOS 固有の処理は macOS で実行するまで未確認とする。
 
-この追実証は Linux／WSL2 x64・Bun 1.4.4 で実行中。実行コマンドは `lib/bun/run test tests/bun/process-lock.test.ts`。最終件数・hash・品質検査は変更確定後に追記する。新 source の Linux arm64／macOS arm64 CI はまだ実行しておらず、過去の別 source の CI を転用しない。別 session／別 group を作る準備子孫への対処、製品 cache を exec 前に検査する段階と各 caller の準備全体も、この fixture の group 内の試験で証明した扱いにしない。必要範囲の未確認が残るため #33 を閉じず、製品化や raw 受入も完了扱いにしない。
+この追実証は Linux／WSL2 x64・Bun 1.4.4 で実行した。実行コマンドは `lib/bun/run test tests/bun/process-lock.test.ts`。最終件数・hash・品質検査は変更確定後に追記する。新 source の Linux arm64／macOS arm64 CI はまだ実行しておらず、過去の別 source の CI を転用しない。別 session／別 group を作る準備子孫への対処、製品 cache を exec 前に検査する段階と各 caller の準備全体も、この fixture の group 内の試験で証明した扱いにしない。必要範囲の未確認が残るため #33 を閉じず、製品化や raw 受入も完了扱いにしない。

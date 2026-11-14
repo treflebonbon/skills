@@ -12,7 +12,8 @@
 #include <unistd.h>
 
 /* 実証用。製品の入口・配布物としては採用していない。 */
-static pid_t preparation, guardian;
+static pid_t preparation;
+static volatile sig_atomic_t guardian;
 static volatile sig_atomic_t interrupted;
 extern char **environ;
 
@@ -25,15 +26,31 @@ static void interrupt(int number) {
 
 static void finish_preparation(void) {
   if (guardian <= 1) return;
-  kill(-guardian, SIGKILL);
-  while (waitpid(guardian, NULL, 0) < 0 && errno == EINTR) {}
+  pid_t owned_guardian = guardian;
   guardian = 0;
+  kill(-owned_guardian, SIGKILL);
+  while (waitpid(owned_guardian, NULL, 0) < 0 && errno == EINTR) {}
+  if (preparation > 1) {
+    while (waitpid(preparation, NULL, 0) < 0 && errno == EINTR) {}
+    preparation = 0;
+  }
 }
 
 static void invalid(void) {
   finish_preparation();
   fputs("launcher: preparation failed\n", stderr);
   exit(1);
+}
+
+/* 元の stdio が閉じていても dup2/close の対象と衝突させない。 */
+static void make_pipe(int descriptors[2]) {
+  int created[2];
+  if (pipe(created) < 0) invalid();
+  for (int i = 0; i < 2; i++) {
+    descriptors[i] = fcntl(created[i], F_DUPFD_CLOEXEC, 3);
+    if (descriptors[i] < 0) invalid();
+    close(created[i]);
+  }
 }
 
 /* 自分が group leader として生存している間だけ、準備 group を終了する。 */
@@ -115,7 +132,9 @@ int main(int argc, char **argv) {
   if (sigaction(SIGCHLD, &default_chld, &saved_chld) < 0) invalid();
   if (sigprocmask(SIG_BLOCK, &setup_mask, &original_mask) < 0) invalid();
   int control[2], ready[2], frame[2];
-  if (pipe(control) < 0 || pipe(ready) < 0 || pipe(frame) < 0) invalid();
+  make_pipe(control);
+  make_pipe(ready);
+  make_pipe(frame);
   guardian = fork();
   if (guardian < 0) invalid();
   if (!guardian) watch_parent(control[0], ready[1]);
@@ -175,6 +194,7 @@ int main(int argc, char **argv) {
   while (waitpid(preparation, &status, 0) < 0) {
     if (errno != EINTR) invalid();
   }
+  preparation = 0;
   finish_preparation();
   close(control[1]);
   if (sigaction(SIGCHLD, &saved_chld, NULL) < 0) invalid();
