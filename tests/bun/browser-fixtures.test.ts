@@ -34,12 +34,19 @@ function snapshots(cases: typeof corpus.snapshot.cases) {
           : resolve(payload, input.path);
         fs.mkdirSync(dirname(resolve(payload, input.path)), { recursive: true });
         if (input.kind === "directory") fs.mkdirSync(path, { recursive: true, mode: input.mode });
-        else if (input.kind === "symlink")
-          fs.symlinkSync(
-            input.targetBase64 ? Buffer.from(input.targetBase64, "base64") : input.target!,
-            path,
-          );
-        else if (input.kind === "fifo") {
+        else if (input.kind === "symlink") {
+          // macOS は symlink にも umask を適用するため、旧 fixture の mode で作る。
+          const originalUmask = process.umask(0o777 & ~input.mode);
+          try {
+            fs.symlinkSync(
+              input.targetBase64 ? Buffer.from(input.targetBase64, "base64") : input.target!,
+              path,
+            );
+          } finally {
+            process.umask(originalUmask);
+          }
+          expect(fs.lstatSync(path).mode & 0o7777, input.path).toBe(input.mode);
+        } else if (input.kind === "fifo") {
           const fifo = resolve(base, "fifo");
           const created = spawnSync("mkfifo", [fifo], { encoding: "utf8" });
           expect(created.status, created.stderr).toBe(0);

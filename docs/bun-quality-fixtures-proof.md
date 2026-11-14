@@ -23,6 +23,8 @@ dogfood の実 browser suite が呼ぶ snapshot は `skills/dogfood/tests/helper
 
 不正 UTF-8 のファイル名は元の bytes で読み、旧 Python の surrogateescape と同じ JSON を出す。この入力は [APFS の作成条件](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/APFS_Guide/FAQ/FAQ.html)では扱えないため、Linux 用の1検査として分けた。共通10ケースは各 OS の対象に残す。旧 os.walk の既定動作を保ち、走査できない directory は自身の mode を記録して内容を省略する。その中の bytes の不変性はこの snapshot では証明しない。
 
+macOS の初回 CI では、symlink の mode が旧 corpus の 0777 に対して 0755 になった。[Apple の symlink 作成処理](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/vfs/vfs_syscalls.c#L5875)は umask を適用するため、fixture 復元時だけ記録済み mode に合わせた umask を使い、finally で元に戻す。作成直後の mode と snapshot の旧 stdout bytes を両方照合する。期待値や snapshot 本体では mode を正規化しない。
+
 Bats 内の文書 block 抽出、report の証跡リンク確認、JSON fixture の改変と signal 検査も共用 runner から実行する。annotation の開始待ちと終了待ちの15秒上限、SIGINT／SIGTERM の process group 送信、異常時の所有 group の回収、既存 Dashboard の保持を維持する。fixture の共有基底は実行ユーザー所有の通常 directory `/tmp/codex`。payload や通常 HOME に cache を生成する前提にはしない。
 
 旧 `tests/test_plugin.py`、`test_issue_530_skills.py`、`test_issue_531_skills.py`、`test_issue_539_pr_screenshots.py`、旧 evidence driver と snapshot helper は同じ変更で撤去した。旧 path の shim、新しい native helper／FFI、依存 package は追加していない。
