@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.11](https://github.com/treflebonbon/skills/compare/v0.2.10...v0.2.11) (2026-11-14)
+
+
+### Features
+
+* add product-guide skill for user-facing specification guides ([#75](https://github.com/treflebonbon/skills/issues/75)) ([f5a691f](https://github.com/treflebonbon/skills/commit/f5a691fc036f35b52d8fbe5cdb27b4cab09a7857))
+* migrate loopback report serving to Bun ([#63](https://github.com/treflebonbon/skills/issues/63)) ([0c61435](https://github.com/treflebonbon/skills/commit/0c61435fa7ebf585789f851cf046efbe9e4ec2a1))
+* migrate orca-send to Bun and add runtime checks ([#52](https://github.com/treflebonbon/skills/issues/52)) ([76f3a42](https://github.com/treflebonbon/skills/commit/76f3a423203257b79cd7e9f1875fb4f47182ae83))
+* migrate peer candidate and evidence tools to Bun ([#76](https://github.com/treflebonbon/skills/issues/76)) ([be6a6aa](https://github.com/treflebonbon/skills/commit/be6a6aaa0c2d5841ea90e594119058832e8f04a6))
+* migrate peer coordination helpers to Bun ([#78](https://github.com/treflebonbon/skills/issues/78)) ([bff3d67](https://github.com/treflebonbon/skills/commit/bff3d67a9a0e56f450cf55a9459edea840b49279))
+* migrate peer HTML report checks to Bun ([#62](https://github.com/treflebonbon/skills/issues/62)) ([da3cae8](https://github.com/treflebonbon/skills/commit/da3cae898d8875da67f832e0c6b0ef4fbfb0d28e))
+* migrate plugin smoke and session checks to Bun ([#80](https://github.com/treflebonbon/skills/issues/80)) ([d784ab1](https://github.com/treflebonbon/skills/commit/d784ab17661bc84f8972ee0f4f3f5bd694be9183))
+* migrate review thread CLI to Bun ([#79](https://github.com/treflebonbon/skills/issues/79)) ([eefd6c3](https://github.com/treflebonbon/skills/commit/eefd6c355dbef2c1408b38e6a043a15b249f5f18))
+
 ## [0.2.10](https://github.com/treflebonbon/skills/compare/v0.2.9...v0.2.10) (2026-11-11)
 
 
