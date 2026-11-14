@@ -686,6 +686,23 @@ test("prep-complete-fail は読み取りが遅い大きな frame も全て送っ
   }
 });
 
+async function within<T>(pending: Promise<T>, milliseconds: number): Promise<T> {
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      pending,
+      new Promise<never>((_resolve, reject) => {
+        deadline = setTimeout(
+          () => reject(new Error("process の観測が期限内に終わりません")),
+          milliseconds,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(deadline);
+  }
+}
+
 test("launcher だけへの SIGKILL で準備子が5秒以内に終了し target を起動しない", async () => {
   const child = spawn(entry, [runner, prepare, launcher, "prep-hang", observer], {
     stdio: ["ignore", "pipe", "pipe"],
@@ -697,18 +714,22 @@ test("launcher だけへの SIGKILL で準備子が5秒以内に終了し target
   });
   const lines = createInterface({ input: child.stderr });
   let preparationPid: number | undefined;
-  const readyTimeout = setTimeout(() => child.kill("SIGKILL"), 3_000);
   try {
-    for await (const line of lines) {
-      if (!line.startsWith("prep-ready:")) continue;
-      preparationPid = Number(line.slice("prep-ready:".length));
-      break;
-    }
-    clearTimeout(readyTimeout);
+    await within(
+      (async () => {
+        for await (const line of lines) {
+          if (!line.startsWith("prep-ready:")) continue;
+          preparationPid = Number(line.slice("prep-ready:".length));
+          return;
+        }
+        throw new Error("準備子の開始を観測できません");
+      })(),
+      3_000,
+    );
     expect(preparationPid).toBeGreaterThan(1);
     const sentAt = performance.now();
     child.kill("SIGKILL");
-    expect(await ended).toEqual([null, "SIGKILL"]);
+    expect(await within(ended, 4_800)).toEqual([null, "SIGKILL"]);
     let terminated = false;
     while (performance.now() - sentAt < 4_800) {
       const state = spawnSync("ps", ["-o", "stat=", "-p", String(preparationPid)], {
@@ -725,7 +746,6 @@ test("launcher だけへの SIGKILL で準備子が5秒以内に終了し target
     expect(performance.now() - sentAt).toBeLessThan(5_000);
     expect(output).toBe("");
   } finally {
-    clearTimeout(readyTimeout);
     lines.close();
     if (preparationPid) {
       try {
@@ -762,19 +782,23 @@ for (const signal of ["SIGTERM", "SIGKILL"] as const) {
           output += bytes.toString();
         });
         let preparationPid: number | undefined;
-        const readyTimeout = setTimeout(() => child.kill("SIGKILL"), 3_000);
         try {
-          for await (const line of lines) {
-            if (line.startsWith("prep-owned:")) {
-              const [, pid, observedDisposition] = line.split(":");
-              expect(observedDisposition).toBe(disposition);
-              owned.push(Number(pid));
-            }
-            const prefix = phase === "prep-before-ready-" ? "prep-started:" : "prep-ready:";
-            if (line.startsWith(prefix)) preparationPid = Number(line.slice(prefix.length));
-            if (preparationPid && owned.length === 2) break;
-          }
-          clearTimeout(readyTimeout);
+          await within(
+            (async () => {
+              for await (const line of lines) {
+                if (line.startsWith("prep-owned:")) {
+                  const [, pid, observedDisposition] = line.split(":");
+                  expect(observedDisposition).toBe(disposition);
+                  owned.push(Number(pid));
+                }
+                const prefix = phase === "prep-before-ready-" ? "prep-started:" : "prep-ready:";
+                if (line.startsWith(prefix)) preparationPid = Number(line.slice(prefix.length));
+                if (preparationPid && owned.length === 2) return;
+              }
+              throw new Error("準備子と子孫の開始を観測できません");
+            })(),
+            3_000,
+          );
           expect(preparationPid).toBeGreaterThan(1);
           expect(owned).toHaveLength(2);
           // TERM のみでは終わらない対照を、同じ子孫で先に確認する。
@@ -790,7 +814,7 @@ for (const signal of ["SIGTERM", "SIGKILL"] as const) {
           for (const state of liveStates) expect(state.startsWith("Z")).toBe(false);
           const sentAt = performance.now();
           child.kill(signal);
-          expect(await ended).toEqual([null, signal]);
+          expect(await within(ended, 4_800)).toEqual([null, signal]);
           const pids = [preparationPid!, ...owned];
           let terminated = false;
           while (performance.now() - sentAt < 4_800) {
@@ -816,7 +840,6 @@ for (const signal of ["SIGTERM", "SIGKILL"] as const) {
           expect(output).toBe("");
           expect(() => process.kill(unrelated.pid!, 0)).not.toThrow();
         } finally {
-          clearTimeout(readyTimeout);
           lines.close();
           for (const pid of [preparationPid, ...owned]) {
             if (!pid) continue;

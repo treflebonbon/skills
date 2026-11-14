@@ -150,4 +150,21 @@ Python は起動時に SIGPIPE / SIGXFSZ（定義される環境では SIGXFZ �
 - OS の `ARG_MAX` と、準備を介さない POSIX execve 対照で1024 byte引数の最大個数を測る。Bun の準備内で同じ argv を生成し、上限を通すことと、1個超過で E2BIG・対象・説明を出すことを確認する。これは argv の transport／frame 境界の試験であり、製品 caller の最大入力全体を受け入れた証拠ではない。
 - 環境は既存の NODE／BUN／JSC の変数に加え、DYLD の marker、非 identifier の key、Unicode、macOS の encoding marker を、同じ Bash を通る独立対照と比較する。macOS 固有の処理は macOS で実行するまで未確認とする。
 
-この追実証は Linux／WSL2 x64・Bun 1.4.4 で実行した。実行コマンドは `lib/bun/run test tests/bun/process-lock.test.ts`。最終件数・hash・品質検査は変更確定後に追記する。新 source の Linux arm64／macOS arm64 CI はまだ実行しておらず、過去の別 source の CI を転用しない。別 session／別 group を作る準備子孫への対処、製品 cache を exec 前に検査する段階と各 caller の準備全体も、この fixture の group 内の試験で証明した扱いにしない。必要範囲の未確認が残るため #33 を閉じず、製品化や raw 受入も完了扱いにしない。
+この追実証は Linux／WSL2 x64・Bun 1.4.4 で実行した。実行コマンドは `lib/bun/run test tests/bun/process-lock.test.ts`。最終結果は下記に記録する。新 source の Linux arm64／macOS arm64 CI はまだ実行しておらず、過去の別 source の CI を転用しない。別 session／別 group を作る準備子孫への対処、製品 cache を exec 前に検査する段階と各 caller の準備全体も、この fixture の group 内の試験で証明した扱いにしない。必要範囲の未確認が残るため #33 を閉じず、製品化や raw 受入も完了扱いにしない。
+
+### ローカル実行結果（2026-11-15）
+
+| 項目                                              | 結果                                                                                                |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| OS／kernel／architecture                          | Linux／6.18.58.1-microsoft-standard-WSL2／x64                                                       |
+| Bun／Node.js／compiler                            | 1.4.4／v24.22.1／gcc (GCC) 15.3.0                                                                   |
+| launcher source SHA-256                           | `c2e1181850a13cd5372efbcaf1434fde2cb02319f14f0a12f6c34b1ba9fca067`                                  |
+| 観測 fixture source SHA-256                       | `335c845039e713e051927be85d469ba21a5715617ff4e846d12b8491191f9693`                                  |
+| `lib/bun/run test tests/bun/process-lock.test.ts` | 59 pass／0 fail／0 skip、525 assertions                                                             |
+| `npm run typecheck`                               | 成功                                                                                                |
+| ARG_MAX と1024 byte引数の上限                     | 2,097,152 byte、1,979個成功／1,980個は E2BIG（当該環境での実測）                                    |
+| 全体の `npm test`                                 | 成功。Bun 542 pass／22 skip／0 fail、Python 48件成功、Node 41件成功、Bats 515 pass／11 skip／0 fail |
+
+全体検査の開始時 HEAD は `0583f4f`。その後のレビュー修正は process fixture とその試験・記録に限り、変更後の最終 source に対して型検査と上記59件を再実行した。これらの fixture を参照する実行コードは `tests/bun/process-lock.test.ts` だけである。試験の開始待ち・親の終了待ちにも期限を設け、回帰で待機が止まった場合は失敗として `finally` の cleanup へ進める。
+
+この結果は Linux／WSL2 x64 のローカル検証であり、新 source の Linux arm64／macOS arm64 CI の代わりにはしない。別 session／別 group に離脱する子孫、製品の exec 前検査、実 caller 全体、raw の統合受入は引き続き未確認。#33 は open を維持する。
