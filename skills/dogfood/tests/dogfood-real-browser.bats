@@ -3,7 +3,7 @@
 bats_require_minimum_version 1.5.0
 
 payload_snapshot() {
-  python3 "$SKILL_DIR/tests/helpers/payload-snapshot.py" "$PROJECT_ROOT"
+  "$PROJECT_ROOT/lib/bun/run" run "$SKILL_DIR/tests/helpers/payload-snapshot.ts" "$PROJECT_ROOT"
 }
 
 setup_file() {

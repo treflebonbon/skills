@@ -1446,35 +1446,42 @@ SH
       [ "$status" -eq 0 ]
     fi
     for signal_name in SIGINT SIGTERM; do
-      run python3 - "$WRAPPER" "$signal_name" <<'PYTEST'
-import os
-from pathlib import Path
-import signal
-import subprocess
-import sys
-import time
-
-marker = Path(os.environ["UPSTREAM_LOG"] + ".waiting")
-marker.unlink(missing_ok=True)
-proc = subprocess.Popen(
-    ["bash", sys.argv[1], "-s=dogfood-annotate", "show", "--annotate", "--json"],
-    env={**os.environ, "PWCLI_EXTERNAL_CDP": "1"},
-    start_new_session=True,
-)
-try:
-    deadline = time.monotonic() + 15
-    while not marker.exists():
-        assert proc.poll() is None, "wrapper exited before annotation wait"
-        assert time.monotonic() < deadline, "annotation wait timed out"
-        time.sleep(.05)
-    sig = getattr(signal, sys.argv[2])
-    os.killpg(proc.pid, sig)
-    assert proc.wait(timeout=15) == 128 + sig
-finally:
-    if proc.poll() is None:
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.wait()
-PYTEST
+      run "$PROJECT_ROOT/lib/bun/run" run - "$WRAPPER" "$signal_name" <<'TS'
+import { existsSync, rmSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { constants } from "node:os";
+import assert from "node:assert/strict";
+const marker = process.env.UPSTREAM_LOG + ".waiting";
+rmSync(marker, { force: true });
+const child = spawn("bash", [process.argv[2], "-s=dogfood-annotate", "show", "--annotate", "--json"], {
+  env: { ...process.env, PWCLI_EXTERNAL_CDP: "1" }, detached: true, stdio: "inherit",
+});
+const alive = () => child.exitCode === null && child.signalCode === null;
+const wait = async () => {
+  const deadline = performance.now() + 15_000;
+  while (alive()) {
+    assert(performance.now() < deadline, "wrapper exit timed out");
+    await Bun.sleep(50);
+  }
+};
+try {
+  const deadline = performance.now() + 15_000;
+  while (!existsSync(marker)) {
+    assert(alive(), "wrapper exited before annotation wait");
+    assert(performance.now() < deadline, "annotation wait timed out");
+    await Bun.sleep(50);
+  }
+  const signal = process.argv[3];
+  process.kill(-child.pid, signal);
+  await wait();
+  assert.equal(child.exitCode, 128 + constants.signals[signal]);
+} finally {
+  if (alive()) {
+    process.kill(-child.pid, "SIGKILL");
+    await wait();
+  }
+}
+TS
       [ "$status" -eq 0 ]
       if ((existing)); then
         [ -e "$STATE_DIR/dashboard.pid" ]

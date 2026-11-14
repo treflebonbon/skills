@@ -165,18 +165,20 @@ jobs:
         if: matrix.mode == 'supported'
         run: |
           test "$(ast-grep --version)" = "ast-grep 0.42.1"
-          python3 -B tests/helpers/rop-typescript-evidence.py \
-            skills/domain-modeling-studio/scripts/extract-typescript.ts -v
+          lib/bun/run test tests/helpers/rop-typescript-evidence.test.ts
       - name: 旧版の拒否を確認
         if: matrix.mode == 'unsupported'
+        shell: bash
         env:
           TYPESCRIPT_EVIDENCE_OLD_BUN: ${{ steps.bun.outputs.bun-path }}
+          NO_COLOR: "1"
         run: |
           test -x "$TYPESCRIPT_EVIDENCE_OLD_BUN"
           test "$("$TYPESCRIPT_EVIDENCE_OLD_BUN" --version)" = "1.2.14"
-          python3 -B tests/helpers/rop-typescript-evidence.py \
-            skills/domain-modeling-studio/scripts/extract-typescript.ts \
-            SyntaxEvidence.test_unsupported_bun_is_explicit_before_scanning -v
+          bun test --config=/dev/null --no-env-file tests/helpers/rop-typescript-evidence.test.ts \
+            --test-name-pattern 'test_unsupported_bun_is_explicit_before_scanning$' \
+            2>&1 | tee "$RUNNER_TEMP/typescript-evidence-old-bun.txt"
+          grep -Eq '^ 1 pass$' "$RUNNER_TEMP/typescript-evidence-old-bun.txt"
       - name: 共用 Bun 起動の旧版拒否を確認
         if: matrix.mode == 'unsupported'
         run: |
