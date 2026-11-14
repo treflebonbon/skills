@@ -26,13 +26,11 @@ setup() {
   export GH_CALL_LOG="$BATS_TEST_TMPDIR/gh-calls"
   printf '#!/bin/sh\nprintf called >>"$GH_CALL_LOG"\nexit 1\n' >"$BATS_TEST_TMPDIR/bin/gh"
   chmod +x "$BATS_TEST_TMPDIR/bin/gh"
-  python3 - "$SKILL_DIR/references/worktree-setup.md" "$BATS_TEST_TMPDIR/worktree.sh" <<'PY'
-from pathlib import Path
-import re
-import sys
-blocks = re.findall(r'```bash\n(.*?)```', Path(sys.argv[1]).read_text(), re.S)
-Path(sys.argv[2]).write_text('set -eu\n' + '\n'.join(blocks[:2]))
-PY
+  "$PROJECT_ROOT/lib/bun/run" run - "$SKILL_DIR/references/worktree-setup.md" "$BATS_TEST_TMPDIR/worktree.sh" <<'TS'
+import { readFileSync, writeFileSync } from "node:fs";
+const blocks = [...readFileSync(process.argv[2], "utf8").matchAll(/```bash\n([\s\S]*?)```/g)];
+writeFileSync(process.argv[3], "set -eu\n" + blocks.slice(0, 2).map(match => match[1]).join("\n"));
+TS
 
   cd "$repo"
   run env TARGET_URL=http://localhost:3000 bash "$BATS_TEST_TMPDIR/worktree.sh"
@@ -77,17 +75,19 @@ SH
   [ -f "$OUT/$first/screenshots/initial.png" ]
   [ ! -e "$OUT/$second/screenshots/initial.png" ]
   ! grep '^Evidence:' "$OUT/report.md" | grep -Fq "$first/"
-  python3 - "$OUT/report.md" "$OUT/$first/report.md" "$OUT/$second/report.md" <<'PY'
-from pathlib import Path
-import sys
-for filename in sys.argv[1:]:
-    report = Path(filename)
-    evidence = [p for line in report.read_text().splitlines() if line.startswith('Evidence: ') for p in line[10:].split(', ') if p]
-    assert evidence, filename
-    for relative in evidence:
-        artifact = report.parent / relative
-        assert artifact.is_file() and artifact.stat().st_size > 0, artifact
-PY
+  "$PROJECT_ROOT/lib/bun/run" run - "$OUT/report.md" "$OUT/$first/report.md" "$OUT/$second/report.md" <<'TS'
+import { readFileSync, statSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import assert from "node:assert/strict";
+for (const file of process.argv.slice(2)) {
+  const evidence = readFileSync(file, "utf8").split("\n").filter(line => line.startsWith("Evidence: ")).flatMap(line => line.slice(10).split(", ").filter(Boolean));
+  assert(evidence.length, file);
+  for (const relative of evidence) {
+    const artifact = resolve(dirname(file), relative), info = statSync(artifact);
+    assert(info.isFile() && info.size > 0, artifact);
+  }
+}
+TS
 }
 
 @test "startup failure is recorded as failed rather than a clean zero-finding run" {
@@ -229,13 +229,12 @@ fi
 exit "${PRIMARY_CODE:-0}"
 SH
   chmod +x "$BATS_TEST_TMPDIR/bin/"{npm,node}
-  python3 - "$CODEX_SKILL_DIR/SKILL.md" "$BATS_TEST_TMPDIR/invoke.sh" <<'PY'
-from pathlib import Path
-import sys
-text = Path(sys.argv[1]).read_text().split('```bash\n', 1)[1].split('```', 1)[0]
-text = text.replace('SKILL_DIR="/absolute/path/to/the/loaded/skills/dogfood"', 'SKILL_DIR="$CODEX_SKILL_DIR"')
-Path(sys.argv[2]).write_text('set -eu\n' + text + '\nprintf "review allowed\\n"\n')
-PY
+  "$PROJECT_ROOT/lib/bun/run" run - "$CODEX_SKILL_DIR/SKILL.md" "$BATS_TEST_TMPDIR/invoke.sh" <<'TS'
+import { readFileSync, writeFileSync } from "node:fs";
+const block = readFileSync(process.argv[2], "utf8").split("```bash\n")[1].split("```")[0];
+const text = block.replaceAll('SKILL_DIR="/absolute/path/to/the/loaded/skills/dogfood"', 'SKILL_DIR="$CODEX_SKILL_DIR"');
+writeFileSync(process.argv[3], "set -eu\n" + text + '\nprintf "review allowed\\n"\n');
+TS
   run bash "$BATS_TEST_TMPDIR/invoke.sh"
 }
 

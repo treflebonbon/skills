@@ -52,7 +52,7 @@ namespace・UID/GID mapping・capability・loopback の比較は [Bun namespace 
 
 Nix store の Bun・closure・生成 wrapper と書込み先の実証は [Bun Nix runtime の実証](bun-nix-runtime-proof.md)に記録します。実隔離の検査は Linux / WSL2 で `NIX_BUN_PROOF_REAL=1` を明示し、Nix store の tool と bubblewrap を使って実行します。通常 CI の skip を採用や本番 runtime の受入の証拠にはしません。
 
-CI の `typescript-evidence` は Bun 1.4.4 と `ast-grep 0.42.1` で抽出テストを実行し、別の Bun 1.2.14 ジョブで `unavailable` による拒否を確認します。対応版では実物の `ast-grep` の版を先に確認するため、ツール不足で native テストがスキップされた結果を成功扱いしません。旧版の拒否テストは専用ジョブで必ず実行します。
+CI の `typescript-evidence` は Bun 1.4.4 と `ast-grep 0.42.1` で `tests/helpers/rop-typescript-evidence.test.ts` を実行し、別の Bun 1.2.14 ジョブで `unavailable` による拒否を確認します。旧版 job のドライバーだけは明示的な設定無効化付きで旧 Bun から直接実行し、共用 runner の最低版チェックとは区別します。対応版では実物の `ast-grep` の版を先に確認するため、ツール不足で native テストがスキップされた結果を成功扱いしません。旧版の拒否テストは専用ジョブで必ず実行します。
 
 ```sh
 npm ci --prefix development
@@ -73,6 +73,8 @@ coordination helper の旧 corpus、readiness の独立検証、terminal 応答�
 `gh-review-thread` の旧 CLI 出力・段階別失敗・返信と resolve の順序は [移行記録](bun-review-thread-proof.md)、`tests/bun/gh-review-thread.test.ts` と `tests/cli/gh-review-thread.bats` で確認します。実 GitHub への返信・resolve は行わず、fake `gh` の argv と応答を比較します。
 
 導入 smoke と session の `run/check`、旧証跡・native argv・process group の比較は [移行記録](bun-plugin-sessions-proof.md)と `tests/bun/plugin-{smoke,sessions,session-process}.test.ts` で確認します。通常 suite は fake CLI だけを使い、実公式導入・実モデルの opt-in と分けます。
+
+package／一般 skill の契約、TypeScript evidence ドライバーと dogfood／WSL2 browser の fixture は [品質検査の移行記録](bun-quality-fixtures-proof.md)にまとめます。静的契約は `tests/bun/package-contract.test.ts` と `public-skills.test.ts`、旧拒否 corpus と payload snapshot は対応する fixture テストで確認します。browser fixture の補助は Bun を使い、実 browser の受入とは区別します。
 
 他のシェルファイルは対象外です。そのうち次の Bats 7 ファイルは、`.editorconfig` の `indent_size = 2` で `shfmt -l` に差分が出ることを確認しました。対象へ足すときは、先に整形を揃えます。`peer-peer-request`、`peer-run-evidence`、`peer-skills-contracts`、`devshell-env`、`isolated-github`、`raw-codex-integration`、`secret-isolation-worktree`。他の対象外のファイルは、差分の有無を確認していません。
 
@@ -226,7 +228,7 @@ Claude の Read は対応する tool result、Antigravity の read_file は完�
 2. release PR の head で、上の「受入で確認すること」を行い、結果を [Issue #540](https://github.com/treflebonbon/dotfiles/issues/540) に記録します。
 3. 受入が済んだら release PR を merge します（これがリリースです）。tag `v<版>` と GitHub release が自動で作られます。
 
-版は、1.0 になる前は `feat` と `fix` で patch、破壊的変更で minor が上がります。PR タイトルは Conventional Commits にします（`PR タイトル` workflow の `conventional-commits` が検査します）。版の場所 4 つ（`plugin.json`、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`、`package.json`）は release-please が更新するので、手で版を上げません。`tests/test_plugin.py` が、4 つが一致し、`release-please-config.json` が 4 つすべてを更新対象にしていることを検査します。
+版は、1.0 になる前は `feat` と `fix` で patch、破壊的変更で minor が上がります。PR タイトルは Conventional Commits にします（`PR タイトル` workflow の `conventional-commits` が検査します）。版の場所 4 つ（`plugin.json`、`.claude-plugin/plugin.json`、`.claude-plugin/marketplace.json`、`package.json`）は release-please が更新するので、手で版を上げません。`tests/bun/package-contract.test.ts` が、4 つが一致し、`release-please-config.json` が 4 つすべてを更新対象にしていることを検査します。
 
 release PR を作るには、リポジトリ設定「Allow GitHub Actions to create and approve pull requests」（Settings → Actions → General → Workflow permissions）が有効である必要があります。
 

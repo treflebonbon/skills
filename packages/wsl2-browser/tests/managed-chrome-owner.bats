@@ -399,12 +399,12 @@ reserve() {
   local field value
   for field in start boot; do
     for value in '' unknown; do
-      python3 - "$BATS_TEST_TMPDIR/valid-owner" "$BROWSER_OWNERSHIP_DIR/owner" "$field" "$value" <<'PY'
-import json, pathlib, sys
-record = json.loads(pathlib.Path(sys.argv[1]).read_text())
-record['caller'][sys.argv[3]] = sys.argv[4]
-pathlib.Path(sys.argv[2]).write_text(json.dumps(record))
-PY
+      "$PROJECT_ROOT/../../lib/bun/run" run - "$BATS_TEST_TMPDIR/valid-owner" "$BROWSER_OWNERSHIP_DIR/owner" "$field" "$value" <<'TS'
+import { readFileSync, writeFileSync } from "node:fs";
+const record = JSON.parse(readFileSync(process.argv[2], "utf8"));
+record.caller[process.argv[4]] = process.argv[5];
+writeFileSync(process.argv[3], JSON.stringify(record));
+TS
       cp "$BROWSER_OWNERSHIP_DIR/owner" "$BATS_TEST_TMPDIR/invalid-owner"
       run owner recover
       [ "$status" -ne 0 ]
@@ -419,13 +419,13 @@ PY
   cp "$BROWSER_OWNERSHIP_DIR/owner" "$BATS_TEST_TMPDIR/valid-owner"
   local phase
   for phase in reserved starting settled active; do
-    python3 - "$BATS_TEST_TMPDIR/valid-owner" "$BROWSER_OWNERSHIP_DIR/owner" "$phase" <<'PY'
-import json, pathlib, sys
-record = json.loads(pathlib.Path(sys.argv[1]).read_text())
-record['phase'] = sys.argv[3]
-record['browserPid'] = None if record['phase'] == 'active' else 4242
-pathlib.Path(sys.argv[2]).write_text(json.dumps(record))
-PY
+    "$PROJECT_ROOT/../../lib/bun/run" run - "$BATS_TEST_TMPDIR/valid-owner" "$BROWSER_OWNERSHIP_DIR/owner" "$phase" <<'TS'
+import { readFileSync, writeFileSync } from "node:fs";
+const record = JSON.parse(readFileSync(process.argv[2], "utf8"));
+record.phase = process.argv[4];
+record.browserPid = record.phase === "active" ? null : 4242;
+writeFileSync(process.argv[3], JSON.stringify(record));
+TS
     cp "$BROWSER_OWNERSHIP_DIR/owner" "$BATS_TEST_TMPDIR/invalid-owner"
     run owner recover
     [ "$status" -ne 0 ]
