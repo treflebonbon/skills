@@ -1,0 +1,107 @@
+{
+  "sourceCommit": "eefd6c355dbef2c1408b38e6a043a15b249f5f18",
+  "sourceHash": "ba2c72ef670b4e7a9cce7d847ada701ce3682d9c1a87760150a5d4b342d36f23",
+  "calls": [
+    {
+      "name": "agy",
+      "args": [
+        "plugin",
+        "validate",
+        "/home/ubuntu/orca/workspaces/skills/bun-plugin-sessions",
+        "--strict",
+        "--json"
+      ],
+      "cwd": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.dgggcwo1",
+      "home": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.dgggcwo1/home",
+      "codexHome": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.dgggcwo1/codex",
+      "output": "{\"name\":\"treflebonbon-skills\",\"components\":{\"skills\":12},\"findings\":[]}\n"
+    },
+    {
+      "name": "agy",
+      "args": ["plugin", "install", "/home/ubuntu/orca/workspaces/skills/bun-plugin-sessions"],
+      "cwd": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.1hd3tpx1",
+      "home": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.1hd3tpx1/home",
+      "codexHome": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.1hd3tpx1/codex",
+      "output": "installed\n"
+    },
+    {
+      "name": "agy",
+      "args": ["plugin", "list", "--json"],
+      "cwd": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.1hd3tpx1",
+      "home": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.1hd3tpx1/home",
+      "codexHome": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.1hd3tpx1/codex",
+      "output": "[{\"name\":\"treflebonbon-skills\"}]\n"
+    },
+    {
+      "name": "claude",
+      "args": [
+        "plugin",
+        "marketplace",
+        "add",
+        "/home/ubuntu/orca/workspaces/skills/bun-plugin-sessions",
+        "--json"
+      ],
+      "cwd": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin._22t6ymu",
+      "home": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin._22t6ymu/home",
+      "codexHome": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin._22t6ymu/codex",
+      "output": "{}\n"
+    },
+    {
+      "name": "claude",
+      "args": ["plugin", "install", "treflebonbon-skills@treflebonbon", "--json"],
+      "cwd": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin._22t6ymu",
+      "home": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin._22t6ymu/home",
+      "codexHome": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin._22t6ymu/codex",
+      "output": "{}\n"
+    },
+    {
+      "name": "claude",
+      "args": ["plugin", "details", "treflebonbon-skills@treflebonbon"],
+      "cwd": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin._22t6ymu",
+      "home": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin._22t6ymu/home",
+      "codexHome": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin._22t6ymu/codex",
+      "output": "dogfood\ndomain-modeling-studio\nherdr-peer-refactor\nmarp\nmd-agents-review\nmd-claude-review\norca-peer-refactor\npr-screenshots\nproduct-guide\nrop\nui-grill-with-docs\nworktree-gc\n"
+    },
+    {
+      "name": "codex",
+      "args": [
+        "plugin",
+        "marketplace",
+        "add",
+        "/home/ubuntu/orca/workspaces/skills/bun-plugin-sessions",
+        "--json"
+      ],
+      "cwd": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm",
+      "home": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/home",
+      "codexHome": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex",
+      "output": "{}\n"
+    },
+    {
+      "name": "codex",
+      "args": ["plugin", "add", "treflebonbon-skills@treflebonbon", "--json"],
+      "cwd": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm",
+      "home": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/home",
+      "codexHome": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex",
+      "output": "{\"installedPath\":\"/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex/installed/treflebonbon-skills\"}\n"
+    },
+    {
+      "name": "bats",
+      "args": [
+        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/gh-review-thread.bats",
+        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/git-push-topic.bats",
+        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/orca-send.bats",
+        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-candidate-record.bats",
+        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-gh-once.bats",
+        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-limits-sync.bats",
+        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-orca-preflight.bats",
+        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-orca-receipts.bats",
+        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-peer-request.bats",
+        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-run-evidence.bats"
+      ],
+      "cwd": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests",
+      "home": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/home",
+      "codexHome": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex",
+      "output": "fake installed CLI suites: 10\n"
+    }
+  ]
+}

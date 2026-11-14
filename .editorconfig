@@ -13,3 +13,7 @@ indent_size = 2
 [lib/bun/run]
 indent_style = space
 indent_size = 2
+
+[development/plugin-sessions]
+indent_style = space
+indent_size = 2

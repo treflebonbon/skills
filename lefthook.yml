@@ -14,6 +14,7 @@ pre-commit:
       glob:
         - "bin/**"
         - "lib/bun/run"
+        - "development/plugin-sessions"
         - "skills/*-peer-refactor/scripts/check-architecture-report"
         - "skills/*-peer-refactor/scripts/candidate-record"
         - "skills/*-peer-refactor/scripts/run-evidence"
