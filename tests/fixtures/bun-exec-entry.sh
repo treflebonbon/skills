@@ -5,5 +5,5 @@ runner=$1
 prepare=$2
 launcher=$3
 shift 3
-# fd path と子 PID だけを argv に載せ、準備結果・環境は専用 pipe で渡す。
-exec "$launcher" <(exec "$runner" run "$prepare" "$@") "$!"
+# 準備子を作る前に launcher へ置換し、入口段階の親消失も同じ監視に含める。
+exec "$launcher" "$runner" "$prepare" "$@"

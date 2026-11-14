@@ -51,7 +51,8 @@ static void report(const char *event, int argc, char **argv) {
     if (sigaction(signals[i], NULL, &disposition) < 0) die("sigaction");
     printf("%s\"%s\":%d", i ? "," : "", names[i], disposition.sa_handler == SIG_IGN);
   }
-  printf("},\"gitMarker\":");
+  if (sigaction(SIGCHLD, NULL, &disposition) < 0) die("SIGCHLD disposition");
+  printf("},\"chldIgnored\":%d,\"gitMarker\":", disposition.sa_handler == SIG_IGN);
   string(getenv("GIT_PROOF_MARKER") ? getenv("GIT_PROOF_MARKER") : "");
   printf(",\"fds\":[");
   comma = 0;
@@ -111,6 +112,36 @@ int main(int argc, char **argv) {
     return 37;
   }
   if (argc < 2) return 91;
+  if (!strcmp(argv[1], "exec-limit")) {
+    if (argc != 4) return 91;
+    char *end;
+    long count = strtol(argv[3], &end, 10);
+    if (*end || count < 0 || count > 1048576) return 91;
+    char **arguments = calloc((size_t)count + 2, sizeof(char *));
+    if (!arguments) die("exec-limit calloc");
+    char argument[1025];
+    memset(argument, 'x', 1024);
+    argument[1024] = 0;
+    arguments[0] = "codex";
+    for (long i = 0; i < count; i++) arguments[i + 1] = argument;
+    extern char **environ;
+    execve(argv[2], arguments, environ);
+    fprintf(stderr, "exec-limit: errno=%d %s\n", errno, strerror(errno));
+    return 1;
+  }
+  if (!strcmp(argv[1], "hold")) {
+    if (argc != 3) return 91;
+    sigset_t mask;
+    sigemptyset(&mask);
+    if (!strcmp(argv[2], "blocked")) {
+      sigaddset(&mask, SIGTERM);
+      if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0) die("hold mask");
+    } else if (signal(SIGTERM, SIG_IGN) == SIG_ERR) die("hold ignore");
+    if (fork() < 0) die("hold fork");
+    fprintf(stderr, "prep-owned:%ld:%s\n", (long)getpid(), argv[2]);
+    fflush(stderr);
+    while (1) pause();
+  }
   if (!strcmp(argv[1], "seed")) {
     if (argc < 7) return 91;
     int descriptor = open(argv[2], O_RDWR | O_CREAT, 0600);
@@ -125,6 +156,7 @@ int main(int argc, char **argv) {
     if (sigprocmask(SIG_SETMASK, &mask, NULL) < 0) die("seed mask");
     if (signal(SIGINT, strstr(argv[4], "ignored") ? SIG_IGN : SIG_DFL) == SIG_ERR ||
         signal(SIGPIPE, SIG_DFL) == SIG_ERR || signal(SIGXFSZ, SIG_DFL) == SIG_ERR) die("seed disposition");
+    if (strstr(argv[4], "chld") && signal(SIGCHLD, SIG_IGN) == SIG_ERR) die("seed SIGCHLD");
     report("seed", 0, NULL);
     execvp(argv[5], &argv[5]);
     die("seed execvp");

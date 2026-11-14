@@ -1,6 +1,15 @@
 const [requestedMode, executable, ...arguments_] = process.argv.slice(2);
 if (!executable) throw new Error("実証用 executable が必要です");
-if (requestedMode === "prep-hang" || requestedMode === "prep-before-ready") {
+function holdPreparation() {
+  process.on("SIGTERM", () => {});
+  const disposition = requestedMode!.endsWith("blocked") ? "blocked" : "ignored";
+  Bun.spawn([executable!, "hold", disposition], { stdout: "inherit", stderr: "inherit" });
+  console.error(`prep-ready:${process.pid}`);
+  setInterval(() => {}, 1_000);
+}
+if (requestedMode?.startsWith("prep-stubborn-")) {
+  holdPreparation();
+} else if (requestedMode === "prep-hang" || requestedMode === "prep-before-ready") {
   console.error(`${requestedMode === "prep-hang" ? "prep-ready" : "prep-started"}:${process.pid}`);
   setInterval(() => {}, 1_000);
 } else {
@@ -36,4 +45,5 @@ if (requestedMode === "prep-hang" || requestedMode === "prep-before-ready") {
     process.stdout.write(`${fields.join("\0")}\0`);
   }
   if (requestedMode === "prep-complete-fail") process.exitCode = 17;
+  if (requestedMode?.startsWith("prep-complete-hang-")) holdPreparation();
 }
