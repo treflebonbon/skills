@@ -15,8 +15,10 @@ function fixture(action: (directory: string) => void) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
   }
   const shared = fs.lstatSync("/tmp/codex");
-  if (!shared.isDirectory() || shared.uid !== process.getuid!())
-    throw Error("実 owner の共有 directory が必要です");
+  if (!shared.isDirectory()) throw Error("/tmp/codex は symlink ではない通常 directory が必要です");
+  const uid = process.getuid!();
+  if (shared.uid !== uid)
+    throw Error(`/tmp/codex の所有者が一致しません（期待 UID: ${uid}、実際 UID: ${shared.uid}）`);
   const directory = fs.realpathSync(fs.mkdtempSync("/tmp/codex/plugin-smoke-49-"));
   try {
     action(directory);

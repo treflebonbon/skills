@@ -37,6 +37,8 @@ session helper 自体は Python、Node.js、compiler、native cache を要求し
 
 読み取り専用 payload、空白を含む配置パス、Python / Node / compiler のない PATH、poison した cwd / HOME / 環境変数でも公開入口を検査する。payload と入力の未変更、preload と native cache の未生成を確認する。導入 smoke の fake は native argv・隔離 HOME・環境の限定を照合し、必要 CLI の欠落と配布元改変の拒否を成功対照と組み合わせる。
 
+これらの fixture は、実行ユーザーが所有する通常 directory `/tmp/codex` を共有基底に使う。所有者不一致では対象 path・期待 UID・実際 UID を示して拒否し、symlink や通常ファイルも拒否する。
+
 ## 外部の呼出し元と切替
 
 repo 内の README、検証手順、npm 入口と shell 検査を更新した。調査した dotfiles の `docs/`・`scripts/`・`tests/` と `~/runtime/` には、旧 Python path や旧 unittest class の直接呼出しは見つからなかった。この調査外の caller の有無は未確認。
