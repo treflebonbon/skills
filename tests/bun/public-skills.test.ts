@@ -145,8 +145,8 @@ test("test_bundled_cli_path_is_absolute_and_independent_of_cwd", () =>
         const result = spawnSync(script, [entry], { cwd: directory, encoding: "utf8" });
         const expected = fs.realpathSync(resolve(root, "packages/wsl2-browser/bin", entry));
         expect(result.status, result.stderr).toBe(0);
+        expect(isAbsolute(result.stdout.trim())).toBe(true);
         expect(fs.realpathSync(result.stdout.trim())).toBe(expected);
-        expect(isAbsolute(expected)).toBe(true);
       }
     const invalid = spawnSync(resolver, ["../../bin/sh"], { cwd: directory, encoding: "utf8" });
     expect(invalid.status).toBe(1);

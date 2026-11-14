@@ -19,6 +19,8 @@ package 契約18件のうち1件は、#49 で消費者を失った Python snapsh
 
 TypeScript evidence の Bats と CI は `tests/helpers/rop-typescript-evidence.test.ts` を使う。抽出本体の公開引数・保存形式は変えない。対応 Bun と実 ast-grep の抽出、未対応 Bun の明示的拒否、失敗時の batch 破棄、source containment、Unicode range、30秒 deadline、対象 cwd の preload 拒否を保つ。fake ast-grep は argv を照合し、正常な空応答も通る。CI の旧版 job は Bun 1.2.14 でドライバーを直接起動し、共用 runner 自身の旧版拒否も別 step で検査する。ローカルの旧版確認には実在の Bun 1.3.13 を使った。
 
+レビュー後に Bun 1.2.14 自体でも再測定し、先頭を固定した名前フィルターでは 0 pass／14 skip で成功していたことを確認した。先頭の固定を外すと拒否検査1件・11 assertions が実行される。CI は shell: bash を明示して Bun の失敗状態を伝播し、色なしの検査出力で 1 pass も必須とする。0件実行と、1件成功を出力した後に非ゼロで終了するコマンドの両方を拒否する対照を確認した。resolver の検査は返却値そのものの絶対パスを照合し、相対パスを返す改変が失敗することを正常な出力と対照した。
+
 dogfood の実 browser suite が呼ぶ snapshot は `skills/dogfood/tests/helpers/payload-snapshot.ts` を共用 runner から実行する。通常ファイルの hash、directory／symlink／その他の種別と mode、link target、Unicode の順序、ASCII escape と JSON separator を旧 bytes に合わせる。`.git` と local environment 名を除き、`node_modules` などの生成物は観測に含める。link の先は辿らない。
 
 不正 UTF-8 のファイル名は元の bytes で読み、旧 Python の surrogateescape と同じ JSON を出す。この入力は [APFS の作成条件](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/APFS_Guide/FAQ/FAQ.html)では扱えないため、Linux 用の1検査として分けた。共通10ケースは各 OS の対象に残す。旧 os.walk の既定動作を保ち、走査できない directory は自身の mode を記録して内容を省略する。その中の bytes の不変性はこの snapshot では証明しない。
