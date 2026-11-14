@@ -64,22 +64,21 @@ case "$*" in
   fi
   ;;
 *"commits(first:"*)
-  python3 - "$@" <<'PY'
-import json, os, sys
-scenario = os.environ.get('MOCK_SCENARIO', '')
-commits = ['a' * 40]
-if scenario == 'unpublished':
-    commits = []
-elif scenario in ('commit-pages', 'unpublished-pages'):
-    commits = [f'{index:040x}' for index in range(251)]
-    if scenario == 'commit-pages':
-        commits[-1] = 'a' * 40
-start = next((int(arg.split('=', 1)[1]) for arg in sys.argv if arg.startswith('cursor=')), 0)
-end = min(start + 100, len(commits))
-connection = {'nodes': [{'commit': {'oid': sha}} for sha in commits[start:end]],
-              'pageInfo': {'hasNextPage': end < len(commits), 'endCursor': str(end)}}
-print(json.dumps({'data': {'repository': {'pullRequest': {'commits': connection}}}}))
-PY
+  node - "$@" <<'JS'
+const scenario = process.env.MOCK_SCENARIO;
+let commits = ['a'.repeat(40)];
+if (scenario === 'unpublished') commits = [];
+else if (['commit-pages', 'unpublished-pages'].includes(scenario)) {
+  commits = Array.from({length: 251}, (_, index) => index.toString(16).padStart(40, '0'));
+  if (scenario === 'commit-pages') commits[250] = 'a'.repeat(40);
+}
+const cursor = process.argv.find(arg => arg.startsWith('cursor='));
+const start = cursor ? Number(cursor.slice('cursor='.length)) : 0;
+const end = Math.min(start + 100, commits.length);
+const connection = {nodes: commits.slice(start, end).map(oid => ({commit: {oid}})),
+  pageInfo: {hasNextPage: end < commits.length, endCursor: String(end)}};
+console.log(JSON.stringify({data: {repository: {pullRequest: {commits: connection}}}}));
+JS
   ;;
 *"addPullRequestReviewThreadReply"*)
   if [ "${MOCK_SCENARIO:-}" = "reply-failure" ]; then
@@ -157,14 +156,13 @@ EOF
     "$SCRIPT" inspect --repo owner/repo --pr 42 --no-diff --checks
 
   [ "$status" -eq 0 ]
-  run python3 - "$started" "$output" <<'PY'
-from datetime import datetime, timezone
-import json
-import sys
-value = datetime.fromisoformat(json.loads(sys.argv[2])["checks"]["observed_at"].replace("Z", "+00:00"))
-assert value.tzinfo == timezone.utc
-assert int(sys.argv[1]) <= value.timestamp() <= datetime.now(timezone.utc).timestamp()
-PY
+  run node - "$started" "$output" <<'JS'
+const assert = require('node:assert/strict');
+const value = JSON.parse(process.argv[3]).checks.observed_at;
+assert.match(value, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/);
+assert(Number(process.argv[2]) * 1000 <= Date.parse(value));
+assert(Date.parse(value) <= Date.now());
+JS
   [ "$status" -eq 0 ]
 }
 

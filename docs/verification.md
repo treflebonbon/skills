@@ -70,6 +70,8 @@ report と質問シートの loopback 配信、旧 HTTP corpus、専用 root と
 
 coordination helper の旧 corpus、readiness の独立検証、terminal 応答と所有範囲の比較は [移行記録](bun-peer-coordination-proof.md)と `tests/bun/peer-coordination.test.ts`、対応する公開 Bats で確認します。
 
+`gh-review-thread` の旧 CLI 出力・段階別失敗・返信と resolve の順序は [移行記録](bun-review-thread-proof.md)、`tests/bun/gh-review-thread.test.ts` と `tests/cli/gh-review-thread.bats` で確認します。実 GitHub への返信・resolve は行わず、fake `gh` の argv と応答を比較します。
+
 他のシェルファイルは対象外です。そのうち次の Bats 7 ファイルは、`.editorconfig` の `indent_size = 2` で `shfmt -l` に差分が出ることを確認しました。対象へ足すときは、先に整形を揃えます。`peer-peer-request`、`peer-run-evidence`、`peer-skills-contracts`、`devshell-env`、`isolated-github`、`raw-codex-integration`、`secret-isolation-worktree`。他の対象外のファイルは、差分の有無を確認していません。
 
 `npm test` は Bun CLI の型検査・`tests/bun/` の Bun suite、Python の unittest discovery、dogfood / domain-modeling-studio / WSL2 browser package の Node suite、dogfood / WSL2 browser package / raw Codex fixture、および公開 `tests/*.bats` と `tests/cli/*.bats` を実行します。通常 suite は実 browser suite を起動しません。`npm run test:plugin-cli` は3 CLI すべてを要求する install smoke test で、モデルを呼ぶ実 session の証拠にはなりません。
