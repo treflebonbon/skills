@@ -62,7 +62,7 @@ npm run lint
 npm run lint:sh
 ```
 
-`lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `lib/bun/run`、両 peer の `scripts/check-architecture-report`・`scripts/candidate-record`・`scripts/run-evidence`・`scripts/check-owned.sh`、Herdr の `scripts/peer-request.sh`、Orca の `scripts/orca-preflight`、`tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトと `lib/bun/run`、両 peer の `scripts/check-architecture-report`・`scripts/candidate-record`・`scripts/run-evidence`・`scripts/check-owned.sh`、Herdr の `scripts/peer-request.sh`、Orca の `scripts/orca-preflight` です（`-S warning` 以上。info と style は見ません）。対象のファイルを commit するときは、pre-commit hook が実行します。CI では走りません。
+`lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `lib/bun/run`、`development/plugin-sessions`、両 peer の `scripts/check-architecture-report`・`scripts/candidate-record`・`scripts/run-evidence`・`scripts/check-owned.sh`、Herdr の `scripts/peer-request.sh`、Orca の `scripts/orca-preflight`、`tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトと `lib/bun/run`、`development/plugin-sessions`、両 peer の `scripts/check-architecture-report`・`scripts/candidate-record`・`scripts/run-evidence`・`scripts/check-owned.sh`、Herdr の `scripts/peer-request.sh`、Orca の `scripts/orca-preflight` です（`-S warning` 以上。info と style は見ません）。対象のファイルを commit するときは、pre-commit hook が実行します。CI では走りません。
 
 HTML report の静的 checker と text 抽出の比較 corpus、同梱 parser、入口の更新は [移行記録](html-report-parser-proof.md) を参照してください。
 
@@ -71,6 +71,8 @@ report と質問シートの loopback 配信、旧 HTTP corpus、専用 root と
 coordination helper の旧 corpus、readiness の独立検証、terminal 応答と所有範囲の比較は [移行記録](bun-peer-coordination-proof.md)と `tests/bun/peer-coordination.test.ts`、対応する公開 Bats で確認します。
 
 `gh-review-thread` の旧 CLI 出力・段階別失敗・返信と resolve の順序は [移行記録](bun-review-thread-proof.md)、`tests/bun/gh-review-thread.test.ts` と `tests/cli/gh-review-thread.bats` で確認します。実 GitHub への返信・resolve は行わず、fake `gh` の argv と応答を比較します。
+
+導入 smoke と session の `run/check`、旧証跡・native argv・process group の比較は [移行記録](bun-plugin-sessions-proof.md)と `tests/bun/plugin-{smoke,sessions,session-process}.test.ts` で確認します。通常 suite は fake CLI だけを使い、実公式導入・実モデルの opt-in と分けます。
 
 他のシェルファイルは対象外です。そのうち次の Bats 7 ファイルは、`.editorconfig` の `indent_size = 2` で `shfmt -l` に差分が出ることを確認しました。対象へ足すときは、先に整形を揃えます。`peer-peer-request`、`peer-run-evidence`、`peer-skills-contracts`、`devshell-env`、`isolated-github`、`raw-codex-integration`、`secret-isolation-worktree`。他の対象外のファイルは、差分の有無を確認していません。
 
@@ -186,7 +188,7 @@ docstring の不足は診断だけなので終了コード0です。比較元不
 
 ## 実セッションの opt-in 検査
 
-Python 3.9+ と Linux、macOS、WSL2 の通常認証済み CLI で、導入済み plugin の新規セッションを検査します。先に各 CLI の管理画面・一覧と導入確認の記録で、受入対象の source SHA・version・payload hash と導入内容の一致、および実際に読み込まれる plugin root の絶対パスを確認してください。この入口は plugin の導入や更新、認証値の取得・複製を行いません。実行前後の配布物不変性と品質 suite は、上の独立した境界で確認します。
+Bash・Bun 1.4.4+ と Linux、macOS、WSL2 の通常認証済み CLI で、導入済み plugin の新規セッションを検査します。先に各 CLI の管理画面・一覧と導入確認の記録で、受入対象の source SHA・version・payload hash と導入内容の一致、および実際に読み込まれる plugin root の絶対パスを確認してください。この入口は plugin の導入や更新、認証値の取得・複製を行いません。実行前後の配布物不変性と品質 suite は、上の独立した境界で確認します。
 
 ```sh
 npm run test:plugin-sessions -- run --output-dir /absolute/path/outside-plugin/session-report \

@@ -3,7 +3,6 @@ import hashlib
 import os
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import tempfile
 import unittest
@@ -27,7 +26,6 @@ EXPECTED_SKILLS = {
 }
 # plugin.json is the single source of the version; the other manifests must follow it.
 PLUGIN_VERSION = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))["version"]
-RUN_PLUGIN_CLI_E2E = os.environ.get("TREFLEBONBON_PLUGIN_CLI_E2E") == "1"
 
 
 def is_local_environment_name(name):
@@ -438,155 +436,6 @@ class PluginPackageContractTest(unittest.TestCase):
                 contents = snapshot(root)
 
             self.assertEqual(set(contents), {"README.md", "__pycache__/module.pyc", "dist/studio.html"})
-
-
-@unittest.skipUnless(
-    RUN_PLUGIN_CLI_E2E,
-    "run npm run test:plugin-cli for isolated official CLI installation checks",
-)
-class OfficialPluginTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        missing = [name for name in ("agy", "claude", "codex") if not shutil.which(name)]
-        if missing:
-            raise RuntimeError("required official plugin CLIs are missing")
-
-    def setUp(self):
-        self.assert_source_is_safe_to_install(ROOT)
-        self.before = snapshot()
-        self.addCleanup(self.assert_payload_unchanged)
-        self.temporary = tempfile.TemporaryDirectory(prefix="skills-plugin.")
-        self.addCleanup(self.temporary.cleanup)
-        self.environment = {
-            name: os.environ[name]
-            for name in ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TEMP", "TMP")
-            if name in os.environ
-        }
-        home = Path(self.temporary.name)
-        for name, directory in {
-            "HOME": "home",
-            "XDG_CONFIG_HOME": "config",
-            "XDG_DATA_HOME": "data",
-            "XDG_CACHE_HOME": "cache",
-            "XDG_STATE_HOME": "state",
-            "CODEX_HOME": "codex",
-            "CLAUDE_CONFIG_DIR": "claude",
-        }.items():
-            path = home / directory
-            path.mkdir()
-            self.environment[name] = str(path)
-
-    def assert_source_is_safe_to_install(self, root):
-        for directory, dirs, files in os.walk(root):
-            if any(is_local_environment_name(name) for name in (*dirs, *files)):
-                raise AssertionError("plugin source contains a local environment file")
-
-    def assert_payload_unchanged(self):
-        self.assert_source_is_safe_to_install(ROOT)
-        self.assertEqual(snapshot(), self.before, "公式 CLI が配布元を書き換えました")
-
-    def command(self, *arguments):
-        result = subprocess.run(
-            arguments,
-            cwd=self.temporary.name,
-            env=self.environment,
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        return result.stdout
-
-    @unittest.skipUnless(shutil.which("agy"), "Antigravity CLI が必要")
-    def test_antigravity_accepts_all_bundled_skills(self):
-        result = json.loads(
-            self.command("agy", "plugin", "validate", str(ROOT), "--strict", "--json")
-        )
-        self.assertEqual(result["name"], "treflebonbon-skills")
-        self.assertEqual(
-            result["components"]["skills"], len(EXPECTED_SKILLS)
-        )
-        self.assertEqual(
-            [f for f in result["findings"] if f["severity"] != "note"], []
-        )
-
-    @unittest.skipUnless(shutil.which("codex"), "Codex CLI が必要")
-    def test_codex_installs_rop_from_the_local_marketplace(self):
-        """公式導入物で共用 CLI の回帰テストと全 skill の内容一致を確認する。"""
-        self.command("codex", "plugin", "marketplace", "add", str(ROOT), "--json")
-        result = json.loads(self.command(
-            "codex", "plugin", "add", "treflebonbon-skills@treflebonbon", "--json"
-        ))
-        installed = Path(result["installedPath"])
-        self.assertEqual(
-            json.loads((installed / "plugin.json").read_text(encoding="utf-8"))["version"],
-            PLUGIN_VERSION,
-        )
-        installed_skills = {
-            skill_file.parent.name
-            for skill_file in (installed / "skills").glob("*/SKILL.md")
-        }
-        self.assertEqual(installed_skills, EXPECTED_SKILLS)
-        for name in (
-            "git-push-topic",
-            "git-push-reviewed",
-            "gh-review-thread",
-            "orca-send",
-            "codex-reviewer",
-        ):
-            entrypoint = installed / "bin" / name
-            with self.subTest(entrypoint=name):
-                self.assertTrue(
-                    entrypoint.is_file(),
-                    f"Codex の公式導入物から {name} が欠落しています",
-                )
-                self.assertFalse(
-                    entrypoint.is_symlink(),
-                    f"{name} は通常ファイルとして導入される必要があります",
-                )
-                self.assertTrue(
-                    os.access(entrypoint, os.X_OK),
-                    f"Codex の公式導入物で {name} が実行可能ではありません",
-                )
-        bats = shutil.which("bats")
-        if bats:
-            cli_root = Path(self.temporary.name) / "codex-installed-cli-tests"
-            cli_root.mkdir()
-            for name in ("bin", "contracts", "lib", "packages", "share", "skills"):
-                os.symlink(installed / name, cli_root / name, target_is_directory=True)
-            shutil.copytree(ROOT / "tests/cli", cli_root / "tests/cli")
-            shutil.copytree(ROOT / "tests/fixtures", cli_root / "tests/fixtures")
-            suites = sorted((cli_root / "tests/cli").glob("*.bats"))
-            result = subprocess.run(
-                [bats, *map(str, suites)],
-                cwd=cli_root,
-                env=self.environment,
-                capture_output=True,
-                text=True,
-                timeout=240,
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        for name in EXPECTED_SKILLS:
-            with self.subTest(skill=name):
-                self.assertEqual(
-                    snapshot(ROOT / "skills" / name),
-                    snapshot(installed / "skills" / name),
-                )
-
-    @unittest.skipUnless(shutil.which("claude"), "Claude Code が必要")
-    def test_claude_installs_rop_from_the_local_marketplace(self):
-        self.command("claude", "plugin", "marketplace", "add", str(ROOT), "--json")
-        self.command("claude", "plugin", "install", "treflebonbon-skills@treflebonbon", "--json")
-        inventory = self.command("claude", "plugin", "details", "treflebonbon-skills@treflebonbon")
-        for name in EXPECTED_SKILLS:
-            with self.subTest(skill=name):
-                self.assertIn(name, inventory)
-
-    @unittest.skipUnless(shutil.which("agy"), "Antigravity CLI が必要")
-    def test_antigravity_installs_the_portable_rop_plugin(self):
-        self.command("agy", "plugin", "install", str(ROOT))
-        plugins = self.command("agy", "plugin", "list", "--json")
-        self.assertIn("treflebonbon-skills", plugins)
 
 
 if __name__ == "__main__":
