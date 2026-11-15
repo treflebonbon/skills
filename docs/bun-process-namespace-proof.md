@@ -69,9 +69,11 @@ PROCESS_PROOF_NIX_STDENV=/nix/store/4lgbwpg4r41kcsms7nlwrzdlmhw83skj-stdenv-linu
 
 最終の対象試験では、準備中の12件は最大11.84 ms、初期化の14件は最大11.34 msで全所有 process の終了を観測した。親死亡検査を隠した対照は5,135 ms後にも残存した。wrapper 入力の上限は、1,979個の1 KiB引数と最後の257 bytesを受理し、最後の258 bytesで対照・候補とも E2BIG だった。これは argv の pointer／固定 prefix／環境を含むこの実行環境の境界であり、OS 全体の定数ではない。
 
-候補 source の SHA-256 は `4138ea6cc9f6555a85dd5f46414190b09d8bea890a265b115445b149d5ca1f07`、取り込む元 launcher は `4ef10c41e2dfbf5ff5c41c57f8de183bf70e621f42f4333dffaec22074c34b03`。選択した `/usr/bin/unshare` の binary hash は `a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c` である。新 source の CI は未実行で、過去の3 OS の CI をこの候補へ転用しない。
+候補 source の SHA-256 は `4138ea6cc9f6555a85dd5f46414190b09d8bea890a265b115445b149d5ca1f07`、取り込む元 launcher は `4ef10c41e2dfbf5ff5c41c57f8de183bf70e621f42f4333dffaec22074c34b03`。選択した `/usr/bin/unshare` の binary hash は `a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c` である。このローカル実証の採取時点では新 source の CI は未実行だった。公開後の通常 CI の結果は [PR #84](https://github.com/treflebonbon/skills/pull/84) で区別し、過去の3 OS の CI や namespace 試験の skip をこの候補の実証へ転用しない。
 
 同じ候補で実証を有効にした全 suite は、Bun 593 pass／22 skip、Python 48 pass、Node 41 pass、Bats 515 pass／11 skip、すべて0 failだった。出力終端の待機・UTF-8 の分割受信・実測した PTY 終了値の記録を最終調整した観測 harness でも、対象42件を0 fail／0 skipで再確認した。型検査・整形・規約／仕様の2軸レビューも実施した。既存 suite の opt-in skip は各実環境の成功に数えない。
+
+PR #84 の初回 macOS CI では、既存 group 方式の不適合を期待どおり観測した後、cleanup の `kill` が `EPERM` を返して2件が失敗した。終了済みの正の PID への同じエラーを Linux の OS 境界で注入して再現し、`ps` でも終了を確認できた場合だけ後始末済みと扱うよう修正した。生存中 PID の `EPERM` を注入した対照は失敗したままで、group への権限エラーや状態観測の失敗も隠さない。実 macOS での効果は更新 CI で確認し、Linux の正式実証や macOS の移行保留とは分けて記録する。
 
 ## 残る条件と担当
 

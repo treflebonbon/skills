@@ -1060,7 +1060,21 @@ for (const escapeMode of ["group", "session"]) {
           try {
             process.kill(pid, "SIGKILL");
           } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code === "ESRCH") continue;
+            // EPERM でも、終了済みと観測できた PID だけを cleanup 済みと扱う。
+            if (code === "EPERM" && pid > 0 && !stateOf(pid)) {
+              console.log(
+                JSON.stringify({
+                  boundary: "detached-preparation-cleanup",
+                  pid,
+                  code,
+                  terminated: true,
+                }),
+              );
+              continue;
+            }
+            throw error;
           }
         }
         child.stdout.destroy();
