@@ -219,3 +219,5 @@ jq -s -e 'length == 4 and all(.[]; .cleanupCompatible == true)' "$proof_dir/obse
 レビュー後の観測 fixture source SHA-256 は `a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39`。この source で process／lock は65 pass／0 fail／0 skip、621 assertions、型検査も成功した。採用用の JSON 判定は4件すべて false／終了1であり、不適合は残っている。
 
 #33 は open を維持し、不適合のため `ready-for-human` と判断事項を残す。#82、およびそれを前提とする移行は解禁しない。推奨は承認済みの全子孫の終了保証を維持し、OS ごとの子孫の管理方法を再設計すること。追加の依存・権限・配布負担を含む方式選択、または保証を group 内に限定する契約変更は人の判断を要する。今回、OS の共有設定・製品入口・accepted ADR は変更していない。
+
+同日、ユーザーは全子孫の5秒保証を維持して再設計する方針を承認した。[OS 別の再設計調査](bun-preparation-containment-research.md)に、Linux の準備専用 PID namespace の最小実証と、macOS の公開 API・署名・対応版の条件を記録した。Linux の一時候補の成功を全対応範囲の採用成功へ読み替えず、#33 と後続の依存条件は維持する。
