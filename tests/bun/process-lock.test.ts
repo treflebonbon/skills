@@ -956,6 +956,7 @@ for (const escapeMode of ["group", "session"]) {
       const lines = createInterface({ input: child.stderr });
       const owned: Array<{ pid: number; pgid: number; sid: number }> = [];
       let preparationPid: number | undefined;
+      let detachedRootPid: number | undefined;
       let output = "";
       child.stdout.on("data", (bytes) => {
         output += bytes.toString();
@@ -975,6 +976,8 @@ for (const escapeMode of ["group", "session"]) {
             for await (const line of lines) {
               if (line.startsWith("prep-ready:"))
                 preparationPid = Number(line.slice("prep-ready:".length));
+              if (line.startsWith("prep-detached-root:"))
+                detachedRootPid = Number(line.slice("prep-detached-root:".length));
               if (line.startsWith("prep-detached:")) {
                 const [, pid, pgid, sid, mode] = line.split(":");
                 owned.push({ pid: Number(pid), pgid: Number(pgid), sid: Number(sid) });
@@ -987,16 +990,18 @@ for (const escapeMode of ["group", "session"]) {
           3_000,
         );
         expect(preparationPid).toBeGreaterThan(1);
+        expect(detachedRootPid).toBeGreaterThan(1);
         expect(owned).toHaveLength(2);
+        expect(owned.some(({ pid }) => pid === detachedRootPid)).toBe(true);
         expect(owned[0]!.pgid).toBe(owned[1]!.pgid);
         expect(owned.some((item) => item.pid === item.pgid)).toBe(true);
-        const original = spawnSync("ps", ["-o", "pgid=", "-p", String(preparationPid)], {
+        const preparationGroup = spawnSync("ps", ["-o", "pgid=", "-p", String(preparationPid)], {
           encoding: "utf8",
           timeout: 500,
         });
-        expect(original.error).toBeUndefined();
-        expect(original.status).toBe(0);
-        expect(owned[0]!.pgid).not.toBe(Number(original.stdout.trim()));
+        expect(preparationGroup.error).toBeUndefined();
+        expect(preparationGroup.status).toBe(0);
+        expect(owned[0]!.pgid).not.toBe(Number(preparationGroup.stdout.trim()));
         for (const item of owned) {
           if (escapeMode === "session") expect(item.sid).toBe(item.pgid);
           else expect(item.sid).not.toBe(item.pgid);
@@ -1005,6 +1010,7 @@ for (const escapeMode of ["group", "session"]) {
         const sentAt = performance.now();
         child.kill(exitSignal);
         expect(await within(ended, 4_800)).toEqual([null, exitSignal]);
+        const launcherExitElapsedMs = performance.now() - sentAt;
         let remaining: number[] = [];
         let preparationTerminated = false;
         let elapsedMs = 0;
@@ -1015,7 +1021,7 @@ for (const escapeMode of ["group", "session"]) {
           elapsedMs = performance.now() - sentAt;
           if (preparationTerminated && remaining.length === 0) break;
           await new Promise((resolve) => setTimeout(resolve, 50));
-        } while (elapsedMs < 5_100);
+        } while (elapsedMs - launcherExitElapsedMs < 5_100);
         const observation = {
           boundary: "detached-preparation",
           signal: exitSignal,
@@ -1025,6 +1031,8 @@ for (const escapeMode of ["group", "session"]) {
           preparationTerminated,
           targetStarted: output.length > 0,
           elapsedMs,
+          launcherExitElapsedMs,
+          afterLauncherExitMs: elapsedMs - launcherExitElapsedMs,
           cleanupCompatible:
             preparationTerminated &&
             remaining.length === 0 &&
@@ -1035,12 +1043,19 @@ for (const escapeMode of ["group", "session"]) {
         console.log(JSON.stringify(observation));
         expect(preparationTerminated).toBe(true);
         expect(remaining).toEqual(owned.map(({ pid }) => pid));
-        expect(elapsedMs).toBeGreaterThanOrEqual(5_000);
+        expect(observation.afterLauncherExitMs).toBeGreaterThanOrEqual(5_000);
         expect(output).toBe("");
         expect(observation.cleanupCompatible).toBe(false);
       } finally {
         lines.close();
-        for (const pid of [preparationPid, ...owned.map((item) => item.pid)]) {
+        if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+        // 離脱前に通知された root とその group も止め、孫の通知欠落に備える。
+        for (const pid of [
+          preparationPid,
+          detachedRootPid,
+          ...owned.map((item) => item.pid),
+          detachedRootPid ? -detachedRootPid : undefined,
+        ]) {
           if (!pid) continue;
           try {
             process.kill(pid, "SIGKILL");
@@ -1048,7 +1063,6 @@ for (const escapeMode of ["group", "session"]) {
             if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
           }
         }
-        if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
         child.stdout.destroy();
         child.stderr.destroy();
         await ended;

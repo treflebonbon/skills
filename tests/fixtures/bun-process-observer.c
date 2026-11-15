@@ -131,6 +131,8 @@ int main(int argc, char **argv) {
   }
   if (!strcmp(argv[1], "hold-detached")) {
     if (argc != 3) return 91;
+    fprintf(stderr, "prep-detached-root:%ld\n", (long)getpid());
+    fflush(stderr);
     if (!strcmp(argv[2], "group")) {
       if (setpgid(0, 0) < 0) die("detached group");
     } else if (!strcmp(argv[2], "session")) {

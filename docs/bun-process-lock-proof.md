@@ -185,22 +185,22 @@ ARG_MAX の比較に4 KiB の `GIT_REVIEW_PROBE` を追加すると、対照が�
 
 PR #83 merge 後の `bec15024e9ddc4cb5d4fb8af2507e848187ff4a3` を比較元とし、launcher を変更せず、実証用 observer・Bun 準備子・試験だけを追加した。launcher source SHA-256 は `4ef10c41e2dfbf5ff5c41c57f8de183bf70e621f42f4333dffaec22074c34b03`。実行 JSON の `build` に観測 fixture と launcher の source／binary hash を記録する。
 
-observer が `setpgid(0, 0)` または `setsid()` を実行してから fork し、TERM を ignore する子・孫の2 process を保持する。両者の PID／PGID／SID と Bun 準備子の開始を観測し、元の準備 group と異なることを確認してから launcher だけへ signal を送る。単調時計で送信から測り、`ps` の zombie を生存数に含めない。harness の SIGKILL は観測・assertion 後の `finally` だけで、記録対象の終了を代行しない。
+observer が `setpgid(0, 0)` または `setsid()` を実行してから fork し、TERM を ignore する子・孫の2 process を保持する。両者の PID／PGID／SID と Bun 準備子の開始を観測し、元の準備 group と異なることを確認してから launcher だけへ signal を送る。単調時計で送信から測り、`ps` の zombie を生存数に含めない。harness の SIGKILL は観測・assertion 後、または観測失敗時の `finally` だけで、記録対象の終了を代行しない。離脱前に root PID も通知し、孫の通知を得られなくても root とその離脱 group を cleanup する。孫の通知を抑止した変異 fixture でも、試験が観測の期限切れで失敗し、通知済み・未通知の2 process がともに終了したことを確認した。
 
-最初に「全子孫が5秒以内に終了する」という assertion で実行し、下記4件すべてが失敗した。同じ実行で、元の group に残る `prep-stubborn-{blocked,ignored}` × SIGTERM／SIGKILL の4件は成功した。
+最初に「全子孫が5秒以内に終了する」という assertion で実行し、4件すべてが失敗した。同じ実行で、元の group に残る `prep-stubborn-{blocked,ignored}` × SIGTERM／SIGKILL の4件は成功した。レビュー後の再測定結果を次に示す。
 
-| 離脱方法   | launcher への signal | 観測時刻 | 生存する子孫 | Bun 準備子 | target |
-| ---------- | -------------------- | -------- | ------------ | ---------- | ------ |
-| 別 group   | SIGTERM              | 5,110 ms | 2            | 終了       | 未起動 |
-| 別 group   | SIGKILL              | 5,114 ms | 2            | 終了       | 未起動 |
-| 別 session | SIGTERM              | 5,132 ms | 2            | 終了       | 未起動 |
-| 別 session | SIGKILL              | 5,138 ms | 2            | 終了       | 未起動 |
+| 離脱方法   | launcher への signal | launcher 終了観測からの時刻 | 生存する子孫 | Bun 準備子 | target |
+| ---------- | -------------------- | --------------------------- | ------------ | ---------- | ------ |
+| 別 group   | SIGTERM              | 5,121 ms                    | 2            | 終了       | 未起動 |
+| 別 group   | SIGKILL              | 5,119 ms                    | 2            | 終了       | 未起動 |
+| 別 session | SIGTERM              | 5,132 ms                    | 2            | 終了       | 未起動 |
+| 別 session | SIGKILL              | 5,119 ms                    | 2            | 終了       | 未起動 |
 
-確認環境は Linux／6.18.58.1-microsoft-standard-WSL2／x64、Bun 1.4.4、Node.js v24.22.1、gcc (GCC) 15.3.0。この表は最初の失敗実測であり、PID と観測時刻の一致を期待値にしない。新しい試験の Linux arm64／macOS arm64 実行は未確認。
+確認環境は Linux／6.18.58.1-microsoft-standard-WSL2／x64、Bun 1.4.4、Node.js v24.22.1、gcc (GCC) 15.3.0。初回は送信からの経過を測っていたが、SIGTERM の受理時刻を直接観測していなかった。レビュー後の試験では launcher の終了観測後も5秒以上の生存を確認し、受理までの遅延を除いて反証する。JSON の `launcherExitElapsedMs` と `afterLauncherExitMs` で区別する。PID と観測時刻の一致を期待値にしない。新しい試験の Linux arm64／macOS arm64 実行は未確認。
 
 原因は group の終了と子孫全体の終了の違いにある。現 launcher と guardian は準備 group へ SIGKILL を送る。[kill(2)](https://man7.org/linux/man-pages/man2/kill.2.html) の負の PID は指定 group を対象とし、[setsid(2)](https://man7.org/linux/man-pages/man2/setsid.2.html) は新 session と新 group を作る。観測した子孫は終了対象の group の外にいた。Bun 準備子自身の終了、SIGTERM の有無、zombie の誤算入ではこの残存を説明できない。
 
-通常 suite では、既知の不適合を正しく観測する試験として「採用不可」と明記する。4件それぞれの `detached-preparation` JSON と、集約 JSON の `nativeLauncher.detachedPreparation` に観測結果を出す。`cleanupCompatible` は準備子と子孫の終了を5秒未満に観測し、target が未起動だった場合だけ true にする。現候補では false となる。試験の成功は不適合の再現成功を表し、採用条件の成功に読み替えない。
+通常 suite では、既知の不適合を正しく観測する試験として「採用不可」と明記する。4件それぞれの `detached-preparation` JSON と、集約 JSON の `nativeLauncher.detachedPreparation` に観測結果を出す。`cleanupCompatible` は準備子と子孫の終了を送信から5秒未満に観測し、target が未起動だった場合だけ true にする。SIGTERM では受理後の所要時間に対する保守的な上限であり、将来の肯定試験では受理時刻の計測が別途必要になる。現候補では launcher 終了後も子孫が残り false となる。試験の成功は不適合の再現成功を表し、採用条件の成功に読み替えない。
 
 再実行は repo root で行う。検証環境の保護が必要な runtime では、その検証用 wrapper から次の command を実行する。
 
@@ -215,5 +215,7 @@ jq -s -e 'length == 4 and all(.[]; .cleanupCompatible == true)' "$proof_dir/obse
 通常テストの期待値は8 pass／0 fail、最後の採用判定は false／終了1。観測0件を成功にしない。再実行の compiler／OS／版・source hash と実際の verdict は `run.log` で確認する。将来、方式を直した場合は終了条件を満たす肯定試験へ更新し、この否定試験を残したまま完了扱いにしない。
 
 実 caller の [codex-inner](../share/codex-isolation/codex-inner.py) は [prepare_environment](../lib/python/treflebonbon_skills/devshell_environment.py) で Nix の `print-dev-env` と Bash の `shellHook` を実行する。子孫が必ず元 group 内に残る制約は、この caller の確認からは導けない。「離脱しない」という前提を追加して条件を狭める判断は未承認である。
+
+レビュー後の観測 fixture source SHA-256 は `a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39`。この source で process／lock は65 pass／0 fail／0 skip、621 assertions、型検査も成功した。採用用の JSON 判定は4件すべて false／終了1であり、不適合は残っている。
 
 #33 は open を維持し、不適合のため `ready-for-human` と判断事項を残す。#82、およびそれを前提とする移行は解禁しない。推奨は承認済みの全子孫の終了保証を維持し、OS ごとの子孫の管理方法を再設計すること。追加の依存・権限・配布負担を含む方式選択、または保証を group 内に限定する契約変更は人の判断を要する。今回、OS の共有設定・製品入口・accepted ADR は変更していない。
