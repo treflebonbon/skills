@@ -962,13 +962,22 @@ for (const escapeMode of ["group", "session"]) {
         output += bytes.toString();
       });
       const stateOf = (pid: number) => {
-        const state = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], {
+        const args = pid > 0 ? ["-o", "stat=", "-p", String(pid)] : ["-A", "-o", "pgid=,stat="];
+        const state = spawnSync("ps", args, {
           encoding: "utf8",
           timeout: 500,
         });
-        if (state.error || (state.status !== 0 && state.status !== 1))
+        if (state.error || (state.status !== 0 && (pid < 0 || state.status !== 1)))
           throw new Error("process の状態を観測できません");
-        return state.status === 0 && !state.stdout.trim().startsWith("Z");
+        if (pid > 0) return state.status === 0 && !state.stdout.trim().startsWith("Z");
+        return state.stdout
+          .trim()
+          .split("\n")
+          .some((line) => {
+            const match = /^\s*(\d+)\s+(\S+)\s*$/.exec(line);
+            if (!match) throw new Error("process group の状態を解釈できません");
+            return Number(match[1]) === -pid && !match[2]!.startsWith("Z");
+          });
       };
       try {
         await within(
@@ -1062,19 +1071,22 @@ for (const escapeMode of ["group", "session"]) {
           } catch (error) {
             const code = (error as NodeJS.ErrnoException).code;
             if (code === "ESRCH") continue;
-            // EPERM でも、終了済みと観測できた PID だけを cleanup 済みと扱う。
-            if (code === "EPERM" && pid > 0 && !stateOf(pid)) {
+            // zombie だけの group への kill が EPERM になる OS でも、終了確認を省かない。
+            if (code === "EPERM") {
+              const terminated = !stateOf(pid);
               console.log(
                 JSON.stringify({
                   boundary: "detached-preparation-cleanup",
                   pid,
                   code,
-                  terminated: true,
+                  terminated,
                 }),
               );
-              continue;
+              if (terminated) continue;
             }
-            throw error;
+            throw new Error(`準備 process の cleanup に失敗しました (pid=${pid}, code=${code})`, {
+              cause: error,
+            });
           }
         }
         child.stdout.destroy();

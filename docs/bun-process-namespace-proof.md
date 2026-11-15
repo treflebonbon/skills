@@ -73,7 +73,7 @@ PROCESS_PROOF_NIX_STDENV=/nix/store/4lgbwpg4r41kcsms7nlwrzdlmhw83skj-stdenv-linu
 
 同じ候補で実証を有効にした全 suite は、Bun 593 pass／22 skip、Python 48 pass、Node 41 pass、Bats 515 pass／11 skip、すべて0 failだった。出力終端の待機・UTF-8 の分割受信・実測した PTY 終了値の記録を最終調整した観測 harness でも、対象42件を0 fail／0 skipで再確認した。型検査・整形・規約／仕様の2軸レビューも実施した。既存 suite の opt-in skip は各実環境の成功に数えない。
 
-PR #84 の初回 macOS CI では、既存 group 方式の不適合を期待どおり観測した後、cleanup の `kill` が `EPERM` を返して2件が失敗した。終了済みの正の PID への同じエラーを Linux の OS 境界で注入して再現し、`ps` でも終了を確認できた場合だけ後始末済みと扱うよう修正した。生存中 PID の `EPERM` を注入した対照は失敗したままで、group への権限エラーや状態観測の失敗も隠さない。実 macOS での効果は更新 CI で確認し、Linux の正式実証や macOS の移行保留とは分けて記録する。
+PR #84 の macOS CI では、既存 group 方式の不適合を期待どおり観測した後、cleanup の `kill` が `EPERM` を返した。正の PID だけを対象にした初回修正では解消しなかった。[XNU の実装](https://github.com/apple-oss-distributions/xnu/blob/xnu-11417.140.69/bsd/kern/kern_sig.c#L1608)には、group の zombie を signal 対象から除外し、対象がなければ `EPERM` を返す経路がある。group 宛ての同エラーも Linux の OS 境界で注入して再現し、`ps` で PID または group の実メンバーの終了を確認できた場合だけ後始末済みと扱うよう修正した。group は既知 PID の一覧だけで判定せず、通知を得られなかった子孫も含めて照合する。生存中 PID／group の `EPERM` を注入した対照は失敗を維持し、観測失敗も隠さない。宛先と終了判定は cleanup の記録に残す。実 macOS での効果は更新 CI で確認し、Linux の正式実証や macOS の移行保留とは分けて記録する。
 
 ## 残る条件と担当
 
