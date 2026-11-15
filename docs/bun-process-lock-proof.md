@@ -10,6 +10,8 @@
 
 **別 group／session に離脱する準備子孫は、現 launcher の終了対象から外れることを追加実証した。** SIGTERM／SIGKILL の両方で5秒を超えて生存し、承認済みの子孫終了条件に不適合だった。詳細と再実行手順は末尾に記録する。これは現候補への反証であり、全 OS で代替方式が存在しないという判定ではない。
 
+[ADR 0003 による Linux／WSL2 の正式実証](bun-process-namespace-proof.md)では、導入済み `unshare` と準備専用 PID namespace を別候補として比較した。準備専用の proc mount を含む候補で、この WSL2 環境の子孫終了・検査した互換性条件は成立した。通常 host・Linux arm64 など必要範囲が未確認のため、Linux 全体の採用成功とは判定していない。macOS の移行保留と #33／#82 の依存条件を維持する。
+
 lock は既存の `peer-request.sh` と同じ Perl の `flock(2)` を、Bun が開いた FD の open file description に適用する方式を検査した。3環境の合成入力で保持・競合・解放を確認したが、process 置換と対応 OS 全体の採用を決めたものではない。追加実証では、旧 Python の append/write-only・作成 mode と既存の書込み専用 file も検査する。
 
 ## 比較対象と観測方法
