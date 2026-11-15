@@ -75,6 +75,12 @@ PROCESS_PROOF_NIX_STDENV=/nix/store/4lgbwpg4r41kcsms7nlwrzdlmhw83skj-stdenv-linu
 
 PR #84 の macOS CI では、既存 group 方式の不適合を期待どおり観測した後、cleanup の `kill` が `EPERM` を返した。正の PID だけを対象にした初回修正では解消しなかった。[XNU の実装](https://github.com/apple-oss-distributions/xnu/blob/xnu-11417.140.69/bsd/kern/kern_sig.c#L1608)には、group の zombie を signal 対象から除外し、対象がなければ `EPERM` を返す経路がある。group 宛ての同エラーも Linux の OS 境界で注入して再現し、`ps` で PID または group の実メンバーの終了を確認できた場合だけ後始末済みと扱うよう修正した。group は既知 PID の一覧だけで判定せず、通知を得られなかった子孫も含めて照合する。生存中 PID／group の `EPERM` を注入した対照は失敗を維持し、観測失敗も隠さない。宛先と終了判定は cleanup の記録に残す。実 macOS での効果は更新 CI で確認し、Linux の正式実証や macOS の移行保留とは分けて記録する。
 
+## PR レビュー後の回帰確認
+
+同じ WSL2 環境で確認した（confirmed）。ARG_MAX の継承環境のサイズを変えると、1 KiB 引数の最大個数を求めた後でも `tail=1024` が受理され、従来の拒否側 assertion が失敗した。observer の tail 上限と buffer を2048 bytesへ広げ、baseline で上限の拒否を確認してから byte 単位の探索を行う。再現条件では最後の1028 bytesを受理し、1029 bytesで baseline／候補とも E2BIG を返した。拒否を確認できない場合は探索へ進まない。
+
+不適合対照の cleanup では、最初の signal に `EIO` を注入すると後続 signal と stderr の破棄が省かれることも再現した。cleanup の各操作を続行し、両 stream の破棄と期限付きの exit 待ちを終えた後に `AggregateError` で報告するよう修正した。同じ注入で後続の PID／group への signal、両 stream の破棄、launcher の終了を確認し、注入エラーによるテスト失敗は維持した。エラーを無視して成功させる変更ではない。変更後の process／lock 65件と正式 namespace 実証42件は、合計107 pass／0 fail／0 skip、型検査も成功した。
+
 ## 残る条件と担当
 
 通常 host の追加 groups と Linux x64／arm64 の必要範囲を実証するまで、Linux 全体の採用成功とは扱わない。最初の prefix は既存 proc mount を引き継いで PID が不整合になったため、同じ `unshare` の `--mount-proc` で準備専用 mount namespace を作る候補に修正し、正常対照との一致と省略時の不整合を両方検査した。全 exec 診断条件についても、元 launcher の別証跡だけを新候補へ無条件に転用しない。host の権限・mount 設定の変更や、代替 native 実装は行っていない。

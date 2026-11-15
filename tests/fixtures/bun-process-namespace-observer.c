@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
     long count = strtol(argv[7], &end, 10);
     if (*end || count < 0 || count > 8192) return 91;
     long tail = strtol(argv[8], &end, 10);
-    if (*end || tail < 0 || tail > 1024) return 91;
+    if (*end || tail < 0 || tail > 2048) return 91;
     char **arguments = calloc((size_t)count + 9, sizeof(char *));
     if (!arguments) die("exec-input calloc");
     for (int i = 0; i < 4; i++) arguments[i] = argv[i + 2];
@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
     memset(payload, 'x', 1024);
     payload[1024] = 0;
     for (long i = 0; i < count; i++) arguments[i + 7] = payload;
-    char last[1025];
+    char last[2049];
     memset(last, 'y', (size_t)tail);
     last[tail] = 0;
     arguments[count + 7] = last;

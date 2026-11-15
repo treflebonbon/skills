@@ -511,7 +511,8 @@ test.skipIf(!linux)(
       else high = middle;
     }
     let tail = 0,
-      rejectedTail = 1024;
+      // 引数1個分の文字列と pointer より広げ、拒否を実測してから探索する。
+      rejectedTail = 2048;
     expect(run(baseline, low, rejectedTail).status).toBe(1);
     while (tail + 1 < rejectedTail) {
       const middle = Math.floor((tail + rejectedTail) / 2);

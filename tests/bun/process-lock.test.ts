@@ -1056,8 +1056,18 @@ for (const escapeMode of ["group", "session"]) {
         expect(output).toBe("");
         expect(observation.cleanupCompatible).toBe(false);
       } finally {
-        lines.close();
-        if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+        const cleanupErrors: unknown[] = [];
+        const cleanup = (action: () => void) => {
+          try {
+            action();
+          } catch (error) {
+            cleanupErrors.push(error);
+          }
+        };
+        cleanup(() => lines.close());
+        cleanup(() => {
+          if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+        });
         // 離脱前に通知された root とその group も止め、孫の通知欠落に備える。
         for (const pid of [
           preparationPid,
@@ -1066,32 +1076,40 @@ for (const escapeMode of ["group", "session"]) {
           detachedRootPid ? -detachedRootPid : undefined,
         ]) {
           if (!pid) continue;
-          try {
-            process.kill(pid, "SIGKILL");
-          } catch (error) {
-            const code = (error as NodeJS.ErrnoException).code;
-            if (code === "ESRCH") continue;
-            // zombie だけの group への kill が EPERM になる OS でも、終了確認を省かない。
-            if (code === "EPERM") {
-              const terminated = !stateOf(pid);
-              console.log(
-                JSON.stringify({
-                  boundary: "detached-preparation-cleanup",
-                  pid,
-                  code,
-                  terminated,
-                }),
-              );
-              if (terminated) continue;
+          cleanup(() => {
+            try {
+              process.kill(pid, "SIGKILL");
+            } catch (error) {
+              const code = (error as NodeJS.ErrnoException).code;
+              if (code === "ESRCH") return;
+              // zombie だけの group への kill が EPERM になる OS でも、終了確認を省かない。
+              if (code === "EPERM") {
+                const terminated = !stateOf(pid);
+                console.log(
+                  JSON.stringify({
+                    boundary: "detached-preparation-cleanup",
+                    pid,
+                    code,
+                    terminated,
+                  }),
+                );
+                if (terminated) return;
+              }
+              throw new Error(`準備 process の cleanup に失敗しました (pid=${pid}, code=${code})`, {
+                cause: error,
+              });
             }
-            throw new Error(`準備 process の cleanup に失敗しました (pid=${pid}, code=${code})`, {
-              cause: error,
-            });
-          }
+          });
         }
-        child.stdout.destroy();
-        child.stderr.destroy();
-        await ended;
+        cleanup(() => child.stdout.destroy());
+        cleanup(() => child.stderr.destroy());
+        try {
+          await within(ended, 4_800);
+        } catch (error) {
+          cleanupErrors.push(error);
+        }
+        if (cleanupErrors.length)
+          throw new AggregateError(cleanupErrors, "準備 process の cleanup に失敗しました");
       }
       // 開始3秒・終了4.8秒・終了後5.1秒と ps の期限を外側でも確保する。
     }, 20_000);
