@@ -2,7 +2,7 @@
 
 調査日: 2026-11-15
 
-ユーザーは全子孫の5秒保証を維持して再設計する方針を承認した。以下は方式の候補と追加実証であり、各 OS での採用・新しい依存の導入・製品化を承認済みとは扱わない。
+ユーザーは全子孫の5秒保証を維持して再設計する方針を承認した。以下は方式の候補と追加実証であり、各 OS での採用成功を示すものではない。その後の設計対話 Q1〜Q3 と全体の共有理解を確認し、必要実証の成功を条件とした Linux／WSL2 の `unshare` 実行時依存、macOS 15 を含む現行範囲の維持、macOS の特権 monitor 追加案の除外と Bun 移行の保留を確定した。方針の正本は [ADR 0003](adr/0003-os-specific-preparation-containment.md)とする。
 
 ## 前提と調査境界
 
@@ -126,6 +126,16 @@ Linux の最小候補を正式に比較するなら、まず導入済み `unshar
 4. Linux x64／arm64、WSL2 の通常 host と実 raw 環境で、同じ source・依存の実行体を記録する。macOS の必要範囲が未確認なら #33 を閉じない。
 
 ## macOS の追加実証案と失敗条件
+
+### Q2 の合意後に確認した macOS 15 の条件
+
+macOS 15 で利用できる通常の `es_new_client` は、Endpoint Security entitlement、root、TCC の Full Disk Access 承認を要する。root／TCC を不要とする macOS 27 以降の descendant client と条件を混同しない。[通常 client](<https://developer.apple.com/documentation/endpointsecurity/es_new_client(_:_:).md>)、[client 作成の結果](https://developer.apple.com/documentation/endpointsecurity/es_new_client_result_t.md)。restricted entitlement の利用には provisioning profile を伴う署名・配布が必要で、通常の host の `cc` build だけで満たす条件ではない。System Extension への移行は必須とは限らず、Apple は daemon 用の app-like structure も説明している。[Apple の署名手順](https://developer.apple.com/documentation/xcode/signing-a-daemon-with-a-restricted-entitlement.md)。
+
+この負担を許容しても、イベント欠落後の全子孫の同定と安全な一括終了は未実証のままである。Q3 では、通常 client を用いる特権 monitor の追加案を今回の採用候補から外し、macOS の Bun 移行を方式未成立として保留することを合意した。Linux の正式実証を先行しても、必要範囲で方式が成立するまで #33 と後続の依存条件を維持する。
+
+### Q2 の合意前に挙げた macOS 27 の比較候補
+
+以下は Q2 の合意前に挙げた比較候補であり、macOS 15 を含む必要範囲を解決する方式ではない。Q2 では現行範囲の維持を合意しているため、この API の利用だけを理由とする OS 下限の引上げは行わない。
 
 macOS の次候補を絞る最小の技術 spike は、macOS 27.0 以降の隔離した arm64 環境で、restricted entitlement 付き test guardian を使うこと。現行 macOS-15 CI ではこの API を実行できない。元 entry launcher は通常の C launcher のまま残し、そこから per-run guardian を起動する。guardian は `es_new_descendants_client` を作成した後にだけ prep runner を子として起動し、prep subtree に target を含めない。この構成なら descendant scope 自体は caller と子孫に限定され、system-wide event broker は不要という仮説を試せる。entitlement 付き guardian の署名・配布を現行の明示 `cc` host build と両立できるかは別の未解決条件である。
 

@@ -221,3 +221,5 @@ jq -s -e 'length == 4 and all(.[]; .cleanupCompatible == true)' "$proof_dir/obse
 #33 は open を維持し、不適合のため `ready-for-human` と判断事項を残す。#82、およびそれを前提とする移行は解禁しない。推奨は承認済みの全子孫の終了保証を維持し、OS ごとの子孫の管理方法を再設計すること。追加の依存・権限・配布負担を含む方式選択、または保証を group 内に限定する契約変更は人の判断を要する。今回、OS の共有設定・製品入口・accepted ADR は変更していない。
 
 同日、ユーザーは全子孫の5秒保証を維持して再設計する方針を承認した。[OS 別の再設計調査](bun-preparation-containment-research.md)に、Linux の準備専用 PID namespace の最小実証と、macOS の公開 API・署名・対応版の条件を記録した。Linux の一時候補の成功を全対応範囲の採用成功へ読み替えず、#33 と後続の依存条件は維持する。
+
+その後の設計対話で確定した OS 別の依存・配布方針は [ADR 0003](adr/0003-os-specific-preparation-containment.md)を正本とする。Linux の `unshare` 依存は必要実証の成功が条件であり、macOS 15 の対応範囲を維持したまま macOS の Bun 移行を保留する。
