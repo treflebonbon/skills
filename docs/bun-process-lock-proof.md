@@ -4,9 +4,9 @@
 
 [#33](https://github.com/treflebonbon/skills/issues/33) の実証用 fixture と比較記録。基準 source は `236b0f61d194c277f0bb4c79561939113ee6ea24`、Bun は1.4.4。Linux / WSL2 x86_64 で確認した。
 
-**process 置換の旧契約を満たす方式は未確定であり、#33 は完了扱いにしない。** Bun を経由する `process.execve` の経路は PID・TTY・終了状態を維持するが、継承可能な FD と signal mask に旧 Python と異なる挙動がある。`spawn` は PID と親子関係が変わる。fixture が成功しても、この不適合を解消した証拠にはならない。
+**[ADR 0002](adr/0002-native-exec-and-perl-flock.md) で専用 C launcher と Perl flock の採用方針を承認したが、追加条件の実証が必要であり、#33 は完了扱いにしない。** Bun を経由する `process.execve` の経路は PID・TTY・終了状態を維持するが、継承可能な FD と signal mask に旧 Python と異なる挙動がある。`spawn` は PID と親子関係が変わる。fixture が成功しても、この不適合を解消した証拠にはならない。
 
-追加候補として、Bun を準備用の子 process に限定し、同じ PID の専用 native launcher が `execve(2)` を直接呼ぶ fixture を加えた。Linux / WSL2 のローカルでは FD・mask・Python の signal disposition・TTY と拒否条件を比較した。新しい source の3環境 CI は下記の追加実証欄で区別する。製品の native helper、配布方式、公開入口は未採用のまま。
+追加候補として、Bun を準備用の子 process に限定し、同じ PID の専用 native launcher が `execve(2)` を直接呼ぶ fixture を加えた。Linux / WSL2 のローカルでは FD・mask・Python の signal disposition・TTY と拒否条件を比較した。新しい source の3環境 CI は下記の追加実証欄で区別する。製品の明示準備・実行体検査・Nix derivation は [#82](https://github.com/treflebonbon/skills/issues/82) に分離し、各 caller の公開入口はまだ切り替えていない。
 
 lock は既存の `peer-request.sh` と同じ Perl の `flock(2)` を、Bun が開いた FD の open file description に適用する方式を検査した。3環境の合成入力で保持・競合・解放を確認したが、process 置換と対応 OS 全体の採用を決めたものではない。追加実証では、旧 Python の append/write-only・作成 mode と既存の書込み専用 file も検査する。
 
@@ -52,7 +52,7 @@ POSIX `execve` が mask と非 CLOEXEC の FD を保持する境界は、[Linux 
 
 既存の Bun 1.4.4、Node.js、開発依存に加え、観測用 C fixture のため `cc`・POSIX header・導入済み Node.js の Node-API header、lock の実証に Perl / `Fcntl` を必要とする。追加の npm package、FFI、通常利用時の自動 install / build は導入しない。C observer と観測用 addon は一時 directory に build し、終了時に削除する。payload に生成物を置かない。source / binary の hash と compiler / Node.js の版・header path・準備時間はテスト末尾の JSON に記録する。
 
-追加候補を含む setup hook は105秒を上限とする。3回の compiler 各30秒と2回の版検出各5秒の合計100秒を外側でも確保するためで、各 subprocess の期限と通常テストの期限は維持する。以下の過去の CI 記録は、launcher 追加前の source に対するもの。
+追加候補を含む setup hook は135秒を上限とする。4回の compiler 各30秒と2回の版検出各5秒の合計130秒を外側でも確保するためで、各 subprocess の期限と通常テストの期限は維持する。以下の過去の CI 記録は、launcher 追加前の source に対するもの。
 
 | 環境                                                                     | 状態                                     |
 | ------------------------------------------------------------------------ | ---------------------------------------- |
@@ -91,26 +91,30 @@ Linux aarch64 は最初のコンパイル中、setup hook の既定5秒で子 pr
 
 呼出し直前の FD 9 は Linux の両環境で CLOEXEC あり、macOS ではなしだった。3環境で同じ元の FD の identity と block 済み SIGUSR1 を観測し、置換後には FD 消失・mask 解除となった。C source の SHA-256 は3環境共通で `999b6c812cb784ac7a3db170cecc512b6935889454377ae86c233e55b98f5281`。準備時間はこの run の実測であり、compiler が常に同じ時間で終わるという保証ではない。
 
-## 残る判断と後続への条件
+## 採用方針と後続への条件
 
-#33 は open のまま `ready-for-human` とし、後続の blocking links を維持する。採用可能な方式が必要範囲で1つも確定していないため、3環境の suite の成功だけで依存を解除しない。
+2026-11-14 に ADR 0002 の方針を承認し、#33 を追加実証の `ready-for-agent` に変更した。#33 は open を維持する。製品化 #82 は #33 を前提とし、#40・#41・#45 に #82 の native blocked-by を登録した。#45 の #34・#35 の前提も維持している。
 
-現在の追加実証は、Bun の外に元の FD・mask を残す専用 launcher 方式を対象とする。Bun 内で単に `execve(2)` を呼ぶことだけで解消すると仮定しない。製品の helper を加える場合は、ビルド・配布・runtime の準備、内部 FD の漏洩防止、失敗時の状態、3環境での実証を含めて判断し、成功前には採用しない。
+lock は Perl flock と親 FD 保持を基本とし、保持期間・待機か即時拒否かは各 caller の旧契約を維持する。host と inner の依存を分け、実際に隔離内で使う根拠なしに Perl を inner closure に追加しない。native 採用方針はこの launcher とその明示準備・ビルド・配布に限り、他の native helper／FFI は一括承認しない。
 
-lock の Perl 方式を後続で選ぶ場合も、隔離用 Nix closure の明示的な tool 選択と、親の保持範囲を同じ ticket で扱う。現在は実証 fixture と記録だけであり、公開入口を変更していない。repo 外の呼び出し元の更新はない。入口を切り替える ticket が、その時点の外部の対象と更新手順を報告する。
+今回の変更は実証 fixture と記録に限定する。repo 外の caller／flake の更新は行っていない。各入口を切り替える ticket が外部の対象と更新手順を報告する。製品の検査・準備の完了、caller の移植、raw の統合受入はそれぞれ別の条件であり、fixture の成功だけで後続を解禁しない。
 
 ## 専用 native launcher の追加実証
 
-[Bash の fixture 入口](../tests/fixtures/bun-exec-entry.sh)が、既存の `lib/bun/run` を使って [Bun の準備処理](../tests/fixtures/bun-exec-prepare.ts)を子として起動する。親は同じ PID の[専用 launcher](../tests/fixtures/bun-exec-launcher.c)に置換され、準備結果を pipe から読み、子の終了0を確認した後だけ target を `execve(2)` する。Bun は親の FD・mask に触れない。環境は launcher の元の値へ明示的な unset / set だけを適用する。Bun 起動用に除去する NODE_OPTIONS / NODE_PATH / BUN_* / JSC_* を target から落とさず、子の cache 制御変数も追加しない。準備結果や環境の値を launcher の argv に載せず、追加の pipe FD は target の起動前に閉じる。
+[Bash の fixture 入口](../tests/fixtures/bun-exec-entry.sh)は、準備子を作る前に同じ PID の[専用 launcher](../tests/fixtures/bun-exec-launcher.c)へ置換する。launcher が [Bun の準備処理](../tests/fixtures/bun-exec-prepare.ts)と guardian を子として起動する。準備結果を pipe から読み、準備子の終了0を確認し、準備 group を終了・回収した後だけ target を `execve(2)` する。Bun は親の FD・mask に触れない。元の環境へ明示的な unset／set だけを適用し、Bun 起動用の sanitization や cache 制御変数を target へ持ち込まない。追加の pipe FD は target 起動前に閉じる。
 
 ```mermaid
 flowchart LR
   O[POSIX observer / FD・mask・disposition を設定] --> S[Bash の fixture 入口]
-  S -->|子 / 準備結果は専用 pipe| B[Bun / argv・env の準備]
   S -->|同じ PID で exec| L[専用 native launcher]
-  B -->|frame と終了0を確認| L
-  L -->|execve を直接呼ぶ| T[C observer / target]
+  L -->|準備子| B[Bun / argv・env の準備]
+  B -->|frame と終了0| L
+  L -->|生存中だけ pipe を保持| G[guardian / 準備 group の leader]
+  G -->|親消失時に準備 group を終了| B
+  L -->|同じ PID・元の group で execve| T[C observer / target]
 ```
+
+guardian は親の継承 FD と stdio を閉じ、準備専用 group の leader として group ID の再利用を防ぐ。親の pipe が EOF になると自分を含む準備 group を SIGKILL で終了する。中断の受理時も同じ group を終了し、TERM に応答しない子を無期限に wait しない。通常の準備には一律の期限を設けない。親は準備中だけ SIGCHLD の既定 disposition を使って子を回収し、target 起動前に元へ戻す。
 
 ### 比較元と拒否条件
 
@@ -125,7 +129,7 @@ Python は起動時に SIGPIPE / SIGXFSZ（定義される環境では SIGXFZ �
 - PID / PPID / PGID / SID、FD の identity と CLOEXEC、3/9/63 の継承と範囲3〜127の余分な FD、blocked mask、3種の signal disposition、空引数・Unicode・literal shell 記号、GIT_* 除去と marker を確認する。
 - 既存の PTY 対照に launcher を加え、TTY / foreground、入力、Ctrl-C・SIGTERM・timeout の終了を比較する。
 - 部分 frame・余分な field・準備の非0終了は、完全な frame が出力済みでも target を起動しない。pipe buffer より大きい準備結果も比較する。準備中の親の SIGTERM では子を終了させ、回収してから同じ signal で終了する。
-- テスト harness の期限処理は独立した process group 全体を終了し、stderr と読み取りを閉じる。ready 前に停止する準備子でも待機が終わることと、launcher / 実際の Bun 準備子の PGID が同じであることを確認する。出力の読み取りを遅らせた2 MiB超の frame でも、`prep-complete-fail` が全 byte を送ってから終了17になることを正常終了の対照と比較する。この harness の cleanup は、製品候補の SIGKILL 後の子の寿命の採用判断とは区別する。
+- ready 前・準備中・frame 出力済みの各 phase で、親 PID だけへの SIGTERM／SIGKILL を対照する。ready 前は started だけを出す準備子を使い、子孫の生存を確認した後で送信する。harness による group 強制終了で成功を代用しない。出力の読み取りを遅らせた2 MiB超の frame でも、`prep-complete-fail` が全 byte を送ってから終了17になることを正常終了の対照と比較する。
 - `lib/bun/` と `tests/fixtures/` の bytes・mode・file inventory を実行前後で比較する。生成 binary はテストの一時領域だけに build する。これは今回の fixture の不変性検査であり、製品配布物の導入・受入の証拠ではない。
 - lock の追加 case は旧 Python と同じ O_WRONLY / O_APPEND / O_CREAT、0666 & ~umask を使う。Perl は書込み専用 FD を受け取り、競合・close 後の再取得を検査する。
 
@@ -133,6 +137,44 @@ Python は起動時に SIGPIPE / SIGXFSZ（定義される環境では SIGXFZ �
 
 追加候補のローカル実測は Linux / WSL2 x86_64・Bun 1.4.4。3環境の CI は、この変更を含む head の各 job log と JSON の `nativeLauncher` を確認する。対象 head / checkout・OS / kernel / architecture・版・件数と source hash は [PR #59 の追加実証結果](https://github.com/treflebonbon/skills/pull/59)に記録する。過去の93件成功を追加候補の成功へ転用しない。
 
-この fixture は argv / env の transport と exec 境界を比較する。reviewer の Git context / policy、`with-env` の準備全体、`codex-inner` の chdir と開始記録、namespace 設定を移植・受入したものではない。caller ごとの追加段階の環境・signal への影響、通常利用時の native binary の事前ビルド・配布・hash 固定、Nix closure は未確定。namespace の範囲と #33 の AC も変更しない。
+この fixture は argv / env の transport と exec 境界を比較する。reviewer の Git context / policy、`with-env` の準備全体、`codex-inner` の chdir と開始記録、namespace 設定を移植・受入したものではない。caller ごとの追加段階の環境・signal への影響は各移行 ticket で確認する。通常利用時の native binary の明示準備・検査・Nix derivation は #82、raw の実選択・closure の同一性と統合受入は #45 などが担当する。namespace の範囲は広げない。
 
-エラー出力は実証用の prefix・errno 名/番号と終了1を比較する。Python の例外の repr・path・stderr の bytes 全体は再現していないため、公開 CLI の互換完了とはしない。prepare frame は16 MiBを上限とし、製品の ARG_MAX・準備中の SIGKILL 後の子 process の寿命・macOS の環境変数制約も、この実証だけで成立したと扱わない。追加 native helper と固定 pipe の方式は候補であり、製品への採用判断は別に残す。
+エラー出力は入口の prefix・errno 名／番号・対象・説明と終了1を比較する。未知の errno も OS 名・番号・説明を表示する。Python 例外の byte 一致を求めない判断は exec 失敗時の診断に限る。prepare frame は16 MiBまでであり、OS の argv 上限との対照は下記の記録と区別する。
+
+### 承認済み条件への追実証（2026-11-14）
+
+変更前の source `623d60c12d13672e8412b88e507f26c565f78c73c91c92133576b96ddddcf382` では、launcher だけへの SIGKILL 後も準備子が5秒近く生存し、追加試験が失敗した。これを契機に上記 guardian を fixture に追加した。別の失敗対照では ELOOP が OTHER に集約され、SIGCHLD ignore を継承すると準備子の wait に失敗した。stdin と stdout を両方閉じた入口では、新 pipe の FD と準備用 stdout が衝突して失敗したため、内部 pipe は FD3 以上に確保する。各修正の前に失敗を記録した。
+
+- launcher だけへの SIGKILL、中断の SIGTERM、frame の出力前／出力済みを組み合わせる。準備子とその子・孫に TERM の block／ignore を設定し、同じ子孫が TERM だけでは終了しない対照を先に確認する。送信時点の単調時計から5秒以内の終了と、target 未起動、無関係な process の生存を観測する。harness の強制 cleanup は assertion の後だけに行う。終了した zombie と生存中の process を区別し、回収は別の事実として扱う。
+- 5.2秒待つ正常な準備は最後まで成功する。target の mask／ignore・元の process group・TTY・FD は旧 corpus と比較する。SIGCHLD ignore については、独立した POSIX 対照でも target に維持されることを確認する。
+- OS の `ARG_MAX` と、準備を介さない POSIX execve 対照で1024 byte引数の最大個数を測る。Bun の準備内で同じ argv を生成し、上限を通すことと、1個超過で E2BIG・対象・説明を出すことを確認する。これは argv の transport／frame 境界の試験であり、製品 caller の最大入力全体を受け入れた証拠ではない。
+- 環境は既存の NODE／BUN／JSC の変数に加え、DYLD の marker、非 identifier の key、Unicode、macOS の encoding marker を、同じ Bash を通る独立対照と比較する。macOS 固有の処理は macOS で実行するまで未確認とする。
+
+この追実証は Linux／WSL2 x64・Bun 1.4.4 で実行した。実行コマンドは `lib/bun/run test tests/bun/process-lock.test.ts`。最終結果は下記に記録する。新 source の Linux arm64／macOS arm64 CI はまだ実行しておらず、過去の別 source の CI を転用しない。別 session／別 group を作る準備子孫への対処、製品 cache を exec 前に検査する段階と各 caller の準備全体も、この fixture の group 内の試験で証明した扱いにしない。必要範囲の未確認が残るため #33 を閉じず、製品化や raw 受入も完了扱いにしない。
+
+### ローカル実行結果（2026-11-15）
+
+| 項目                                              | 結果                                                                                                |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| OS／kernel／architecture                          | Linux／6.18.58.1-microsoft-standard-WSL2／x64                                                       |
+| Bun／Node.js／compiler                            | 1.4.4／v24.22.1／gcc (GCC) 15.3.0                                                                   |
+| launcher source SHA-256                           | `c2e1181850a13cd5372efbcaf1434fde2cb02319f14f0a12f6c34b1ba9fca067`                                  |
+| 観測 fixture source SHA-256                       | `335c845039e713e051927be85d469ba21a5715617ff4e846d12b8491191f9693`                                  |
+| `lib/bun/run test tests/bun/process-lock.test.ts` | 59 pass／0 fail／0 skip、525 assertions                                                             |
+| `npm run typecheck`                               | 成功                                                                                                |
+| ARG_MAX と1024 byte引数の上限                     | 2,097,152 byte、1,979個成功／1,980個は E2BIG（当該環境での実測）                                    |
+| 全体の `npm test`                                 | 成功。Bun 542 pass／22 skip／0 fail、Python 48件成功、Node 41件成功、Bats 515 pass／11 skip／0 fail |
+
+全体検査の開始時 HEAD は `0583f4f`。その後のレビュー修正は process fixture とその試験・記録に限り、変更後の最終 source に対して型検査と上記59件を再実行した。これらの fixture を参照する実行コードは `tests/bun/process-lock.test.ts` だけである。試験の開始待ち・親の終了待ちにも期限を設け、回帰で待機が止まった場合は失敗として `finally` の cleanup へ進める。
+
+この結果は Linux／WSL2 x64 のローカル検証であり、新 source の Linux arm64／macOS arm64 CI の代わりにはしない。別 session／別 group に離脱する子孫、製品の exec 前検査、実 caller 全体、raw の統合受入は引き続き未確認。#33 は open を維持する。
+
+### PR #83 のレビュー対応（2026-11-15）
+
+ARG_MAX の比較に4 KiB の `GIT_REVIEW_PROBE` を追加すると、対照が拒否する個数を reviewer 方式の launcher が正常実行し、試験が失敗した。reviewer が `GIT_*` を除去する契約は旧 corpus と同じだが、対照にはその環境 bytes が残っていたためである。対照にも同じ除去を適用し、target に渡る環境を揃えた。probe は回帰入力として残し、比較する argv 上限と E2BIG の拒否は維持する。
+
+別の再現では、子側の `setpgid` を300 ms遅らせると、group 参加前の子に対する親だけへの SIGTERM で親の終了待ちが4.8秒で失敗した。[回帰試験の OS 境界 fixture](../tests/fixtures/bun-exec-delayed-group.c)は固定 sleep に頼らず、子側の `setpgid` を pipe で止める。SIGTERM は中断 handler と読み取り終了時の group KILL が済み、親が同じ準備子の `waitpid` を呼び始める直前の marker を観測してから、SIGKILL は親の終了後に pipe を解放し、試験側のスケジュール遅延で競合を取りこぼさないようにする。親側の `setpgid` だけを除いた変異 source でも、この同期試験が4.8秒で失敗することを確認した。親側でも子を準備 group に移してから signal を解除し、この順序を防ぐ。EACCES は子が exec 済みの場合として扱い、その他の失敗は直接の準備子を止めて拒否する。子も group 参加後に launcher が親として生存していることを確認し、親が消えていれば準備用 runner を実行しない。監視対象は launcher 自身であり、その caller の消失監視へは広げない。
+
+変更後は Linux／WSL2 x64、Bun 1.4.4 で型検査と process/lock **61 pass／0 fail／0 skip、537 assertions**。group 参加前を同期停止する SIGTERM／SIGKILL、旧 corpus の PID・FD・signal・TTY、正常な5.2秒の準備、環境を揃えた argv 上限が成功した。launcher source SHA-256 は `4ef10c41e2dfbf5ff5c41c57f8de183bf70e621f42f4333dffaec22074c34b03`。遅延 fixture の source と binary hash も実行 JSON に記録する。
+
+変更前 head `44002c9` の [CI run 43657482400](https://github.com/treflebonbon/skills/actions/runs/43657482400) は、Linux x64／arm64・macOS arm64 と Bun 版ごとの evidence 検査が全て成功した。この結果は上記の修正後 source へ転用しない。修正後の各 OS の CI と残る離脱子孫・製品化・実 caller／raw の条件は、引き続き別の確認とする。

@@ -14,15 +14,18 @@ const root = fs.mkdtempSync(join(tmpdir(), "bun-process-lock-"));
 const observer = join(root, "observer");
 const snapshot = join(root, "snapshot.node");
 const launcher = join(root, "launcher");
+const delayedLauncher = join(root, "delayed-launcher");
 const entry = fileURLToPath(new URL("../fixtures/bun-exec-entry.sh", import.meta.url));
 const prepare = fileURLToPath(new URL("../fixtures/bun-exec-prepare.ts", import.meta.url));
 const launcherSource = new URL("../fixtures/bun-exec-launcher.c", import.meta.url);
+const delayedLauncherSource = new URL("../fixtures/bun-exec-delayed-group.c", import.meta.url);
 const fixture = fileURLToPath(new URL("../fixtures/bun-process-lock.ts", import.meta.url));
 const runner = fileURLToPath(new URL("../../lib/bun/run", import.meta.url));
 const observerSource = new URL("../fixtures/bun-process-observer.c", import.meta.url);
 let buildRecord: object | undefined;
 let execObservation: object | undefined;
 let launcherObservation: object | undefined;
+let argumentLimitObservation: object | undefined;
 type Report = {
   event: string;
   pid: number;
@@ -35,6 +38,7 @@ type Report = {
   blocked: number[];
   ignored: { int: number; pipe: number; xfsz: number };
   gitMarker: string;
+  chldIgnored: number;
   fd63: number;
   fds: number[];
   fd9: { dev: string; ino: string; cloexec: number } | null;
@@ -101,24 +105,20 @@ beforeAll(() => {
     throw new Error(
       `観測用 Node-API snapshot をビルドできません (status=${snapshotBuild.status}, signal=${snapshotBuild.signal}, error=${snapshotBuild.error?.message ?? "なし"})\nstdout: ${snapshotBuild.stdout ?? ""}\nstderr: ${snapshotBuild.stderr ?? ""}`,
     );
-  const launcherBuild = spawnSync(
-    "cc",
-    [
-      "-std=c11",
-      "-O2",
-      "-Wall",
-      "-Wextra",
-      "-Werror",
-      fileURLToPath(launcherSource),
-      "-o",
-      launcher,
-    ],
-    { encoding: "utf8", timeout: 30_000 },
-  );
-  if (launcherBuild.error || launcherBuild.status !== 0)
-    throw new Error(
-      `実証用 launcher をビルドできません (status=${launcherBuild.status}, signal=${launcherBuild.signal}, error=${launcherBuild.error?.message ?? "なし"})\nstdout: ${launcherBuild.stdout ?? ""}\nstderr: ${launcherBuild.stderr ?? ""}`,
+  for (const [source, binary] of [
+    [launcherSource, launcher],
+    [delayedLauncherSource, delayedLauncher],
+  ] as const) {
+    const launcherBuild = spawnSync(
+      "cc",
+      ["-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", fileURLToPath(source), "-o", binary],
+      { encoding: "utf8", timeout: 30_000 },
     );
+    if (launcherBuild.error || launcherBuild.status !== 0)
+      throw new Error(
+        `実証用 ${binary} をビルドできません (status=${launcherBuild.status}, signal=${launcherBuild.signal}, error=${launcherBuild.error?.message ?? "なし"})\nstdout: ${launcherBuild.stdout ?? ""}\nstderr: ${launcherBuild.stderr ?? ""}`,
+      );
+  }
   const hash = (path: string | URL) =>
     createHash("sha256").update(fs.readFileSync(path)).digest("hex");
   buildRecord = {
@@ -128,12 +128,14 @@ beforeAll(() => {
     snapshotHash: hash(snapshot),
     launcherSourceHash: hash(launcherSource),
     launcherHash: hash(launcher),
+    delayedLauncherSourceHash: hash(delayedLauncherSource),
+    delayedLauncherHash: hash(delayedLauncher),
     node: installation.version,
     headerDirectory,
     durationMs: Math.round(performance.now() - buildStarted),
   };
-  // 3回の compile 各30秒と版検出2回各5秒の上限を外側でも確保する。
-}, 105_000);
+  // 4回の compile 各30秒と版検出2回各5秒の上限を外側でも確保する。
+}, 135_000);
 afterAll(() => {
   console.log(
     JSON.stringify({
@@ -148,6 +150,7 @@ afterAll(() => {
       nativeLauncher: {
         pythonCorpus: launcherCorpus.sourceRevision,
         observation: launcherObservation,
+        argumentLimit: argumentLimitObservation,
         results: "see-test-results",
         adoption: "not-decided",
       },
@@ -343,9 +346,11 @@ for (const item of launcherCorpus.errors) {
     expect(result.signal).toBeNull();
     expect(result.stderr).toMatch(
       new RegExp(
-        `^codex-reviewer: exec-error:${item.expected.code} errno=${item.expected.errno}\\n$`,
+        `^codex-reviewer: exec-error:${item.expected.code} errno=${item.expected.errno} target=`,
       ),
     );
+    expect(result.stderr).toContain(`target=${target}; `);
+    expect(result.stderr).toMatch(/; .+\n$/);
     expect(result.reports.map((item) => item.event)).toEqual(["seed"]);
   });
 }
@@ -375,6 +380,50 @@ test("同じ binary は mode 0600 で EACCES、0700 で実行できる", () => {
   expect(accepted.status).toBe(37);
   expect(accepted.stderr).toBe("");
   expect(accepted.reports.map((item) => item.event)).toEqual(["seed", "target"]);
+});
+
+test("stdin と stdout が閉じた入口でも準備用 pipe を誤って閉じない", () => {
+  for (const command of [
+    [observer, "report", "37"],
+    [entry, runner, prepare, launcher, "reviewer", observer],
+  ]) {
+    const result = spawnSync(
+      "/bin/bash",
+      ["-p", "-c", 'exec 0<&- 1>&-; exec "$@"', "bash", ...command],
+      {
+        encoding: "utf8",
+        timeout: 5_000,
+      },
+    );
+    expect(result.status).toBe(37);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe("");
+  }
+});
+
+test("親の SIGCHLD ignore を target に維持し、準備子は回収できる", () => {
+  for (const mode of ["posix-control", "launcher"]) {
+    const result = run(mode, "inherit", "chld-ignored");
+    expect(result.status).toBe(37);
+    expect(result.stderr).toBe("");
+    const [before, after] = result.reports;
+    expect(before!.chldIgnored).toBe(1);
+    expect(after!.chldIgnored).toBe(1);
+  }
+});
+
+test("exec の ELOOP は errno 名・対象・説明を示し、正常な対照は実行できる", () => {
+  const target = join(root, "exec-loop");
+  fs.symlinkSync(target, target);
+  const refused = run("launcher", "inherit", "clear", target);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("exec-error:ELOOP");
+  expect(refused.stderr).toContain(target);
+  expect(refused.stderr).toMatch(/; .+\n$/);
+  expect(refused.reports.map((report) => report.event)).toEqual(["seed"]);
+  const accepted = run("launcher", "inherit", "clear", observer);
+  expect(accepted.status).toBe(37);
+  expect(accepted.stderr).toBe("");
 });
 
 function prepared(mode: string, executable: string, arguments_: string[] = [], path?: string) {
@@ -484,6 +533,76 @@ test("pipe buffer より大きい準備結果も途中で切れず、空引数�
   expect(target.argv.at(-1)).toBe("");
 });
 
+test("OS が受け入れる argv 上限を準備 frame が狭めず、超過は E2BIG で拒否する", () => {
+  const configured = spawnSync("getconf", ["ARG_MAX"], { encoding: "utf8", timeout: 2_000 });
+  expect(configured.status).toBe(0);
+  const argMax = Number(configured.stdout.trim());
+  expect(argMax).toBeGreaterThan(4096);
+  const driver = join(root, "argument-limit.ts");
+  fs.writeFileSync(
+    driver,
+    `const count = Number(process.argv[2]);\nprocess.argv = ["bun", "proof", "reviewer", process.argv[3]!, ...Array(count).fill("x".repeat(1024))];\nawait import(${JSON.stringify(prepare)});\n`,
+  );
+  const options = {
+    encoding: "utf8" as const,
+    timeout: 5_000,
+    env: { ...process.env, GIT_REVIEW_PROBE: "x".repeat(4096) },
+    stdio: ["ignore", "ignore", "pipe"] as ["ignore", "ignore", "pipe"],
+  };
+  // 旧 reviewer と同じ GIT_* 除去を対照にも適用し、target の環境 bytes を揃える。
+  const controlEnvironment = Object.fromEntries(
+    Object.entries(options.env).filter(([key]) => !key.startsWith("GIT_")),
+  );
+  const control = (count: number) =>
+    spawnSync(observer, ["exec-limit", observer, String(count)], {
+      ...options,
+      env: controlEnvironment,
+    });
+  let low = 0,
+    high = Math.ceil(argMax / 1024) + 1;
+  const tooLarge = control(high);
+  expect(tooLarge.status).toBe(1);
+  expect(tooLarge.stderr).toContain("errno=7 "); // Linux/macOS の E2BIG
+  while (low + 1 < high) {
+    const count = Math.floor((low + high) / 2);
+    const result = control(count);
+    if (result.status === 37) low = count;
+    else {
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("errno=7 ");
+      high = count;
+    }
+  }
+  expect(low).toBeGreaterThan(0);
+  const accepted = spawnSync(entry, [runner, driver, launcher, String(low), observer], options);
+  expect(accepted.status).toBe(37);
+  expect(accepted.stderr).toBe("");
+  const refused = spawnSync(entry, [runner, driver, launcher, String(high), observer], options);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("codex-reviewer: exec-error:E2BIG");
+  expect(refused.stderr).toContain(`target=${observer}; `);
+  expect(refused.stderr).toMatch(/; .+\n$/);
+  argumentLimitObservation = {
+    argMax,
+    maximum1024ByteArguments: low,
+    rejected1024ByteArguments: high,
+  };
+}, 20_000);
+
+test("正常な準備が5秒を超えても target を起動できる", () => {
+  const driver = join(root, "slow-prepare.ts");
+  fs.writeFileSync(driver, `await Bun.sleep(5_200);\nawait import(${JSON.stringify(prepare)});\n`);
+  const startedAt = performance.now();
+  const result = spawnSync(entry, [runner, driver, launcher, "reviewer", observer], {
+    encoding: "utf8",
+    timeout: 9_000,
+  });
+  expect(result.status).toBe(37);
+  expect(result.stderr).toBe("");
+  expect(JSON.parse(result.stdout).event).toBe("target");
+  expect(performance.now() - startedAt).toBeGreaterThan(5_000);
+}, 10_000);
+
 test("Bun 起動時に除去する環境変数も target には保持し、子の起動用変数を追加しない", () => {
   const environment = {
     PATH: process.env.PATH!,
@@ -492,6 +611,9 @@ test("Bun 起動時に除去する環境変数も target には保持し、子�
     BUN_PROOF_MARKER: "public-bun",
     JSC_PROOF_MARKER: "public-jsc",
     SHLVL: "3",
+    DYLD_PROOF_MARKER: "public-dyld",
+    "EXEC-PROOF.KEY": "Unicode🙂と空白",
+    __CF_USER_TEXT_ENCODING: "0x1F5:0x0:0x0",
   };
   const options = { env: environment, encoding: "utf8" as const, timeout: 5_000 };
   const control = spawnSync("/bin/bash", ["-p", "-c", "exec /usr/bin/env"], options);
@@ -528,30 +650,6 @@ for (const mode of ["prep-fail", "prep-partial", "prep-trailing", "prep-complete
     expect(result.stderr).toBe("launcher: preparation failed\n");
   });
 }
-
-// kernel.pid_max は 64-bit Linux で 4194304 まで上がる。準備子の PID を件数の上限で弾くと、
-// 準備 pipe を読む前に失敗して準備子が EPIPE になる。
-test.skipIf(process.platform !== "linux")(
-  "専用 launcher は 100 万を超える準備子 PID でも準備 pipe を読み始める",
-  () => {
-    const frame = join(root, "large-pid-frame");
-    fs.writeFileSync(frame, "x");
-    // 存在しない PID は waitpid で失敗するが、その前に frame を読むかどうかで引数検査を区別する。
-    const result = spawnSync(
-      "/bin/bash",
-      [
-        "-c",
-        'exec 3<"$1"; "$2" /dev/fd/3 4194304 2>/dev/null; sed -n "s/^pos:\\t//p" /proc/self/fdinfo/3',
-        "bash",
-        frame,
-        launcher,
-      ],
-      { encoding: "utf8", timeout: 5_000 },
-    );
-    expect(result.status).toBe(0);
-    expect(result.stdout.trim()).toBe("1");
-  },
-);
 
 test("prep-complete-fail は読み取りが遅い大きな frame も全て送ってから終了17になる", async () => {
   const driver = join(root, "prepare-pressure.ts");
@@ -596,90 +694,252 @@ test("prep-complete-fail は読み取りが遅い大きな frame も全て送っ
   }
 });
 
-for (const beforeReady of [false, true]) {
-  test(
-    beforeReady
-      ? "ready 前の期限切れでも準備 group 全体を終了して stderr の待機を終える"
-      : "準備中に親を SIGTERM 終了すると準備子も終了し、親が回収する",
-    async () => {
-      const child = spawn(
-        entry,
-        [runner, prepare, launcher, beforeReady ? "prep-before-ready" : "prep-hang", observer],
-        {
-          detached: true,
-          stdio: ["ignore", "ignore", "pipe"],
-        },
+async function within<T>(pending: Promise<T>, milliseconds: number): Promise<T> {
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      pending,
+      new Promise<never>((_resolve, reject) => {
+        deadline = setTimeout(
+          () => reject(new Error("process の観測が期限内に終わりません")),
+          milliseconds,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(deadline);
+  }
+}
+
+for (const signal of ["SIGTERM", "SIGKILL"] as const) {
+  test(`group 参加前の準備子も親だけへの ${signal} で5秒以内に終了する`, async () => {
+    const child = spawn(entry, [runner, prepare, delayedLauncher, "prep-hang", observer], {
+      stdio: ["ignore", "pipe", "pipe", "pipe"],
+    });
+    const ended = once(child, "exit");
+    const lines = createInterface({ input: child.stderr! });
+    const gate = child.stdio[3] as import("node:stream").Duplex;
+    const joining = Promise.withResolvers<void>();
+    const preparationWait = Promise.withResolvers<void>();
+    let preparationPid: number | undefined;
+    let output = "";
+    let diagnostics = "";
+    child.stdout!.on("data", (bytes) => {
+      output += bytes.toString();
+    });
+    child.stderr!.on("data", (bytes) => {
+      diagnostics += bytes.toString();
+    });
+    lines.on("line", (line) => {
+      if (line.startsWith("prep-joining:")) {
+        preparationPid = Number(line.slice("prep-joining:".length));
+        joining.resolve();
+      }
+      if (line === `prep-waiting:${preparationPid}`) preparationWait.resolve();
+    });
+    try {
+      await within(joining.promise, 3_000);
+      expect(preparationPid).toBeGreaterThan(1);
+      const sentAt = performance.now();
+      child.kill(signal);
+      await within(
+        signal === "SIGTERM" ? preparationWait.promise : ended.then(() => undefined),
+        4_800,
       );
-      const ended = once(child, "exit");
-      const lines = createInterface({ input: child.stderr });
-      let preparationPid: number | undefined;
-      let expired = false;
-      function killGroup() {
-        if (!child.pid) return;
+      gate.end();
+      expect(await within(ended, Math.max(1, 4_800 - (performance.now() - sentAt)))).toEqual([
+        null,
+        signal,
+      ]);
+      let terminated = false;
+      while (performance.now() - sentAt < 4_800) {
+        const state = spawnSync("ps", ["-o", "stat=", "-p", String(preparationPid)], {
+          encoding: "utf8",
+          timeout: 500,
+        });
+        if (state.status === 1 || state.stdout.trim().startsWith("Z")) {
+          terminated = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(terminated).toBe(true);
+      expect(performance.now() - sentAt).toBeLessThan(5_000);
+      expect(output).toBe("");
+      expect(diagnostics).not.toContain("prep-ready:");
+    } finally {
+      lines.close();
+      if (preparationPid) {
         try {
-          process.kill(-child.pid, "SIGKILL");
+          process.kill(preparationPid, "SIGKILL");
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
         }
       }
-      function expire() {
-        expired = true;
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+      gate.destroy();
+      child.stdout!.destroy();
+      child.stderr!.destroy();
+      await ended;
+    }
+  }, 10_000);
+}
+
+test("launcher だけへの SIGKILL で準備子が5秒以内に終了し target を起動しない", async () => {
+  const child = spawn(entry, [runner, prepare, launcher, "prep-hang", observer], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const ended = once(child, "exit");
+  let output = "";
+  child.stdout.on("data", (bytes) => {
+    output += bytes.toString();
+  });
+  const lines = createInterface({ input: child.stderr });
+  let preparationPid: number | undefined;
+  try {
+    await within(
+      (async () => {
+        for await (const line of lines) {
+          if (!line.startsWith("prep-ready:")) continue;
+          preparationPid = Number(line.slice("prep-ready:".length));
+          return;
+        }
+        throw new Error("準備子の開始を観測できません");
+      })(),
+      3_000,
+    );
+    expect(preparationPid).toBeGreaterThan(1);
+    const sentAt = performance.now();
+    child.kill("SIGKILL");
+    expect(await within(ended, 4_800)).toEqual([null, "SIGKILL"]);
+    let terminated = false;
+    while (performance.now() - sentAt < 4_800) {
+      const state = spawnSync("ps", ["-o", "stat=", "-p", String(preparationPid)], {
+        encoding: "utf8",
+        timeout: 500,
+      });
+      if (state.status === 1 || state.stdout.trim().startsWith("Z")) {
+        terminated = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(terminated).toBe(true);
+    expect(performance.now() - sentAt).toBeLessThan(5_000);
+    expect(output).toBe("");
+  } finally {
+    lines.close();
+    if (preparationPid) {
+      try {
+        process.kill(preparationPid, "SIGKILL");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+      }
+    }
+    child.kill("SIGKILL");
+    child.stdout.destroy();
+    child.stderr.destroy();
+    await ended;
+  }
+}, 10_000);
+
+for (const signal of ["SIGTERM", "SIGKILL"] as const) {
+  for (const phase of ["prep-before-ready-", "prep-stubborn-", "prep-complete-hang-"]) {
+    for (const disposition of ["blocked", "ignored"]) {
+      test(`${signal} は ${phase}${disposition} の準備子と子孫を5秒以内に終了する`, async () => {
+        const child = spawn(
+          entry,
+          [runner, prepare, launcher, `${phase}${disposition}`, observer],
+          {
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+        const unrelated = spawn("/bin/sleep", ["60"], { stdio: "ignore" });
+        const ended = once(child, "exit");
+        const unrelatedEnded = once(unrelated, "exit");
+        const lines = createInterface({ input: child.stderr });
+        const owned: number[] = [];
+        let output = "";
+        child.stdout.on("data", (bytes) => {
+          output += bytes.toString();
+        });
+        let preparationPid: number | undefined;
         try {
-          killGroup();
+          await within(
+            (async () => {
+              for await (const line of lines) {
+                if (line.startsWith("prep-owned:")) {
+                  const [, pid, observedDisposition] = line.split(":");
+                  expect(observedDisposition).toBe(disposition);
+                  owned.push(Number(pid));
+                }
+                const prefix = phase === "prep-before-ready-" ? "prep-started:" : "prep-ready:";
+                if (line.startsWith(prefix)) preparationPid = Number(line.slice(prefix.length));
+                if (preparationPid && owned.length === 2) return;
+              }
+              throw new Error("準備子と子孫の開始を観測できません");
+            })(),
+            3_000,
+          );
+          expect(preparationPid).toBeGreaterThan(1);
+          expect(owned).toHaveLength(2);
+          // TERM のみでは終わらない対照を、同じ子孫で先に確認する。
+          for (const pid of owned) process.kill(pid, "SIGTERM");
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          const live = spawnSync("ps", ["-o", "stat=", "-p", owned.join(",")], {
+            encoding: "utf8",
+            timeout: 500,
+          });
+          expect(live.status).toBe(0);
+          const liveStates = live.stdout.trim().split(/\s+/);
+          expect(liveStates).toHaveLength(2);
+          for (const state of liveStates) expect(state.startsWith("Z")).toBe(false);
+          const sentAt = performance.now();
+          child.kill(signal);
+          expect(await within(ended, 4_800)).toEqual([null, signal]);
+          const pids = [preparationPid!, ...owned];
+          let terminated = false;
+          while (performance.now() - sentAt < 4_800) {
+            const states = spawnSync("ps", ["-o", "stat=", "-p", pids.join(",")], {
+              encoding: "utf8",
+              timeout: 500,
+            });
+            if (
+              states.status === 1 ||
+              (states.status === 0 &&
+                states.stdout
+                  .trim()
+                  .split(/\s+/)
+                  .every((state) => state.startsWith("Z")))
+            ) {
+              terminated = true;
+              break;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          }
+          expect(terminated).toBe(true);
+          expect(performance.now() - sentAt).toBeLessThan(5_000);
+          expect(output).toBe("");
+          expect(() => process.kill(unrelated.pid!, 0)).not.toThrow();
         } finally {
           lines.close();
+          for (const pid of [preparationPid, ...owned]) {
+            if (!pid) continue;
+            try {
+              process.kill(pid, "SIGKILL");
+            } catch (error) {
+              if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+            }
+          }
+          child.kill("SIGKILL");
+          unrelated.kill("SIGKILL");
+          child.stdout.destroy();
           child.stderr.destroy();
+          await Promise.all([ended, unrelatedEnded]);
         }
-      }
-      let deadline = setTimeout(expire, 4_000);
-      try {
-        for await (const line of lines) {
-          const prefix = beforeReady ? "prep-started:" : "prep-ready:";
-          if (line.startsWith(prefix)) {
-            preparationPid = Number(line.slice(prefix.length));
-            const groups = spawnSync(
-              "ps",
-              ["-o", "pid=,pgid=", "-p", `${child.pid},${preparationPid}`],
-              { encoding: "utf8", timeout: 1_000 },
-            );
-            expect(groups.status).toBe(0);
-            const observed = groups.stdout
-              .trim()
-              .split("\n")
-              .map((row) => row.trim().split(/\s+/).map(Number));
-            expect(observed).toHaveLength(2);
-            for (const [, pgid] of observed) expect(pgid).toBe(child.pid!);
-            if (beforeReady) {
-              clearTimeout(deadline);
-              deadline = setTimeout(expire, 50);
-            } else child.kill("SIGTERM");
-          }
-        }
-        expect(await ended).toEqual([null, beforeReady ? "SIGKILL" : "SIGTERM"]);
-        expect(expired).toBe(beforeReady);
-        expect(preparationPid).toBeGreaterThan(1);
-        if (!beforeReady) expect(() => process.kill(preparationPid!, 0)).toThrow();
-        let groupGone = false;
-        for (let attempt = 0; attempt < 100; attempt++) {
-          try {
-            process.kill(-child.pid!, 0);
-          } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
-            groupGone = true;
-            break;
-          }
-          await new Promise((resolve) => setTimeout(resolve, 10));
-        }
-        expect(groupGone).toBe(true);
-      } finally {
-        clearTimeout(deadline);
-        lines.close();
-        killGroup();
-        child.stderr.destroy();
-        await ended;
-      }
-    },
-  );
+      }, 10_000);
+    }
+  }
 }
 
 async function pty(
