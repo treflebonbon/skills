@@ -65,7 +65,8 @@ pidfd は一つの特定 process を file descriptor で参照し、`pidfd_send_
 flowchart LR
   L[元の入口 PID の C launcher] -->|準備だけ fork| U[unshare helper]
   L -->|生存 pipe| G[guardian]
-  G -->|EOF または中断で専用 PGID を KILL| U
+  G -->|EOF で専用 PGID を KILL| U
+  L -.->|中断受理で専用 PGID を KILL| U
   U -->|fork と parent-death SIGKILL| B
   subgraph N[準備専用 PID namespace]
     B[PID 1 の Bun 準備子] --> D[別 group／session の子・孫]
@@ -94,7 +95,7 @@ flowchart LR
 
 target の比較は次の範囲で成功した。
 
-- 継承 FD 3／9／63 と FD identity、CLOEXEC による FD 9 の close を2入力で確認した。
+- 継承 FD 3／9／63 の番号集合の一致と、FD 9 の device／inode・CLOEXEC を2入力で確認した。CLOEXEC の入力では FD 9 が close される。FD 3／63 の device／inode はこの試験では記録していない。
 - seed と target の PID／PPID／PGID／SID、signal mask・SIGINT ignore・SIGCHLD ignore が一致した。SIGPIPE／SIGXFSZ ignore と literal argv は、旧 Python の状態へ揃える既存 C launcher の target と比較した。終了状態は37だった。
 - 正常な5.2秒の準備も最後まで完了し、target は終了37となった。
 
@@ -109,7 +110,7 @@ target の比較は次の範囲で成功した。
 | observer source             | `a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39` |
 | 実行した `/usr/bin/unshare` | `a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c` |
 
-セッションの一時証拠は `/tmp/codex/containment-design.LQFXYU` に保持した。`probe.py` が元 source から一時候補を生成してビルドし、8条件と target の対照・5.2秒準備を実行する。`probe-parent-death.py` は準備 PID 1 自身の離脱と `--kill-child` の変異を比較する。結果は `namespace-comparison.json`、`namespace-summary.json`、`parent-death-comparison.json`、実行体と入口の hash は `environment.json` に記録した。再実行時も同じ検証 wrapper と task checkout を使い、repo 内の正式 fixture としては未採用であることを区別する。
+セッションの一時証拠は `/tmp/codex/containment-design.LQFXYU` に保持した。`probe.py` が元 source から一時候補を生成してビルドし、8条件と target の対照・5.2秒準備を実行する。`probe-parent-death.py` は準備 PID 1 自身の離脱と `--kill-child` の変異を比較する。結果は `namespace-comparison.json`、`namespace-summary.json`、`parent-death-comparison.json` に記録した。`environment.json` は導入済み unshare／setsid・入口の hash と、実験後に保持した生成実行体の hash を区別する。cgroup の読取り専用能力調査は `cgroup-capability.json` に分けた。再実行時も同じ検証 wrapper と task checkout を使い、repo 内の正式 fixture としては未採用であることを区別する。
 
 ### 依存・配布と次の実証順序
 
