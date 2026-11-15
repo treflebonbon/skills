@@ -3,14 +3,19 @@ if (!executable) throw new Error("実証用 executable が必要です");
 function holdPreparation() {
   process.on("SIGTERM", () => {});
   const disposition = requestedMode!.endsWith("blocked") ? "blocked" : "ignored";
-  Bun.spawn([executable!, "hold", disposition], { stdout: "inherit", stderr: "inherit" });
+  const detached = requestedMode!.startsWith("prep-detached-");
+  const command = detached
+    ? [executable!, "hold-detached", requestedMode!.slice("prep-detached-".length)]
+    : [executable!, "hold", disposition];
+  Bun.spawn(command, { stdout: "inherit", stderr: "inherit" });
   const event = requestedMode!.startsWith("prep-before-ready-") ? "prep-started" : "prep-ready";
   console.error(`${event}:${process.pid}`);
   setInterval(() => {}, 1_000);
 }
 if (
   requestedMode?.startsWith("prep-stubborn-") ||
-  requestedMode?.startsWith("prep-before-ready-")
+  requestedMode?.startsWith("prep-before-ready-") ||
+  requestedMode?.startsWith("prep-detached-")
 ) {
   holdPreparation();
 } else if (requestedMode === "prep-hang") {

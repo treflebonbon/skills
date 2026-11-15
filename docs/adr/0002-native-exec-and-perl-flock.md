@@ -12,6 +12,8 @@ Perl は既存 peer でも使う仕組みを活用する。Python fcntl を使�
 
 親仕様 #29 の「新規 native helper 未採用」は、この launcher とその明示準備・ビルド・配布に限る採用方針へ更新する。他の native helper や FFI の一括採用には拡張しない。方針を公開する段階で、#29・#33・#40・#41・#43・#45・#48 の該当記述と参照を揃える。#34・#35 が扱う別の方式の採用判断は維持する。
 
+2026-11-15 の追加方針は [ADR 0003](0003-os-specific-preparation-containment.md) に定める。全子孫5秒保証を維持し、必要実証の成功を条件に Linux／WSL2 の `unshare` 実行時依存を許容する。macOS 15 を含む現行範囲は維持し、Apple entitlement 付き特権 monitor の追加案を今回の採用候補から外して macOS の Bun 移行を保留する。この方針の確定で #33 の未完了や #82 の依存待ちを解除しない。
+
 ## 準備と配布
 
 通常の host では、明示的な準備コマンドが導入済み cc から launcher をビルドし、payload 外の private cache に保存する。compiler と対象 OS の C header／library は準備時だけ必要で、launcher 自体に Node.js／Node-API header は要求しない。実行時は source／binary hash、owner／mode、OS／architecture を検査し、不足・不一致なら準備を案内して停止する。通常実行時の自動ビルド・download は行わない。

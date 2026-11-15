@@ -129,6 +129,22 @@ int main(int argc, char **argv) {
     fprintf(stderr, "exec-limit: errno=%d %s\n", errno, strerror(errno));
     return 1;
   }
+  if (!strcmp(argv[1], "hold-detached")) {
+    if (argc != 3) return 91;
+    fprintf(stderr, "prep-detached-root:%ld\n", (long)getpid());
+    fflush(stderr);
+    if (!strcmp(argv[2], "group")) {
+      if (setpgid(0, 0) < 0) die("detached group");
+    } else if (!strcmp(argv[2], "session")) {
+      if (setsid() < 0) die("detached session");
+    } else return 91;
+    if (signal(SIGTERM, SIG_IGN) == SIG_ERR) die("detached ignore");
+    if (fork() < 0) die("detached fork");
+    fprintf(stderr, "prep-detached:%ld:%ld:%ld:%s\n",
+            (long)getpid(), (long)getpgrp(), (long)getsid(0), argv[2]);
+    fflush(stderr);
+    while (1) pause();
+  }
   if (!strcmp(argv[1], "hold")) {
     if (argc != 3) return 91;
     sigset_t mask;
