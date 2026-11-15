@@ -8,6 +8,8 @@
 
 追加候補として、Bun を準備用の子 process に限定し、同じ PID の専用 native launcher が `execve(2)` を直接呼ぶ fixture を加えた。Linux / WSL2 のローカルでは FD・mask・Python の signal disposition・TTY と拒否条件を比較した。新しい source の3環境 CI は下記の追加実証欄で区別する。製品の明示準備・実行体検査・Nix derivation は [#82](https://github.com/treflebonbon/skills/issues/82) に分離し、各 caller の公開入口はまだ切り替えていない。
 
+**別 group／session に離脱する準備子孫は、現 launcher の終了対象から外れることを追加実証した。** SIGTERM／SIGKILL の両方で5秒を超えて生存し、承認済みの子孫終了条件に不適合だった。詳細と再実行手順は末尾に記録する。これは現候補への反証であり、全 OS で代替方式が存在しないという判定ではない。
+
 lock は既存の `peer-request.sh` と同じ Perl の `flock(2)` を、Bun が開いた FD の open file description に適用する方式を検査した。3環境の合成入力で保持・競合・解放を確認したが、process 置換と対応 OS 全体の採用を決めたものではない。追加実証では、旧 Python の append/write-only・作成 mode と既存の書込み専用 file も検査する。
 
 ## 比較対象と観測方法
@@ -178,3 +180,40 @@ ARG_MAX の比較に4 KiB の `GIT_REVIEW_PROBE` を追加すると、対照が�
 変更後は Linux／WSL2 x64、Bun 1.4.4 で型検査と process/lock **61 pass／0 fail／0 skip、537 assertions**。group 参加前を同期停止する SIGTERM／SIGKILL、旧 corpus の PID・FD・signal・TTY、正常な5.2秒の準備、環境を揃えた argv 上限が成功した。launcher source SHA-256 は `4ef10c41e2dfbf5ff5c41c57f8de183bf70e621f42f4333dffaec22074c34b03`。遅延 fixture の source と binary hash も実行 JSON に記録する。
 
 変更前 head `44002c9` の [CI run 43657482400](https://github.com/treflebonbon/skills/actions/runs/43657482400) は、Linux x64／arm64・macOS arm64 と Bun 版ごとの evidence 検査が全て成功した。この結果は上記の修正後 source へ転用しない。修正後の各 OS の CI と残る離脱子孫・製品化・実 caller／raw の条件は、引き続き別の確認とする。
+
+### 別 group／session への離脱による不適合（2026-11-15）
+
+PR #83 merge 後の `bec15024e9ddc4cb5d4fb8af2507e848187ff4a3` を比較元とし、launcher を変更せず、実証用 observer・Bun 準備子・試験だけを追加した。launcher source SHA-256 は `4ef10c41e2dfbf5ff5c41c57f8de183bf70e621f42f4333dffaec22074c34b03`。実行 JSON の `build` に観測 fixture と launcher の source／binary hash を記録する。
+
+observer が `setpgid(0, 0)` または `setsid()` を実行してから fork し、TERM を ignore する子・孫の2 process を保持する。両者の PID／PGID／SID と Bun 準備子の開始を観測し、元の準備 group と異なることを確認してから launcher だけへ signal を送る。単調時計で送信から測り、`ps` の zombie を生存数に含めない。harness の SIGKILL は観測・assertion 後の `finally` だけで、記録対象の終了を代行しない。
+
+最初に「全子孫が5秒以内に終了する」という assertion で実行し、下記4件すべてが失敗した。同じ実行で、元の group に残る `prep-stubborn-{blocked,ignored}` × SIGTERM／SIGKILL の4件は成功した。
+
+| 離脱方法   | launcher への signal | 観測時刻 | 生存する子孫 | Bun 準備子 | target |
+| ---------- | -------------------- | -------- | ------------ | ---------- | ------ |
+| 別 group   | SIGTERM              | 5,110 ms | 2            | 終了       | 未起動 |
+| 別 group   | SIGKILL              | 5,114 ms | 2            | 終了       | 未起動 |
+| 別 session | SIGTERM              | 5,132 ms | 2            | 終了       | 未起動 |
+| 別 session | SIGKILL              | 5,138 ms | 2            | 終了       | 未起動 |
+
+確認環境は Linux／6.18.58.1-microsoft-standard-WSL2／x64、Bun 1.4.4、Node.js v24.22.1、gcc (GCC) 15.3.0。この表は最初の失敗実測であり、PID と観測時刻の一致を期待値にしない。新しい試験の Linux arm64／macOS arm64 実行は未確認。
+
+原因は group の終了と子孫全体の終了の違いにある。現 launcher と guardian は準備 group へ SIGKILL を送る。[kill(2)](https://man7.org/linux/man-pages/man2/kill.2.html) の負の PID は指定 group を対象とし、[setsid(2)](https://man7.org/linux/man-pages/man2/setsid.2.html) は新 session と新 group を作る。観測した子孫は終了対象の group の外にいた。Bun 準備子自身の終了、SIGTERM の有無、zombie の誤算入ではこの残存を説明できない。
+
+通常 suite では、既知の不適合を正しく観測する試験として「採用不可」と明記する。4件それぞれの `detached-preparation` JSON と、集約 JSON の `nativeLauncher.detachedPreparation` に観測結果を出す。`cleanupCompatible` は準備子と子孫の終了を5秒未満に観測し、target が未起動だった場合だけ true にする。現候補では false となる。試験の成功は不適合の再現成功を表し、採用条件の成功に読み替えない。
+
+再実行は repo root で行う。検証環境の保護が必要な runtime では、その検証用 wrapper から次の command を実行する。
+
+```sh
+proof_dir=$(mktemp -d /tmp/codex/process-lock-detached.XXXXXX)
+lib/bun/run test tests/bun/process-lock.test.ts \
+  --test-name-pattern '採用不可|prep-stubborn-' > "$proof_dir/run.log" 2>&1
+sed -n '/^{"boundary":"detached-preparation",/p' "$proof_dir/run.log" > "$proof_dir/observations.jsonl"
+jq -s -e 'length == 4 and all(.[]; .cleanupCompatible == true)' "$proof_dir/observations.jsonl"
+```
+
+通常テストの期待値は8 pass／0 fail、最後の採用判定は false／終了1。観測0件を成功にしない。再実行の compiler／OS／版・source hash と実際の verdict は `run.log` で確認する。将来、方式を直した場合は終了条件を満たす肯定試験へ更新し、この否定試験を残したまま完了扱いにしない。
+
+実 caller の [codex-inner](../share/codex-isolation/codex-inner.py) は [prepare_environment](../lib/python/treflebonbon_skills/devshell_environment.py) で Nix の `print-dev-env` と Bash の `shellHook` を実行する。子孫が必ず元 group 内に残る制約は、この caller の確認からは導けない。「離脱しない」という前提を追加して条件を狭める判断は未承認である。
+
+#33 は open を維持し、不適合のため `ready-for-human` と判断事項を残す。#82、およびそれを前提とする移行は解禁しない。推奨は承認済みの全子孫の終了保証を維持し、OS ごとの子孫の管理方法を再設計すること。追加の依存・権限・配布負担を含む方式選択、または保証を group 内に限定する契約変更は人の判断を要する。今回、OS の共有設定・製品入口・accepted ADR は変更していない。

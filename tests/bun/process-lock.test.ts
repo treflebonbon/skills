@@ -26,6 +26,7 @@ let buildRecord: object | undefined;
 let execObservation: object | undefined;
 let launcherObservation: object | undefined;
 let argumentLimitObservation: object | undefined;
+const detachedPreparationObservations: object[] = [];
 type Report = {
   event: string;
   pid: number;
@@ -151,6 +152,7 @@ afterAll(() => {
         pythonCorpus: launcherCorpus.sourceRevision,
         observation: launcherObservation,
         argumentLimit: argumentLimitObservation,
+        detachedPreparation: detachedPreparationObservations,
         results: "see-test-results",
         adoption: "not-decided",
       },
@@ -939,6 +941,119 @@ for (const signal of ["SIGTERM", "SIGKILL"] as const) {
         }
       }, 10_000);
     }
+  }
+}
+
+for (const escapeMode of ["group", "session"]) {
+  for (const exitSignal of ["SIGTERM", "SIGKILL"] as const) {
+    test(`現 launcher は別 ${escapeMode} の準備子孫を ${exitSignal} 後も終了できない（採用不可）`, async () => {
+      const child = spawn(
+        entry,
+        [runner, prepare, launcher, `prep-detached-${escapeMode}`, observer],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      const ended = once(child, "exit");
+      const lines = createInterface({ input: child.stderr });
+      const owned: Array<{ pid: number; pgid: number; sid: number }> = [];
+      let preparationPid: number | undefined;
+      let output = "";
+      child.stdout.on("data", (bytes) => {
+        output += bytes.toString();
+      });
+      const stateOf = (pid: number) => {
+        const state = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], {
+          encoding: "utf8",
+          timeout: 500,
+        });
+        if (state.error || (state.status !== 0 && state.status !== 1))
+          throw new Error("process の状態を観測できません");
+        return state.status === 0 && !state.stdout.trim().startsWith("Z");
+      };
+      try {
+        await within(
+          (async () => {
+            for await (const line of lines) {
+              if (line.startsWith("prep-ready:"))
+                preparationPid = Number(line.slice("prep-ready:".length));
+              if (line.startsWith("prep-detached:")) {
+                const [, pid, pgid, sid, mode] = line.split(":");
+                owned.push({ pid: Number(pid), pgid: Number(pgid), sid: Number(sid) });
+                expect(mode).toBe(escapeMode);
+              }
+              if (preparationPid && owned.length === 2) return;
+            }
+            throw new Error("離脱した子孫の準備を確認できません");
+          })(),
+          3_000,
+        );
+        expect(preparationPid).toBeGreaterThan(1);
+        expect(owned).toHaveLength(2);
+        expect(owned[0]!.pgid).toBe(owned[1]!.pgid);
+        expect(owned.some((item) => item.pid === item.pgid)).toBe(true);
+        const original = spawnSync("ps", ["-o", "pgid=", "-p", String(preparationPid)], {
+          encoding: "utf8",
+          timeout: 500,
+        });
+        expect(original.error).toBeUndefined();
+        expect(original.status).toBe(0);
+        expect(owned[0]!.pgid).not.toBe(Number(original.stdout.trim()));
+        for (const item of owned) {
+          if (escapeMode === "session") expect(item.sid).toBe(item.pgid);
+          else expect(item.sid).not.toBe(item.pgid);
+          expect(stateOf(item.pid)).toBe(true);
+        }
+        const sentAt = performance.now();
+        child.kill(exitSignal);
+        expect(await within(ended, 4_800)).toEqual([null, exitSignal]);
+        let remaining: number[] = [];
+        let preparationTerminated = false;
+        let elapsedMs = 0;
+        // 期限を超えるまで測り、harness の強制終了は finally まで行わない。
+        do {
+          remaining = owned.filter(({ pid }) => stateOf(pid)).map(({ pid }) => pid);
+          preparationTerminated = !stateOf(preparationPid!);
+          elapsedMs = performance.now() - sentAt;
+          if (preparationTerminated && remaining.length === 0) break;
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        } while (elapsedMs < 5_100);
+        const observation = {
+          boundary: "detached-preparation",
+          signal: exitSignal,
+          mode: escapeMode,
+          owned,
+          remaining,
+          preparationTerminated,
+          targetStarted: output.length > 0,
+          elapsedMs,
+          cleanupCompatible:
+            preparationTerminated &&
+            remaining.length === 0 &&
+            elapsedMs < 5_000 &&
+            output.length === 0,
+        };
+        detachedPreparationObservations.push(observation);
+        console.log(JSON.stringify(observation));
+        expect(preparationTerminated).toBe(true);
+        expect(remaining).toEqual(owned.map(({ pid }) => pid));
+        expect(elapsedMs).toBeGreaterThanOrEqual(5_000);
+        expect(output).toBe("");
+        expect(observation.cleanupCompatible).toBe(false);
+      } finally {
+        lines.close();
+        for (const pid of [preparationPid, ...owned.map((item) => item.pid)]) {
+          if (!pid) continue;
+          try {
+            process.kill(pid, "SIGKILL");
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+          }
+        }
+        if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+        child.stdout.destroy();
+        child.stderr.destroy();
+        await ended;
+      }
+    }, 10_000);
   }
 }
 
