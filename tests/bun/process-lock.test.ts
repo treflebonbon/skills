@@ -14,9 +14,11 @@ const root = fs.mkdtempSync(join(tmpdir(), "bun-process-lock-"));
 const observer = join(root, "observer");
 const snapshot = join(root, "snapshot.node");
 const launcher = join(root, "launcher");
+const delayedLauncher = join(root, "delayed-launcher");
 const entry = fileURLToPath(new URL("../fixtures/bun-exec-entry.sh", import.meta.url));
 const prepare = fileURLToPath(new URL("../fixtures/bun-exec-prepare.ts", import.meta.url));
 const launcherSource = new URL("../fixtures/bun-exec-launcher.c", import.meta.url);
+const delayedLauncherSource = new URL("../fixtures/bun-exec-delayed-group.c", import.meta.url);
 const fixture = fileURLToPath(new URL("../fixtures/bun-process-lock.ts", import.meta.url));
 const runner = fileURLToPath(new URL("../../lib/bun/run", import.meta.url));
 const observerSource = new URL("../fixtures/bun-process-observer.c", import.meta.url);
@@ -103,24 +105,20 @@ beforeAll(() => {
     throw new Error(
       `観測用 Node-API snapshot をビルドできません (status=${snapshotBuild.status}, signal=${snapshotBuild.signal}, error=${snapshotBuild.error?.message ?? "なし"})\nstdout: ${snapshotBuild.stdout ?? ""}\nstderr: ${snapshotBuild.stderr ?? ""}`,
     );
-  const launcherBuild = spawnSync(
-    "cc",
-    [
-      "-std=c11",
-      "-O2",
-      "-Wall",
-      "-Wextra",
-      "-Werror",
-      fileURLToPath(launcherSource),
-      "-o",
-      launcher,
-    ],
-    { encoding: "utf8", timeout: 30_000 },
-  );
-  if (launcherBuild.error || launcherBuild.status !== 0)
-    throw new Error(
-      `実証用 launcher をビルドできません (status=${launcherBuild.status}, signal=${launcherBuild.signal}, error=${launcherBuild.error?.message ?? "なし"})\nstdout: ${launcherBuild.stdout ?? ""}\nstderr: ${launcherBuild.stderr ?? ""}`,
+  for (const [source, binary] of [
+    [launcherSource, launcher],
+    [delayedLauncherSource, delayedLauncher],
+  ] as const) {
+    const launcherBuild = spawnSync(
+      "cc",
+      ["-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", fileURLToPath(source), "-o", binary],
+      { encoding: "utf8", timeout: 30_000 },
     );
+    if (launcherBuild.error || launcherBuild.status !== 0)
+      throw new Error(
+        `実証用 ${binary} をビルドできません (status=${launcherBuild.status}, signal=${launcherBuild.signal}, error=${launcherBuild.error?.message ?? "なし"})\nstdout: ${launcherBuild.stdout ?? ""}\nstderr: ${launcherBuild.stderr ?? ""}`,
+      );
+  }
   const hash = (path: string | URL) =>
     createHash("sha256").update(fs.readFileSync(path)).digest("hex");
   buildRecord = {
@@ -130,12 +128,14 @@ beforeAll(() => {
     snapshotHash: hash(snapshot),
     launcherSourceHash: hash(launcherSource),
     launcherHash: hash(launcher),
+    delayedLauncherSourceHash: hash(delayedLauncherSource),
+    delayedLauncherHash: hash(delayedLauncher),
     node: installation.version,
     headerDirectory,
     durationMs: Math.round(performance.now() - buildStarted),
   };
-  // 3回の compile 各30秒と版検出2回各5秒の上限を外側でも確保する。
-}, 105_000);
+  // 4回の compile 各30秒と版検出2回各5秒の上限を外側でも確保する。
+}, 135_000);
 afterAll(() => {
   console.log(
     JSON.stringify({
@@ -546,10 +546,18 @@ test("OS が受け入れる argv 上限を準備 frame が狭めず、超過は 
   const options = {
     encoding: "utf8" as const,
     timeout: 5_000,
+    env: { ...process.env, GIT_REVIEW_PROBE: "x".repeat(4096) },
     stdio: ["ignore", "ignore", "pipe"] as ["ignore", "ignore", "pipe"],
   };
+  // 旧 reviewer と同じ GIT_* 除去を対照にも適用し、target の環境 bytes を揃える。
+  const controlEnvironment = Object.fromEntries(
+    Object.entries(options.env).filter(([key]) => !key.startsWith("GIT_")),
+  );
   const control = (count: number) =>
-    spawnSync(observer, ["exec-limit", observer, String(count)], options);
+    spawnSync(observer, ["exec-limit", observer, String(count)], {
+      ...options,
+      env: controlEnvironment,
+    });
   let low = 0,
     high = Math.ceil(argMax / 1024) + 1;
   const tooLarge = control(high);
@@ -701,6 +709,80 @@ async function within<T>(pending: Promise<T>, milliseconds: number): Promise<T> 
   } finally {
     clearTimeout(deadline);
   }
+}
+
+for (const signal of ["SIGTERM", "SIGKILL"] as const) {
+  test(`group 参加前の準備子も親だけへの ${signal} で5秒以内に終了する`, async () => {
+    const child = spawn(entry, [runner, prepare, delayedLauncher, "prep-hang", observer], {
+      stdio: ["ignore", "pipe", "pipe", "pipe"],
+    });
+    const ended = once(child, "exit");
+    const lines = createInterface({ input: child.stderr! });
+    const gate = child.stdio[3] as import("node:stream").Duplex;
+    const joining = Promise.withResolvers<void>();
+    const preparationWait = Promise.withResolvers<void>();
+    let preparationPid: number | undefined;
+    let output = "";
+    let diagnostics = "";
+    child.stdout!.on("data", (bytes) => {
+      output += bytes.toString();
+    });
+    child.stderr!.on("data", (bytes) => {
+      diagnostics += bytes.toString();
+    });
+    lines.on("line", (line) => {
+      if (line.startsWith("prep-joining:")) {
+        preparationPid = Number(line.slice("prep-joining:".length));
+        joining.resolve();
+      }
+      if (line === `prep-waiting:${preparationPid}`) preparationWait.resolve();
+    });
+    try {
+      await within(joining.promise, 3_000);
+      expect(preparationPid).toBeGreaterThan(1);
+      const sentAt = performance.now();
+      child.kill(signal);
+      await within(
+        signal === "SIGTERM" ? preparationWait.promise : ended.then(() => undefined),
+        4_800,
+      );
+      gate.end();
+      expect(await within(ended, Math.max(1, 4_800 - (performance.now() - sentAt)))).toEqual([
+        null,
+        signal,
+      ]);
+      let terminated = false;
+      while (performance.now() - sentAt < 4_800) {
+        const state = spawnSync("ps", ["-o", "stat=", "-p", String(preparationPid)], {
+          encoding: "utf8",
+          timeout: 500,
+        });
+        if (state.status === 1 || state.stdout.trim().startsWith("Z")) {
+          terminated = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(terminated).toBe(true);
+      expect(performance.now() - sentAt).toBeLessThan(5_000);
+      expect(output).toBe("");
+      expect(diagnostics).not.toContain("prep-ready:");
+    } finally {
+      lines.close();
+      if (preparationPid) {
+        try {
+          process.kill(preparationPid, "SIGKILL");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        }
+      }
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+      gate.destroy();
+      child.stdout!.destroy();
+      child.stderr!.destroy();
+      await ended;
+    }
+  }, 10_000);
 }
 
 test("launcher だけへの SIGKILL で準備子が5秒以内に終了し target を起動しない", async () => {

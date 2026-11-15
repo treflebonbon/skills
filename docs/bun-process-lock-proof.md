@@ -52,7 +52,7 @@ POSIX `execve` が mask と非 CLOEXEC の FD を保持する境界は、[Linux 
 
 既存の Bun 1.4.4、Node.js、開発依存に加え、観測用 C fixture のため `cc`・POSIX header・導入済み Node.js の Node-API header、lock の実証に Perl / `Fcntl` を必要とする。追加の npm package、FFI、通常利用時の自動 install / build は導入しない。C observer と観測用 addon は一時 directory に build し、終了時に削除する。payload に生成物を置かない。source / binary の hash と compiler / Node.js の版・header path・準備時間はテスト末尾の JSON に記録する。
 
-追加候補を含む setup hook は105秒を上限とする。3回の compiler 各30秒と2回の版検出各5秒の合計100秒を外側でも確保するためで、各 subprocess の期限と通常テストの期限は維持する。以下の過去の CI 記録は、launcher 追加前の source に対するもの。
+追加候補を含む setup hook は135秒を上限とする。4回の compiler 各30秒と2回の版検出各5秒の合計130秒を外側でも確保するためで、各 subprocess の期限と通常テストの期限は維持する。以下の過去の CI 記録は、launcher 追加前の source に対するもの。
 
 | 環境                                                                     | 状態                                     |
 | ------------------------------------------------------------------------ | ---------------------------------------- |
@@ -168,3 +168,13 @@ Python は起動時に SIGPIPE / SIGXFSZ（定義される環境では SIGXFZ �
 全体検査の開始時 HEAD は `0583f4f`。その後のレビュー修正は process fixture とその試験・記録に限り、変更後の最終 source に対して型検査と上記59件を再実行した。これらの fixture を参照する実行コードは `tests/bun/process-lock.test.ts` だけである。試験の開始待ち・親の終了待ちにも期限を設け、回帰で待機が止まった場合は失敗として `finally` の cleanup へ進める。
 
 この結果は Linux／WSL2 x64 のローカル検証であり、新 source の Linux arm64／macOS arm64 CI の代わりにはしない。別 session／別 group に離脱する子孫、製品の exec 前検査、実 caller 全体、raw の統合受入は引き続き未確認。#33 は open を維持する。
+
+### PR #83 のレビュー対応（2026-11-15）
+
+ARG_MAX の比較に4 KiB の `GIT_REVIEW_PROBE` を追加すると、対照が拒否する個数を reviewer 方式の launcher が正常実行し、試験が失敗した。reviewer が `GIT_*` を除去する契約は旧 corpus と同じだが、対照にはその環境 bytes が残っていたためである。対照にも同じ除去を適用し、target に渡る環境を揃えた。probe は回帰入力として残し、比較する argv 上限と E2BIG の拒否は維持する。
+
+別の再現では、子側の `setpgid` を300 ms遅らせると、group 参加前の子に対する親だけへの SIGTERM で親の終了待ちが4.8秒で失敗した。[回帰試験の OS 境界 fixture](../tests/fixtures/bun-exec-delayed-group.c)は固定 sleep に頼らず、子側の `setpgid` を pipe で止める。SIGTERM は中断 handler と読み取り終了時の group KILL が済み、親が同じ準備子の `waitpid` を呼び始める直前の marker を観測してから、SIGKILL は親の終了後に pipe を解放し、試験側のスケジュール遅延で競合を取りこぼさないようにする。親側の `setpgid` だけを除いた変異 source でも、この同期試験が4.8秒で失敗することを確認した。親側でも子を準備 group に移してから signal を解除し、この順序を防ぐ。EACCES は子が exec 済みの場合として扱い、その他の失敗は直接の準備子を止めて拒否する。子も group 参加後に launcher が親として生存していることを確認し、親が消えていれば準備用 runner を実行しない。監視対象は launcher 自身であり、その caller の消失監視へは広げない。
+
+変更後は Linux／WSL2 x64、Bun 1.4.4 で型検査と process/lock **61 pass／0 fail／0 skip、537 assertions**。group 参加前を同期停止する SIGTERM／SIGKILL、旧 corpus の PID・FD・signal・TTY、正常な5.2秒の準備、環境を揃えた argv 上限が成功した。launcher source SHA-256 は `4ef10c41e2dfbf5ff5c41c57f8de183bf70e621f42f4333dffaec22074c34b03`。遅延 fixture の source と binary hash も実行 JSON に記録する。
+
+変更前 head `44002c9` の [CI run 43657482400](https://github.com/treflebonbon/skills/actions/runs/43657482400) は、Linux x64／arm64・macOS arm64 と Bun 版ごとの evidence 検査が全て成功した。この結果は上記の修正後 source へ転用しない。修正後の各 OS の CI と残る離脱子孫・製品化・実 caller／raw の条件は、引き続き別の確認とする。

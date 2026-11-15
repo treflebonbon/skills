@@ -150,10 +150,12 @@ int main(int argc, char **argv) {
   command[0] = argv[1];
   command[1] = "run";
   for (int i = 2; i < argc; i++) command[i] = argv[i];
+  pid_t launcher = getpid();
   preparation = fork();
   if (preparation < 0) invalid();
   if (!preparation) {
-    if (setpgid(0, guardian) < 0 || dup2(frame[1], STDOUT_FILENO) < 0) _exit(91);
+    if (setpgid(0, guardian) < 0 || getppid() != launcher ||
+        dup2(frame[1], STDOUT_FILENO) < 0) _exit(91);
     close(frame[0]);
     close(frame[1]);
     close(control[1]);
@@ -164,6 +166,11 @@ int main(int argc, char **argv) {
     _exit(91);
   }
   close(frame[1]);
+  // 子がまだ実行されていなくても、中断を受ける前に準備 group へ移す。
+  if (setpgid(preparation, guardian) < 0 && errno != EACCES) {
+    kill(preparation, SIGKILL);
+    invalid();
+  }
   int descriptor = frame[0];
   if (sigprocmask(SIG_SETMASK, &original_mask, NULL) < 0) invalid();
   size_t capacity = 4096, size = 0;
