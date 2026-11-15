@@ -1067,7 +1067,8 @@ for (const escapeMode of ["group", "session"]) {
         child.stderr.destroy();
         await ended;
       }
-    }, 10_000);
+      // 開始3秒・終了4.8秒・終了後5.1秒と ps の期限を外側でも確保する。
+    }, 20_000);
   }
 }
 
