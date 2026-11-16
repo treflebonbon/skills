@@ -18,7 +18,9 @@ record_tool() {
     "$tool_path" --version
   fi
 }
-for bootstrap_tool in bash curl tar sha256sum sudo systemctl groupadd getent mktemp mkdir uname dirname chmod chown id cat sort cut readlink dpkg-query; do
+bootstrap_tools=(bash curl tar sha256sum sudo systemctl groupadd getent mktemp mkdir uname dirname chmod chown id cat sort cut readlink dpkg-query)
+printf '準備 tool（Nix 導入前）\n'
+for bootstrap_tool in "${bootstrap_tools[@]}"; do
   record_tool "$bootstrap_tool"
 done
 case "$(uname -m)" in
@@ -47,6 +49,8 @@ NIX_INSTALLER_YES=1 NIX_EXTRA_CONF=$'sandbox = true\nexperimental-features = nix
 # shellcheck disable=SC1091
 source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 export NIX_REMOTE=daemon
+printf '準備 tool（Nix profile 適用後）\n'
+for bootstrap_tool in "${bootstrap_tools[@]}"; do record_tool "$bootstrap_tool"; done
 [[ $(nix --version) == 'nix (Nix) 2.34.6' ]]
 for nix_tool in nix nix-build nix-store; do record_tool "$nix_tool"; done
 systemctl is-active nix-daemon.socket
