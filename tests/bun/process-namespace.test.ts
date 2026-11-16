@@ -706,10 +706,15 @@ for (const member of [true, false]) {
         expect(report.writeErrno).toBe(member ? 0 : 13);
         expect(report.readMarker).toBe(member);
         expect(report.written).toBe(member ? 12 : -1);
+        const context = contexts(result.stderr)[0];
+        expect(context).toBeDefined();
+        expect([...context.groups].sort((a: number, b: number) => a - b)).toEqual(
+          [...groups].sort((a, b) => a - b),
+        );
         return {
           binary: binary === baseline ? "baseline" : "namespace",
           report,
-          context: contexts(result.stderr)[0],
+          context,
         };
       });
       records.push({
