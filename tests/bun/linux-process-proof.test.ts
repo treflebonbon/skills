@@ -226,6 +226,52 @@ test("public API の最終成功だけで過去の失敗 attempt を隠さない
   ).rejects.toThrow("workflow 履歴を完全に取得できません");
 });
 
+test("artifact API から同じ attempt の実 metadata だけを残す", async () => {
+  const artifacts = cohort().artifacts.map((artifact) => ({
+    name: `linux-proof-42-1-${artifact.arch}`,
+    id: Number(artifact.id),
+    digest: `sha256:${artifact.digest}`,
+    created_at: artifact.createdAt,
+    expires_at: artifact.expiresAt,
+    expired: false,
+  }));
+  artifacts.push({ ...artifacts[0]!, name: "linux-proof-42-2-x64", id: 3 });
+  const read = async (path: string): Promise<Record<string, unknown>> => {
+    if (path === "/actions/runs/42")
+      return {
+        head_sha: workflowSha,
+        run_attempt: 1,
+        event: "workflow_dispatch",
+        workflow_id: 7,
+        display_title: `Linux process proof: ${sourceSha}`,
+      };
+    if (path === "/actions/runs/42/artifacts?per_page=100")
+      return { total_count: artifacts.length, artifacts };
+    if (path === "/actions/workflows/7/runs?event=workflow_dispatch&per_page=100&page=1")
+      return {
+        total_count: 1,
+        workflow_runs: [
+          { id: 42, run_attempt: 1, display_title: `Linux process proof: ${sourceSha}` },
+        ],
+      };
+    throw new Error(`未定義の API 呼出し: ${path}`);
+  };
+  const current = { runId: "42", attempt: 1, sourceSha, workflowSha };
+  const metadata = await collectMetadata(read, current, []);
+  expect(metadata.artifacts.map((artifact) => artifact.id)).toEqual(["1", "2"]);
+  expect(metadata.artifacts[0]!.url).toBe(
+    "https://github.com/treflebonbon/skills/actions/runs/42/artifacts/1",
+  );
+  expect(verifyCohort({ ...cohort(), ...metadata }, manifest).verified).toBe(true);
+  await expect(
+    collectMetadata(
+      async (path) => (path.includes("/artifacts?") ? { total_count: 4, artifacts } : read(path)),
+      current,
+      [],
+    ),
+  ).rejects.toThrow("artifact 一覧を完全に取得できません");
+});
+
 test("独立した manifest の全 case が対象 test file に存在する", () => {
   const result = spawnSync(
     process.execPath,
