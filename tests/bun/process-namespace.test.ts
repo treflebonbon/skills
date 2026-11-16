@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import corpus from "../fixtures/bun-exec-python.json";
+import { groupsInNamespace } from "../../development/linux-process-proof.ts";
 
 const linux = process.platform === "linux" && process.env.PROCESS_PROOF_PID_NAMESPACE === "1";
 const root = fs.mkdtempSync(join(tmpdir(), "bun-process-namespace-"));
@@ -25,6 +26,8 @@ const records: object[] = [];
 let buildRecord: object;
 const nixStdenv = process.env.PROCESS_PROOF_NIX_STDENV;
 const nixBash = process.env.PROCESS_PROOF_NIX_BASH;
+const groupFile = process.env.PROCESS_PROOF_GROUP_FILE;
+const groupGid = process.env.PROCESS_PROOF_GROUP_GID;
 
 beforeAll(() => {
   if (!linux) return;
@@ -103,7 +106,8 @@ afterAll(() => {
       issue82: "blocked-by-33",
     }),
   );
-  fs.rmSync(root, { recursive: true, force: true });
+  if (process.env.PROCESS_PROOF_RETAIN_TEMP !== "1")
+    fs.rmSync(root, { recursive: true, force: true });
 });
 
 async function until(condition: () => boolean | Promise<boolean>, milliseconds = 3_000) {
@@ -218,6 +222,7 @@ async function interruption(
   const unrelated = spawn("sleep", ["30"]);
   const unrelatedEnded = once(unrelated, "exit");
   let owned: Awaited<ReturnType<typeof pin>> | undefined;
+  let controlParentsTerminatedBeforeRelease: number[] | undefined;
   try {
     try {
       await until(() =>
@@ -244,11 +249,31 @@ async function interruption(
     const started = performance.now();
     child.kill(signal);
     await within(ended);
+    if (hiddenParentDeath) {
+      const namespaceInit = identities.filter((identity) =>
+        identity.status.some((line) => /^NSpid:\s+(?:\d+\s+)*1$/.test(line)),
+      );
+      expect(namespaceInit).toHaveLength(1);
+      const initPid = namespaceInit[0]!.pid;
+      const parents = pids.filter((pid) => pid !== initPid);
+      // launcher の exit だけでは unshare の親死亡通知と競合するため、検査を隠す窓を固定する。
+      await until(async () => {
+        const terminated = await owned!.terminated();
+        return parents.every((pid) => terminated.includes(pid));
+      });
+      const terminated = await owned.terminated();
+      expect(terminated).not.toContain(initPid);
+      controlParentsTerminatedBeforeRelease = terminated;
+    }
     gate.end("R");
     if (hiddenParentDeath) {
-      await until(
-        () => stderr.includes("namespace-hidden-parent-death") && stderr.includes("prep-ready:"),
-      );
+      try {
+        await until(
+          () => stderr.includes("namespace-hidden-parent-death") && stderr.includes("prep-ready:"),
+        );
+      } catch (error) {
+        throw new Error(`${error}\n${stderr}`);
+      }
       // 対照の後始末が本判定へ入り込まないよう、launcher 終了後にも5秒待つ。
       await Bun.sleep(5_100);
       expect((await owned.terminated()).length).toBeLessThan(pids.length);
@@ -269,6 +294,7 @@ async function interruption(
       signal,
       stage,
       hiddenParentDeath,
+      controlParentsTerminatedBeforeRelease,
       identities,
       durationMs,
       targetStarted: false,
@@ -611,6 +637,133 @@ test.skipIf(!linux)(
     });
   },
 );
+
+for (const member of [true, false]) {
+  test.skipIf(!linux || !groupFile || !groupGid)(
+    member
+      ? "補助 group だけで許可される読み書きを namespace 候補でも維持する"
+      : "補助 group 非所属時の読み書き拒否を候補でも維持する",
+    () => {
+      const uid = process.getuid!(),
+        gid = process.getgid!();
+      expect(uid).toBeGreaterThan(0);
+      const selectedGid = Number(groupGid);
+      expect(Number.isSafeInteger(selectedGid)).toBe(true);
+      expect(selectedGid).toBeGreaterThan(0);
+      expect(selectedGid).not.toBe(gid);
+      const originalGroups = fs
+        .readFileSync("/proc/self/status", "utf8")
+        .match(/^Groups:\s*(.*)$/m)![1]!
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(Number);
+      expect(originalGroups).not.toContain(selectedGid);
+      const groups = member ? [...originalGroups, selectedGid] : originalGroups;
+      const overflowGid = Number(fs.readFileSync("/proc/sys/kernel/overflowgid", "utf8").trim());
+      const fileState = fs.statSync(groupFile!);
+      expect(fileState.uid).not.toBe(uid);
+      expect(fileState.gid).toBe(selectedGid);
+      expect(fileState.mode & 0o777).toBe(0o060);
+      const groupPrepare = join(root, `group-${member}.ts`);
+      fs.writeFileSync(
+        groupPrepare,
+        `
+        import { readFileSync } from "node:fs";
+        console.error("namespace-group-caps:" + readFileSync("/proc/self/status", "utf8").match(/^CapEff:\\s*(\\S+)$/m)![1]);
+        console.error("namespace-group-environment:" + JSON.stringify({ PATH: process.env.PATH, HOME: process.env.HOME }));
+        const result = Bun.spawnSync([${JSON.stringify(observer)}, "group-access", ${JSON.stringify(groupFile)}]);
+        process.stderr.write(result.stderr);
+        if (result.exitCode !== 0) process.exit(result.exitCode);
+        await import(${JSON.stringify(prepare)});
+      `,
+      );
+      const observations = [baseline, launcher].map((binary) => {
+        const result = spawnSync(
+          "sudo",
+          [
+            "-n",
+            "--",
+            fs.realpathSync(Bun.which("setpriv")!),
+            "--reuid",
+            String(uid),
+            "--regid",
+            String(gid),
+            ...(groups.length ? ["--groups", groups.join(",")] : ["--clear-groups"]),
+            "--inh-caps=-all",
+            "--ambient-caps=-all",
+            "--",
+            "env",
+            "-i",
+            `PATH=${process.env.PATH}`,
+            `HOME=${process.env.HOME}`,
+            entry,
+            runner,
+            groupPrepare,
+            binary,
+            "reviewer",
+            observer,
+          ],
+          { encoding: "utf8", timeout: 10_000 },
+        );
+        expect(result.error).toBeUndefined();
+        expect(result.status).toBe(37);
+        expect(result.stderr).toContain("namespace-group-caps:0000000000000000");
+        const environmentLine = result.stderr
+          .split("\n")
+          .find((line) => line.startsWith("namespace-group-environment:"));
+        expect(environmentLine).toBeDefined();
+        const environment = JSON.parse(
+          environmentLine!.slice("namespace-group-environment:".length),
+        );
+        expect(environment).toEqual({ PATH: process.env.PATH, HOME: process.env.HOME });
+        const line = result.stderr
+          .split("\n")
+          .find((line) => line.startsWith("namespace-group-access:"));
+        expect(line).toBeDefined();
+        const report = JSON.parse(line!.slice("namespace-group-access:".length));
+        expect(report.uid).toBe(uid);
+        expect(report.euid).toBe(uid);
+        expect(report.gid).toBe(gid);
+        expect(report.egid).toBe(gid);
+        expect(report.ownerUid).not.toBe(uid);
+        expect(report.fileGid).not.toBe(gid);
+        expect(report.mode).toBe(0o060);
+        expect(report.dev).toBe(String(fileState.dev));
+        expect(report.ino).toBe(String(fileState.ino));
+        expect(report.readErrno).toBe(member ? 0 : 13);
+        expect(report.writeErrno).toBe(member ? 0 : 13);
+        expect(report.readMarker).toBe(member);
+        expect(report.written).toBe(member ? 12 : -1);
+        const context = contexts(result.stderr)[0];
+        expect(context).toBeDefined();
+        const expectedGroups =
+          binary === baseline ? groups : groupsInNamespace(groups, context.gid_map, overflowGid);
+        expect([...context.groups].sort((a: number, b: number) => a - b)).toEqual(
+          [...expectedGroups].sort((a, b) => a - b),
+        );
+        return {
+          binary: binary === baseline ? "baseline" : "namespace",
+          report,
+          environment,
+          context,
+        };
+      });
+      records.push({
+        supplementaryGroup: {
+          member,
+          uid,
+          gid,
+          originalGroups,
+          selectedGid,
+          overflowGid,
+          observations,
+        },
+      });
+    },
+    30_000,
+  );
+}
 
 for (const [action, signal, status] of [
   ["input", null, 37],

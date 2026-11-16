@@ -1,0 +1,113 @@
+name: Linux process proof
+run-name: "Linux process proof: ${{ inputs.source_sha }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: 検査対象の完全な commit SHA（40桁）
+        required: true
+        type: string
+
+concurrency:
+  group: linux-process-proof-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -e -o pipefail {0}
+
+jobs:
+  proof:
+    permissions:
+      contents: read
+    name: Linux 追加実証 (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    env:
+      PROOF_SOURCE_SHA: ${{ inputs.source_sha }}
+      PROOF_ARCH: ${{ matrix.arch }}
+    steps:
+      - name: 入力 SHA を検査
+        run: '[[ "$PROOF_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]'
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: subject
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+      - name: CI 専用依存と補助 group を準備
+        run: |
+          mkdir -p "$RUNNER_TEMP/linux-proof"
+          bash control/development/setup-linux-process-proof.sh "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof" \
+            2>&1 | tee "$RUNNER_TEMP/linux-proof/setup.log"
+      - name: 非root で全44件を3反復
+        run: bun control/development/run-linux-process-proof.ts run "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof"
+      - name: 成功・失敗の生証跡を保存
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-proof-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/linux-proof/
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+
+  aggregate:
+    permissions:
+      contents: read
+    name: 両 architecture と履歴を照合
+    if: always()
+    needs: proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PROOF_SOURCE_SHA: ${{ inputs.source_sha }}
+    steps:
+      - name: 入力 SHA を検査
+        run: '[[ "$PROOF_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]'
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: subject
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+      - name: 同じ run・attempt の証跡を取得
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: linux-proof-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: ${{ runner.temp }}/raw
+      - name: raw log・metadata・過去 attempt を照合
+        if: always()
+        run: bun control/development/run-linux-process-proof.ts aggregate "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/raw" "$RUNNER_TEMP/result"
+      - name: Git 管理へ移す判定候補を保存
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-proof-verdict-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/result/
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
