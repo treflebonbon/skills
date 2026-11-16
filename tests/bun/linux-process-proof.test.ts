@@ -4,7 +4,11 @@ import * as fs from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseTrial, verifyCohort } from "../../development/linux-process-proof.ts";
+import {
+  parseTrial,
+  verifyCohort,
+  groupsInNamespace,
+} from "../../development/linux-process-proof.ts";
 import acceptedCases from "../../development/linux-process-proof-cases.json";
 import { collectMetadata } from "../../development/linux-process-proof-metadata.ts";
 import { readProofJob } from "../../development/run-linux-process-proof.ts";
@@ -13,6 +17,56 @@ import { createHash } from "node:crypto";
 const sourceSha = "a".repeat(40);
 const workflowSha = "b".repeat(40);
 const manifest = { schema: "linux-process-proof-cases/v1", cases: ["終了保証", "実 caller"] };
+
+test("namespace の補助 GID は観測 map と設定された overflow GID に従う", () => {
+  expect(groupsInNamespace([1001, 2000], [[1001, 1001, 1]], 65534)).toEqual([1001, 65534]);
+  expect(
+    groupsInNamespace(
+      [1001, 2000, 2001],
+      [
+        [1001, 1001, 1],
+        [5000, 2000, 2],
+      ],
+      60000,
+    ),
+  ).toEqual([1001, 5000, 5001]);
+  expect(groupsInNamespace([1001, 2000, 2001], [[1001, 1001, 1]], 60000)).toEqual([
+    1001, 60000, 60000,
+  ]);
+  expect(() => groupsInNamespace([1001], [], 65534)).toThrow(
+    "補助 group の GID mapping が不正です",
+  );
+  expect(() => groupsInNamespace([1001], [[1001, 1001, 0]], 65534)).toThrow(
+    "補助 group の GID mapping が不正です",
+  );
+});
+
+test.skipIf(process.platform !== "linux" || process.env.PROCESS_PROOF_PID_NAMESPACE !== "1")(
+  "実 user namespace の getgroups を観測した GID map で説明できる",
+  () => {
+    const result = spawnSync(
+      "unshare",
+      [
+        "--user",
+        "--map-current-user",
+        "--",
+        process.execPath,
+        "-e",
+        `
+    const fs = require("node:fs");
+    console.log(JSON.stringify({groups: process.getgroups(), gidMap: fs.readFileSync("/proc/self/gid_map", "utf8").trim().split("\\n").map(line => line.trim().split(/\\s+/).map(Number))}));
+  `,
+      ],
+      { encoding: "utf8", timeout: 10_000 },
+    );
+    expect(result.status).toBe(0);
+    const observed = JSON.parse(result.stdout);
+    const overflow = Number(fs.readFileSync("/proc/sys/kernel/overflowgid", "utf8").trim());
+    expect(observed.groups.sort((a: number, b: number) => a - b)).toEqual(
+      groupsInNamespace(process.getgroups!(), observed.gidMap, overflow).sort((a, b) => a - b),
+    );
+  },
+);
 
 function cohort() {
   return {
@@ -27,6 +81,14 @@ function cohort() {
       workflowSha,
       runId: "42",
       attempt: 1,
+      preflight: {
+        verified: true,
+        uid: 1000,
+        euid: 1000,
+        gid: 1000,
+        groups: [1000, 1001],
+        group: { path: "/fixture/data", ownerUid: 0, gid: 2000, mode: 0o060, dev: "1", ino: "2" },
+      },
       trials: [1, 2, 3].map((repetition) => ({
         repetition,
         exitCode: 0,
@@ -69,6 +131,38 @@ function cohort() {
 
 test("同じ run・attempt の両 architecture が各3回成功した一組を認定する", () => {
   expect(verifyCohort(cohort(), manifest)).toEqual({ verified: true, reasons: [] });
+});
+
+test("primary GID・補助 group・fixture の必須証跡が欠けた一組を拒否する", () => {
+  for (const field of ["gid", "groups", "group"] as const) {
+    const input = cohort();
+    delete (input.jobs[0]!.preflight as Partial<(typeof input.jobs)[0]["preflight"]>)[field];
+    expect(verifyCohort(input, manifest).reasons).toContain(
+      "x64: 資格情報・補助 group fixture の必須観測が不正です",
+    );
+  }
+});
+
+test("資格情報の値と group 専用 file の条件も再検証する", () => {
+  const valid = cohort().jobs[0]!.preflight;
+  for (const preflight of [
+    { ...valid, verified: false },
+    { ...valid, gid: -1 },
+    { ...valid, groups: [NaN] },
+    { ...valid, groups: [2000] },
+    { ...valid, group: { ...valid.group, ownerUid: 1000 } },
+    { ...valid, group: { ...valid.group, gid: 1000 } },
+    { ...valid, group: { ...valid.group, mode: 0o666 } },
+  ]) {
+    const input = cohort();
+    input.jobs[0]!.preflight = preflight;
+    expect(verifyCohort(input, manifest).reasons).toContain(
+      "x64: 資格情報・補助 group fixture の必須観測が不正です",
+    );
+  }
+  const input = cohort();
+  input.jobs[0]!.preflight.groups = [];
+  expect(verifyCohort(input, manifest).verified).toBe(true);
 });
 
 test("部分再実行と古い attempt の成功を混ぜた一組を拒否する", () => {
@@ -179,6 +273,7 @@ test("public API の最終成功だけで過去の失敗 attempt を隠さない
       return {
         head_sha: workflowSha,
         run_attempt: 2,
+        run_started_at: "2026-11-16T02:00:00Z",
         event: "workflow_dispatch",
         workflow_id: 7,
         display_title: `Linux process proof: ${sourceSha}`,
@@ -201,6 +296,7 @@ test("public API の最終成功だけで過去の失敗 attempt を隠さない
         id: 42,
         run_attempt: 1,
         status: "completed",
+        run_started_at: "2026-11-16T01:00:00Z",
         conclusion: "failure",
         display_title: `Linux process proof: ${sourceSha}`,
       };
@@ -219,7 +315,7 @@ test("public API の最終成功だけで過去の失敗 attempt を隠さない
   await expect(
     collectMetadata(
       async (path) =>
-        path.includes("/workflows/") ? { total_count: 1001, workflow_runs: [] } : read(path),
+        path.includes("/workflows/") ? { total_count: 1000, workflow_runs: [] } : read(path),
       { runId: "42", attempt: 2, sourceSha, workflowSha },
       [],
     ),
@@ -241,19 +337,24 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
       return {
         head_sha: workflowSha,
         run_attempt: 1,
+        run_started_at: "2026-11-16T01:00:00Z",
         event: "workflow_dispatch",
         workflow_id: 7,
         display_title: `Linux process proof: ${sourceSha}`,
       };
     if (path === "/actions/runs/42/artifacts?per_page=100")
       return { total_count: artifacts.length, artifacts };
-    if (path === "/actions/workflows/7/runs?event=workflow_dispatch&per_page=100&page=1")
+    if (path.startsWith("/actions/workflows/7/runs?")) {
+      expect(new URL(path, "https://api.github.com").searchParams.get("created")).toBe(
+        "<=2026-11-16T01:00:00Z",
+      );
       return {
         total_count: 1,
         workflow_runs: [
           { id: 42, run_attempt: 1, display_title: `Linux process proof: ${sourceSha}` },
         ],
       };
+    }
     throw new Error(`未定義の API 呼出し: ${path}`);
   };
   const current = { runId: "42", attempt: 1, sourceSha, workflowSha };
@@ -270,6 +371,94 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
       [],
     ),
   ).rejects.toThrow("artifact 一覧を完全に取得できません");
+});
+
+test("現在の attempt 開始後の待機 run と後続 attempt を過去の失敗にしない", async () => {
+  const paths: string[] = [];
+  const title = `Linux process proof: ${sourceSha}`;
+  const read = async (path: string): Promise<Record<string, unknown>> => {
+    paths.push(path);
+    if (path === "/actions/runs/42")
+      return {
+        head_sha: workflowSha,
+        run_attempt: 1,
+        run_started_at: "2026-11-16T02:00:00Z",
+        event: "workflow_dispatch",
+        workflow_id: 7,
+        display_title: title,
+      };
+    if (path.includes("/artifacts?")) return { total_count: 0, artifacts: [] };
+    if (path.includes("/workflows/7/runs?"))
+      return {
+        total_count: 3,
+        workflow_runs: [
+          {
+            id: 43,
+            run_attempt: 1,
+            status: "queued",
+            created_at: "2026-11-16T03:00:00Z",
+            display_title: title,
+          },
+          { id: 42, run_attempt: 1, display_title: title },
+          { id: 41, run_attempt: 2, created_at: "2026-11-16T00:00:00Z", display_title: title },
+        ],
+      };
+    if (path.includes("/attempts/")) {
+      const earlier = path === "/actions/runs/41/attempts/1";
+      return {
+        id: path.includes("/runs/41/") ? 41 : 43,
+        run_attempt: path.endsWith("/2") ? 2 : 1,
+        display_title: title,
+        status: earlier ? "completed" : "queued",
+        conclusion: earlier ? "failure" : null,
+        run_started_at: earlier ? "2026-11-16T01:00:00Z" : "2026-11-16T03:00:00Z",
+      };
+    }
+    throw new Error(`未定義の API 呼出し: ${path}`);
+  };
+  const metadata = await collectMetadata(
+    read,
+    { runId: "42", attempt: 1, sourceSha, workflowSha },
+    [],
+  );
+  expect(metadata.history).toMatchObject([{ runId: "41", attempt: 1, conclusion: "failure" }]);
+  expect(metadata.history).toHaveLength(1);
+  expect(paths).not.toContain("/actions/runs/43/attempts/1");
+  expect(verifyCohort({ ...cohort(), history: metadata.history }, manifest).reasons).toContain(
+    "同じ SHA に未解明の失敗があります: 41/1",
+  );
+  const onlyFuture = await collectMetadata(
+    async (path) =>
+      path.includes("/workflows/7/runs?")
+        ? {
+            total_count: 2,
+            workflow_runs: [
+              {
+                id: 43,
+                run_attempt: 1,
+                status: "queued",
+                created_at: "2026-11-16T03:00:00Z",
+                display_title: title,
+              },
+              { id: 42, run_attempt: 1, display_title: title },
+            ],
+          }
+        : read(path),
+    { runId: "42", attempt: 1, sourceSha, workflowSha },
+    [],
+  );
+  expect(onlyFuture.history).toEqual([]);
+  expect(verifyCohort({ ...cohort(), history: onlyFuture.history }, manifest).verified).toBe(true);
+  await expect(
+    collectMetadata(
+      async (path) =>
+        path === "/actions/runs/42"
+          ? { ...(await read(path)), run_started_at: undefined }
+          : read(path),
+      { runId: "42", attempt: 1, sourceSha, workflowSha },
+      [],
+    ),
+  ).rejects.toThrow("履歴の開始日時を確認できません");
 });
 
 test("独立した manifest の全 case が対象 test file に存在する", () => {
@@ -314,6 +503,7 @@ test("bundle の raw log・binary・closure の欠落や改変を成功にしな
       sourcesAfter: sources,
       controllerHash: digest(join(root, "development/run-linux-process-proof.ts")),
       preflight: {
+        ...cohort().jobs[0]!.preflight,
         verified: true,
         uid: 1000,
         euid: 1000,
@@ -417,6 +607,15 @@ test("bundle の raw log・binary・closure の欠落や改変を成功にしな
     }
     write(join(directory, "job.json"), job);
     expect(readProofJob(root, directory, "x64").trials).toHaveLength(3);
+    for (const field of ["gid", "groups", "group"] as const) {
+      const missing = { ...job.preflight } as Partial<typeof job.preflight>;
+      delete missing[field];
+      write(join(directory, "job.json"), { ...job, preflight: missing });
+      expect(() => readProofJob(root, directory, "x64")).toThrow(
+        "資格情報・補助 group fixture の必須観測が不正です",
+      );
+    }
+    write(join(directory, "job.json"), job);
     const pythonTool = job.preflight.tools.python3!;
     delete job.preflight.tools.python3;
     write(join(directory, "job.json"), job);

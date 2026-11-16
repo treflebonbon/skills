@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import corpus from "../fixtures/bun-exec-python.json";
+import { groupsInNamespace } from "../../development/linux-process-proof.ts";
 
 const linux = process.platform === "linux" && process.env.PROCESS_PROOF_PID_NAMESPACE === "1";
 const root = fs.mkdtempSync(join(tmpdir(), "bun-process-namespace-"));
@@ -659,6 +660,7 @@ for (const member of [true, false]) {
         .map(Number);
       expect(originalGroups).not.toContain(selectedGid);
       const groups = member ? [...originalGroups, selectedGid] : originalGroups;
+      const overflowGid = Number(fs.readFileSync("/proc/sys/kernel/overflowgid", "utf8").trim());
       const fileState = fs.statSync(groupFile!);
       expect(fileState.uid).not.toBe(uid);
       expect(fileState.gid).toBe(selectedGid);
@@ -735,8 +737,10 @@ for (const member of [true, false]) {
         expect(report.written).toBe(member ? 12 : -1);
         const context = contexts(result.stderr)[0];
         expect(context).toBeDefined();
+        const expectedGroups =
+          binary === baseline ? groups : groupsInNamespace(groups, context.gid_map, overflowGid);
         expect([...context.groups].sort((a: number, b: number) => a - b)).toEqual(
-          [...groups].sort((a, b) => a - b),
+          [...expectedGroups].sort((a, b) => a - b),
         );
         return {
           binary: binary === baseline ? "baseline" : "namespace",
@@ -746,7 +750,15 @@ for (const member of [true, false]) {
         };
       });
       records.push({
-        supplementaryGroup: { member, uid, gid, originalGroups, selectedGid, observations },
+        supplementaryGroup: {
+          member,
+          uid,
+          gid,
+          originalGroups,
+          selectedGid,
+          overflowGid,
+          observations,
+        },
       });
     },
     30_000,

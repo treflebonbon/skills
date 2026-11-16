@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { arch, release } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseTrial, verifyCohort } from "./linux-process-proof.ts";
+import { parseTrial, verifyCohort, validGroupCredentials } from "./linux-process-proof.ts";
 import { collectMetadata } from "./linux-process-proof-metadata.ts";
 import resolutions from "./linux-process-proof-resolutions.json";
 
@@ -317,6 +317,8 @@ export function readProofJob(root: string, directory: string, architecture: stri
   )
     throw new Error("source・前提検査・controller の証跡が不正です");
   const environment = job.preflight;
+  if (!validGroupCredentials(environment))
+    throw new Error("資格情報・補助 group fixture の必須観測が不正です");
   if (
     environment.euid !== environment.uid ||
     environment.platform !== "linux" ||

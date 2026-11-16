@@ -1,5 +1,10 @@
 type Json = Record<string, unknown>;
 type ReadApi = (path: string) => Promise<Json>;
+function timestamp(value: unknown): number {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value)))
+    throw new Error("履歴の開始日時を確認できません");
+  return Date.parse(value);
+}
 type Resolution = {
   runId: string;
   attempt: number;
@@ -28,6 +33,7 @@ export async function collectMetadata(
     run.display_title !== `Linux process proof: ${current.sourceSha}`
   )
     throw new Error("実行 metadata が source/workflow/run/attempt と一致しません");
+  const cutoff = timestamp(run.run_started_at);
   const artifactResponse = await read(`/actions/runs/${current.runId}/artifacts?per_page=100`);
   if (
     !Array.isArray(artifactResponse.artifacts) ||
@@ -55,12 +61,12 @@ export async function collectMetadata(
     total = Infinity;
   for (let page = 1; seen < total; page++) {
     const response = await read(
-      `/actions/workflows/${run.workflow_id}/runs?event=workflow_dispatch&per_page=100&page=${page}`,
+      `/actions/workflows/${run.workflow_id}/runs?event=workflow_dispatch&created=${encodeURIComponent(`<=${run.run_started_at}`)}&per_page=100&page=${page}`,
     );
     if (
       !Array.isArray(response.workflow_runs) ||
       !Number.isSafeInteger(response.total_count) ||
-      Number(response.total_count) > 1000 ||
+      Number(response.total_count) >= 1000 ||
       (page > 1 && response.total_count !== total)
     )
       throw new Error("workflow 履歴を完全に取得できません");
@@ -73,6 +79,8 @@ export async function collectMetadata(
         throw new Error("workflow 履歴に重複があるため完全性を確認できません");
       seenIds.add(String(previous.id));
       if (previous.display_title !== `Linux process proof: ${current.sourceSha}`) continue;
+      if (String(previous.id) !== current.runId && timestamp(previous.created_at) > cutoff)
+        continue;
       const attempts = Number(previous.run_attempt);
       if (!Number.isSafeInteger(attempts) || attempts < 1)
         throw new Error("履歴の attempt が不正です");
@@ -85,6 +93,14 @@ export async function collectMetadata(
           detail.display_title !== previous.display_title
         )
           throw new Error("attempt 履歴が一致しません");
+        const started = timestamp(detail.run_started_at);
+        if (
+          started > cutoff ||
+          (started === cutoff &&
+            String(previous.id) !== current.runId &&
+            BigInt(String(previous.id)) >= BigInt(current.runId))
+        )
+          continue;
         history.push({
           sourceSha: current.sourceSha,
           runId: String(previous.id),
@@ -103,5 +119,5 @@ export async function collectMetadata(
   }
   if (seen !== total || !seenIds.has(current.runId))
     throw new Error("workflow 履歴の件数・現在の run が一致しません");
-  return { artifacts, history, historyComplete: true };
+  return { artifacts, history, historyComplete: true, historyCutoff: run.run_started_at };
 }

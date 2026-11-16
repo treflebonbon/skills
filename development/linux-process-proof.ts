@@ -8,6 +8,64 @@ function object(value: unknown): value is ObjectValue {
 const sha = (value: unknown, length = 40) =>
   typeof value === "string" && new RegExp(`^[a-f0-9]{${length}}$`).test(value);
 const identifier = (value: unknown) => typeof value === "string" && /^[1-9][0-9]*$/.test(value);
+const validId = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) < 0xffffffff;
+
+export function validGroupCredentials(value: unknown): boolean {
+  if (
+    !object(value) ||
+    !validId(value.uid) ||
+    value.uid === 0 ||
+    value.euid !== value.uid ||
+    !validId(value.gid) ||
+    !Array.isArray(value.groups) ||
+    !value.groups.every(validId) ||
+    !object(value.group)
+  )
+    return false;
+  const fixture = value.group;
+  return (
+    validId(fixture.ownerUid) &&
+    fixture.ownerUid !== value.uid &&
+    validId(fixture.gid) &&
+    fixture.gid > 0 &&
+    fixture.gid !== value.gid &&
+    !value.groups.includes(fixture.gid) &&
+    fixture.mode === 0o060 &&
+    typeof fixture.path === "string" &&
+    fixture.path.startsWith("/") &&
+    typeof fixture.dev === "string" &&
+    /^(0|[1-9][0-9]*)$/.test(fixture.dev) &&
+    identifier(fixture.ino)
+  );
+}
+
+export function groupsInNamespace(
+  groups: readonly number[],
+  gidMap: readonly (readonly [number, number, number])[],
+  overflowGid: number,
+): number[] {
+  if (
+    !validId(overflowGid) ||
+    !groups.every(validId) ||
+    gidMap.length === 0 ||
+    !gidMap.every(
+      (row) =>
+        row.length === 3 &&
+        validId(row[0]) &&
+        validId(row[1]) &&
+        Number.isSafeInteger(row[2]) &&
+        row[2] > 0 &&
+        row[0] + row[2] <= 0xffffffff &&
+        row[1] + row[2] <= 0xffffffff,
+    )
+  )
+    throw new Error("補助 group の GID mapping が不正です");
+  return groups.map((gid) => {
+    const row = gidMap.find(([, outside, length]) => gid >= outside && gid < outside + length);
+    return row ? row[0] + gid - row[1] : overflowGid;
+  });
+}
 
 export function parseTrial(log: string, exitCode: number | null, repetition: number) {
   const lines = log.replace(/\x1b\[[0-9;]*m/g, "").split(/\r?\n/);
@@ -70,6 +128,13 @@ export function verifyCohort(input: unknown, manifest: unknown): Verdict {
       reasons.push(`${arch}: run/attempt が一組と一致しません`);
     if (object(job) && (job.sourceSha !== input.sourceSha || job.workflowSha !== input.workflowSha))
       reasons.push(`${arch}: source/workflow SHA が一致しません`);
+    if (
+      object(job) &&
+      (!object(job.preflight) ||
+        job.preflight.verified !== true ||
+        !validGroupCredentials(job.preflight))
+    )
+      reasons.push(`${arch}: 資格情報・補助 group fixture の必須観測が不正です`);
     if (!object(job) || !Array.isArray(job.trials)) {
       reasons.push(`${arch}: 反復1・2・3が必要です`);
       continue;

@@ -140,7 +140,11 @@ kernel／sysctl／LSM の制限は変更しない。namespace が拒否された
 
 tool 記録の対象は、準備 script が直接起動する外部 command と、実証本体の toolchain とする。準備 tool の実体・版・hash は `setup.log`、本体の tool は `job.json` に残す。`groupadd` の版は実体 hash と `passwd` package の版で記録する。資格情報切替後の PATH／HOME は準備 process 内で観測し、baseline と候補へ渡した値と一致することを確認して保存する。Nix roots・実証用変数と反復ごとの一時領域も明示した項目だけを記録する。
 
-集約 job は同じ run／attempt の bundle と、public repository の認証なし read API で取得した artifact metadata・workflow 履歴・過去 attempt を照合する。API 失敗、一覧の不完全性、履歴が1000件の取得上限を超える場合は認定を保留する。認証権限や repository 設定は追加しない。期待 case は [独立 manifest](../development/linux-process-proof-cases.json) の44件とし、件数だけの成功や skip を受理しない。
+集約 job は同じ run／attempt の bundle と、public repository の認証なし read API で取得した artifact metadata・workflow 履歴・過去 attempt を照合する。API 失敗、一覧の不完全性、履歴が取得上限の1000件に達する場合は認定を保留する。認証権限や repository 設定は追加しない。期待 case は [独立 manifest](../development/linux-process-proof-cases.json) の44件とし、件数だけの成功や skip を受理しない。
+
+履歴の基準は現在の attempt の `run_started_at` に固定し、`historyCutoff` として保存する。基準時刻より後に作成された待機 run や、その後に開始した attempt は過去の失敗へ含めない。同じ run の前 attempt や、別 run の過去の失敗は保持する。資格情報は集約時にも primary GID、補助 group 集合、fixture の owner／GID／mode と file identity を必須項目として再検証する。
+
+追加2件の group 試験では、baseline は外側の GID を比較し、候補内の表示は記録した `gid_map` と実際の `/proc/sys/kernel/overflowgid` に従って比較する。所属時の読み書き許可・非所属時の拒否、元の42件の UID／GID／groups の比較条件は維持する。
 
 同じ SHA の過去の未解明失敗は後続成功を保留する。環境起因と確定した場合だけ、[履歴解決記録](../development/linux-process-proof-resolutions.json) に `sourceSha`／`runId`／`attempt` と `classification: "environment"`、原因の `reason`、根拠の `evidence` をレビュー済み変更として追加する。候補や harness の変更は別 SHA で測定する。
 
