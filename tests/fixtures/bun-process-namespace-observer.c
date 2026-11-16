@@ -51,7 +51,38 @@ static void context(void) {
   fflush(stderr);
 }
 
+static int group_access(const char *path) {
+  struct stat state;
+  if (stat(path, &state) < 0) die("group file stat");
+  int fd = open(path, O_RDONLY | O_CLOEXEC), read_error = 0, marker = 0;
+  char content[4096];
+  if (fd < 0) read_error = errno;
+  else {
+    ssize_t length = read(fd, content, sizeof(content) - 1);
+    if (length < 0) read_error = errno;
+    else { content[length] = 0; marker = strstr(content, "group-proof\n") != NULL; }
+    close(fd);
+  }
+  fd = open(path, O_WRONLY | O_APPEND | O_CLOEXEC);
+  int write_error = 0;
+  ssize_t written = -1;
+  if (fd < 0) write_error = errno;
+  else {
+    written = write(fd, "write-proof\n", 12);
+    if (written < 0) write_error = errno;
+    close(fd);
+  }
+  context();
+  fprintf(stderr, "namespace-group-access:{\"uid\":%ld,\"euid\":%ld,\"gid\":%ld,\"egid\":%ld,\"ownerUid\":%ld,\"fileGid\":%ld,\"mode\":%u,\"dev\":\"%llu\",\"ino\":\"%llu\",\"readErrno\":%d,\"writeErrno\":%d,\"readMarker\":%s,\"written\":%ld}\n",
+          (long)getuid(), (long)geteuid(), (long)getgid(), (long)getegid(),
+          (long)state.st_uid, (long)state.st_gid, (unsigned int)(state.st_mode & 0777),
+          (unsigned long long)state.st_dev, (unsigned long long)state.st_ino,
+          read_error, write_error, marker ? "true" : "false", (long)written);
+  return 0;
+}
+
 int main(int argc, char **argv) {
+  if (argc == 3 && !strcmp(argv[1], "group-access")) return group_access(argv[2]);
   if (argc == 2 && !strcmp(argv[1], "context")) { context(); return 0; }
   if (argc == 9 && !strcmp(argv[1], "exec-input")) {
     char *end;
