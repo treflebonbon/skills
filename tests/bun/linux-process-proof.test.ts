@@ -332,7 +332,18 @@ test("bundle の raw log・binary・closure の欠落や改変を成功にしな
           daemon: { status: 0 },
         } as Record<string, unknown>,
         tools: Object.fromEntries(
-          ["cc", "unshare", "nix", "setpriv", "bun"].map((name) => [
+          [
+            "cc",
+            "unshare",
+            "nix",
+            "nix-store",
+            "setpriv",
+            "bun",
+            "sudo",
+            "python3",
+            "git",
+            "bash",
+          ].map((name) => [
             name,
             { path: `/bin/${name}`, version: "fixture", hash: "a".repeat(64) },
           ]),

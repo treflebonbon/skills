@@ -9,6 +9,18 @@ import { collectMetadata } from "./linux-process-proof-metadata.ts";
 import resolutions from "./linux-process-proof-resolutions.json";
 
 const control = fileURLToPath(new URL("..", import.meta.url));
+const proofTools = [
+  "cc",
+  "unshare",
+  "nix",
+  "nix-store",
+  "setpriv",
+  "bun",
+  "sudo",
+  "python3",
+  "git",
+  "bash",
+];
 const hash = (path: string) => createHash("sha256").update(fs.readFileSync(path)).digest("hex");
 const json = (path: string) => JSON.parse(fs.readFileSync(path, "utf8"));
 const write = (path: string, value: unknown) =>
@@ -76,8 +88,10 @@ function sources(root: string) {
 }
 function preflight(root: string) {
   const tools = Object.fromEntries(
-    ["cc", "unshare", "nix", "setpriv", "bun"].map((name) => {
-      const path = fs.realpathSync(checked("sh", ["-c", `command -v ${name}`], root));
+    proofTools.map((name) => {
+      const selected = name === "bash" ? "/bin/bash" : Bun.which(name);
+      if (!selected) throw new Error(`必須 tool がありません: ${name}`);
+      const path = fs.realpathSync(selected);
       return [
         name,
         { path, hash: hash(path), version: checked(path, ["--version"], root).split("\n")[0] },
@@ -306,7 +320,7 @@ export function readProofJob(root: string, directory: string, architecture: stri
     environment.nix.sandbox !== true ||
     environment.nix.buildUsersGroup !== "nixbld" ||
     environment.nix.daemon?.status !== 0 ||
-    !["cc", "unshare", "nix", "setpriv", "bun"].every((name) => {
+    !proofTools.every((name) => {
       const tool = environment.tools?.[name];
       return (
         typeof tool?.path === "string" &&
