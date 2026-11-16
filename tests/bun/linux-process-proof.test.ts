@@ -607,6 +607,36 @@ test("bundle の raw log・binary・closure の欠落や改変を成功にしな
     }
     write(join(directory, "job.json"), job);
     expect(readProofJob(root, directory, "x64").trials).toHaveLength(3);
+    const arm64Job = {
+      ...job,
+      arch: "arm64",
+      preflight: { ...job.preflight, arch: "arm64", imageOS: "ubuntu24-arm64" },
+    };
+    const installer = join(directory, "nix-installer.sha256");
+    const x64Installer = fs.readFileSync(installer, "utf8");
+    fs.writeFileSync(
+      installer,
+      "09edae3ed146b1a47de84eda6135ef12ee74783d409e7a207c912cb94e14aa35\n",
+    );
+    write(join(directory, "job.json"), arm64Job);
+    expect(readProofJob(root, directory, "arm64").trials).toHaveLength(3);
+    for (const imageOS of ["ubuntu24", "ubuntu22", "", undefined]) {
+      write(join(directory, "job.json"), {
+        ...arm64Job,
+        preflight: { ...arm64Job.preflight, imageOS },
+      });
+      expect(() => readProofJob(root, directory, "arm64")).toThrow(
+        "実行環境・資格情報・namespace の必須観測が不足しています",
+      );
+    }
+    fs.writeFileSync(installer, x64Installer);
+    write(join(directory, "job.json"), {
+      ...job,
+      preflight: { ...job.preflight, imageOS: "ubuntu24-arm64" },
+    });
+    expect(() => readProofJob(root, directory, "x64")).toThrow(
+      "実行環境・資格情報・namespace の必須観測が不足しています",
+    );
     for (const field of ["gid", "groups", "group"] as const) {
       const missing = { ...job.preflight } as Partial<typeof job.preflight>;
       delete missing[field];
