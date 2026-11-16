@@ -322,6 +322,7 @@ test("bundle の raw log・binary・closure の欠落や改変を成功にしな
         bun: "1.4.4",
         imageOS: "ubuntu24",
         imageVersion: "fixture",
+        environment: { PATH: "/bin", HOME: "/home/runner" },
         kernel: "fixture",
         probe: { status: 0 },
         nix: {
@@ -402,6 +403,13 @@ test("bundle の raw log・binary・closure の欠落や改変を成功にしな
       fs.writeFileSync(join(directory, name), log);
       job.trials.push({
         ...parseTrial(log, 0, repetition),
+        environment: {
+          PATH: "/bin",
+          HOME: "/home/runner",
+          TMPDIR: `/tmp/${temporary}`,
+          PROCESS_PROOF_PID_NAMESPACE: "1",
+          PROCESS_PROOF_RETAIN_TEMP: "1",
+        },
         temporary,
         log: name,
         logHash: digest(join(directory, name)),

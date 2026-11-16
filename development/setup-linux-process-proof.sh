@@ -18,7 +18,7 @@ record_tool() {
     "$tool_path" --version
   fi
 }
-for bootstrap_tool in bash curl tar sha256sum sudo systemctl groupadd getent mktemp chmod chown id cat sort cut readlink dpkg-query; do
+for bootstrap_tool in bash curl tar sha256sum sudo systemctl groupadd getent mktemp mkdir uname dirname chmod chown id cat sort cut readlink dpkg-query; do
   record_tool "$bootstrap_tool"
 done
 case "$(uname -m)" in

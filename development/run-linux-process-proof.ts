@@ -322,6 +322,10 @@ export function readProofJob(root: string, directory: string, architecture: stri
     environment.platform !== "linux" ||
     environment.arch !== architecture ||
     environment.bun !== "1.4.4" ||
+    !["PATH", "HOME"].every(
+      (name) =>
+        typeof environment.environment?.[name] === "string" && environment.environment[name],
+    ) ||
     environment.imageOS !== "ubuntu24" ||
     typeof environment.imageVersion !== "string" ||
     !environment.imageVersion ||
@@ -392,7 +396,13 @@ export function readProofJob(root: string, directory: string, architecture: stri
       trial?.log !== `trial-${repetition}.log` ||
       hash(path) !== trial.logHash ||
       trial.signal ||
-      trial.error
+      trial.error ||
+      trial.environment?.PATH !== environment.environment.PATH ||
+      trial.environment?.HOME !== environment.environment.HOME ||
+      trial.environment?.PROCESS_PROOF_PID_NAMESPACE !== "1" ||
+      trial.environment?.PROCESS_PROOF_RETAIN_TEMP !== "1" ||
+      typeof trial.environment?.TMPDIR !== "string" ||
+      !trial.environment.TMPDIR.endsWith(`/${trial.temporary}`)
     )
       throw new Error(`反復 ${repetition} の log 同一性・終了状態を確認できません`);
     const parsed = parseTrial(fs.readFileSync(path, "utf8"), trial.exitCode, repetition);
