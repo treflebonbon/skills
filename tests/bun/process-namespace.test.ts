@@ -221,6 +221,7 @@ async function interruption(
   const unrelated = spawn("sleep", ["30"]);
   const unrelatedEnded = once(unrelated, "exit");
   let owned: Awaited<ReturnType<typeof pin>> | undefined;
+  let controlParentsTerminatedBeforeRelease: number[] | undefined;
   try {
     try {
       await until(() =>
@@ -247,6 +248,22 @@ async function interruption(
     const started = performance.now();
     child.kill(signal);
     await within(ended);
+    if (hiddenParentDeath) {
+      const namespaceInit = identities.filter((identity) =>
+        identity.status.some((line) => /^NSpid:\s+(?:\d+\s+)*1$/.test(line)),
+      );
+      expect(namespaceInit).toHaveLength(1);
+      const initPid = namespaceInit[0]!.pid;
+      const parents = pids.filter((pid) => pid !== initPid);
+      // launcher の exit だけでは unshare の親死亡通知と競合するため、検査を隠す窓を固定する。
+      await until(async () => {
+        const terminated = await owned!.terminated();
+        return parents.every((pid) => terminated.includes(pid));
+      });
+      const terminated = await owned.terminated();
+      expect(terminated).not.toContain(initPid);
+      controlParentsTerminatedBeforeRelease = terminated;
+    }
     gate.end("R");
     if (hiddenParentDeath) {
       try {
@@ -276,6 +293,7 @@ async function interruption(
       signal,
       stage,
       hiddenParentDeath,
+      controlParentsTerminatedBeforeRelease,
       identities,
       durationMs,
       targetStarted: false,

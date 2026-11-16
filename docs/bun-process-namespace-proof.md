@@ -42,6 +42,8 @@
 
 [同期停止用 shared object](../tests/fixtures/bun-exec-namespace-delay.c)は `LD_PRELOAD` を使い、`/proc/self/exe` が選択済み `unshare` に一致する場合だけ、`unshare`／`pidfd_open`／`fork`／`poll`／`execvp` を止める。`prctl` 自体を差し替えず、fork 直後の子と、`PR_SET_PDEATHSIG` 後の親死亡検査を挟む。variadic syscall の模倣や utility の再実装は行わない。別版で symbol が異なり待機点を確認できなければ期限切れで失敗し、その版の証明には使わない。
 
+2026-11-16 に[親死亡 pidfd 対照の同期 race](bun-process-parent-pidfd-diagnosis.md)を切り分けた。検査を隠す対照では、中間の親の終了と gate 内の PID 1 の生存を pidfd で確認してから解放する。通常の終了保証を測る試験の5秒条件は維持する。
+
 FD 3／9／63 は seed が同じ file に複製する。target で各番号の device／inode を seed の FD 9 の独立観測と照合し、番号だけの一致を成功にしない。`FD_CLOEXEC` は target に渡らないことを別入力で確認する。
 
 ## 再実行と証跡
