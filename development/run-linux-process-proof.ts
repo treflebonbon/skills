@@ -87,6 +87,12 @@ function sources(root: string) {
       .map((path) => [path, hash(join(root, path))]),
   );
 }
+function validRunnerImage(architecture: string, imageOS: unknown) {
+  return (
+    (architecture === "x64" && imageOS === "ubuntu24") ||
+    (architecture === "arm64" && imageOS === "ubuntu24-arm64")
+  );
+}
 function preflight(root: string) {
   const tools = Object.fromEntries(
     proofTools.map((name) => {
@@ -169,7 +175,7 @@ function preflight(root: string) {
   )
     errors.push("OS・architecture・Bun・非root 条件が不一致です");
   if (
-    process.env.ImageOS !== "ubuntu24" ||
+    !validRunnerImage(arch(), process.env.ImageOS) ||
     !process.env.ImageVersion ||
     !/^VERSION_ID="24\.04"$/m.test(fs.readFileSync("/etc/os-release", "utf8"))
   )
@@ -328,7 +334,7 @@ export function readProofJob(root: string, directory: string, architecture: stri
       (name) =>
         typeof environment.environment?.[name] === "string" && environment.environment[name],
     ) ||
-    environment.imageOS !== "ubuntu24" ||
+    !validRunnerImage(architecture, environment.imageOS) ||
     typeof environment.imageVersion !== "string" ||
     !environment.imageVersion ||
     typeof environment.kernel !== "string" ||

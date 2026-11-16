@@ -1,0 +1,35 @@
+{
+  "schema": "linux-process-proof-cohort/v1",
+  "sourceSha": "752923f9e9992739bfd0195ec1f4a992686b8c1f",
+  "workflowSha": "752923f9e9992739bfd0195ec1f4a992686b8c1f",
+  "runId": "43869813149",
+  "attempt": 1,
+  "jobs": [],
+  "historyComplete": true,
+  "artifacts": [
+    {
+      "arch": "x64",
+      "runId": "43869813149",
+      "attempt": 1,
+      "id": "14227460882",
+      "digest": "9e163f1c38d2a09fce06d422e604f4921f52da9200cabc48908727dde6c150d4",
+      "createdAt": "2026-11-16T12:48:39Z",
+      "expiresAt": "2027-02-14T12:47:51Z",
+      "expired": false,
+      "url": "https://github.com/treflebonbon/skills/actions/runs/43869813149/artifacts/14227460882"
+    },
+    {
+      "arch": "arm64",
+      "runId": "43869813149",
+      "attempt": 1,
+      "id": "14226588953",
+      "digest": "5f8cc88aafe7ea91abf320fa988c2979a1535795aa15226d51f90b3823f3ba69",
+      "createdAt": "2026-11-16T12:48:32Z",
+      "expiresAt": "2027-02-14T12:47:51Z",
+      "expired": false,
+      "url": "https://github.com/treflebonbon/skills/actions/runs/43869813149/artifacts/14226588953"
+    }
+  ],
+  "history": [],
+  "historyCutoff": "2026-11-16T12:47:50Z"
+}

@@ -1,6 +1,6 @@
 # 通常 Linux x64／arm64 の追加実証計画
 
-状態: 確定。2026-11-16 に Q1〜Q10 の回答と、Claude Opus のレビュー反映後の計画全体の共有理解を確認した。専用 workflow と証跡収集を実装し、正式 VM 実行は未着手。
+状態: 計画確定・追加実証は未達。2026-11-16 に Q1〜Q10 の回答と、Claude Opus のレビュー反映後の計画全体の共有理解を確認した。専用 workflow と証跡収集を実装し、同日の [run 43869813149 / attempt 1](evidence/linux-process-proof/43869813149-1/README.md) は両構成とも前提検査で停止した。試験本体は未実行。
 
 ## 目的と引継ぎ
 
@@ -59,7 +59,7 @@ architecture ごと・実行ごとの bundle を作る。判定要約と検査�
 
 ## 確定した Nix と closure の準備（Q6）
 
-CI の明示準備で Nix 2.34.6 の公式 binary tarball を取得し、固定した SHA-256 と照合してから導入する。必要な導入権限は使い捨て CI VM 内に限定する。両 architecture の tarball の存在と公式 checksum は確認済みだが、導入と実行は未確認。
+CI の明示準備で Nix 2.34.6 の公式 binary tarball を取得し、固定した SHA-256 と照合してから導入する。必要な導入権限は使い捨て CI VM 内に限定する。両 architecture の tarball の存在と公式 checksum は確認済み。初回の正式実行では両構成の Nix 導入と daemon／closure の準備に成功したが、namespace の前提検査で停止し、実 caller の試験は未実行。
 
 Ubuntu／systemd 向けの[公式導入手順](https://nix.dev/manual/nix/2.34/installation/installing-binary)に沿い、CI 実装の詳細として両 VM で multi-user／daemon 方式を固定する。daemon の準備と稼働は Q6 の VM 内に限り、実証本体の caller は非root のままとする。`sandbox = true`、専用 build users を使う構成とし、導入方式・daemon 接続先・実効 `sandbox`／`build-users-group` を許可した項目だけ記録する。sandbox を無効化して通す変更は行わない。
 
@@ -149,3 +149,7 @@ tool 記録の対象は、準備 script が直接起動する外部 command と�
 同じ SHA の過去の未解明失敗は後続成功を保留する。環境起因と確定した場合だけ、[履歴解決記録](../development/linux-process-proof-resolutions.json) に `sourceSha`／`runId`／`attempt` と `classification: "environment"`、原因の `reason`、根拠の `evidence` をレビュー済み変更として追加する。候補や harness の変更は別 SHA で測定する。
 
 `linux-proof-verdict-<run>-<attempt>` artifact の `cohort.json`、`verdict.json`、`summary.md` が Git 管理へ移す候補になる。raw artifact の id／URL／digest／実際の `expiresAt` と結び付け、人が確認した変更として残す。workflow は Git 書込みや issue の状態変更を行わない。正式実行前のローカル fixture／保護環境の結果は、この追加実証の成功記録ではない。
+
+2026-11-16 の [run 43869813149 / attempt 1 の結果](evidence/linux-process-proof/43869813149-1/README.md)は、両 architecture とも namespace の前提検査で停止し、試験本体は未実行だった。arm64 では image 検査の不一致も記録した。追加実証の成功には数えず、失敗履歴と証跡を保持する。
+
+[後続の前提検査の診断](bun-process-linux-preflight-diagnosis.md)では architecture 別の image 判定を修正した。namespace probe の拒否原因は未確定であり、この修正だけで環境不足を解消したとは扱わない。次の正式実証には新しい source SHA と別の実行承認が必要になる。
