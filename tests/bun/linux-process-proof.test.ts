@@ -408,6 +408,15 @@ test("bundle の raw log・binary・closure の欠落や改変を成功にしな
     }
     write(join(directory, "job.json"), job);
     expect(readProofJob(root, directory, "x64").trials).toHaveLength(3);
+    const pythonTool = job.preflight.tools.python3!;
+    delete job.preflight.tools.python3;
+    write(join(directory, "job.json"), job);
+    expect(() => readProofJob(root, directory, "x64")).toThrow(
+      "実行環境・資格情報・namespace の必須観測が不足しています",
+    );
+    job.preflight.tools.python3 = pythonTool;
+    write(join(directory, "job.json"), job);
+    expect(readProofJob(root, directory, "x64").trials).toHaveLength(3);
     const binary = join(directory, "temporary-1-fixture/bun-process-namespace-fixture/observer");
     fs.appendFileSync(binary, "changed");
     expect(() => readProofJob(root, directory, "x64")).toThrow(
