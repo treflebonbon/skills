@@ -138,6 +138,8 @@ kernel／sysctl／LSM の制限は変更しない。namespace が拒否された
 
 [CI 専用準備](../development/setup-linux-process-proof.sh) が固定版 Nix、両 store roots と closure、専用 GID と他者所有の mode 0060 file を用意する。[収集 CLI](../development/run-linux-process-proof.ts) は前提検査後に別 Bun process／一時領域で3反復し、raw log、保存した fixture binary、source hash、実行環境を束ねる。前提不足・試験失敗・中断でも、取得できた生証跡を90日の artifact に残す。setup 自体の失敗は `setup.log` に残り、`job.json` がなければ集約は成功しない。
 
+tool 記録の対象は、準備 script が直接起動する外部 command と、実証本体の toolchain とする。準備 tool の実体・版・hash は `setup.log`、本体の tool は `job.json` に残す。`groupadd` の版は実体 hash と `passwd` package の版で記録する。資格情報切替後の PATH／HOME は準備 process 内で観測し、baseline と候補へ渡した値と一致することを確認して保存する。Nix roots・実証用変数と反復ごとの一時領域も明示した項目だけを記録する。
+
 集約 job は同じ run／attempt の bundle と、public repository の認証なし read API で取得した artifact metadata・workflow 履歴・過去 attempt を照合する。API 失敗、一覧の不完全性、履歴が1000件の取得上限を超える場合は認定を保留する。認証権限や repository 設定は追加しない。期待 case は [独立 manifest](../development/linux-process-proof-cases.json) の44件とし、件数だけの成功や skip を受理しない。
 
 同じ SHA の過去の未解明失敗は後続成功を保留する。環境起因と確定した場合だけ、[履歴解決記録](../development/linux-process-proof-resolutions.json) に `sourceSha`／`runId`／`attempt` と `classification: "environment"`、原因の `reason`、根拠の `evidence` をレビュー済み変更として追加する。候補や harness の変更は別 SHA で測定する。

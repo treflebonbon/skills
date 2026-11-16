@@ -13,6 +13,7 @@ const proofTools = [
   "cc",
   "unshare",
   "nix",
+  "nix-build",
   "nix-store",
   "setpriv",
   "bun",
@@ -214,6 +215,15 @@ function preflight(root: string) {
       dev: String(group.dev),
       ino: String(group.ino),
     },
+    environment: {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME,
+      NIX_REMOTE: process.env.NIX_REMOTE,
+      PROCESS_PROOF_NIX_BASH: process.env.PROCESS_PROOF_NIX_BASH,
+      PROCESS_PROOF_NIX_STDENV: process.env.PROCESS_PROOF_NIX_STDENV,
+      PROCESS_PROOF_GROUP_FILE: process.env.PROCESS_PROOF_GROUP_FILE,
+      PROCESS_PROOF_GROUP_GID: process.env.PROCESS_PROOF_GROUP_GID,
+    },
     uid: process.getuid!(),
     euid: process.geteuid!(),
     gid: process.getgid!(),
@@ -242,17 +252,19 @@ function run(root: string, out: string) {
     for (const repetition of [1, 2, 3]) {
       const temporary = fs.mkdtempSync(join(out, `temporary-${repetition}-`));
       const logName = `trial-${repetition}.log`;
+      const environment = {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        TMPDIR: temporary,
+        NO_COLOR: "1",
+        PROCESS_PROOF_PID_NAMESPACE: "1",
+        PROCESS_PROOF_RETAIN_TEMP: "1",
+      };
       const result = command(
         process.execPath,
         ["test", join(root, "tests/bun/process-namespace.test.ts")],
         root,
-        {
-          ...process.env,
-          TMPDIR: temporary,
-          NO_COLOR: "1",
-          PROCESS_PROOF_PID_NAMESPACE: "1",
-          PROCESS_PROOF_RETAIN_TEMP: "1",
-        },
+        { ...process.env, ...environment },
       );
       fs.writeFileSync(join(out, logName), result.stdout + result.stderr);
       let trial: unknown;
@@ -263,6 +275,7 @@ function run(root: string, out: string) {
       }
       trials.push({
         ...(trial as object),
+        environment,
         temporary: temporary.slice(out.length + 1),
         log: logName,
         logHash: hash(join(out, logName)),

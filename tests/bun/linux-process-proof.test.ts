@@ -336,6 +336,7 @@ test("bundle の raw log・binary・closure の欠落や改変を成功にしな
             "cc",
             "unshare",
             "nix",
+            "nix-build",
             "nix-store",
             "setpriv",
             "bun",

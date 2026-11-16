@@ -7,6 +7,20 @@ set -euo pipefail
 source_root=$1
 evidence_root=$2
 mkdir -p "$evidence_root"
+record_tool() {
+  local tool_path
+  tool_path=$(readlink -f "$(command -v "$1")")
+  printf 'tool=%s path=%s\n' "$1" "$tool_path"
+  sha256sum "$tool_path"
+  if [[ "$1" == groupadd ]]; then
+    dpkg-query -W -f='passwd ${Version}\n' passwd
+  else
+    "$tool_path" --version
+  fi
+}
+for bootstrap_tool in bash curl tar sha256sum sudo systemctl groupadd getent mktemp chmod chown id cat sort cut readlink dpkg-query; do
+  record_tool "$bootstrap_tool"
+done
 case "$(uname -m)" in
 x86_64)
   nix_system=x86_64-linux
@@ -34,6 +48,7 @@ NIX_INSTALLER_YES=1 NIX_EXTRA_CONF=$'sandbox = true\nexperimental-features = nix
 source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 export NIX_REMOTE=daemon
 [[ $(nix --version) == 'nix (Nix) 2.34.6' ]]
+for nix_tool in nix nix-build nix-store; do record_tool "$nix_tool"; done
 systemctl is-active nix-daemon.socket
 revision=$(cat "$source_root/tests/fixtures/raw-codex/nixpkgs-revision")
 [[ "$revision" == 7fd4004d0511991fff3a0524856a9be09e28c5f0 ]]
@@ -48,13 +63,13 @@ done
 
 # 元の補助 group は変更せず、専用 GID は追加試験で setpriv にだけ渡す。
 proof_group="proof${GITHUB_RUN_ID}a${GITHUB_RUN_ATTEMPT}"
-sudo -n groupadd "$proof_group"
+sudo -n "$(command -v groupadd)" "$proof_group"
 proof_gid=$(getent group "$proof_group" | cut -d: -f3)
 proof_group_dir=$(mktemp -d "$RUNNER_TEMP/group-proof.XXXXXX")
 chmod 755 "$proof_group_dir"
 printf 'group-proof\n' >"$proof_group_dir/data"
-sudo -n chown "0:$proof_gid" "$proof_group_dir/data"
-sudo -n chmod 0060 "$proof_group_dir/data"
+sudo -n "$(command -v chown)" "0:$proof_gid" "$proof_group_dir/data"
+sudo -n "$(command -v chmod)" 0060 "$proof_group_dir/data"
 {
   printf 'PATH=%s\n' "$PATH"
   printf 'NIX_REMOTE=daemon\n'

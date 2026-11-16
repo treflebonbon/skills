@@ -651,6 +651,7 @@ for (const member of [true, false]) {
         `
         import { readFileSync } from "node:fs";
         console.error("namespace-group-caps:" + readFileSync("/proc/self/status", "utf8").match(/^CapEff:\\s*(\\S+)$/m)![1]);
+        console.error("namespace-group-environment:" + JSON.stringify({ PATH: process.env.PATH, HOME: process.env.HOME }));
         const result = Bun.spawnSync([${JSON.stringify(observer)}, "group-access", ${JSON.stringify(groupFile)}]);
         process.stderr.write(result.stderr);
         if (result.exitCode !== 0) process.exit(result.exitCode);
@@ -663,7 +664,7 @@ for (const member of [true, false]) {
           [
             "-n",
             "--",
-            "setpriv",
+            fs.realpathSync(Bun.which("setpriv")!),
             "--reuid",
             String(uid),
             "--regid",
@@ -688,6 +689,14 @@ for (const member of [true, false]) {
         expect(result.error).toBeUndefined();
         expect(result.status).toBe(37);
         expect(result.stderr).toContain("namespace-group-caps:0000000000000000");
+        const environmentLine = result.stderr
+          .split("\n")
+          .find((line) => line.startsWith("namespace-group-environment:"));
+        expect(environmentLine).toBeDefined();
+        const environment = JSON.parse(
+          environmentLine!.slice("namespace-group-environment:".length),
+        );
+        expect(environment).toEqual({ PATH: process.env.PATH, HOME: process.env.HOME });
         const line = result.stderr
           .split("\n")
           .find((line) => line.startsWith("namespace-group-access:"));
@@ -714,6 +723,7 @@ for (const member of [true, false]) {
         return {
           binary: binary === baseline ? "baseline" : "namespace",
           report,
+          environment,
           context,
         };
       });
