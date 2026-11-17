@@ -1124,6 +1124,20 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
           expect(partial.nix).toBeUndefined();
           expect(partial.group).toBeUndefined();
         }
+        if (name === "other-error") {
+          const failed = evidence.repetitions[0].preflight;
+          expect(failed.probe.stderr).toBe("unshare: unshare failed: Operation not permitted\n");
+          expect(failed.errors).toContain(
+            "同じ条件の namespace 前提検査が失敗しました。拒否原因は未確定です",
+          );
+        }
+        if (name === "other-precondition") {
+          const failed = evidence.repetitions[0].preflight;
+          expect(failed.errors).toContain("補助 group fixture の資格情報が不正です");
+          expect(failed.probe.stderr).toBe(
+            "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          );
+        }
         if (expectedCount === 3)
           expect(
             new Set(
