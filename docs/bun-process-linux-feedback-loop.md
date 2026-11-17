@@ -92,3 +92,22 @@ bun control/development/run-linux-process-proof.ts probe-minimize "$GITHUB_WORKS
 新しい各測定のargv・PID・時刻・経過時間・終了状態・stdout / stderr・分類は `[DEBUG-ns-isolate]` のJSON行で公開Actionsログへ記録する。stdout / stderrのログ表示は各1024文字までで、省略時は `logTruncated` を記録し、完全なprobe記録は `namespace-isolate.json` に残す。環境変数全体や認証値は出力しない。既存の同名結果は上書きしない。
 
 run名は `Linux namespace 独立測定: <source SHA>`、artifact名は `namespace-isolate-<run>-<attempt>-<arch>`。正式44ケース・集約・正式履歴への採用は行わない。次の実行承認は新しいsource SHAと各構成9回の範囲に固定する。結果の一次確認は許可済みのActionsログで行う。以前のartifactの読取拒否や、今回のartifact読取可否を解消したとは扱わない。
+
+## 次の最小化: Bun callerを外す
+
+`mode=probe-caller` はNode.jsを比較の親として、同じ `development/probe-linux-namespace-caller.mjs` をBun 1.4.4とrunner導入済みNode.js（22以上）で順番に起動する。Node.js側にはBunを祖先として残さない。新しい依存のinstallは行わない。専用Nix/group準備は省略し、両runtimeへ同じ親の継承環境を渡す。環境変数全体や認証値は保存しない。
+
+各runtimeは同じ `spawnSync` API・cwd・stdio・timeout・出力上限で、最小argv `--map-current-user -- /usr/bin/true` と対照 `-- /usr/bin/true` を各3回実行する。最大12回/architecture。前の独立測定とは起動APIも異なるため、Bun側で同じEPERMを再確認することを比較の前提とする。
+
+UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、uid/gid map、callerのLSM context、選択した5環境変数を測定前後と両runtime間で照合する。これは継承環境全体の最小化や全変数の同一性の実測を意味しない。controllerと実行体のpath・hash・版、source/workflow/run/attempt、image/kernelも保存する。sysctl・profileは変更しない。
+
+| 結果               | 条件                                                     | 終了コード |
+| ------------------ | -------------------------------------------------------- | ---------- |
+| `bun-not-required` | 両runtimeで最小argvが3/3同じEPERM、対照が3/3成功         | 1          |
+| `caller-dependent` | Bunの最小argvだけが3/3同じEPERM、Node側と両対照が3/3成功 | 1          |
+| `not-reproduced`   | 全12回が成功                                             | 0          |
+| `unavailable`      | 条件の不一致、別エラー、混在、観測不足                   | 2          |
+
+`bun-not-required` はこの比較にBunが必須ではないという結果であり、原因確定やPhase 2全体の完了ではない。`caller-dependent` でもruntime内部のどの差が必要かは未確定とする。
+
+新規の `namespace-caller.json` と `caller-bun.json` / `caller-node.json` を上書きせず0600で保存する。各probeのargv・PID・時刻・終了状態・stderrは `[DEBUG-ns-caller]` のJSON行で記録し、stdout/stderrは各1024文字まで、省略時は `logTruncated` を示す。run名・artifact名を正式実証と分け、44ケースと集約は実行しない。新しいsource SHAと最大12回/architectureの1runを対象に事前承認し、結果は新しいActionsログで確認する。以前のartifactの読取拒否は引き継ぐ。

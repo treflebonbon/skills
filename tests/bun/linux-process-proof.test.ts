@@ -335,6 +335,7 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
   artifacts.push({ ...artifacts[0]!, name: "namespace-loop-42-1-x64", id: 4 });
   artifacts.push({ ...artifacts[0]!, name: "namespace-minimize-42-1-x64", id: 5 });
   artifacts.push({ ...artifacts[0]!, name: "namespace-isolate-42-1-x64", id: 6 });
+  artifacts.push({ ...artifacts[0]!, name: "namespace-caller-42-1-x64", id: 7 });
   const read = async (path: string): Promise<Record<string, unknown>> => {
     if (path === "/actions/runs/42")
       return {
@@ -352,7 +353,7 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
         "<=2026-11-16T01:00:00Z",
       );
       return {
-        total_count: 4,
+        total_count: 5,
         workflow_runs: [
           { id: 42, run_attempt: 1, display_title: `Linux process proof: ${sourceSha}` },
           {
@@ -375,6 +376,13 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
             created_at: "2026-11-14T00:00:00Z",
             conclusion: "failure",
             display_title: `Linux namespace 独立測定: ${sourceSha}`,
+          },
+          {
+            id: 38,
+            run_attempt: 1,
+            created_at: "2026-11-13T00:00:00Z",
+            conclusion: "failure",
+            display_title: `Linux namespace caller比較: ${sourceSha}`,
           },
         ],
       };
@@ -402,6 +410,7 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
     "Linux namespace 再現ループ",
     "Linux namespace オプション削減",
     "Linux namespace 独立測定",
+    "Linux namespace caller比較",
   ])
     await expect(
       collectMetadata(
