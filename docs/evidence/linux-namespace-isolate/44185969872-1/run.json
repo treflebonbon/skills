@@ -1,0 +1,284 @@
+{
+  "attempt": 1,
+  "conclusion": "failure",
+  "databaseId": 44185969872,
+  "displayTitle": "Linux namespace 独立測定: a7ca9ca3c82fa4576c888d527c02cdf41c5ba7fc",
+  "event": "workflow_dispatch",
+  "headSha": "a7ca9ca3c82fa4576c888d527c02cdf41c5ba7fc",
+  "jobs": [
+    {
+      "completedAt": "2026-11-17T22:02:32Z",
+      "conclusion": "failure",
+      "databaseId": 134402472778,
+      "name": "namespace 独立測定 (x64)",
+      "startedAt": "2026-11-17T22:02:15Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-17T22:02:19Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-17T22:02:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:19Z",
+          "conclusion": "success",
+          "name": "入力 SHA と方式を検査",
+          "number": 2,
+          "startedAt": "2026-11-17T22:02:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:25Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 3,
+          "startedAt": "2026-11-17T22:02:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:25Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 4,
+          "startedAt": "2026-11-17T22:02:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:27Z",
+          "conclusion": "success",
+          "name": "Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 5,
+          "startedAt": "2026-11-17T22:02:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:27Z",
+          "conclusion": "skipped",
+          "name": "CI 専用依存と補助 group を準備",
+          "number": 6,
+          "startedAt": "2026-11-17T22:02:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:27Z",
+          "conclusion": "skipped",
+          "name": "非root で全44件を3反復",
+          "number": 7,
+          "startedAt": "2026-11-17T22:02:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:27Z",
+          "conclusion": "skipped",
+          "name": "同じ条件のnamespace probeを3回測定",
+          "number": 8,
+          "startedAt": "2026-11-17T22:02:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:27Z",
+          "conclusion": "skipped",
+          "name": "namespaceオプションを一つずつ削減",
+          "number": 9,
+          "startedAt": "2026-11-17T22:02:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:27Z",
+          "conclusion": "failure",
+          "name": "専用準備なしで元argv・最小候補・対照を各3回測定",
+          "number": 10,
+          "startedAt": "2026-11-17T22:02:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:29Z",
+          "conclusion": "success",
+          "name": "成功・失敗の生証跡を保存",
+          "number": 11,
+          "startedAt": "2026-11-17T22:02:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:29Z",
+          "conclusion": "skipped",
+          "name": "Post Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 20,
+          "startedAt": "2026-11-17T22:02:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:29Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 21,
+          "startedAt": "2026-11-17T22:02:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:29Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 22,
+          "startedAt": "2026-11-17T22:02:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:29Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-11-17T22:02:29Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44185969872/job/134402472778"
+    },
+    {
+      "completedAt": "2026-11-17T22:02:25Z",
+      "conclusion": "failure",
+      "databaseId": 134402473275,
+      "name": "namespace 独立測定 (arm64)",
+      "startedAt": "2026-11-17T22:02:16Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-17T22:02:18Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-17T22:02:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:18Z",
+          "conclusion": "success",
+          "name": "入力 SHA と方式を検査",
+          "number": 2,
+          "startedAt": "2026-11-17T22:02:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:19Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 3,
+          "startedAt": "2026-11-17T22:02:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:20Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 4,
+          "startedAt": "2026-11-17T22:02:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:21Z",
+          "conclusion": "success",
+          "name": "Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 5,
+          "startedAt": "2026-11-17T22:02:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:21Z",
+          "conclusion": "skipped",
+          "name": "CI 専用依存と補助 group を準備",
+          "number": 6,
+          "startedAt": "2026-11-17T22:02:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:21Z",
+          "conclusion": "skipped",
+          "name": "非root で全44件を3反復",
+          "number": 7,
+          "startedAt": "2026-11-17T22:02:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:21Z",
+          "conclusion": "skipped",
+          "name": "同じ条件のnamespace probeを3回測定",
+          "number": 8,
+          "startedAt": "2026-11-17T22:02:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:21Z",
+          "conclusion": "skipped",
+          "name": "namespaceオプションを一つずつ削減",
+          "number": 9,
+          "startedAt": "2026-11-17T22:02:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:21Z",
+          "conclusion": "failure",
+          "name": "専用準備なしで元argv・最小候補・対照を各3回測定",
+          "number": 10,
+          "startedAt": "2026-11-17T22:02:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:22Z",
+          "conclusion": "success",
+          "name": "成功・失敗の生証跡を保存",
+          "number": 11,
+          "startedAt": "2026-11-17T22:02:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:22Z",
+          "conclusion": "skipped",
+          "name": "Post Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 20,
+          "startedAt": "2026-11-17T22:02:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:22Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 21,
+          "startedAt": "2026-11-17T22:02:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:23Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 22,
+          "startedAt": "2026-11-17T22:02:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T22:02:23Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-11-17T22:02:23Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44185969872/job/134402473275"
+    },
+    {
+      "completedAt": "2026-11-17T22:02:32Z",
+      "conclusion": "skipped",
+      "databaseId": 134402671501,
+      "name": "両 architecture と履歴を照合",
+      "startedAt": "2026-11-17T22:02:33Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44185969872/job/134402671501"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/treflebonbon/skills/actions/runs/44185969872"
+}

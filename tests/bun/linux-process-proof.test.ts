@@ -844,7 +844,11 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
           "  ];",
           '  if (process.env.PROBE_JOURNAL_MODE === "truncated") while (entries.length < 101) entries.push(entry(stamp(entries.length + 1) + "apparmor=" + quote("DENIED") + " operation=" + quote("userns_create") + " pid=" + pid));',
           '  if (process.env.PROBE_JOURNAL_MODE === "null") process.stdout.write("null\\n");',
-          '  else if (process.env.PROBE_JOURNAL_MODE === "empty") process.stdout.write("");',
+          '  else if (process.env.PROBE_JOURNAL_MODE === "empty") process.exitCode = 1;',
+          '  else if (process.env.PROBE_JOURNAL_MODE === "empty-success") process.stdout.write("");',
+          '  else if (process.env.PROBE_JOURNAL_MODE === "other-error") { process.stderr.write("journalctl: unexpected failure\\n"); process.exitCode = 1; }',
+          '  else if (process.env.PROBE_JOURNAL_MODE === "partial-failure") { process.stdout.write(entries[1] + "\\n"); process.exitCode = 1; }',
+          '  else if (process.env.PROBE_JOURNAL_MODE === "other-exit") process.exitCode = 2;',
           '  else if (process.env.PROBE_JOURNAL_MODE === "permission-denied") { process.stderr.write("sudo: a password is required\\n"); process.exitCode = 1; }',
           '  else process.stdout.write(entries.join("\\n") + "\\n");',
           "}",
@@ -1009,6 +1013,34 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
       expect(sudoArgs).toContain("--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE");
       expect(probe.audit.events[0].messagePid).toBe(pid);
       expect(probe.audit.events[0].message).not.toContain("decoy");
+      const formalPartialOutput = join(directory, "formal-config-failure");
+      const formalPartialResult = execute(
+        formalPartialOutput,
+        { PROBE_GROUP_VALID: "1", PROBE_NIX_CONFIG_FAIL: "1" },
+        procPreload,
+      );
+      expect(formalPartialResult.error).toBeUndefined();
+      expect(formalPartialResult.status).toBe(1);
+      expect(formalPartialResult.stderr).toContain("fixture Nix config failure");
+      const formalPartial = JSON.parse(
+        fs.readFileSync(join(formalPartialOutput, "job.json"), "utf8"),
+      );
+      expect(formalPartial.error).toContain("fixture Nix config failure");
+      expect(formalPartial.trials).toEqual([]);
+      expect(formalPartial.preflight).toBeDefined();
+      expect(formalPartial.preflight.verified).toBe(false);
+      expect(formalPartial.preflight.errors).toEqual([formalPartial.error]);
+      expect(formalPartial.preflight.probe.pid).toBeGreaterThan(0);
+      expect(formalPartial.preflight.probe.status).toBe(1);
+      expect(formalPartial.preflight.probe.stderr).toBe(
+        "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+      );
+      expect(formalPartial.preflight.probe.audit.status).toBe("matched");
+      expect(formalPartial.preflight.tools.unshare.path).toBe(join(bin, "unshare"));
+      expect(formalPartial.preflight.contexts["/proc/self/status"]).toBeDefined();
+      expect(formalPartial.preflight.namespaces.user).toBeDefined();
+      expect(formalPartial.preflight.nix).toBeUndefined();
+      expect(formalPartial.preflight.group).toBeUndefined();
       const observeProbe = (name: string, mode: string) => {
         const evidenceDirectory = join(directory, name);
         fs.mkdirSync(evidenceDirectory);
@@ -1041,7 +1073,11 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
       expect(execTransition).toMatchObject({ status: "observed", startTicks: "100" });
       for (const [mode, expectedAuditStatus, expectedReason] of [
         ["null", "unavailable", "record-not-object"],
-        ["empty", "empty", undefined],
+        ["empty", "no-matching-events", undefined],
+        ["empty-success", "empty", undefined],
+        ["other-error", "unavailable", "journal-exit-1"],
+        ["partial-failure", "unavailable", "journal-exit-1"],
+        ["other-exit", "unavailable", "journal-exit-2"],
         ["permission-denied", "permission-denied", "journal-exit-1"],
       ] as const) {
         const evidenceDirectory = join(directory, mode + "-journal-evidence");
@@ -1057,6 +1093,14 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
         );
         expect(failedProbe.audit.status).toBe(expectedAuditStatus);
         expect(failedProbe.audit.reason).toBe(expectedReason);
+        if (mode === "empty") {
+          expect(failedProbe.audit.readStatus).toBe("no-matching-events");
+          expect(failedProbe.audit.recordCount).toBe(0);
+          expect(failedProbe.audit.events).toEqual([]);
+          expect(failedProbe.audit.command.argv).toContain(
+            "--grep=(^|[^[:alnum:]_])pid=" + failedProbe.pid + "([^[:alnum:]_]|$)",
+          );
+        }
         expect(result.stderr).not.toContain("Cannot read properties of null");
       }
       const successfulOutput = join(directory, "successful-evidence");

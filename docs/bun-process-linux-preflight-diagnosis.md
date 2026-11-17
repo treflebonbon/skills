@@ -57,3 +57,11 @@ namespace probe の拒否原因は未確定。失敗した CI VM は終了済み
 両 probe の PID・実際の開始／終了の範囲に一致する AppArmor の `AUDIT / userns_create` event が1件ずつ得られ、`unconfined` から `unprivileged_userns` への遷移を確認した。一方、直接の profile / capability 観測は間に合わず、取得した event は `DENIED` でもない。拒否原因の一意な確定には至っていない。
 
 実測版と同じ上流 util-linux 2.39.3 の実装では、`--fork` の子が UID mapping を書く。今回の audit 検索は起動した親 PID だけなので、子側の拒否 event を取りこぼす可能性がある。親子の対応付けと子側の証跡取得は次の診断設計に残る。詳細・一次資料・artifact の出典は実行記録にまとめた。[再現ループ](bun-process-linux-feedback-loop.md)は、後続の承認済み [run 44078199627](evidence/linux-namespace-loop/44078199627-1/README.md)でx64 / arm64とも3回同じEPERMとなった。前提検査は1回約0.22〜0.49秒。Phase 1は確認済みで、次はPhase 2の最小化を進める。環境起因と確定した履歴解決記録は追加せず、#33 と #82 の保留を維持する。
+
+## PR #87 の診断証跡に関する修正
+
+`journalctl --grep` の一致なしは終了コード1になる。[systemd v255の実装](https://raw.githubusercontent.com/systemd/systemd/v255/src/journal/journalctl.c)では、JSON出力がquietを有効にし、一致する記録が0件なら非0終了する。終了コード1・signalなし・stdout / stderrが空の場合を `no-matching-events` として記録し、読取拒否や別の非0終了と区別する。版を確認できない場合は従来どおり `unavailable` とする。PIDの `--grep`、時間窓、件数・timeout・出力上限は維持する。
+
+正式な `run` でも、probe / audit取得後にNix設定確認などが例外になった場合は、callbackで取得済みの部分観測を保持する。`preflight.verified = false`、`errors` に例外を保存し、`job.error` と空の `trials` を残す。部分観測を正式前提の成功として扱わない。
+
+CLI fixtureで、空結果の実際の終了コード1、空結果の終了コード0、拒否文言、別のstderr、部分出力を伴う非0終了、終了コード2を区別する。正式runの後続Nix設定失敗では、取得済みPID・stderr・auditが消える回帰を修正前に確認し、修正後の保存を検証する。

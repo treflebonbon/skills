@@ -391,7 +391,9 @@ function probeAudit(
       errorCode,
       context,
     );
-  if (result.status !== 0) {
+  const noMatches =
+    result.status === 1 && !result.signal && !(result.stdout ?? "").trim() && !stderr.trim();
+  if (result.status !== 0 && !noMatches) {
     const denied = /permission denied|not allowed|a password is required|no password/i.test(stderr);
     return unavailable(
       denied ? "permission-denied" : "unavailable",
@@ -404,11 +406,12 @@ function probeAudit(
     return unavailable("truncated", "record-limit", { ...context, recordCount: rows.length });
   if (rows.length === 0) {
     const versionUnavailable = version.status !== "recorded";
+    const readStatus = noMatches ? "no-matching-events" : "empty";
     return {
       ...context,
-      status: versionUnavailable ? "unavailable" : "empty",
+      status: versionUnavailable ? "unavailable" : readStatus,
       reason: versionUnavailable ? "journalctl-version-unavailable" : undefined,
-      readStatus: "empty",
+      readStatus,
       recordCount: 0,
       events: [],
     };
@@ -1027,7 +1030,19 @@ async function run(root: string, out: string) {
     Object.assign(job, identity(root));
     job.sources = sources(root);
     job.controllerHash = hash(fileURLToPath(import.meta.url));
-    job.preflight = await preflight(root);
+    try {
+      job.preflight = await preflight(root, (observed) => {
+        job.preflight = observed;
+      });
+    } catch (error) {
+      if (job.preflight)
+        job.preflight = {
+          ...(job.preflight as Record<string, unknown>),
+          verified: false,
+          errors: [String(error)],
+        };
+      throw error;
+    }
     const before = JSON.stringify(job.sources);
     if (!(job.preflight as { verified: boolean }).verified)
       throw new Error("前提検査未達のため実証を開始しません");

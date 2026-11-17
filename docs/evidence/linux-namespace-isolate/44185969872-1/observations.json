@@ -1,0 +1,464 @@
+{
+  "x64": {
+    "metadata": {
+      "schema": "linux-namespace-probe-isolate/v1",
+      "sourceSha": "a7ca9ca3c82fa4576c888d527c02cdf41c5ba7fc",
+      "workflowSha": "a7ca9ca3c82fa4576c888d527c02cdf41c5ba7fc",
+      "runId": "44185969872",
+      "attempt": 1,
+      "controllerHash": "aeea4e6232c6796dea41f25bba400ab1f5ac432d6470ebefd33962c6a5639b31",
+      "arch": "x64",
+      "kernel": "7.0.0-1014-aws",
+      "imageOS": "ubuntu24",
+      "imageVersion": "20261111.127.1",
+      "uid": 1001,
+      "euid": 1001,
+      "gid": 1001,
+      "groups": [4, 100, 117, 999, 1001],
+      "bun": "1.4.4",
+      "unshare": {
+        "path": "/usr/bin/unshare",
+        "hash": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c",
+        "version": "unshare from util-linux 2.39.3"
+      },
+      "setupAbsent": true,
+      "contexts": {
+        "/proc/self/uid_map": {
+          "value": "         0          0 4294967295\n"
+        },
+        "/proc/self/gid_map": {
+          "value": "         0          0 4294967295\n"
+        },
+        "/proc/self/attr/current": {
+          "value": "unconfined\n"
+        },
+        "/sys/module/apparmor/parameters/enabled": {
+          "value": "Y\n"
+        },
+        "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+          "value": "1\n"
+        },
+        "/proc/sys/kernel/unprivileged_userns_clone": {
+          "value": "1\n"
+        },
+        "/proc/sys/user/max_user_namespaces": {
+          "value": "55514\n"
+        }
+      }
+    },
+    "final": {
+      "outcome": "minimal-argv-reproduced"
+    },
+    "count": 9,
+    "cases": {
+      "original": [
+        {
+          "case": "original",
+          "repetition": 1,
+          "argv": [
+            "--user",
+            "--map-current-user",
+            "--pid",
+            "--fork",
+            "--kill-child=SIGKILL",
+            "--mount-proc",
+            "--",
+            "/usr/bin/true"
+          ],
+          "pid": 2509,
+          "startedAt": "2026-11-17T22:02:27.741Z",
+          "endedAt": "2026-11-17T22:02:27.746Z",
+          "elapsedMs": 4.904295999999999,
+          "status": 1,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "case": "original",
+          "repetition": 2,
+          "argv": [
+            "--user",
+            "--map-current-user",
+            "--pid",
+            "--fork",
+            "--kill-child=SIGKILL",
+            "--mount-proc",
+            "--",
+            "/usr/bin/true"
+          ],
+          "pid": 2511,
+          "startedAt": "2026-11-17T22:02:27.746Z",
+          "endedAt": "2026-11-17T22:02:27.747Z",
+          "elapsedMs": 1.5037599999999998,
+          "status": 1,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "case": "original",
+          "repetition": 3,
+          "argv": [
+            "--user",
+            "--map-current-user",
+            "--pid",
+            "--fork",
+            "--kill-child=SIGKILL",
+            "--mount-proc",
+            "--",
+            "/usr/bin/true"
+          ],
+          "pid": 2513,
+          "startedAt": "2026-11-17T22:02:27.747Z",
+          "endedAt": "2026-11-17T22:02:27.748Z",
+          "elapsedMs": 1.1740160000000017,
+          "status": 1,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outcome": "uid-map-eperm"
+        }
+      ],
+      "minimal": [
+        {
+          "case": "minimal",
+          "repetition": 1,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2515,
+          "startedAt": "2026-11-17T22:02:27.749Z",
+          "endedAt": "2026-11-17T22:02:27.749Z",
+          "elapsedMs": 0.9558300000000024,
+          "status": 1,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "case": "minimal",
+          "repetition": 2,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2516,
+          "startedAt": "2026-11-17T22:02:27.749Z",
+          "endedAt": "2026-11-17T22:02:27.750Z",
+          "elapsedMs": 1.001615000000001,
+          "status": 1,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "case": "minimal",
+          "repetition": 3,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2517,
+          "startedAt": "2026-11-17T22:02:27.751Z",
+          "endedAt": "2026-11-17T22:02:27.751Z",
+          "elapsedMs": 0.9372730000000047,
+          "status": 1,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outcome": "uid-map-eperm"
+        }
+      ],
+      "control": [
+        {
+          "case": "control",
+          "repetition": 1,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2518,
+          "startedAt": "2026-11-17T22:02:27.752Z",
+          "endedAt": "2026-11-17T22:02:27.753Z",
+          "elapsedMs": 1.019165000000001,
+          "status": 0,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "",
+          "outcome": "passed"
+        },
+        {
+          "case": "control",
+          "repetition": 2,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2519,
+          "startedAt": "2026-11-17T22:02:27.753Z",
+          "endedAt": "2026-11-17T22:02:27.754Z",
+          "elapsedMs": 1.4163950000000014,
+          "status": 0,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "",
+          "outcome": "passed"
+        },
+        {
+          "case": "control",
+          "repetition": 3,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2520,
+          "startedAt": "2026-11-17T22:02:27.754Z",
+          "endedAt": "2026-11-17T22:02:27.755Z",
+          "elapsedMs": 1.2314620000000005,
+          "status": 0,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "",
+          "outcome": "passed"
+        }
+      ]
+    }
+  },
+  "arm64": {
+    "metadata": {
+      "schema": "linux-namespace-probe-isolate/v1",
+      "sourceSha": "a7ca9ca3c82fa4576c888d527c02cdf41c5ba7fc",
+      "workflowSha": "a7ca9ca3c82fa4576c888d527c02cdf41c5ba7fc",
+      "runId": "44185969872",
+      "attempt": 1,
+      "controllerHash": "aeea4e6232c6796dea41f25bba400ab1f5ac432d6470ebefd33962c6a5639b31",
+      "arch": "arm64",
+      "kernel": "7.0.0-1017-azure",
+      "imageOS": "ubuntu24-arm64",
+      "imageVersion": "20261111.182.1",
+      "uid": 1001,
+      "euid": 1001,
+      "gid": 1001,
+      "groups": [4, 100, 118, 999, 1001],
+      "bun": "1.4.4",
+      "unshare": {
+        "path": "/usr/bin/unshare",
+        "hash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+        "version": "unshare from util-linux 2.39.3"
+      },
+      "setupAbsent": true,
+      "contexts": {
+        "/proc/self/uid_map": {
+          "value": "         0          0 4294967295\n"
+        },
+        "/proc/self/gid_map": {
+          "value": "         0          0 4294967295\n"
+        },
+        "/proc/self/attr/current": {
+          "value": "unconfined\n"
+        },
+        "/sys/module/apparmor/parameters/enabled": {
+          "value": "Y\n"
+        },
+        "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+          "value": "1\n"
+        },
+        "/proc/sys/kernel/unprivileged_userns_clone": {
+          "value": "1\n"
+        },
+        "/proc/sys/user/max_user_namespaces": {
+          "value": "58304\n"
+        }
+      }
+    },
+    "final": {
+      "outcome": "minimal-argv-reproduced"
+    },
+    "count": 9,
+    "cases": {
+      "original": [
+        {
+          "case": "original",
+          "repetition": 1,
+          "argv": [
+            "--user",
+            "--map-current-user",
+            "--pid",
+            "--fork",
+            "--kill-child=SIGKILL",
+            "--mount-proc",
+            "--",
+            "/usr/bin/true"
+          ],
+          "pid": 2586,
+          "startedAt": "2026-11-17T22:02:21.762Z",
+          "endedAt": "2026-11-17T22:02:21.766Z",
+          "elapsedMs": 4.569873999999999,
+          "status": 1,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "case": "original",
+          "repetition": 2,
+          "argv": [
+            "--user",
+            "--map-current-user",
+            "--pid",
+            "--fork",
+            "--kill-child=SIGKILL",
+            "--mount-proc",
+            "--",
+            "/usr/bin/true"
+          ],
+          "pid": 2588,
+          "startedAt": "2026-11-17T22:02:21.766Z",
+          "endedAt": "2026-11-17T22:02:21.767Z",
+          "elapsedMs": 1.5447130000000016,
+          "status": 1,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "case": "original",
+          "repetition": 3,
+          "argv": [
+            "--user",
+            "--map-current-user",
+            "--pid",
+            "--fork",
+            "--kill-child=SIGKILL",
+            "--mount-proc",
+            "--",
+            "/usr/bin/true"
+          ],
+          "pid": 2590,
+          "startedAt": "2026-11-17T22:02:21.768Z",
+          "endedAt": "2026-11-17T22:02:21.769Z",
+          "elapsedMs": 1.6526410000000027,
+          "status": 1,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outcome": "uid-map-eperm"
+        }
+      ],
+      "minimal": [
+        {
+          "case": "minimal",
+          "repetition": 1,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2592,
+          "startedAt": "2026-11-17T22:02:21.769Z",
+          "endedAt": "2026-11-17T22:02:21.770Z",
+          "elapsedMs": 1.1627670000000023,
+          "status": 1,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "case": "minimal",
+          "repetition": 2,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2593,
+          "startedAt": "2026-11-17T22:02:21.770Z",
+          "endedAt": "2026-11-17T22:02:21.771Z",
+          "elapsedMs": 0.9767410000000041,
+          "status": 1,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "case": "minimal",
+          "repetition": 3,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2594,
+          "startedAt": "2026-11-17T22:02:21.771Z",
+          "endedAt": "2026-11-17T22:02:21.773Z",
+          "elapsedMs": 1.1258939999999953,
+          "status": 1,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outcome": "uid-map-eperm"
+        }
+      ],
+      "control": [
+        {
+          "case": "control",
+          "repetition": 1,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2595,
+          "startedAt": "2026-11-17T22:02:21.773Z",
+          "endedAt": "2026-11-17T22:02:21.774Z",
+          "elapsedMs": 1.3151999999999973,
+          "status": 0,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "",
+          "outcome": "passed"
+        },
+        {
+          "case": "control",
+          "repetition": 2,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2596,
+          "startedAt": "2026-11-17T22:02:21.774Z",
+          "endedAt": "2026-11-17T22:02:21.776Z",
+          "elapsedMs": 1.826514000000003,
+          "status": 0,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "",
+          "outcome": "passed"
+        },
+        {
+          "case": "control",
+          "repetition": 3,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2597,
+          "startedAt": "2026-11-17T22:02:21.776Z",
+          "endedAt": "2026-11-17T22:02:21.777Z",
+          "elapsedMs": 1.313566999999999,
+          "status": 0,
+          "signal": null,
+          "outputTruncated": false,
+          "logTruncated": false,
+          "stdout": "",
+          "stderr": "",
+          "outcome": "passed"
+        }
+      ]
+    }
+  }
+}

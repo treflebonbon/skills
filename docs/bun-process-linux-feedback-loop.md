@@ -69,7 +69,7 @@ bun control/development/run-linux-process-proof.ts probe-minimize "$GITHUB_WORKS
 
 ## 次の独立測定: 専用準備stepを省く
 
-`probe-isolate SOURCE OUTPUT` とworkflowの `mode=probe-isolate` を追加した。これは新しい測定であり、以前拒否されたartifactを読み取らない。実VMでは未実行。
+`probe-isolate SOURCE OUTPUT` とworkflowの `mode=probe-isolate` を追加した。これは新しい測定であり、以前拒否されたartifactを読み取らない。[run 44185969872 / attempt 1](evidence/linux-namespace-isolate/44185969872-1/README.md) でx64 / arm64とも9回を測定し、元argvと最小候補は各3回EPERM、対照は各3回成功した。新しい公開ログでargv・stderrを直接確認済み。原因確定とPhase 2全体の完了は未認定。
 
 既存workflowの「CI専用依存と補助groupを準備」という1つのstepを省略する。Bun 1.4.4・Ubuntu 24.04・非rootは維持し、同じ選択実体で次を各3回、計9回測る。
 
