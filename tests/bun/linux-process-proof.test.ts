@@ -514,7 +514,28 @@ test("bundle の raw log・binary・closure の欠落や改変を成功にしな
         imageVersion: "fixture",
         environment: { PATH: "/bin", HOME: "/home/runner" },
         kernel: "fixture",
-        probe: { status: 0 },
+        probe: {
+          status: 0,
+          path: "/usr/bin/unshare",
+          argv: [
+            "--user",
+            "--map-current-user",
+            "--pid",
+            "--fork",
+            "--kill-child=SIGKILL",
+            "--mount-proc",
+            "--",
+            "/usr/bin/true",
+          ],
+          pid: 123,
+          startedAt: "2026-11-16T00:00:00.000Z",
+          endedAt: "2026-11-16T00:00:00.001Z",
+          processObservation: { status: "process-exited-before-sample", pid: 123 },
+          audit: {
+            status: "not-requested",
+            events: [],
+          },
+        },
         nix: {
           mode: "multi-user",
           remote: "daemon",
@@ -725,6 +746,189 @@ test.skipIf(process.platform !== "linux")(
       expect(missing.stderr).toContain("group file stat");
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform !== "linux")(
+  "run CLI は失敗 probe の実行体・監査観測を限定保存し終了状態を返す",
+  () => {
+    const root = fileURLToPath(new URL("../../", import.meta.url));
+    const directory = fs.mkdtempSync(join(tmpdir(), "linux-probe-cli-"));
+    const bin = join(directory, "bin");
+    const output = join(directory, "evidence");
+    const pidFile = join(directory, "probe.pid");
+    const argvFile = join(directory, "probe.argv");
+    const sudoArgsFile = join(directory, "sudo.argv");
+    fs.mkdirSync(bin);
+    fs.mkdirSync(output);
+    const executable = (name: string, source: string) => {
+      const path = join(bin, name);
+      fs.writeFileSync(path, "#!" + process.execPath + "\n" + source + "\n");
+      fs.chmodSync(path, 0o755);
+      return path;
+    };
+    try {
+      for (const name of ["cc", "nix-build", "nix-store", "setpriv", "bun", "python3"])
+        executable(name, 'process.stdout.write("fixture version\\n");');
+      executable(
+        "unshare",
+        [
+          'const fs = require("node:fs");',
+          'if (process.argv.includes("--version")) { process.stdout.write("unshare fixture\\n"); process.exit(0); }',
+          "fs.writeFileSync(process.env.PROBE_PID_FILE, String(process.pid));",
+          "fs.writeFileSync(process.env.PROBE_ARGV_FILE, JSON.stringify(process.argv.slice(2)));",
+          'if (process.env.PROBE_SUCCESS === "1") process.exit(0);',
+          'process.stderr.write("unshare: write failed /proc/self/uid_map: Operation not permitted\\n");',
+          "process.exitCode = 1;",
+        ].join("\n"),
+      );
+      executable(
+        "nix",
+        [
+          "const args = process.argv.slice(2);",
+          'if (args[0] === "--version") process.stdout.write("nix (Nix) 2.34.6\\n");',
+          'else if (args.includes("config")) process.stdout.write(JSON.stringify({ sandbox: { value: true }, "build-users-group": { value: "nixbld" } }) + "\\n");',
+          'else if (args.includes("ping")) process.stdout.write("{}\\n");',
+          "else process.exitCode = 1;",
+        ].join("\n"),
+      );
+      executable(
+        "sudo",
+        [
+          'const fs = require("node:fs");',
+          "const args = process.argv.slice(2);",
+          'if (args[0] === "--version") process.stdout.write("sudo fixture\\n");',
+          "else {",
+          "  fs.writeFileSync(process.env.PROBE_SUDO_ARGS_FILE, JSON.stringify(args));",
+          '  const since = new Date(args[args.indexOf("--since") + 1]).getTime();',
+          '  const until = new Date(args[args.indexOf("--until") + 1]).getTime();',
+          "  const timestamp = Math.floor((since + until) / 2);",
+          '  const pid = Number(fs.readFileSync(process.env.PROBE_PID_FILE, "utf8"));',
+          '  const entry = (message) => JSON.stringify({ _PID: "0", __REALTIME_TIMESTAMP: String(timestamp * 1000), MESSAGE: message });',
+          "  const quote = (value) => String.fromCharCode(34) + value + String.fromCharCode(34);",
+          '  const stamp = (sequence) => "audit(" + (timestamp / 1000).toFixed(3) + ":" + sequence + "): ";',
+          "  const entries = [",
+          '    entry(stamp(1) + "apparmor=" + quote("DENIED") + " operation=" + quote("userns_create") + " info=" + quote("pid=" + pid) + " pid=" + (pid + 1) + " comm=" + quote("decoy")),',
+          '    entry(stamp(2) + "apparmor=" + quote("DENIED") + " operation=" + quote("userns_create") + " pid=" + pid + " comm=" + quote("unshare")),',
+          '    entry(stamp(3) + "apparmor=" + quote("DENIED") + " operation=" + quote("userns_create") + " pid=" + (pid + 1) + " comm=" + quote("other"))',
+          "  ];",
+          '  if (process.env.PROBE_JOURNAL_MODE === "truncated") while (entries.length < 101) entries.push(entry(stamp(entries.length + 1) + "apparmor=" + quote("DENIED") + " operation=" + quote("userns_create") + " pid=" + pid));',
+          '  process.stdout.write(entries.join("\\n") + "\\n");',
+          "}",
+        ].join("\n"),
+      );
+      fs.symlinkSync(Bun.which("git")!, join(bin, "git"));
+      const group = join(directory, "group-data");
+      fs.writeFileSync(group, "fixture\n", { mode: 0o600 });
+      const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" });
+      expect(head.status).toBe(0);
+      const cli = join(root, "development/run-linux-process-proof.ts");
+      const env = {
+        ...process.env,
+        PATH: bin + ":" + process.env.PATH,
+        PROOF_SOURCE_SHA: head.stdout.trim(),
+        PROOF_ARCH: process.arch === "arm64" ? "arm64" : "x64",
+        GITHUB_SHA: head.stdout.trim(),
+        GITHUB_RUN_ID: "42",
+        GITHUB_RUN_ATTEMPT: "1",
+        ImageOS: process.arch === "arm64" ? "ubuntu24-arm64" : "ubuntu24",
+        ImageVersion: "fixture",
+        NIX_REMOTE: "daemon",
+        PROCESS_PROOF_NIX_BASH: "/nix/store/fixture-bash",
+        PROCESS_PROOF_NIX_STDENV: "/nix/store/fixture-stdenv",
+        PROCESS_PROOF_GROUP_FILE: group,
+        PROCESS_PROOF_GROUP_GID: "60000",
+        PROBE_PID_FILE: pidFile,
+        PROBE_ARGV_FILE: argvFile,
+        PROBE_SUDO_ARGS_FILE: sudoArgsFile,
+      };
+      const execute = (evidenceDirectory: string, extraEnv: NodeJS.ProcessEnv = {}) =>
+        spawnSync(process.execPath, [cli, "run", root, evidenceDirectory], {
+          cwd: root,
+          encoding: "utf8",
+          timeout: 20_000,
+          env: { ...env, ...extraEnv },
+        });
+      const result = execute(output);
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("前提検査未達のため実証を開始しません");
+      const job = JSON.parse(fs.readFileSync(join(output, "job.json"), "utf8"));
+      const probe = job.preflight.probe;
+      const pid = Number(fs.readFileSync(pidFile, "utf8"));
+      expect(probe.pid).toBe(pid);
+      expect(probe.argv).toEqual([
+        "--user",
+        "--map-current-user",
+        "--pid",
+        "--fork",
+        "--kill-child=SIGKILL",
+        "--mount-proc",
+        "--",
+        "/usr/bin/true",
+      ]);
+      expect(JSON.parse(fs.readFileSync(argvFile, "utf8"))).toEqual(probe.argv);
+      expect(probe.status).toBe(1);
+      expect(probe.stdout).toBe("");
+      expect(probe.stderr).toBe(
+        "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+      );
+      expect(Date.parse(probe.startedAt)).toBeLessThanOrEqual(Date.parse(probe.endedAt));
+      expect(["process-exited-before-sample", "exe-mismatch"]).toContain(
+        probe.processObservation.status,
+      );
+      expect(probe.processObservation.pid).toBe(pid);
+      expect(probe.processObservation.profile).toBeUndefined();
+      expect(probe.processObservation.capabilities).toBeUndefined();
+      expect(probe.audit.status).toBe("matched");
+      expect(probe.audit.reader.path).toBe("/usr/bin/journalctl");
+      expect(probe.audit.reader.hash).toMatch(/^[a-f0-9]{64}$/);
+      expect(probe.audit.reader.version.status).toBe("recorded");
+      expect(probe.audit.reader.version.argv).toEqual(["--version"]);
+      expect(probe.audit.reader.version.value).toContain("systemd");
+      expect(probe.audit.command.path).toBe(join(bin, "sudo"));
+      expect(probe.audit.command.argv).toContain(
+        "--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE",
+      );
+      expect(probe.audit.events).toHaveLength(1);
+      expect(probe.audit.events[0].journalPid).toBe("0");
+      expect(probe.audit.events[0].message).toContain("pid=" + pid);
+      expect(probe.audit.events[0].message).toContain('operation="userns_create"');
+      const sudoArgs = JSON.parse(fs.readFileSync(sudoArgsFile, "utf8"));
+      expect(sudoArgs).toContain("/usr/bin/journalctl");
+      expect(sudoArgs).toContain("--dmesg");
+      expect(sudoArgs).toContain("--grep=pid=" + pid + "([^0-9]|$)");
+      expect(sudoArgs).toContain("--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE");
+      expect(probe.audit.events[0].messagePid).toBe(pid);
+      expect(probe.audit.events[0].message).not.toContain("decoy");
+      const successfulOutput = join(directory, "successful-evidence");
+      fs.mkdirSync(successfulOutput);
+      fs.rmSync(sudoArgsFile, { force: true });
+      const successfulResult = execute(successfulOutput, { PROBE_SUCCESS: "1" });
+      expect(successfulResult.error).toBeUndefined();
+      expect(successfulResult.status).toBe(1);
+      const successfulProbe = JSON.parse(
+        fs.readFileSync(join(successfulOutput, "job.json"), "utf8"),
+      ).preflight.probe;
+      expect(successfulProbe.status).toBe(0);
+      expect(successfulProbe.audit.status).toBe("not-requested");
+      expect(successfulProbe.audit.events).toEqual([]);
+      expect(fs.existsSync(sudoArgsFile)).toBe(false);
+      const truncatedOutput = join(directory, "truncated-evidence");
+      fs.mkdirSync(truncatedOutput);
+      const truncatedResult = execute(truncatedOutput, { PROBE_JOURNAL_MODE: "truncated" });
+      expect(truncatedResult.error).toBeUndefined();
+      expect(truncatedResult.status).toBe(1);
+      const truncatedProbe = JSON.parse(fs.readFileSync(join(truncatedOutput, "job.json"), "utf8"))
+        .preflight.probe;
+      expect(truncatedProbe.audit.status).toBe("truncated");
+      expect(truncatedProbe.audit.reason).toBe("record-limit");
+      expect(truncatedProbe.audit.recordCount).toBe(101);
+      expect(truncatedProbe.audit.events).toEqual([]);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
     }
   },
 );

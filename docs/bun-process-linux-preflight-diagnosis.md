@@ -28,6 +28,20 @@ lib/bun/run test tests/bun/linux-process-proof.test.ts --test-name-pattern 'bund
 
 Ubuntu の AppArmor は user namespace の使用とその中の capability を制限できる。ただし、その一般仕様だけで今回の VM の拒否原因が確定するわけではない。[Ubuntu Security Team の説明](https://discourse.ubuntu.com/t/understanding-apparmor-user-namespace-restriction/58007)を参照した。
 
+## 2026-11-17 の追加診断観測
+
+失敗probeの証跡を増やすため、development/run-linux-process-proof.ts は既存の非root条件、継承環境と次のargvを保ったまま、probeのPID・開始／終了時刻・終了状態・stdout／stderrを保存する。
+
+**--user --map-current-user --pid --fork --kill-child=SIGKILL --mount-proc -- /usr/bin/true**
+
+probe出力はstdout／stderrごと32 MiBで打ち切り、超過時は ENOBUFS として前提未達にする。実行中は同じPIDの /proc/<pid>/stat 開始時刻と exe を前後で照合し、実体が選択済み unshare と一致した場合だけprofile、UID／GID／groups、CapInh／Prm／Eff／Bnd／Amb、NoNewPrivs／Seccompを保存する。短命で観測できない、PID／実行体が変化した、権限で読めない場合は状態を記録する。callerの値を代用しない。
+
+失敗したprobeに限って、終了後に既存sudoを通じて固定実体の journalctl を読み取り専用で呼ぶ。対象はkernel journal、probeの開始／終了から各1秒の範囲、--grep=pid=<PID>([^0-9]|$)、--lines=101、5秒のtimeout、256 KiBの出力上限に絞る。MESSAGE内の一意なtop-level pid field（引用文字列内を除く）と時刻を照合し、journalの _PID は対応付けに使わない。JSONの出力fieldは __REALTIME_TIMESTAMP、_PID、MESSAGE に限定し、一致したaudit eventだけをartifactへ保存する。audit行は最大20件、各messageは4096文字までとし、上限超過を明示する。成功probeでは特権journal参照を行わず not-requested と記録する。
+
+journalctlは非rootで --version を取得し、選択実体のpath／SHA-256、版取得状態、sudoに渡したargvを記録する。取得できない場合もaudit不足として残す。取得結果の状態は matched、no-matching-events、empty、permission-denied、truncated、timeout、unavailable などに分ける。空の結果や取得失敗から拒否原因を推定しない。無関係なkernel log本文は保存しない。
+
+保護されたローカルfixtureでCLIのstdout／stderr／終了状態と job.json を読み、PID・argv・auditのPID／時刻照合、引用文字列と別PIDの除外、101件時の切詰め状態を確認する。正式VMで取得した証跡ではないため、#33 の原因判定には使わない。
+
 ## 未確定事項と次の調査条件
 
 namespace probe の拒否原因は未確定。失敗した CI VM は終了済みで、同じ拒否が起きる再現ループを現環境では構築できていない。現段階では仮説の検証や、環境原因が解決済みという認定へ進まない。
