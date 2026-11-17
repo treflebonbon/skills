@@ -1,0 +1,12 @@
+{
+  "verified": false,
+  "reasons": [
+    "architecture 別の job 記録は2件必要です",
+    "x64: job が1件必要です",
+    "x64: 反復1・2・3が必要です",
+    "arm64: job が1件必要です",
+    "arm64: 反復1・2・3が必要です",
+    "x64: Error: source・前提検査・controller の証跡が不正です",
+    "arm64: Error: source・前提検査・controller の証跡が不正です"
+  ]
+}

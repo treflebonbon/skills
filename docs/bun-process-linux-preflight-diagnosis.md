@@ -48,4 +48,12 @@ namespace probe の拒否原因は未確定。失敗した CI VM は終了済み
 
 次回は、正式実証の条件を変えず、失敗した probe の PID / 時刻と結び付く kernel audit event、およびその process の実効 AppArmor profile / capability を得る必要がある。caller の状態だけで代用しない。読取り権限や取得可能性も未確認であり、取得できない場合はその不足を記録する。root で試験本体を実行する変更、sysctl / LSM の緩和、別 binary / profile への切替は行わない。
 
-今回の image 修正は harness の変更なので、次の正式実証は新しい source SHA で x64 / arm64 の一組を測定する。workflow の再実行・新規 dispatch、追加の権限付与は行っていない。今回の run の未達判定と履歴を維持し、履歴解決記録も追加していない。#33 は OPEN、#82 は #33 待ち、macOS の Bun 移行は保留のままとする。
+今回の image 修正は harness の変更なので、次の正式実証は新しい source SHA で x64 / arm64 の一組を測定する。この診断追加の実装時点では新規 dispatch を実行していない。後続の承認済み実行は次節に記録する。今回の run の未達判定と履歴を維持し、履歴解決記録も追加していない。#33 は OPEN、#82 は #33 待ち、macOS の Bun 移行は保留のままとする。
+
+## 2026-11-17 の追加実証結果
+
+承認された [run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) は、source / workflow SHA を `d7087d4b5eebebc3157791b09ca1395e76c0a7f7` に固定して1回実行した。両構成とも約5ミリ秒の probe が `uid_map` 書込みの EPERM で終了し、試験本体は0件。arm64 の image 不一致エラーは今回はない。
+
+両 probe の PID・実際の開始／終了の範囲に一致する AppArmor の `AUDIT / userns_create` event が1件ずつ得られ、`unconfined` から `unprivileged_userns` への遷移を確認した。一方、直接の profile / capability 観測は間に合わず、取得した event は `DENIED` でもない。拒否原因の一意な確定には至っていない。
+
+実測版と同じ上流 util-linux 2.39.3 の実装では、`--fork` の子が UID mapping を書く。今回の audit 検索は起動した親 PID だけなので、子側の拒否 event を取りこぼす可能性がある。親子の対応付けと子側の証跡取得は次の診断設計に残る。詳細・一次資料・artifact の出典は実行記録にまとめた。環境起因と確定した履歴解決記録は追加せず、#33 と #82 の保留を維持する。

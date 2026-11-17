@@ -1,0 +1,448 @@
+[
+  {
+    "rawJob": {
+      "artifact": "linux-proof-44049468642-1-x64",
+      "file": "job.json",
+      "bytes": 24714,
+      "sha256": "5e73f430ad2ec2c5a52f25e9654fcaa2727c4afb323f37bfa4687b1dfd20fc92"
+    },
+    "schema": "linux-process-proof-job/v1",
+    "arch": "x64",
+    "sourceSha": "d7087d4b5eebebc3157791b09ca1395e76c0a7f7",
+    "workflowSha": "d7087d4b5eebebc3157791b09ca1395e76c0a7f7",
+    "runId": "44049468642",
+    "attempt": 1,
+    "controllerHash": "b1b1500cdd6fa964c557737cb5718cef287b6f82078538697f29b83395398b9c",
+    "trials": [],
+    "preflight": {
+      "verified": false,
+      "errors": ["同じ条件の namespace 前提検査が失敗しました。拒否原因は未確定です"],
+      "platform": "linux",
+      "arch": "x64",
+      "kernel": "7.0.0-1014-aws",
+      "imageOS": "ubuntu24",
+      "imageVersion": "20261111.127.1",
+      "tools": {
+        "cc": {
+          "path": "/usr/bin/x86_64-linux-gnu-gcc-13",
+          "hash": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26",
+          "version": "x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+        },
+        "unshare": {
+          "path": "/usr/bin/unshare",
+          "hash": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c",
+          "version": "unshare from util-linux 2.39.3"
+        },
+        "nix": {
+          "path": "/nix/store/3km45gzvnpin7xddlm9gpj5fac4wvjvn-nix-2.34.6/bin/nix",
+          "hash": "8293bf7cf93ca9e75961b6acbc3be59830dbc9259b7fd7fbb18756c49d7340b7",
+          "version": "nix (Nix) 2.34.6"
+        },
+        "nix-build": {
+          "path": "/nix/store/3km45gzvnpin7xddlm9gpj5fac4wvjvn-nix-2.34.6/bin/nix",
+          "hash": "8293bf7cf93ca9e75961b6acbc3be59830dbc9259b7fd7fbb18756c49d7340b7",
+          "version": "nix (Nix) 2.34.6"
+        },
+        "nix-store": {
+          "path": "/nix/store/3km45gzvnpin7xddlm9gpj5fac4wvjvn-nix-2.34.6/bin/nix",
+          "hash": "8293bf7cf93ca9e75961b6acbc3be59830dbc9259b7fd7fbb18756c49d7340b7",
+          "version": "nix (Nix) 2.34.6"
+        },
+        "setpriv": {
+          "path": "/usr/bin/setpriv",
+          "hash": "62ec0120791f3afcfb689fed52384ec2b0accc6e118a6b9a1d6fcfa7450aaf37",
+          "version": "setpriv from util-linux 2.39.3"
+        },
+        "bun": {
+          "path": "/home/runner/.bun/bin/bun",
+          "hash": "10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235",
+          "version": "1.4.4"
+        },
+        "sudo": {
+          "path": "/usr/bin/sudo",
+          "hash": "6ae6665cc51295ea8aaba94a3377dafa563f950aafc6296c0704fb33401a31ff",
+          "version": "Sudo version 1.9.15p5"
+        },
+        "python3": {
+          "path": "/usr/bin/python3.12",
+          "hash": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f",
+          "version": "Python 3.12.3"
+        },
+        "git": {
+          "path": "/usr/bin/git",
+          "hash": "08ca4d2ee4d8915e86f1faaa52603752507c57af1d16d451dec9992bc9b6d801",
+          "version": "git version 2.56.1"
+        },
+        "bash": {
+          "path": "/usr/bin/bash",
+          "hash": "bc5945feb8bd26203ebfafea5ce1878bb2e32cb8fb50ab7ae395cfb1e1aaaef1",
+          "version": "GNU bash, version 5.2.21(1)-release (x86_64-pc-linux-gnu)"
+        }
+      },
+      "contexts": {
+        "/proc/self/status": {
+          "value": "Name:\tbun\nUmask:\t0022\nState:\tR (running)\nTgid:\t4142\nNgid:\t0\nPid:\t4142\nPPid:\t4141\nTracerPid:\t0\nUid:\t1001\t1001\t1001\t1001\nGid:\t1001\t1001\t1001\t1001\nFDSize:\t1024\nGroups:\t4 100 117 999 1001 \nNStgid:\t4142\nNSpid:\t4142\nNSpgid:\t1941\nNSsid:\t1941\nKthread:\t0\nVmPeak:\t10598328 kB\nVmSize:\t 6637092 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t  152028 kB\nVmRSS:\t  151196 kB\nRssAnon:\t  122260 kB\nRssFile:\t   28936 kB\nRssShmem:\t       0 kB\nVmData:\t 6332748 kB\nVmStk:\t     136 kB\nVmExe:\t   79832 kB\nVmLib:\t    2268 kB\nVmPTE:\t     556 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t12\nSigQ:\t0/55514\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000001001000\nSigCgt:\t00000001600004f8\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\tf\nCpus_allowed_list:\t0-3\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t111\nnonvoluntary_ctxt_switches:\t1\nx86_Thread_features:\t\nx86_Thread_features_locked:\t\n"
+        },
+        "/proc/self/uid_map": {
+          "value": "         0          0 4294967295\n"
+        },
+        "/proc/self/gid_map": {
+          "value": "         0          0 4294967295\n"
+        },
+        "/proc/self/attr/current": {
+          "value": "unconfined\n"
+        },
+        "/sys/kernel/security/lsm": {
+          "value": "lockdown,capability,landlock,yama,apparmor,ima,evm"
+        },
+        "/sys/module/apparmor/parameters/enabled": {
+          "value": "Y\n"
+        },
+        "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+          "value": "1\n"
+        },
+        "/proc/sys/kernel/unprivileged_userns_clone": {
+          "value": "1\n"
+        },
+        "/proc/sys/user/max_user_namespaces": {
+          "value": "55514\n"
+        }
+      },
+      "namespaces": {
+        "user": "user:[4026531837]",
+        "pid": "pid:[4026531836]",
+        "mnt": "mnt:[4026531832]"
+      },
+      "probe": {
+        "path": "/usr/bin/unshare",
+        "argv": [
+          "--user",
+          "--map-current-user",
+          "--pid",
+          "--fork",
+          "--kill-child=SIGKILL",
+          "--mount-proc",
+          "--",
+          "/usr/bin/true"
+        ],
+        "pid": 4183,
+        "startedAt": "2026-11-17T08:46:09.407Z",
+        "endedAt": "2026-11-17T08:46:09.412Z",
+        "status": 1,
+        "signal": null,
+        "stdout": "",
+        "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+        "outputTruncated": false,
+        "processObservation": {
+          "status": "process-exited-before-sample",
+          "pid": 4183,
+          "startTicks": "19833"
+        },
+        "audit": {
+          "reader": {
+            "path": "/usr/bin/journalctl",
+            "hash": "0b08431236d5c8249b42994c00b401b3c093dee837e0465a53658057820d05b7",
+            "version": {
+              "status": "recorded",
+              "argv": ["--version"],
+              "value": "systemd 255 (255.4-1ubuntu8.18)"
+            }
+          },
+          "window": {
+            "since": "2026-11-17T08:46:08.407Z",
+            "until": "2026-11-17T08:46:10.412Z"
+          },
+          "command": {
+            "path": "/usr/bin/sudo",
+            "argv": [
+              "-n",
+              "--",
+              "/usr/bin/journalctl",
+              "--dmesg",
+              "--since",
+              "2026-11-17T08:46:08.407Z",
+              "--until",
+              "2026-11-17T08:46:10.412Z",
+              "--grep=(^|[^[:alnum:]_])pid=4183([^[:alnum:]_]|$)",
+              "--output=json",
+              "--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE",
+              "--no-pager",
+              "--lines=101"
+            ]
+          },
+          "status": "matched",
+          "readStatus": "matched",
+          "recordCount": 1,
+          "events": [
+            {
+              "timestamp": "2026-11-17T08:46:09.411Z",
+              "messagePid": 4183,
+              "message": "audit: type=1400 audit(1794905169.408:128): apparmor=\"AUDIT\" operation=\"userns_create\" class=\"namespace\" info=\"Userns create - transitioning profile\" profile=\"unconfined\" pid=4183 comm=\"unshare\" requested=\"userns_create\" target=\"unprivileged_userns\" execpath=\"/usr/bin/unshare\"",
+              "messageTruncated": false
+            }
+          ]
+        }
+      },
+      "nix": {
+        "mode": "multi-user",
+        "remote": "daemon",
+        "sandbox": true,
+        "buildUsersGroup": "nixbld",
+        "daemon": {
+          "status": 0,
+          "signal": null,
+          "stdout": "{\"trusted\":false,\"url\":\"daemon\",\"version\":\"2.34.6\"}\n",
+          "stderr": "warning: 'ping' is a deprecated alias for 'info'\nwarning: ignoring the client-specified setting 'store', because it is a restricted setting and you are not a trusted user\n"
+        },
+        "bash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+        "stdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux"
+      },
+      "group": {
+        "path": "/home/runner/work/_temp/group-proof.Ep0QLs/data",
+        "ownerUid": 0,
+        "gid": 30001,
+        "mode": 48,
+        "dev": "64512",
+        "ino": "4538610"
+      },
+      "environment": {
+        "PATH": "/home/runner/.bun/bin:/home/runner/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+        "HOME": "/home/runner",
+        "NIX_REMOTE": "daemon",
+        "PROCESS_PROOF_NIX_BASH": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+        "PROCESS_PROOF_NIX_STDENV": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
+        "PROCESS_PROOF_GROUP_FILE": "/home/runner/work/_temp/group-proof.Ep0QLs/data",
+        "PROCESS_PROOF_GROUP_GID": "30001"
+      },
+      "uid": 1001,
+      "euid": 1001,
+      "gid": 1001,
+      "groups": [4, 100, 117, 999, 1001],
+      "bun": "1.4.4"
+    },
+    "error": "Error: 前提検査未達のため実証を開始しません"
+  },
+  {
+    "rawJob": {
+      "artifact": "linux-proof-44049468642-1-arm64",
+      "file": "job.json",
+      "bytes": 24371,
+      "sha256": "d89de211dae426936b1f66a61afe36f12d969eeb75875dd44aa2d04a0e7d7ba5"
+    },
+    "schema": "linux-process-proof-job/v1",
+    "arch": "arm64",
+    "sourceSha": "d7087d4b5eebebc3157791b09ca1395e76c0a7f7",
+    "workflowSha": "d7087d4b5eebebc3157791b09ca1395e76c0a7f7",
+    "runId": "44049468642",
+    "attempt": 1,
+    "controllerHash": "b1b1500cdd6fa964c557737cb5718cef287b6f82078538697f29b83395398b9c",
+    "trials": [],
+    "preflight": {
+      "verified": false,
+      "errors": ["同じ条件の namespace 前提検査が失敗しました。拒否原因は未確定です"],
+      "platform": "linux",
+      "arch": "arm64",
+      "kernel": "7.0.0-1017-azure",
+      "imageOS": "ubuntu24-arm64",
+      "imageVersion": "20261111.182.1",
+      "tools": {
+        "cc": {
+          "path": "/usr/bin/aarch64-linux-gnu-gcc-13",
+          "hash": "a20520ee21543f243d40636a9181a142c45ecd989de31ab86b99a8ea5ada870d",
+          "version": "aarch64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+        },
+        "unshare": {
+          "path": "/usr/bin/unshare",
+          "hash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+          "version": "unshare from util-linux 2.39.3"
+        },
+        "nix": {
+          "path": "/nix/store/ryr7lng2ippsrqlf7vh03f9ramad33id-nix-2.34.6/bin/nix",
+          "hash": "d183e83922b12bd2b0d76a40c10aa10cd5ac066037f3b394013401184cafb2dd",
+          "version": "nix (Nix) 2.34.6"
+        },
+        "nix-build": {
+          "path": "/nix/store/ryr7lng2ippsrqlf7vh03f9ramad33id-nix-2.34.6/bin/nix",
+          "hash": "d183e83922b12bd2b0d76a40c10aa10cd5ac066037f3b394013401184cafb2dd",
+          "version": "nix (Nix) 2.34.6"
+        },
+        "nix-store": {
+          "path": "/nix/store/ryr7lng2ippsrqlf7vh03f9ramad33id-nix-2.34.6/bin/nix",
+          "hash": "d183e83922b12bd2b0d76a40c10aa10cd5ac066037f3b394013401184cafb2dd",
+          "version": "nix (Nix) 2.34.6"
+        },
+        "setpriv": {
+          "path": "/usr/bin/setpriv",
+          "hash": "9922bc8da40cd9f1024beae714aee76c2b7d2abac563391235f32e30141d35da",
+          "version": "setpriv from util-linux 2.39.3"
+        },
+        "bun": {
+          "path": "/home/runner/.bun/bin/bun",
+          "hash": "354c2b049c716aca07b2e5cddb887928ac58950675d1258bb6312083917793b6",
+          "version": "1.4.4"
+        },
+        "sudo": {
+          "path": "/usr/bin/sudo",
+          "hash": "0a6e94862dad3a28e5e2e73aeb41bb23c829f19817dbdc8caab8cb3bc561cb67",
+          "version": "Sudo version 1.9.15p5"
+        },
+        "python3": {
+          "path": "/usr/bin/python3.12",
+          "hash": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+          "version": "Python 3.12.3"
+        },
+        "git": {
+          "path": "/usr/bin/git",
+          "hash": "d97f40df79a102f9b0449f9e6e1455e783770417f7776377a77902cdea8c4b19",
+          "version": "git version 2.56.1"
+        },
+        "bash": {
+          "path": "/usr/bin/bash",
+          "hash": "af955ef55333c8fc9c5aa50df91ad1a629d9a79a9afa125cd5e9629585f78015",
+          "version": "GNU bash, version 5.2.21(1)-release (aarch64-unknown-linux-gnu)"
+        }
+      },
+      "contexts": {
+        "/proc/self/status": {
+          "value": "Name:\tbun\nUmask:\t0022\nState:\tR (running)\nTgid:\t4671\nNgid:\t0\nPid:\t4671\nPPid:\t4670\nTracerPid:\t0\nUid:\t1001\t1001\t1001\t1001\nGid:\t1001\t1001\t1001\t1001\nFDSize:\t1024\nGroups:\t4 100 118 999 1001 \nNStgid:\t4671\nNSpid:\t4671\nNSpgid:\t2500\nNSsid:\t2500\nKthread:\t0\nVmPeak:\t10075636 kB\nVmSize:\t 6115060 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t  159320 kB\nVmRSS:\t  159320 kB\nRssAnon:\t  135164 kB\nRssFile:\t   24156 kB\nRssShmem:\t       0 kB\nVmData:\t 5810552 kB\nVmStk:\t     136 kB\nVmExe:\t   81920 kB\nVmLib:\t    2344 kB\nVmPTE:\t     608 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffff\nThreads:\t12\nSigQ:\t0/58304\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000001001000\nSigCgt:\t00000001600004f8\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tunknown\nCpus_allowed:\tf\nCpus_allowed_list:\t0-3\nMems_allowed:\t00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t94\nnonvoluntary_ctxt_switches:\t3\n"
+        },
+        "/proc/self/uid_map": {
+          "value": "         0          0 4294967295\n"
+        },
+        "/proc/self/gid_map": {
+          "value": "         0          0 4294967295\n"
+        },
+        "/proc/self/attr/current": {
+          "value": "unconfined\n"
+        },
+        "/sys/kernel/security/lsm": {
+          "value": "lockdown,capability,landlock,yama,apparmor,ima,evm"
+        },
+        "/sys/module/apparmor/parameters/enabled": {
+          "value": "Y\n"
+        },
+        "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+          "value": "1\n"
+        },
+        "/proc/sys/kernel/unprivileged_userns_clone": {
+          "value": "1\n"
+        },
+        "/proc/sys/user/max_user_namespaces": {
+          "value": "58304\n"
+        }
+      },
+      "namespaces": {
+        "user": "user:[4026531837]",
+        "pid": "pid:[4026531836]",
+        "mnt": "mnt:[4026531832]"
+      },
+      "probe": {
+        "path": "/usr/bin/unshare",
+        "argv": [
+          "--user",
+          "--map-current-user",
+          "--pid",
+          "--fork",
+          "--kill-child=SIGKILL",
+          "--mount-proc",
+          "--",
+          "/usr/bin/true"
+        ],
+        "pid": 4712,
+        "startedAt": "2026-11-17T08:46:16.278Z",
+        "endedAt": "2026-11-17T08:46:16.283Z",
+        "status": 1,
+        "signal": null,
+        "stdout": "",
+        "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+        "outputTruncated": false,
+        "processObservation": {
+          "status": "process-exited-before-sample",
+          "pid": 4712,
+          "startTicks": "13369"
+        },
+        "audit": {
+          "reader": {
+            "path": "/usr/bin/journalctl",
+            "hash": "5b26f3b172aa9fd840e7938a8910499953e0ac0c261dd0c6e872fad24d9d14d8",
+            "version": {
+              "status": "recorded",
+              "argv": ["--version"],
+              "value": "systemd 255 (255.4-1ubuntu8.18)"
+            }
+          },
+          "window": {
+            "since": "2026-11-17T08:46:15.278Z",
+            "until": "2026-11-17T08:46:17.283Z"
+          },
+          "command": {
+            "path": "/usr/bin/sudo",
+            "argv": [
+              "-n",
+              "--",
+              "/usr/bin/journalctl",
+              "--dmesg",
+              "--since",
+              "2026-11-17T08:46:15.278Z",
+              "--until",
+              "2026-11-17T08:46:17.283Z",
+              "--grep=(^|[^[:alnum:]_])pid=4712([^[:alnum:]_]|$)",
+              "--output=json",
+              "--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE",
+              "--no-pager",
+              "--lines=101"
+            ]
+          },
+          "status": "matched",
+          "readStatus": "matched",
+          "recordCount": 1,
+          "events": [
+            {
+              "timestamp": "2026-11-17T08:46:16.280Z",
+              "messagePid": 4712,
+              "message": "audit: type=1400 audit(1794905176.279:126): apparmor=\"AUDIT\" operation=\"userns_create\" class=\"namespace\" info=\"Userns create - transitioning profile\" profile=\"unconfined\" pid=4712 comm=\"unshare\" requested=\"userns_create\" target=\"unprivileged_userns\" execpath=\"/usr/bin/unshare\"",
+              "messageTruncated": false
+            }
+          ]
+        }
+      },
+      "nix": {
+        "mode": "multi-user",
+        "remote": "daemon",
+        "sandbox": true,
+        "buildUsersGroup": "nixbld",
+        "daemon": {
+          "status": 0,
+          "signal": null,
+          "stdout": "{\"trusted\":false,\"url\":\"daemon\",\"version\":\"2.34.6\"}\n",
+          "stderr": "warning: 'ping' is a deprecated alias for 'info'\nwarning: ignoring the client-specified setting 'store', because it is a restricted setting and you are not a trusted user\n"
+        },
+        "bash": "/nix/store/wgxz9zr5a70v52nkqinbarf56f1c5jsi-bash-interactive-5.3p15",
+        "stdenv": "/nix/store/33x3cyc63b5v4wwavz2hlxj60rzh6fq2-stdenv-linux"
+      },
+      "group": {
+        "path": "/home/runner/work/_temp/group-proof.SOpZHa/data",
+        "ownerUid": 0,
+        "gid": 30001,
+        "mode": 48,
+        "dev": "2049",
+        "ino": "1349578"
+      },
+      "environment": {
+        "PATH": "/home/runner/.bun/bin:/home/runner/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+        "HOME": "/home/runner",
+        "NIX_REMOTE": "daemon",
+        "PROCESS_PROOF_NIX_BASH": "/nix/store/wgxz9zr5a70v52nkqinbarf56f1c5jsi-bash-interactive-5.3p15",
+        "PROCESS_PROOF_NIX_STDENV": "/nix/store/33x3cyc63b5v4wwavz2hlxj60rzh6fq2-stdenv-linux",
+        "PROCESS_PROOF_GROUP_FILE": "/home/runner/work/_temp/group-proof.SOpZHa/data",
+        "PROCESS_PROOF_GROUP_GID": "30001"
+      },
+      "uid": 1001,
+      "euid": 1001,
+      "gid": 1001,
+      "groups": [4, 100, 118, 999, 1001],
+      "bun": "1.4.4"
+    },
+    "error": "Error: 前提検査未達のため実証を開始しません"
+  }
+]
