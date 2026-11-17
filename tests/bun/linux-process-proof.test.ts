@@ -1239,6 +1239,12 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
         expect(last.removed).toBeUndefined();
         expect(last.argv).toEqual(minimized.remainingArgv);
         expect(last.outcome).toBe("uid-map-eperm");
+        for (const repetition of last.repetitions) {
+          expect(repetition.status).toBe(1);
+          expect(repetition.stderr).toBe(
+            "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          );
+        }
         if (variant === "other-failure") {
           expect(evidence.outcome).toBe("unavailable");
           expect(minimized.error).toContain(
