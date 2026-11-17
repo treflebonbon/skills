@@ -95,6 +95,8 @@ run名は `Linux namespace 独立測定: <source SHA>`、artifact名は `namespa
 
 ## 次の最小化: Bun callerを外す
 
+[run 44199074826 / attempt 1](evidence/linux-namespace-caller/44199074826-1/README.md) で、両構成ともBunとNodeの最小argvが各3回同じEPERM、対照が各3回成功した。この条件でBunは再現に必須ではない。継承環境全体とOS / LSMなどの最小化・原因確定は未完了。
+
 `mode=probe-caller` はNode.jsを比較の親として、同じ `development/probe-linux-namespace-caller.mjs` をBun 1.4.4とrunner導入済みNode.js（22以上）で順番に起動する。Node.js側にはBunを祖先として残さない。新しい依存のinstallは行わない。専用Nix/group準備は省略し、両runtimeへ同じ親の継承環境を渡す。環境変数全体や認証値は保存しない。
 
 各runtimeは同じ `spawnSync` API・cwd・stdio・timeout・出力上限で、最小argv `--map-current-user -- /usr/bin/true` と対照 `-- /usr/bin/true` を各3回実行する。最大12回/architecture。前の独立測定とは起動APIも異なるため、Bun側で同じEPERMを再確認することを比較の前提とする。
