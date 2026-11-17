@@ -2,6 +2,8 @@
 
 調査日: 2026-11-15
 
+macOS 15 の対象版 source を固定した2026-11-17の[追調査](macos-preparation-containment-research.md)に、coalition の権限・terminate の意味、候補ごとの不足条件と実証へ進める条件をまとめた。
+
 ユーザーは全子孫の5秒保証を維持して再設計する方針を承認した。以下は方式の候補と追加実証であり、各 OS での採用成功を示すものではない。その後の設計対話 Q1〜Q3 と全体の共有理解を確認し、必要実証の成功を条件とした Linux／WSL2 の `unshare` 実行時依存、macOS 15 を含む現行範囲の維持、macOS の特権 monitor 追加案の除外と Bun 移行の保留を確定した。方針の正本は [ADR 0003](adr/0003-os-specific-preparation-containment.md)とする。
 
 ## 前提と調査境界
