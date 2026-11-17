@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -59,11 +59,24 @@ export const chromium={connectOverCDP:async()=>{
     }})};
 }};\n`);
   await writeFile(github, `#!/usr/bin/env node
-const args=process.argv.slice(2);
-if(args.includes("--method"))throw new Error("Unexpected GitHub mutation");
-if(args.includes("user"))process.stdout.write("fixture-user");
-else if(args.includes("--paginate"))process.stdout.write("");
-else process.stdout.write(JSON.stringify({number:42,base:{repo:{full_name:"owner/repo"}}}));
+const fs=require("node:fs"), args=process.argv.slice(2);
+if(args[0]==="pr" && args[1]==="comment" && args[2]==="--help"){
+  console.log("      --attach file");
+}else if(args[0]==="pr" && args[1]==="comment"){
+  fs.appendFileSync(process.env.FIXTURE_POSTS,"post\\n");
+  const body=fs.readFileSync(args[args.indexOf("--body-file")+1],"utf8")
+    .replaceAll(args[args.indexOf("--attach")+1],"https://github.com/user-attachments/assets/recovered");
+  const html_url="https://github.com/owner/repo/pull/42#issuecomment-1";
+  fs.writeFileSync(process.env.FIXTURE_COMMENTS,JSON.stringify({body,html_url}));
+  process.stdout.write(html_url);
+}else if(args[0]==="api"){
+  const stage=args.includes("--paginate")?"history":args.includes("user")?"user":"target";
+  if(process.env.FIXTURE_GH_FAILURE===stage){console.error("fixture-gh-"+stage+"-failed");process.exit(42);}
+  if(stage==="user")process.stdout.write("fixture-user");
+  else if(stage==="history"){
+    if(fs.existsSync(process.env.FIXTURE_COMMENTS))process.stdout.write(fs.readFileSync(process.env.FIXTURE_COMMENTS));
+  }else process.stdout.write(JSON.stringify({number:42,base:{repo:{full_name:"owner/repo"}}}));
+}else throw new Error("Unexpected GitHub command");
 `, { mode: 0o700 });
   await writeFile(
     ownerCommand,
@@ -86,6 +99,9 @@ const result=require("node:child_process").spawnSync(${JSON.stringify(owner)},ar
     BROWSER_ATTACHMENTS_GH: github,
     FIXTURE_STATE: state,
     FIXTURE_OWNER_CALLS: ownerCalls,
+    FIXTURE_IMAGE: image,
+    FIXTURE_POSTS: path.join(temporary, "posts"),
+    FIXTURE_COMMENTS: path.join(temporary, "comments.json"),
   };
   const execute = (program, args, overrides = {}) => spawnSync(program, args, {
     encoding: "utf8",
@@ -159,7 +175,7 @@ test("終了済み Chrome の close は同じ identity の実行可能な復旧�
   assert.equal(await readFile(path.join(scenario.profile, "authentication"), "utf8"), "fixture-authentication\n");
 });
 
-test("4つの添付操作が復旧案内だけでは記録と既存データを変更しない", async (t) => {
+test("3つのブラウザ操作が復旧案内だけでは記録と既存データを変更しない", async (t) => {
   const scenario = await fixture(t);
   const before = scenario.ownerStatus();
   const other = scenario.otherStatus();
@@ -169,7 +185,6 @@ test("4つの添付操作が復旧案内だけでは記録と既存データを�
     ["close"],
     ["auth"],
     ["upload", "--repo", "owner/repo", "--pr", "42", "--image", scenario.image, "--placeholder", "PLACE", "--request-id", "upload-original"],
-    ["comment", "--repo", "owner/repo", "--pr", "42", "--image", scenario.image, "--body-file", scenario.body, "--request-id", "comment-original"],
   ];
   for (const request of requests) {
     const result = scenario.attachment(...request);
@@ -257,41 +272,40 @@ test("起動未完了の close も案内を示し、生存中の予約は明示�
   assert.ok(scenario.ownerStatus() === before);
 });
 
-for (const [stage, reason] of [
-  ["status", "fixture-owner-status-failed"],
-  ["inspect", "fixture-inspection-failed"],
-]) {
-  test(`コメントの ${stage} 事前確認が失敗しても同じ request-id で再試行できる`, async (t) => {
+for (const stage of ["target", "history"]) {
+  test(`GitHub の ${stage} 事前照会失敗は同じ依頼で再開しブラウザを変更しない`, async (t) => {
     const scenario = await fixture(t);
     const before = scenario.ownerStatus();
+    const inputs = new Map(await Promise.all([scenario.image, scenario.receipt, path.join(scenario.profile, "authentication")]
+      .map(async (filename) => [filename, await readFile(filename, "utf8")])));
+    await writeFile(scenario.body, `fixture-comment\n![Evidence](${scenario.image})\n`);
+    const body = await readFile(scenario.body, "utf8");
     const request = ["comment", "--repo", "owner/repo", "--pr", "42", "--image", scenario.image,
       "--body-file", scenario.body, "--request-id", "preflight-original"];
-    if (stage === "status") scenario.environment.FIXTURE_OWNER_FAILURE = "status";
-    else await writeFile(scenario.state, "query-failed\n");
+    scenario.environment.FIXTURE_GH_FAILURE = stage;
+    scenario.environment.FIXTURE_OWNER_FAILURE = "status";
+    await writeFile(scenario.state, "query-failed\n");
     const failed = scenario.attachment(...request);
     assert.equal(failed.status, 1);
-    assert.ok(failed.stderr.includes(reason), "意図した事前確認の失敗を報告する");
-    const directory = path.join(scenario.ownership, "attachments");
-    const receipts = (await readdir(directory)).filter((name) => name.startsWith("comment-") && name.endsWith(".json"));
-    assert.equal(receipts.length, 1);
-    const receipt = path.join(directory, receipts[0]);
-    assert.equal(JSON.parse(await readFile(receipt, "utf8")).phase, "ready", "送信前の失敗は再試行可能な状態へ戻す");
-    assert.match(failed.stderr, /^browser-attachments: ownership-conflict:/m);
-    assert.ok(scenario.ownerStatus() === before);
-    delete scenario.environment.FIXTURE_OWNER_FAILURE;
-    await writeFile(scenario.state, "absent\n");
-    const recover = failed.stderr.split("\n").find((line) => line.startsWith("BROWSER_OWNERSHIP_DIR=") && line.endsWith(" recover"));
-    assert.ok(recover);
-    assert.equal(scenario.execute("sh", ["-c", recover]).status, 0);
-    assert.equal(scenario.attachment("close").status, 0);
+    assert.match(failed.stderr, /preflight-failed:/);
+    assert.equal(await stat(scenario.environment.FIXTURE_POSTS).then(() => true, () => false), false);
+    assert.equal(await readFile(scenario.ownerCalls, "utf8"), "");
+    assert.equal(scenario.ownerStatus(), before);
+    delete scenario.environment.FIXTURE_GH_FAILURE;
     const retried = scenario.attachment(...request);
-    assert.equal(retried.status, 1);
-    assert.ok(retried.stderr.includes("authentication-required:"), "同じ依頼で事前確認を通過して認証確認まで進む");
-    assert.ok(!retried.stderr.includes("upload-unconfirmed:"));
-    const saved = JSON.parse(await readFile(receipt, "utf8"));
-    assert.equal(saved.phase, "ready");
-    assert.deepEqual(saved.assets, []);
-    assert.equal(scenario.attachment("close").status, 0);
+    assert.equal(retried.status, 0, retried.stderr);
+    const result = JSON.parse(retried.stdout);
+    assert.equal(result.state, "complete");
+    assert.equal(result.comment, "https://github.com/owner/repo/pull/42#issuecomment-1");
+    const reused = scenario.attachment(...request);
+    assert.equal(reused.status, 0, reused.stderr);
+    assert.equal(JSON.parse(reused.stdout).reused, true);
+    assert.equal(await readFile(scenario.environment.FIXTURE_POSTS, "utf8"), "post\n");
+    assert.equal(await readFile(scenario.ownerCalls, "utf8"), "");
+    assert.equal(scenario.ownerStatus(), before);
+    assert.equal(await readFile(scenario.state, "utf8"), "query-failed\n");
+    assert.equal(await readFile(scenario.body, "utf8"), body);
+    for (const [filename, contents] of inputs) assert.equal(await readFile(filename, "utf8"), contents);
   });
 }
 

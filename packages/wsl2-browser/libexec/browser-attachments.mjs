@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /* eslint-disable no-await-in-loop -- Lifecycle readiness and confirmed-stop polling must be sequential. */
 import { execFile } from "node:child_process";
-import fs from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
@@ -24,10 +23,7 @@ const run = async (command, args) => {
 };
 const root = path.resolve(
   process.env.BROWSER_OWNERSHIP_DIR ||
-    path.join(
-      process.env.XDG_RUNTIME_DIR || process.env.TMPDIR || "/tmp",
-      "browser-ownership"
-    )
+    path.join(process.env.XDG_RUNTIME_DIR || process.env.TMPDIR || "/tmp", "browser-ownership"),
 );
 const directory = path.join(root, "attachments");
 const ownerCommand =
@@ -42,7 +38,7 @@ const { positionals, values } = parseArgs({
       ["repo", "pr", "placeholder", "request-id", "body-file"].map((key) => [
         key,
         { type: "string" },
-      ])
+      ]),
     ),
     image: { multiple: true, type: "string" },
   },
@@ -50,7 +46,7 @@ const { positionals, values } = parseArgs({
 const [command] = positionals;
 if (!["upload", "comment", "auth", "close"].includes(command)) {
   throw new Error(
-    "Usage: browser-attachments upload --repo owner/repo --pr NUMBER --image PATH --placeholder TEXT --request-id ID | comment --repo owner/repo --pr NUMBER --image PATH [--image PATH] --body-file PATH --request-id ID | auth | close"
+    "Usage: browser-attachments upload --repo owner/repo --pr NUMBER --image PATH --placeholder TEXT --request-id ID | comment --repo owner/repo --pr NUMBER --image PATH [--image PATH] --body-file MARKDOWN --request-id ID | auth | close",
   );
 }
 if (
@@ -58,22 +54,24 @@ if (
   (!/^[\w.-]+\/[\w.-]+$/u.test(values.repo || "") ||
     !/^[1-9][0-9]*$/u.test(values.pr || "") ||
     !values.image?.length ||
-    (command === "upload" &&
-      (values.image.length !== 1 || !values.placeholder)) ||
-    (command === "comment" && !values["body-file"]) ||
+    (command === "upload" && (values.image.length !== 1 || !values.placeholder)) ||
+    (command === "comment" && (!values["body-file"] || values["body-file"] === "-")) ||
     !values["request-id"])
 ) {
   throw new Error(
-    "upload requires repo, pr, one image, placeholder and request-id; comment requires repo, pr, images, body-file and request-id"
+    "upload requires repo, pr, one image, placeholder and request-id; comment requires repo, pr, images, a saved Markdown body-file and request-id",
   );
 }
-const modulePath = process.env.BROWSER_ATTACHMENTS_PLAYWRIGHT;
-if (!modulePath) {
-  throw new Error(
-    "Use the package's browser-attachments entrypoint so the pinned Playwright runtime can be resolved.",
-  );
+let chromium;
+if (command !== "comment") {
+  const modulePath = process.env.BROWSER_ATTACHMENTS_PLAYWRIGHT;
+  if (!modulePath) {
+    throw new Error(
+      "Use the package's browser-attachments entrypoint so the pinned Playwright runtime can be resolved.",
+    );
+  }
+  chromium = (await import(modulePath)).chromium;
 }
-const { chromium } = await import(modulePath);
 let allocation;
 const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
 const ownershipError = (message, cause) => {
@@ -85,14 +83,13 @@ const ownershipError = (message, cause) => {
   ];
   const command = `${environment.join(" ")} ${quote(ownerCommand)} --identity ${quote(allocation.identity)}`;
   return new Error(
-    `${message}\nInspect the recorded owner:\n${command} status\nExplicit recovery checks that Chrome has stopped and preserves the profile:\n${command} recover\nAfter recovery, resume close/auth and retry uploads or comments with the same request-id.`,
-    { cause }
+    `${message}\nInspect the recorded owner:\n${command} status\nExplicit recovery checks that Chrome has stopped and preserves the profile:\n${command} recover\nAfter recovery, resume close/auth and retry uploads with the same request-id.`,
+    { cause },
   );
 };
 const ps = async (action, mode) => {
   let script =
-    process.env.PWCLI_WINDOWS_SCRIPT ||
-    fileURLToPath(new URL("windows.ps1", import.meta.url));
+    process.env.PWCLI_WINDOWS_SCRIPT || fileURLToPath(new URL("windows.ps1", import.meta.url));
   if (!/^[A-Za-z]:/u.test(script)) {
     script = await run(process.env.PWCLI_WSLPATH || "wslpath", ["-w", script]);
   }
@@ -139,9 +136,7 @@ const connect = async () => {
       await delay(200);
     }
   }
-  throw ownershipError(
-    "cdp-unavailable: dedicated attachment browser did not become reachable"
-  );
+  throw ownershipError("cdp-unavailable: dedicated attachment browser did not become reachable");
 };
 const ensure = (mode) =>
   withBrowserLock(path.join(directory, "startup.lock"), async () => {
@@ -149,7 +144,7 @@ const ensure = (mode) =>
     if (status) {
       if (status.phase !== "active" || status.mode !== mode) {
         throw ownershipError(
-          "ownership-conflict: attachment browser has a different mode or incomplete startup; preserve it and inspect status"
+          "ownership-conflict: attachment browser has a different mode or incomplete startup; preserve it and inspect status",
         );
       }
       return status;
@@ -167,22 +162,16 @@ const ensure = (mode) =>
       "--profile",
       allocation.profile,
       "--endpoint",
-      allocation.endpoint
+      allocation.endpoint,
     );
     try {
       const state = await run(powershell(), await ps("Inspect"));
       if (state !== "absent") {
         throw new Error(
-          "ownership-conflict: existing browser or endpoint has no matching attachment owner; close the conflicting Chrome, then retry"
+          "ownership-conflict: existing browser or endpoint has no matching attachment owner; close the conflicting Chrome, then retry",
         );
       }
-      await scoped(
-        "run",
-        token,
-        "--",
-        powershell(),
-        ...(await ps("Start", mode))
-      );
+      await scoped("run", token, "--", powershell(), ...(await ps("Start", mode)));
       const browser = await connect();
       await browser.close();
       await scoped("activate", token);
@@ -195,135 +184,101 @@ const ensure = (mode) =>
     }
   });
 try {
-  const located = await owner("locate", "--role", "attachment");
-  const fields = located.split("\t");
-  allocation = { endpoint: fields[2], identity: fields[0], profile: fields[1] };
-  await withBrowserLock(
-    path.join(directory, "requests.lock"),
-    async () => {
-      if (command === "close") {
-        const status = JSON.parse(await scoped("status"));
-        if (!status) {
-          return;
-        }
-        if (status.phase !== "active") {
-          throw ownershipError(
-            "ownership-conflict: inspect incomplete startup before closing"
-          );
-        }
-        await scoped("activate", status.token);
-        const browser = await connect();
-        try {
-          const session = await browser.newBrowserCDPSession();
-          await session.send("Browser.close").catch((error) => {
-            if (!error.message.includes("closed")) {
-              throw error;
-            }
-          });
-        } finally {
-          await browser.close();
-        }
-        for (let n = 0; n < 30; n += 1) {
-          if ((await inspect()) === "absent") {
-            await scoped("release", status.token);
+  if (command === "comment") {
+    const result = await commentEvidence({
+      bodyFile: values["body-file"],
+      directory,
+      github,
+      images: values.image,
+      pr: values.pr,
+      repo: values.repo,
+      requestId: values["request-id"],
+    });
+    console.log(JSON.stringify(result));
+    if (result.state !== "complete") {
+      process.exitCode = 1;
+    }
+  } else {
+    const located = await owner("locate", "--role", "attachment");
+    const fields = located.split("\t");
+    allocation = { endpoint: fields[2], identity: fields[0], profile: fields[1] };
+    await withBrowserLock(
+      path.join(directory, "requests.lock"),
+      async () => {
+        if (command === "close") {
+          const status = JSON.parse(await scoped("status"));
+          if (!status) {
             return;
           }
-          await delay(200);
+          if (status.phase !== "active") {
+            throw ownershipError("ownership-conflict: inspect incomplete startup before closing");
+          }
+          await scoped("activate", status.token);
+          const browser = await connect();
+          try {
+            const session = await browser.newBrowserCDPSession();
+            await session.send("Browser.close").catch((error) => {
+              if (!error.message.includes("closed")) {
+                throw error;
+              }
+            });
+          } finally {
+            await browser.close();
+          }
+          for (let n = 0; n < 30; n += 1) {
+            if ((await inspect()) === "absent") {
+              await scoped("release", status.token);
+              return;
+            }
+            await delay(200);
+          }
+          throw ownershipError("close-unconfirmed: attachment browser ownership was preserved");
         }
-        throw ownershipError(
-          "close-unconfirmed: attachment browser ownership was preserved"
-        );
-      }
-      if (command === "comment") {
-        const result = await commentEvidence({
-          body: await fs.readFile(values["body-file"], "utf-8"),
+        const mode = command === "auth" ? "headed" : "headless";
+        const existing = await ensure(mode);
+        if (existing) {
+          const observed = await inspect();
+          if (observed !== `managed:${mode}:${existing.browserPid}`) {
+            throw ownershipError(
+              "ownership-conflict: attachment browser identity changed; consumer preserved",
+            );
+          }
+        }
+        if (command === "auth") {
+          const browser = await connect();
+          try {
+            const page = await browser.contexts()[0].newPage();
+            await page.goto("https://github.com/settings/profile");
+          } finally {
+            await browser.close();
+          }
+          console.log(
+            "Complete authentication in the dedicated Chrome, then run browser-attachments close. Uploads use headless mode.",
+          );
+          return;
+        }
+        const result = await attachEvidenceToPullRequestBody({
           directory,
           github,
-          images: values.image,
+          image: values.image[0],
+          placeholder: values.placeholder,
           pr: values.pr,
           repo: values.repo,
           requestId: values["request-id"],
-          upload: async (image) => {
-            try {
-              const existing = await ensure("headless");
-              if (
-                existing &&
-                (await inspect()) !==
-                  `managed:headless:${existing.browserPid}`
-              ) {
-                throw ownershipError(
-                  "ownership-conflict: attachment browser identity changed"
-                );
-              }
-            } catch (error) {
-              if (error.message.startsWith("ownership-conflict:")) {
-                throw error;
-              }
-              throw new Error(
-                `ownership-conflict: attachment browser preflight failed: ${error.message}`,
-                { cause: error }
-              );
-            }
+          withUploadContext: async (action) => {
             const browser = await connect();
             try {
-              return await uploadEvidence(browser.contexts()[0], {
-                comment: true,
-                image,
-                pr: values.pr,
-                repo: values.repo,
-              });
+              return await action(browser.contexts()[0]);
             } finally {
               await browser.close();
             }
           },
         });
         console.log(JSON.stringify(result));
-        return;
-      }
-      const mode = command === "auth" ? "headed" : "headless";
-      const existing = await ensure(mode);
-      if (existing) {
-        const observed = await inspect();
-        if (observed !== `managed:${mode}:${existing.browserPid}`) {
-          throw ownershipError(
-            "ownership-conflict: attachment browser identity changed; consumer preserved"
-          );
-        }
-      }
-      if (command === "auth") {
-        const browser = await connect();
-        try {
-          const page = await browser.contexts()[0].newPage();
-          await page.goto("https://github.com/settings/profile");
-        } finally {
-          await browser.close();
-        }
-        console.log(
-          "Complete authentication in the dedicated Chrome, then run browser-attachments close. Uploads use headless mode."
-        );
-        return;
-      }
-      const result = await attachEvidenceToPullRequestBody({
-        directory,
-        github,
-        image: values.image[0],
-        placeholder: values.placeholder,
-        pr: values.pr,
-        repo: values.repo,
-        requestId: values["request-id"],
-        withUploadContext: async (action) => {
-          const browser = await connect();
-          try {
-            return await action(browser.contexts()[0]);
-          } finally {
-            await browser.close();
-          }
-        },
-      });
-      console.log(JSON.stringify(result));
-    },
-    ["upload", "comment"].includes(command)
-  );
+      },
+      command === "upload",
+    );
+  }
 } catch (error) {
   console.error(`browser-attachments: ${error.message}`);
   process.exitCode = 1;
