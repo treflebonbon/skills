@@ -346,7 +346,7 @@ export const commentEvidence = async ({
     );
   const safeReason = (error) => {
     const message = String(error?.message || "");
-    if (/^target-conflict:/u.test(message)) return message;
+    if (/^(?:target-conflict|dependency-missing):/u.test(message)) return message;
     if (error?.code === "ENOENT") return "GitHub CLI gh or an input file was not found.";
     if (/401|authentication|not logged in/iu.test(message)) {
       return "GitHub CLI authentication is required.";
@@ -421,12 +421,21 @@ export const commentEvidence = async ({
           assets[expected.imageIndex] = postedDestination;
         } else {
           missing.push(imagePaths[expected.imageIndex]);
-          if (postedDestination !== unwrap(expected.destination)) {
-            explanationMatches = false;
-          }
         }
       } else if (posted[2] !== expected.destination) {
         explanationMatches = false;
+      }
+    }
+    const assetCounts = new Map();
+    for (const asset of assets) {
+      if (asset) assetCounts.set(asset, (assetCounts.get(asset) || 0) + 1);
+    }
+    let duplicateAssets = false;
+    for (let index = 0; index < assets.length; index += 1) {
+      if (assetCounts.get(assets[index]) > 1) {
+        duplicateAssets = true;
+        assets[index] = null;
+        missing.push(imagePaths[index]);
       }
     }
     const canonical = (text) => {
@@ -445,11 +454,13 @@ export const commentEvidence = async ({
     const reason =
       state === "complete"
         ? null
-        : explanationMatches
-          ? uploaded
-            ? "Some requested images were not attached."
-            : "The comment was found, but no requested image was attached."
-          : "The saved explanation or image placement could not be fully verified.";
+        : duplicateAssets
+          ? "The same attachment URL was used for multiple requested images."
+          : explanationMatches
+            ? uploaded
+              ? "Some requested images were not attached."
+              : "The comment was found, but no requested image was attached."
+            : "The saved explanation or image placement could not be fully verified.";
     return result(state, target, comment.html_url, assets, uniqueMissing, reason, reused);
   };
   const receiptPhase = { complete: "complete", partial: "partial", failed: "failed-posted" };
@@ -529,6 +540,14 @@ export const commentEvidence = async ({
     let existing;
     try {
       existing = await query();
+      if (!existing && !mayHavePosted) {
+        const help = await github(["pr", "comment", "--help"]);
+        if (!/--attach\b/u.test(help)) {
+          throw new Error(
+            "dependency-missing: install GitHub CLI with gh pr comment --attach support (verified with 2.102.0)",
+          );
+        }
+      }
     } catch (error) {
       if (mayHavePosted) {
         receipt.phase = "query-failed";
@@ -575,15 +594,34 @@ export const commentEvidence = async ({
         false,
       );
     }
-    const temporaryBody = path.join(directory, "comment-" + randomUUID() + ".md");
-    const commentBody = normalizedBody.trimEnd() + "\n\n" + marker + "\n";
-    await fs.writeFile(temporaryBody, commentBody, {
-      flag: "wx",
-      mode: 0o600,
-    });
+    const snapshotDirectory = await fs.mkdtemp(path.join(directory, "comment-images-"));
+    const snapshotImages = imagePaths.map((image, index) =>
+      path.join(snapshotDirectory, index + path.extname(image)),
+    );
+    const temporaryBody = path.join(snapshotDirectory, "body.md");
     let sentOutput = "";
     let sendError;
     try {
+      await Promise.all(
+        snapshotImages.map((image, index) =>
+          fs.writeFile(image, buffers[index], { flag: "wx", mode: 0o600 }),
+        ),
+      );
+      let referenceIndex = 0;
+      const uploadBody = normalizedBody.replace(
+        /!\[([^\]\n]*)\]\((<[^>\n]+>|[^)\n]+)\)/gu,
+        (full, alt) => {
+          const imageIndex = references[referenceIndex++].imageIndex;
+          if (imageIndex < 0) return full;
+          const image = snapshotImages[imageIndex];
+          const destination = /[\s()<>]/u.test(image) ? "<" + image + ">" : image;
+          return "![" + alt + "](" + destination + ")";
+        },
+      );
+      await fs.writeFile(temporaryBody, uploadBody.trimEnd() + "\n\n" + marker + "\n", {
+        flag: "wx",
+        mode: 0o600,
+      });
       receipt.phase = "posting";
       receipt.reason = null;
       await save();
@@ -596,14 +634,14 @@ export const commentEvidence = async ({
           repo,
           "--body-file",
           temporaryBody,
-          ...imagePaths.flatMap((image) => ["--attach", image]),
+          ...snapshotImages.flatMap((image) => ["--attach", image]),
         ]);
       } catch (error) {
         sendError = error;
         sentOutput = error.stdout || "";
       }
     } finally {
-      await fs.unlink(temporaryBody).catch(() => {});
+      await fs.rm(snapshotDirectory, { recursive: true, force: true });
     }
     const sentUrl = outputUrl(sentOutput);
     let posted;

@@ -60,10 +60,12 @@ export const chromium={connectOverCDP:async()=>{
 }};\n`);
   await writeFile(github, `#!/usr/bin/env node
 const fs=require("node:fs"), args=process.argv.slice(2);
-if(args[0]==="pr" && args[1]==="comment"){
+if(args[0]==="pr" && args[1]==="comment" && args[2]==="--help"){
+  console.log("      --attach file");
+}else if(args[0]==="pr" && args[1]==="comment"){
   fs.appendFileSync(process.env.FIXTURE_POSTS,"post\\n");
   const body=fs.readFileSync(args[args.indexOf("--body-file")+1],"utf8")
-    .replaceAll(process.env.FIXTURE_IMAGE,"https://github.com/user-attachments/assets/recovered");
+    .replaceAll(args[args.indexOf("--attach")+1],"https://github.com/user-attachments/assets/recovered");
   const html_url="https://github.com/owner/repo/pull/42#issuecomment-1";
   fs.writeFileSync(process.env.FIXTURE_COMMENTS,JSON.stringify({body,html_url}));
   process.stdout.write(html_url);

@@ -49,6 +49,6 @@ BROWSER_ATTACHMENTS="$("$SKILL_ROOT/scripts/browser-tool-path" browser-attachmen
 
 CLI の `partial`、`failed`、`unknown` は未完了として扱い、終了コードも確認します。結果 JSON には対象 PR、コメント URL、画像 path、原稿 path、不足画像、理由が含まれます。画像と原稿は元の場所に保持し、receipt も削除しません。
 
-`partial` は一部画像だけが掲載された状態です。同じ request ID で再実行すると投稿済みコメントを照会します。自動で不足分を追加せず、補完する場合は明示的な別依頼にします。`unknown` は送信結果や照会結果が確定できない状態です。receipt と PR コメントを調べ、投稿済みか判定できるまで再送や別 ID での投稿を行いません。`request-conflict` は同じ ID を別の repository・PR・原稿・画像に使ったことを示すため、保存済み依頼を確認します。
+`partial` は画像の一部が未確認、または画像がすべてあっても説明文・配置を検証できない状態です。`reason` と `missing` を確認し、画像不足と説明文・配置の不一致を区別します。同じ request ID で再実行すると投稿済みコメントを照会します。自動で補完・修正せず、必要な場合は明示的な別依頼にします。`unknown` は送信結果や照会結果が確定できない状態です。receipt と PR コメントを調べ、投稿済みか判定できるまで再送や別 ID での投稿を行いません。`request-conflict` は同じ ID を別の repository・PR・原稿・画像に使ったことを示すため、保存済み依頼を確認します。
 
 認証や repository 権限が不足しても旧ブラウザ経路へ切り替えません。`gh auth status` と対象 repository の push 権限を確認し、原因を解消してから元の画像・原稿・request ID で再開します。認証値は表示しません。完了報告には対象 PR、コメント URL または失敗理由、比較可能だったか、残したファイルの絶対 path を含めます。

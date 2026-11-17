@@ -142,11 +142,13 @@ prepare_comment_fixture() {
   export COMMENT_FIXTURE="$BATS_TEST_TMPDIR/comments.json"
   export GH_CALLS="$BATS_TEST_TMPDIR/gh-post-calls"
   export GH_API_CALLS="$BATS_TEST_TMPDIR/gh-api-calls"
+  export COMMENT_SENT_IMAGES="$BATS_TEST_TMPDIR/sent-images"
+  export COMMENT_MUTATE_IMAGE=0
   export COMMENT_LOOKUP_COUNT="$BATS_TEST_TMPDIR/lookup-count"
   export COMMENT_FAIL_USER=0 COMMENT_FAIL_LOOKUP_ON=0 COMMENT_WRONG_TARGET=0
   export COMMENT_ATTACH_LIMIT=2 COMMENT_DROP_RESPONSE=0 COMMENT_POST_EXIT=0
   export COMMENT_POST_ERROR='connection reset by peer'
-  export COMMENT_HIDE_THROUGH=0 COMMENT_NO_POST=0
+  export COMMENT_HIDE_THROUGH=0 COMMENT_NO_POST=0 COMMENT_NO_ATTACH=0
   printf '[]\n' >"$COMMENT_FIXTURE"
   printf 'before image\n' >"$BATS_TEST_TMPDIR/before.png"
   printf 'after image\n' >"$BATS_TEST_TMPDIR/after.png"
@@ -194,8 +196,13 @@ elif [[ "$1" == api && "$2" == --paginate && "$3" == repos/owner/repo/issues/42/
   fi
 elif [[ "$1" == api && "$2" == repos/owner/repo/pulls/42 ]]; then
   repo=owner/repo
+  if [[ "$COMMENT_MUTATE_IMAGE" == 1 ]]; then
+    printf 'overwritten image\n' >"$BATS_TEST_TMPDIR/before.png"
+  fi
   if [[ "$COMMENT_WRONG_TARGET" == 1 ]]; then repo=wrong/repo; fi
   printf '{"number":42,"base":{"repo":{"full_name":"%s"}}}' "$repo"
+elif [[ "$1" == pr && "$2" == comment && "$3" == --help ]]; then
+  if [[ "$COMMENT_NO_ATTACH" == 0 ]]; then printf '%s\n' '      --attach file'; fi
 elif [[ "$1" == pr && "$2" == comment ]]; then
   if [[ "$3" != 42 || "$4" != --repo || "$5" != owner/repo ]]; then
     printf 'unexpected comment target: %s\n' "$*" >&2
@@ -218,6 +225,7 @@ elif [[ "$1" == pr && "$2" == comment ]]; then
   done
   body="$(cat "$body_file")"
   for index in "${!image_paths[@]}"; do
+    cat "${image_paths[index]}" >>"$COMMENT_SENT_IMAGES"
     if [[ "$COMMENT_ATTACH_LIMIT" -ge $((index + 1)) ]]; then
       body="$(printf '%s' "$body" | sed "s|](${image_paths[index]})|](https://github.com/user-attachments/assets/$((index + 1)))|g")"
     fi
@@ -628,5 +636,78 @@ check_unknown_post_error() {
   [ "$status" -eq 0 ]
   [[ "$output" == *'"reused":true'* ]]
   [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 1 ]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+}
+
+@test "unsupported gh fails before posting and upgrading permits the same request to retry" {
+  prepare_comment_fixture
+  export COMMENT_NO_ATTACH=1
+  run comment_cli unsupported-gh
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'dependency-missing: install GitHub CLI with gh pr comment --attach support'* ]]
+  [ ! -s "$GH_CALLS" ]
+  [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 0 ]
+
+  export COMMENT_NO_ATTACH=0
+  run comment_cli unsupported-gh
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"state":"complete"'* ]]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+
+  export COMMENT_NO_ATTACH=1
+  run comment_cli unsupported-gh
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"reused":true'* ]]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+}
+
+@test "comment uploads the signed image bytes even if originals change during preflight" {
+  prepare_comment_fixture
+  export COMMENT_MUTATE_IMAGE=1
+  run comment_cli snapshot
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"state":"complete"'* ]]
+  run node --input-type=module - "$COMMENT_SENT_IMAGES" "$GH_CALLS" "$BATS_TEST_TMPDIR" <<'JS'
+import assert from 'node:assert/strict';
+import {existsSync, readFileSync} from 'node:fs';
+import path from 'node:path';
+assert.equal(readFileSync(process.argv[2], 'utf8'), 'before image\nafter image\n');
+const args = readFileSync(process.argv[3], 'utf8').trim().split('\n');
+const attachments = args.flatMap((arg, index) => arg === '--attach' ? [args[index + 1]] : []);
+assert.equal(attachments.length, 2);
+assert.ok(attachments.every(image => ![path.join(process.argv[4], 'before.png'), path.join(process.argv[4], 'after.png')].includes(image)));
+assert.ok(attachments.every(image => !existsSync(image)), 'temporary upload copies are removed');
+assert.equal(readFileSync(path.join(process.argv[4], 'before.png'), 'utf8'), 'overwritten image\n');
+assert.equal(readFileSync(path.join(process.argv[4], 'after.png'), 'utf8'), 'after image\n');
+JS
+  [ "$status" -eq 0 ] || { printf '%s\n' "$output" >&2; false; }
+}
+
+@test "reused attachment URLs cannot confirm distinct requested images" {
+  prepare_comment_fixture
+  run comment_cli duplicate-assets
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"state":"complete"'* ]]
+  node - "$COMMENT_FIXTURE" <<'JS'
+const fs = require('node:fs');
+const comments = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+comments[0].body = comments[0].body.replaceAll('assets/2', 'assets/1');
+fs.writeFileSync(process.argv[2], JSON.stringify(comments));
+JS
+  run comment_cli duplicate-assets
+  [ "$status" -eq 1 ]
+  local result="$output"
+  run node --input-type=module - "$result" <<'JS'
+import assert from 'node:assert/strict';
+const result = JSON.parse(process.argv[2]);
+assert.equal(result.state, 'failed');
+assert.deepEqual(result.assets, [null, null]);
+assert.deepEqual(result.missing, result.images);
+assert.match(result.reason, /same attachment URL/);
+JS
+  [ "$status" -eq 0 ] || { printf '%s\n' "$output" >&2; false; }
+  run comment_cli duplicate-assets
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'same attachment URL'* ]]
   [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
 }

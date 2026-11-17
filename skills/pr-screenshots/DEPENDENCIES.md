@@ -11,6 +11,8 @@
 
 既存画像をコメントへ添付するには Nix は不要です。撮影時に必要な browser 認証は利用者が手動で設定します。GitHub CLI の認証と browser の手動認証は別の仕組みです。コメント添付は GitHub CLI の認証だけを使い、専用 browser profile の認証を読みません。撮影には browser runtime が必要になる場合がありますが、既存画像の添付には必要ありません。通常利用の Chrome profile や token をコピーしません。
 
+GitHub CLI は [2.102.0](https://github.com/cli/cli/releases/tag/v2.102.0) で対応を確認しています。`gh pr comment --help` に `--attach` があることを確認し、表示されなければ対応版へ更新します。添付 CLI も投稿前にこの機能を検査するため、未対応版で停止した依頼は更新後に同じ request ID で再試行できます。`--attach` の仕様は [GitHub 公式ドキュメント](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli)を参照します。
+
 ## 準備
 
 この skill の読み込まれた `SKILL.md` directory を `SKILL_ROOT` として、同梱 helper から package の絶対 path を取得します。

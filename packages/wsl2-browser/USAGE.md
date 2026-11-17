@@ -100,7 +100,7 @@ BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
 
 ### コメントへの画像添付
 
-`comment` は通常の Markdown 画像参照を GitHub CLI `gh pr comment --attach` に渡します。原稿の各ローカル画像参照を `--image` で指定し、掲載したい順序で画像を渡します。代替テキストと位置は原稿の Markdown で指定し、placeholder は使いません。
+`comment` は通常の Markdown 画像参照を GitHub CLI `gh pr comment --attach` に渡します。対応版の確認・更新方法は [pr-screenshots の依存](../../skills/pr-screenshots/DEPENDENCIES.md)を参照してください。投稿前に `--attach` 対応を検査し、未対応版では画像・原稿を保持して停止します。原稿の各ローカル画像参照を `--image` で指定し、掲載したい順序で画像を渡します。代替テキストと位置は原稿の Markdown で指定し、placeholder は使いません。
 
 ```sh
 BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
