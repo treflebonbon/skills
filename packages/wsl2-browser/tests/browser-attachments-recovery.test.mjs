@@ -159,7 +159,7 @@ test("終了済み Chrome の close は同じ identity の実行可能な復旧�
   assert.equal(await readFile(path.join(scenario.profile, "authentication"), "utf8"), "fixture-authentication\n");
 });
 
-test("4つの添付操作が復旧案内だけでは記録と既存データを変更しない", async (t) => {
+test("3つのブラウザ操作が復旧案内だけでは記録と既存データを変更しない", async (t) => {
   const scenario = await fixture(t);
   const before = scenario.ownerStatus();
   const other = scenario.otherStatus();
@@ -169,7 +169,6 @@ test("4つの添付操作が復旧案内だけでは記録と既存データを�
     ["close"],
     ["auth"],
     ["upload", "--repo", "owner/repo", "--pr", "42", "--image", scenario.image, "--placeholder", "PLACE", "--request-id", "upload-original"],
-    ["comment", "--repo", "owner/repo", "--pr", "42", "--image", scenario.image, "--body-file", scenario.body, "--request-id", "comment-original"],
   ];
   for (const request of requests) {
     const result = scenario.attachment(...request);

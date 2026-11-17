@@ -55,22 +55,23 @@ upload() {
   export CONNECTION_LOG="$BATS_TEST_TMPDIR/connections"
   export EXPECTED_IMAGE="$BATS_TEST_TMPDIR/image.png"
   printf 'Before\nPLACE\nAfter\n' >"$PR_BODY_FIXTURE"
-  cat >"$BROWSER_ATTACHMENTS_GH" <<'JS'
-#!/usr/bin/env node
-const fs = require('node:fs');
-const args = process.argv.slice(2);
-fs.appendFileSync(process.env.GH_CALLS, `${JSON.stringify(args)}\n`);
-if (args[0] !== 'pr' || args[args.indexOf('--repo') + 1] !== 'owner/repo' || args[2] !== '42') {
-  throw new Error(`unexpected PR target: ${args.join(' ')}`);
-}
-if (args[1] === 'view') {
-  process.stdout.write(JSON.stringify({body: fs.readFileSync(process.env.PR_BODY_FIXTURE, 'utf8')}));
-} else if (args[1] === 'edit') {
-  fs.copyFileSync(args[args.indexOf('--body-file') + 1], process.env.PR_BODY_FIXTURE);
-} else {
-  throw new Error(`unexpected GitHub command: ${args.join(' ')}`);
-}
-JS
+  cat >"$BROWSER_ATTACHMENTS_GH" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$GH_CALLS"
+if [[ "$1" != pr || "$3" != 42 || "$5" != owner/repo ]]; then
+  printf 'unexpected PR target: %s\n' "$*" >&2
+  exit 2
+fi
+if [[ "$2" == view ]]; then
+  jq -n --rawfile body "$PR_BODY_FIXTURE" '{body:$body}'
+elif [[ "$2" == edit ]]; then
+  cp "$7" "$PR_BODY_FIXTURE"
+else
+  printf 'unexpected GitHub command: %s\n' "$*" >&2
+  exit 2
+fi
+SH
   chmod +x "$BROWSER_ATTACHMENTS_GH"
   cat >"$BROWSER_ATTACHMENTS_PLAYWRIGHT" <<'JS'
 import fs from 'node:fs';
@@ -117,7 +118,7 @@ export const chromium = {
 JS
   run node "$ATTACHMENTS" upload --repo owner/repo --pr 42 \
     --image "$EXPECTED_IMAGE" --placeholder PLACE --request-id cli-request
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 0 ] || { printf '%s\n' "$output" >&2; false; }
   local cli_output="$output"
   run node --input-type=module - "$cli_output" <<'JS'
 import assert from 'node:assert/strict';
@@ -136,66 +137,281 @@ JS
   [ "$(wc -l <"$GH_CALLS")" -eq 3 ]
 }
 
-@test "comment command filters large paginated history and posts two images only once" {
+prepare_comment_fixture() {
   export BROWSER_ATTACHMENTS_GH="$BATS_TEST_TMPDIR/github"
   export COMMENT_FIXTURE="$BATS_TEST_TMPDIR/comments.json"
-  node - "$COMMENT_FIXTURE" <<'JS'
-const fs=require('node:fs');
-fs.writeFileSync(process.argv[2],JSON.stringify(Array.from({length:101},()=>({user:null,body:'x'.repeat(32000)}))));
-JS
-  cat >"$BROWSER_ATTACHMENTS_GH" <<'JS'
-#!/usr/bin/env node
-const fs=require('node:fs');const args=process.argv.slice(2);
-if(args[0]!=='api')throw new Error('PR body must not be edited');
-if(args.includes('user')){process.stdout.write('me');}
-else if(args.includes('--paginate')){
- const comments=JSON.parse(fs.readFileSync(process.env.COMMENT_FIXTURE,'utf8'));
- if(args.includes('--slurp')){process.stdout.write(JSON.stringify([comments]));}
- else {
-  const {execFileSync}=require('node:child_process');
-  for(let n=0;n<comments.length;n+=100){
-   process.stdout.write(execFileSync('jq',['-r',args[args.indexOf('--jq')+1]],{input:JSON.stringify(comments.slice(n,n+100))}));
-  }
- }
-}
-else if(args.includes('--method')){
- const payload=JSON.parse(fs.readFileSync(args.at(-1),'utf8'));
- const comments=JSON.parse(fs.readFileSync(process.env.COMMENT_FIXTURE,'utf8'));
- const comment={...payload,user:{login:'me'},html_url:'https://github.com/owner/repo/pull/42#issuecomment-1'};
- comments.push(comment);fs.writeFileSync(process.env.COMMENT_FIXTURE,JSON.stringify(comments));process.stdout.write(JSON.stringify(comment));
-}else{process.stdout.write(JSON.stringify({number:42,base:{repo:{full_name:'owner/repo'}}}));}
-JS
-  chmod +x "$BROWSER_ATTACHMENTS_GH"
-  cat >"$BROWSER_ATTACHMENTS_PLAYWRIGHT" <<'JS'
-let number=0;
-export const chromium={connectOverCDP:async()=>({contexts:()=>[{newPage:async()=>{
- let asset='';const form={locator:()=>({waitFor:async()=>{},setInputFiles:async()=>{asset=`https://github.com/user-attachments/assets/${++number}`;}})};
- const textarea={count:async()=>1,waitFor:async()=>{},locator:()=>form,inputValue:async()=>asset};
- return {goto:async()=>{},url:()=> 'https://github.com/owner/repo/pull/42',locator:()=>textarea,close:async()=>{}};
-}}],close:async()=>{}})};
-JS
-  printf 'second image\n' >"$BATS_TEST_TMPDIR/after.png"
-  printf '変更前\n<!-- screenshot-1 -->\n変更後\n<!-- screenshot-2 -->\n' >"$BATS_TEST_TMPDIR/body.md"
-  local attempt
-  for attempt in 1 2; do
-    run node "$ATTACHMENTS" comment --repo owner/repo --pr 42 \
-      --image "$BATS_TEST_TMPDIR/image.png" --image "$BATS_TEST_TMPDIR/after.png" \
-      --body-file "$BATS_TEST_TMPDIR/body.md" --request-id retry
-    [ "$status" -eq 0 ]
-    if [[ "$attempt" == 1 ]]; then
-      node - "$COMMENT_FIXTURE" <<'JS'
-const fs=require('node:fs');const p=process.argv[2];const comments=JSON.parse(fs.readFileSync(p,'utf8'));
-comments.unshift({...comments.at(-1),user:{login:'another-user'},html_url:'https://github.com/owner/repo/pull/42#issuecomment-other'});
-fs.writeFileSync(p,JSON.stringify(comments));
-JS
-    fi
+  export GH_CALLS="$BATS_TEST_TMPDIR/gh-post-calls"
+  export GH_API_CALLS="$BATS_TEST_TMPDIR/gh-api-calls"
+  export COMMENT_LOOKUP_COUNT="$BATS_TEST_TMPDIR/lookup-count"
+  export COMMENT_FAIL_USER=0 COMMENT_FAIL_LOOKUP_ON=0 COMMENT_WRONG_TARGET=0
+  export COMMENT_ATTACH_LIMIT=2 COMMENT_DROP_RESPONSE=0 COMMENT_POST_EXIT=0
+  export COMMENT_HIDE_THROUGH=0
+  printf '[]\n' >"$COMMENT_FIXTURE"
+  printf 'before image\n' >"$BATS_TEST_TMPDIR/before.png"
+  printf 'after image\n' >"$BATS_TEST_TMPDIR/after.png"
+  cat >"$BATS_TEST_TMPDIR/body.md" <<EOF
+変更前
+![Before]($BATS_TEST_TMPDIR/before.png)
+
+変更後
+![After]($BATS_TEST_TMPDIR/after.png)
+EOF
+  cat >"$BROWSER_ATTACHMENTS_GH" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == api ]]; then
+  printf '%s\n' "$*" >>"$GH_API_CALLS"
+fi
+if [[ "$1" == api && "$2" == user ]]; then
+  if [[ "$COMMENT_FAIL_USER" == 1 ]]; then
+    printf 'not logged in\n' >&2
+    exit 1
+  fi
+  printf 'me'
+elif [[ "$1" == api && "$*" == *--paginate* ]]; then
+  count=0
+  if [[ -f "$COMMENT_LOOKUP_COUNT" ]]; then
+    read -r count <"$COMMENT_LOOKUP_COUNT"
+  fi
+  count=$((count + 1))
+  printf '%s\n' "$count" >"$COMMENT_LOOKUP_COUNT"
+  if [[ "$COMMENT_FAIL_LOOKUP_ON" == "$count" ]]; then
+    printf 'temporary lookup failure\n' >&2
+    exit 1
+  fi
+  if [[ "$count" -le "$COMMENT_HIDE_THROUGH" ]]; then exit 0; fi
+  jq -c '.[] | select(.user.login == "me" and (.body | contains("<!-- pr-screenshots:"))) | {body,html_url}' "$COMMENT_FIXTURE"
+elif [[ "$1" == api && "$2" == repos/*/pulls/* ]]; then
+  repo=owner/repo
+  if [[ "$COMMENT_WRONG_TARGET" == 1 ]]; then repo=wrong/repo; fi
+  printf '{"number":42,"base":{"repo":{"full_name":"%s"}}}' "$repo"
+elif [[ "$1" == pr && "$2" == comment ]]; then
+  printf '%s\n' --POST-- "$@" >>"$GH_CALLS"
+  shift 2
+  image1=''
+  image2=''
+  body_file=''
+  while (($#)); do
+    case "$1" in
+      --body-file) body_file="$2"; shift 2 ;;
+      --attach)
+        if [[ -z "$image1" ]]; then image1="$2"; else image2="$2"; fi
+        shift 2 ;;
+      *) shift ;;
+    esac
   done
+  body="$(cat "$body_file")"
+  if [[ "$COMMENT_ATTACH_LIMIT" -ge 1 ]]; then
+    body="$(printf '%s' "$body" | sed "s|]($image1)|](https://github.com/user-attachments/assets/1)|g")"
+  fi
+  if [[ "$COMMENT_ATTACH_LIMIT" -ge 2 ]]; then
+    body="$(printf '%s' "$body" | sed "s|]($image2)|](https://github.com/user-attachments/assets/2)|g")"
+  fi
+  url='https://github.com/owner/repo/pull/42#issuecomment-1'
+  comment="$(jq -n --arg body "$body" --arg url "$url" '{body:$body,user:{login:"me"},html_url:$url}')"
+  jq --argjson comment "$comment" '. + [$comment]' "$COMMENT_FIXTURE" >"$COMMENT_FIXTURE.tmp"
+  mv "$COMMENT_FIXTURE.tmp" "$COMMENT_FIXTURE"
+  if [[ "$COMMENT_DROP_RESPONSE" == 1 ]]; then
+    printf 'connection reset by peer\\n' >&2
+    exit "$COMMENT_POST_EXIT"
+  fi
+  printf '%s' "$url"
+  exit "$COMMENT_POST_EXIT"
+else
+  printf 'unexpected gh command: %s\n' "$*" >&2
+  exit 2
+fi
+SH
+  chmod +x "$BROWSER_ATTACHMENTS_GH"
+  unset BROWSER_ATTACHMENTS_PLAYWRIGHT
+  export PWCLI_TEST_WSL=0
+}
+
+comment_cli() {
+  local request_id=gh-comment
+  if [[ "$#" -gt 0 ]]; then request_id="$1"; fi
+  "$BATS_TEST_DIRNAME/../bin/browser-attachments" comment --repo owner/repo --pr 42 \
+    --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/after.png" \
+    --body-file "$BATS_TEST_TMPDIR/body.md" --request-id "$request_id"
+}
+
+@test "comment CLI posts normal Markdown images through gh without a browser runtime" {
+  prepare_comment_fixture
+  run comment_cli
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"state":"complete"'* ]]
+  [[ "$output" == *'https://github.com/owner/repo/pull/42#issuecomment-1'* ]]
+  [ ! -s "$OWNER_CALLS" ]
+
+  node - "$COMMENT_FIXTURE" <<'JS'
+const fs = require('node:fs');
+const comments = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+comments.unshift({...comments[0], user:{login:'another-user'}, html_url:'https://github.com/owner/repo/pull/42#issuecomment-other'});
+fs.writeFileSync(process.argv[2], JSON.stringify(comments));
+JS
+  run comment_cli
+  [ "$status" -eq 0 ]
   [[ "$output" == *'"reused":true'* ]]
-  run node --input-type=module - "$COMMENT_FIXTURE" <<'JS'
-import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';
-const comments=JSON.parse(await readFile(process.argv[2],'utf8'));
-const own=comments.filter(comment=>comment.user?.login==='me');
-assert.equal(own.length,1);assert.equal((own[0].body.match(/!\[Evidence\]/g)||[]).length,2);
+  run node --input-type=module - "$COMMENT_FIXTURE" "$GH_CALLS" "$GH_API_CALLS" <<'JS'
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const comments = JSON.parse(await readFile(process.argv[2], 'utf8'));
+const calls = (await readFile(process.argv[3], 'utf8')).split('\n');
+const apiCalls = await readFile(process.argv[4], 'utf8');
+const own = comments.filter(comment => comment.user?.login === 'me');
+assert.equal(own.length, 1);
+assert.equal(comments.length, 2);
+assert.ok(own[0].body.indexOf('![Before](https://github.com/user-attachments/assets/1)') <
+  own[0].body.indexOf('![After](https://github.com/user-attachments/assets/2)'));
+assert.ok(own[0].body.includes('<!-- pr-screenshots:'));
+assert.equal(calls.filter(line => line === '--POST--').length, 1);
+assert.ok(calls.includes('--attach'));
+assert.ok(apiCalls.includes('--paginate'));
+assert.ok(apiCalls.includes('repos/owner/repo/issues/42/comments?per_page=100'));
 JS
   [ "$status" -eq 0 ]
+}
+
+@test "partial attachments are reported and same-ID retry does not repost or fill missing images" {
+  prepare_comment_fixture
+  export COMMENT_ATTACH_LIMIT=1
+  export COMMENT_POST_EXIT=1
+  run comment_cli partial
+  [ "$status" -eq 1 ]
+  local first_result="$output"
+  run node --input-type=module - "$first_result" "$BATS_TEST_TMPDIR/body.md" <<'JS'
+import assert from 'node:assert/strict';
+const result = JSON.parse(process.argv[2]);
+assert.equal(result.state, 'partial');
+assert.equal(result.assets[0], 'https://github.com/user-attachments/assets/1');
+assert.equal(result.assets[1], null);
+assert.deepEqual(result.missing, [result.images[1]]);
+assert.equal(result.bodyFile, process.argv[3]);
+assert.match(result.reason, /Some requested images/);
+JS
+  [ "$status" -eq 0 ] || { printf '%s\\n' "$output" >&2; false; }
+  run comment_cli partial
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'"state":"partial"'* ]]
+  [[ "$output" == *'"reused":true'* ]]
+  [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 1 ]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+}
+
+@test "a failed gh post reports its comment URL and does not duplicate a no-image result" {
+  prepare_comment_fixture
+  export COMMENT_ATTACH_LIMIT=0
+  export COMMENT_POST_EXIT=1
+  run comment_cli no-image
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'"state":"failed"'* ]]
+  [[ "$output" == *'https://github.com/owner/repo/pull/42#issuecomment-1'* ]]
+  run comment_cli no-image
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'"state":"failed"'* ]]
+  [[ "$output" == *'"reused":true'* ]]
+  [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 1 ]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+}
+
+@test "lost post response and failed lookup stay unknown until the saved comment is found" {
+  prepare_comment_fixture
+  export COMMENT_DROP_RESPONSE=1
+  export COMMENT_POST_EXIT=1
+  export COMMENT_FAIL_LOOKUP_ON=2
+  run comment_cli response-lost
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'"state":"unknown"'* ]]
+  [[ "$output" == *'The post result could not be looked up.'* ]]
+  run node --input-type=module - "$BROWSER_OWNERSHIP_DIR/attachments" "$BATS_TEST_TMPDIR/body.md" <<'JS'
+import assert from 'node:assert/strict';
+import {readdir,readFile} from 'node:fs/promises';
+import path from 'node:path';
+const directory = process.argv[2];
+const receiptName = (await readdir(directory)).find(name => name.startsWith('comment-') && name.endsWith('.json'));
+const receipt = JSON.parse(await readFile(path.join(directory, receiptName), 'utf8'));
+assert.equal(receipt.phase, 'query-failed');
+assert.equal(receipt.bodyFile, process.argv[3]);
+assert.equal(receipt.images.length, 2);
+assert.equal(receipt.missing.length, 2);
+assert.equal((await readFile(process.argv[3], 'utf8')).includes('![Before]'), true);
+JS
+  [ "$status" -eq 0 ]
+  run comment_cli response-lost
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"state":"complete"'* ]]
+  [[ "$output" == *'"reused":true'* ]]
+  [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 1 ]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+}
+
+@test "same-ID concurrent comment CLI calls create one comment" {
+  prepare_comment_fixture
+  local cli="$BATS_TEST_DIRNAME/../bin/browser-attachments"
+  "$cli" comment --repo owner/repo --pr 42 --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/after.png" --body-file "$BATS_TEST_TMPDIR/body.md" --request-id concurrent >"$BATS_TEST_TMPDIR/first.json" 2>"$BATS_TEST_TMPDIR/first.err" &
+  local first_pid=$!
+  "$cli" comment --repo owner/repo --pr 42 --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/after.png" --body-file "$BATS_TEST_TMPDIR/body.md" --request-id concurrent >"$BATS_TEST_TMPDIR/second.json" 2>"$BATS_TEST_TMPDIR/second.err" &
+  local second_pid=$!
+  local first_status=0
+  local second_status=0
+  wait "$first_pid" || first_status=$?
+  wait "$second_pid" || second_status=$?
+  [ "$first_status" -eq 0 ]
+  [ "$second_status" -eq 0 ]
+  run node --input-type=module - "$BATS_TEST_TMPDIR/first.json" "$BATS_TEST_TMPDIR/second.json" "$COMMENT_FIXTURE" "$GH_CALLS" <<'JS'
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const results = await Promise.all(process.argv.slice(2,4).map(async file => JSON.parse(await readFile(file, 'utf8'))));
+const comments = JSON.parse(await readFile(process.argv[4], 'utf8'));
+const calls = (await readFile(process.argv[5], 'utf8')).split('\n');
+assert.deepEqual(results.map(result => result.state), ['complete','complete']);
+assert.equal(results.filter(result => result.reused).length, 1);
+assert.equal(comments.length, 1);
+assert.equal(calls.filter(line => line === '--POST--').length, 1);
+JS
+  [ "$status" -eq 0 ]
+}
+
+@test "connection loss with a temporarily invisible comment stays unknown and never reposts" {
+  prepare_comment_fixture
+  export COMMENT_DROP_RESPONSE=1
+  export COMMENT_POST_EXIT=1
+  export COMMENT_HIDE_THROUGH=3
+  run comment_cli invisible
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'"state":"unknown"'* ]]
+  run comment_cli invisible
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'"state":"unknown"'* ]]
+  [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 1 ]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+}
+
+@test "wrong PR, changed input, and missing gh authentication fail without browser fallback" {
+  prepare_comment_fixture
+  export COMMENT_WRONG_TARGET=1
+  run comment_cli wrong-target
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'target-conflict: resolved pull request does not match repo/pr'* ]]
+  [ ! -s "$GH_CALLS" ]
+  [ -f "$BATS_TEST_TMPDIR/body.md" ]
+  [ -f "$BATS_TEST_TMPDIR/before.png" ]
+
+  export COMMENT_WRONG_TARGET=0
+  export COMMENT_FAIL_USER=1
+  run comment_cli no-auth
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'GitHub CLI authentication is required'* ]]
+  [ ! -s "$OWNER_CALLS" ]
+  [ -f "$BATS_TEST_TMPDIR/body.md" ]
+  [ -f "$BATS_TEST_TMPDIR/before.png" ]
+
+  export COMMENT_FAIL_USER=0
+  run comment_cli changed-input
+  [ "$status" -eq 0 ]
+  printf 'different explanation\n![Before](%s)\n\n![After](%s)\n' "$BATS_TEST_TMPDIR/before.png" "$BATS_TEST_TMPDIR/after.png" >"$BATS_TEST_TMPDIR/body.md"
+  run comment_cli changed-input
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'request-conflict: request-id was already used with different content'* ]]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
 }

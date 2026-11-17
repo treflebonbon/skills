@@ -45,7 +45,7 @@ relocation は profile を保持したまま CDP と Dashboard port だけを変
 
 ## 共有添付と手動認証
 
-PR 添付用の共有 browser は専用 profile を使い、認証は利用者が手動で設定します。認証を準備するとき、最初に残った headless browser を閉じ、専用 window を起動して手動 login/MFA を完了し、もう一度閉じてください。添付時は同じ profile を headless で再起動します。認証情報をコピーせず、通常の閲覧用 Chrome profile を使いません。
+共有添付 browser は旧 PR 本文の `upload` に使います。コメント添付は GitHub CLI の認証を使い、共有 browser や専用 Playwright runtime を起動しません。旧本文添付の認証を準備するときは、最初に残った headless browser を閉じ、専用 window で手動 login/MFA を完了してからもう一度閉じます。添付時は同じ profile を headless で再起動します。認証情報をコピーせず、通常の閲覧用 Chrome profile は使いません。
 
 ```sh
 "$BROWSER_BIN/browser-attachments" close
@@ -56,15 +56,17 @@ PR 添付用の共有 browser は専用 profile を使い、認証は利用者�
 
 最初の `close` 自体が所有権や起動状態の不一致で失敗した場合は、[共有添付ブラウザの復旧](../USAGE.md#共有添付ブラウザの復旧)に従い、エラーに表示される対象 identity の `status` / `recover` を使います。明示的な復旧に成功してから、同じ認証 profile で上の手順を再開します。
 
-画像 upload は明示依頼の後で `"$BROWSER_BIN/browser-attachments" upload` を使います。複数画像を一つの PR comment にまとめるときは `"$BROWSER_BIN/browser-attachments" comment` を使い、各画像用の `<!-- screenshot-N -->` placeholder を本文へ一度ずつ置いてください。同じ処理を再試行するときは同じ request ID を使います。comment は PR 本文を変更しません。
+PR 本文への旧画像添付は明示依頼の後で `"$BROWSER_BIN/browser-attachments" upload` を使います。これは専用 browser を使い、placeholder 一つを置き換えます。
+
+コメント添付は GitHub CLI の `gh pr comment --attach` を使い、通常の Markdown 画像参照から代替テキスト、位置、掲載順を読み取ります。原稿内の各ローカル画像参照に対応する `--image` を同じ順序で渡してください。`<!-- screenshot-N -->` placeholder や専用 browser 認証は不要です。同じ依頼を照会するときは同じ request ID を使います。コメント経路は PR 本文を変更しません。
 
 ```sh
 BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
 "$BROWSER_BIN/browser-attachments" upload --repo OWNER/REPO --pr NUMBER --image PATH --placeholder '<placeholder>' --request-id REQUEST_ID
-"$BROWSER_BIN/browser-attachments" comment --repo OWNER/REPO --pr NUMBER --image BEFORE.png --image AFTER.png --body-file COMMENT.md --request-id REQUEST_ID
+"$BROWSER_BIN/browser-attachments" comment --repo OWNER/REPO --pr NUMBER --image /absolute/path/BEFORE.png --image /absolute/path/AFTER.png --body-file COMMENT.md --request-id REQUEST_ID
 ```
 
-`upload` と `comment` は GitHub の最新 PR 情報と同じ request ID の receipt を確認してから投稿します。同じ request ID を別の本文や画像に再利用すると拒否されます。結果を確認できない場合は receipt を保持し再送を止めます。GitHub 上で前回の request を確認できるまで、新しい ID で同じ作業を作り直さないでください。
+両方の経路は GitHub の最新 PR 情報と同じ request ID の receipt を確認してから投稿します。同じ request ID を別の本文や画像に再利用すると拒否されます。コメントは全画像成功、部分成功、全画像失敗、送信結果不明を区別します。部分投稿や結果不明では receipt を保持し、自動再送や不足分の補完を行いません。GitHub 上で前回の request を確認できるまで、新しい ID で同じ作業を作り直さないでください。
 
 ## 対応範囲と認証
 

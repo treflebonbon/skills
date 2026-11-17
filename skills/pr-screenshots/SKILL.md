@@ -6,47 +6,34 @@ disable-model-invocation: true
 
 # pr-screenshots
 
-画像添付の補助スキル。ユーザーが明示的に呼び出した場合だけ使う。PR 本文作成は上流 `pr` に任せ、このスキルは短い説明と画像を PR コメントにまとめる。実装・push・PR 作成・本文更新は行わない。
+画像添付の補助スキル。ユーザーが明示的に呼び出した場合だけ使う。PR 本文作成は上流 `pr` に任せ、このスキルは短い説明と画像を既存 PR のコメントにまとめる。実装・push・PR 作成・本文更新は行わない。
 
 ## 実行前に確認する
 
-添付処理を始める前に [依存と対応環境](DEPENDENCIES.md) を確認する。GitHub CLI `gh` の利用可能性と認証状態、共有添付ブラウザの手動認証、WSL2 mirrored networking、Windows interoperability、Node.js と package runtime の準備状況を別々に確かめる。必要な条件が足りないときは、既存の画像と原稿を保持してから不足条件と [package の準備手順](../../packages/wsl2-browser/USAGE.md) を案内し、添付 CLI を呼ばない。トークン値を表示する `gh auth token` は使わない。
+[依存と対応環境](DEPENDENCIES.md)を確認します。添付には GitHub CLI `gh`、Node.js 20.19 以降、この plugin の添付 CLI、GitHub の通常認証が必要です。認証は `gh auth status` で確認し、token を表示する `gh auth token` は使いません。対象 repository にコメントを書き込めない場合は添付を始めず、権限の準備を案内します。
 
-添付 CLI は、この SKILL.md が読み込まれた実際の directory にある `scripts/browser-tool-path` から解決する。runtime が示す SKILL.md の絶対 path を基に `SKILL_ROOT` を決め、そこから次のように絶対実体を得る。
+添付 CLI は、この SKILL.md が読み込まれた実際の directory にある `scripts/browser-tool-path` から解決します。runtime が示す SKILL.md の絶対 path を基に `SKILL_ROOT` を決め、次のように絶対 path を得ます。
 
 ```bash
 SKILL_ROOT=/absolute/path/to/skills/pr-screenshots
 BROWSER_ATTACHMENTS="$("$SKILL_ROOT/scripts/browser-tool-path" browser-attachments)"
-BROWSER_PREPARE="$("$SKILL_ROOT/scripts/browser-tool-path" wsl2-browser-prepare)"
-"$BROWSER_PREPARE" --check
 ```
 
-`--check` は固定 runtime の準備済み状態を検査し、成功時にその絶対 path を返す。依存の導入や browser 起動は行わない。失敗したら画像・原稿を保持し、[準備手順](DEPENDENCIES.md#準備)を案内して止める。引数なしの `wsl2-browser-prepare` は依存を導入するため、状態確認には使わない。CLI の使い方は [package の使用手順](../../packages/wsl2-browser/USAGE.md)で確認する。
+既存画像を添付するだけなら、browser runtime の準備・確認や Windows 側の設定は不要です。撮影が必要な場合だけ、第三者の `playwright-cli` skill と package 内の撮影経路を確認します。その場合は同じ helper で `wsl2-browser-prepare` を解決し、`--check` が成功することを確認します。runtime が未準備なら画像・原稿を保持して[準備手順](DEPENDENCIES.md#準備)を案内し、browser を起動しません。引数なしの `wsl2-browser-prepare` は依存を導入するため、確認には使いません。
 
-この helper は package に同梱した `packages/wsl2-browser/bin/browser-attachments` を返す。現在の作業 directory、dotfiles checkout、`~/.local/bin`、Nix PATH にある別コピーを代用しない。画面撮影が必要なときだけ、公式配布元から別途導入した `playwright-cli` skill を明示的に使う。第三者 skill が必要な `playwright-cli` CLI も `scripts/browser-tool-path playwright-cli` で絶対 path を得て伝える。
+この helper は package に同梱した `packages/wsl2-browser/bin/browser-attachments` を返します。現在の作業 directory、dotfiles checkout、`~/.local/bin`、Nix PATH にある別コピーを代用しません。第三者の `playwright-cli` CLI も `scripts/browser-tool-path playwright-cli` で絶対 path を得て使います。
 
 ## 対象と画像を決める
 
-1. 指定された PR の URL・番号と repository を解決する。指定がなければ現在のブランチの PR を `gh pr view --json number,url` で調べ、URL から repository を確認する。複数の候補があり曖昧な場合だけ質問する。対象の `OWNER/REPO#NUMBER` と URL を表示する。PR がなければ、取得画像を保持して PR 作成後の再実行を案内する。
-2. セッション所有の一時 directory に画像・コメント原稿・再実行コマンドを残す。既存画像が指定されていれば内容を確認して使う。対象は依頼で指定した画像、または同じ依頼で保存済みの画像だけとし、周辺の別画像を加えない。撮影が必要な場合は第三者の `playwright-cli` skill を使い、修正した要素と判断に必要な周辺が分かる範囲を撮る。native app や Orca 内蔵 page は、その操作面に対応する既存のブラウザ操作規則に従う。
-3. 変更前には既存の比較 URL・環境・画像を使い、比較可能なら同じ表示幅・画面状態で変更前後を撮る。比較画像がなければ変更後と未比較理由を残す。比較のためだけに別 worktree や起動環境を構築しない。機密値の写り込みを確認し、その画像は添付せず理由を残す。
+1. 指定された PR の URL・番号と repository を解決します。指定がなければ現在の branch の PR を `gh pr view --json number,url` で調べ、URL から repository を確認します。複数候補があり曖昧な場合だけ質問します。対象の `OWNER/REPO#NUMBER` と URL を表示します。PR がなければ画像を保持し、PR 作成後の再実行を案内します。
+2. セッション所有の一時 directory に画像、コメント原稿、request ID、再実行コマンドを残します。指定済みの画像を優先し、依頼にない画像を追加しません。撮影が必要なら第三者の `playwright-cli` skill を使い、修正箇所と判断に必要な周辺を撮ります。native app や Orca 内蔵 page は、その操作面に対応する既存のブラウザ操作規則に従います。
+3. 変更前には既存の比較 URL・環境・画像を使います。比較可能なら同じ表示幅・画面状態で変更前後を撮ります。比較画像がなければ変更後と未比較理由を残し、比較のためだけに別 worktree や起動環境を作りません。機密値の写り込みを確認し、その画像は添付せず理由を残します。
 
 ## 1つのコメントに添付する
 
-新しい添付依頼ごとに UUID などの一意な `request-id` を生成し、directory 内へ保存する。生成例は `node -e 'console.log(crypto.randomUUID())'`。同じ依頼を再実行するときは、保存した ID・画像・原稿をそのまま使う。画像や説明を意図的に変更する場合は新しい依頼として扱い、過去のコメントを残す。
+新しい添付依頼ごとに UUID などの一意な `request-id` を生成して保存します。生成例は `node -e 'console.log(crypto.randomUUID())'` です。同じ依頼の照会・再実行では、保存した ID・画像・原稿を使います。画像や説明を意図的に変更する場合は新しい依頼として扱い、過去のコメントを残します。
 
-日本語の短い修正説明と画像ラベルを `comment.md` に書く。説明は依頼内容と実際に確認した事実に限り、画像で確認した見た目と操作して確認した挙動を区別する。行っていない動作確認を実施済みと書かない。各画像の位置には、CLI へ渡す順に `<!-- screenshot-1 -->`、`<!-- screenshot-2 -->` をそれぞれ1回置く。変更前がない場合は「変更後」と未比較理由だけを書く。
-
-```markdown
-## 修正箇所のスクリーンショット
-
-設定パネルの保存ボタン周辺の変更後を示す。変更前画像はなく、未比較。
-
-**変更後**
-<!-- screenshot-1 -->
-```
-
-すべての画像と原稿を確認し、同じ request-id で一度の `comment` 呼出しを行う。CLI は全画像を upload してから1コメントを投稿し、PR 本文は変更しない。
+日本語の短い修正説明と画像ラベルを `comment.md` に書きます。説明は依頼内容と実際に確認した事実に限り、画像で確認した見た目と操作して確認した挙動を区別します。行っていない動作確認を実施済みと書きません。画像ごとに通常の Markdown 画像参照を使い、代替テキスト、掲載位置、順序を指定します。原稿内の各ローカル画像参照は `--image` で渡す画像と一対一に一致させます。画像の掲載順に同じ順で `--image` を指定します。原稿と全画像を確認してから、同じ request ID で一度コメント CLI を呼びます。
 
 ```bash
 "$BROWSER_ATTACHMENTS" comment \
@@ -56,25 +43,12 @@ BROWSER_PREPARE="$("$SKILL_ROOT/scripts/browser-tool-path" wsl2-browser-prepare)
   --request-id SAVED_REQUEST_ID
 ```
 
-返されたコメント URL を確認し、画像と説明が揃ったことを報告する。画像を Git に commit しない。
+この CLI は GitHub CLI の `gh pr comment --attach` を使います。添付専用 Chrome、WSL2 mirrored networking、Windows interoperability、専用 Playwright runtime は使いません。返された状態を確認し、`complete` の場合だけコメント URL と添付完了を報告します。画像を Git に commit しません。
 
 ## 失敗した場合
 
-コメントを部分的に投稿せず、画像・原稿・取得済み添付 URL・失敗理由・同じ ID の再実行コマンドを保持する。送信結果不明の `upload-unconfirmed` / `post-unconfirmed` は状態を調べ、ID を変えて再送しない。同じ ID・画像・原稿での CLI 再実行は、結果が不明な送信を重ねず状態を照会するために使える。不明なままなら繰り返さず、人間へ引き継ぐ。`request-conflict` は同じ ID の入力変更を意味するため、保存済み依頼の内容を確認する。
+CLI の `partial`、`failed`、`unknown` は未完了として扱い、終了コードも確認します。結果 JSON には対象 PR、コメント URL、画像 path、原稿 path、不足画像、理由が含まれます。画像と原稿は元の場所に保持し、receipt も削除しません。
 
-`post-unconfirmed` は API の照会で対応するコメントを確認できない状態。PR のコメント一覧と保存された receipt を調べ、投稿があれば URL を報告する。判定できなければ画像・原稿・取得済み URL と理由を人間へ引き継ぎ、投稿がないと確認できるまで手動投稿もしない。`upload-unconfirmed` も receipt の取得済み URL と不明な画像を分けて引き継ぐ。認証不足・接続前の競合・`upload-not-started` は、原因を解消して同じ依頼を再実行できる。
+`partial` は一部画像だけが掲載された状態です。同じ request ID で再実行すると投稿済みコメントを照会します。自動で不足分を追加せず、補完する場合は明示的な別依頼にします。`unknown` は送信結果や照会結果が確定できない状態です。receipt と PR コメントを調べ、投稿済みか判定できるまで再送や別 ID での投稿を行いません。`request-conflict` は同じ ID を別の原稿・画像に使ったことを示すため、保存済み依頼を確認します。
 
-共有添付ブラウザの認証は、検証ブラウザとは別に人間が手動で設定する。未認証なら処理を止めて認証手順を案内し、自動ログインや認証情報のコピーをしない。ユーザーが認証準備を希望したときだけ、次の手順を示す。
-
-```bash
-"$BROWSER_ATTACHMENTS" close
-"$BROWSER_ATTACHMENTS" auth
-# 専用ウィンドウで人間が手動ログイン/MFAを完了
-"$BROWSER_ATTACHMENTS" close
-```
-
-認証不足で upload に失敗した後も、残った headless browser を最初の `close` で終了してから headed の認証へ進む。最初の `close` 自体が所有権・起動状態の不一致で失敗したら、[共有添付ブラウザの復旧](../../packages/wsl2-browser/USAGE.md#共有添付ブラウザの復旧)を参照し、エラーに表示される対象 identity の `status` / `recover` コマンドを案内する。明示的な復旧に成功した後、保存済みの画像・原稿・receipt と同じ request-id で再開する。
-
-通常の `close` と明示的な `recover` は、停止確認後の owner record を解放し、認証 profile を保持する。不明状態の記録は保持する。
-
-完了報告には対象 PR、コメント URL または失敗理由、変更前後の有無、残したファイルの絶対 path を含める。失敗した添付を完了扱いにしない。
+認証や repository 権限が不足しても旧ブラウザ経路へ切り替えません。`gh auth status` と対象 repository の書込権限を確認し、原因を解消してから元の画像・原稿・request ID で再開します。認証値は表示しません。完了報告には対象 PR、コメント URL または失敗理由、比較可能だったか、残したファイルの絶対 path を含めます。

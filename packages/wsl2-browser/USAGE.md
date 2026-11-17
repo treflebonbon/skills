@@ -4,7 +4,7 @@
 
 ## 準備
 
-必要なものは Node.js 20.19 以上、runtime 準備用の npm、Bash、`git`、`curl`、`flock`、`sha256sum`、`wslinfo`、`powershell.exe`、`wslpath`、Windows 側の Stable Chrome です。GitHub の添付 upload/comment には `gh` も使います。WSL2 の networking mode は `mirrored` にします。設定後に `wsl.exe --shutdown` を実行して WSL を再起動し、`wslinfo --networking-mode` で確認してください。Windows interoperability と PowerShell が使えない場合、managed browser は起動しません。
+コメント添付には Node.js 20.19 以上、`flock`、GitHub CLI `gh`、通常の認証、対象 repository へのコメント書込権限が必要です。既存画像を添付するだけなら browser runtime、WSL2 接続設定、Windows 側の設定は不要です。撮影や旧本文添付を使うときは runtime 準備用の npm、Bash、`git`、`curl`、`sha256sum`、`wslinfo`、`powershell.exe`、`wslpath`、Windows 側の Stable Chrome が必要です。WSL2 の networking mode は `mirrored` にします。設定後に `wsl.exe --shutdown` を実行して WSL を再起動し、`wslinfo --networking-mode` で確認してください。
 
 まず準備済み runtime を、依存を導入・変更せず確認できます。成功時は検証した runtime の絶対 path を表示し、未準備や不一致では非0で終了します。
 
@@ -25,7 +25,7 @@
 | コマンド | 用途 |
 | --- | --- |
 | `bin/playwright-cli` | Playwright CLI。WSL2 の `open` は headless 既定の Managed Playwright Chrome を使います。非 WSL2 では固定版の上流 CLI に委譲します。 |
-| `bin/browser-attachments` | 共有添付ブラウザの手動認証、終了、画像 upload、コメント投稿です。WSL2 mirrored networking と Windows interop が必要です。 |
+| `bin/browser-attachments` | コメントは GitHub CLI で投稿します。旧 PR 本文の `upload`、共有 browser の手動認証と終了には WSL2 mirrored networking と Windows interop が必要です。 |
 | `bin/managed-chrome-owner` | browser identity ごとの所有状態を照会・復旧する入口です。 |
 | `bin/wsl2-browser-prepare` | 引数なしで固定 runtime を外部 cache へ準備します。`--check` は既存 runtime の検証、`--help` は使い方の表示だけを行います。 |
 
@@ -55,7 +55,7 @@ PWCLI_WORKSPACE=/absolute/path/to/task-worktree \
 | `PWCLI_CDP_CLOSE` | CDP を閉じる package 内 helper を別 path から呼ぶ場合に上書きします。 |
 | `PWCLI_WINDOWS_SCRIPT` / `DOGFOOD_WINDOWS_SCRIPT` | package 内 Windows asset の既定 path を別の checkout から呼ぶ場合に上書きします。 |
 | `MANAGED_CHROME_OWNER` | ownership CLI を package 既定 path 以外から呼ぶ場合に上書きします。 |
-| `BROWSER_ATTACHMENTS_GH` | 添付 upload/comment で使う GitHub CLI command を上書きします。 |
+| `BROWSER_ATTACHMENTS_GH` | コメント添付と旧本文 upload で使う GitHub CLI command を上書きします。 |
 
 `BROWSER_ATTACHMENTS_PLAYWRIGHT` は添付 entrypoint が固定 runtime から設定します。直接 `libexec/browser-attachments.mjs` を呼ばず、`bin/browser-attachments` を使ってください。`PWCLI_UPSTREAM`、`PWCLI_RUNTIME_COMMAND`、timeout 系の `PWCLI_*` は wrapper/test 用 override です。通常利用では設定せず、package の公開 entrypoint に任せてください。
 
@@ -65,7 +65,7 @@ WSL2 の headed/headless 切替、Dashboard と session の所有、port relocat
 
 ## 共有添付ブラウザ
 
-GitHub の認証は利用者が専用の共有添付ブラウザで手動確立します。最初に残った headless session を閉じ、専用ウィンドウで手動ログインしてから再度閉じます。認証情報をコピーせず、通常利用の Chrome profile を使いません。
+共有添付ブラウザの認証は旧 PR 本文の `upload` 用です。コメント添付は GitHub CLI の認証を使い、この browser や専用 profile を起動しません。browser 認証が必要な旧経路では利用者が専用 browser で手動確立します。認証情報をコピーせず、通常利用の Chrome profile は使いません。
 
 ```sh
 BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
@@ -75,7 +75,7 @@ BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
 "$BROWSER_BIN/browser-attachments" close
 ```
 
-添付は同じ専用 profile を headless で再利用します。未認証なら明示的な認証手順へ戻り、通常 profile に切り替えません。
+旧本文の添付は同じ専用 profile を headless で再利用します。未認証なら明示的な認証手順へ戻り、通常 profile に切り替えません。
 
 ### 共有添付ブラウザの復旧
 
@@ -83,11 +83,11 @@ BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
 
 1. 表示された `status` コマンドを WSL の shell で実行し、対象の所有者記録・profile を確認します。案内には実際の添付 identity、同じ package の所有権 CLI、同じ `BROWSER_OWNERSHIP_DIR` が含まれます。`status` は保存記録の表示で、生存確認ではありません。
 2. 対象を確認してから、表示された `recover` コマンドを明示的に実行します。Windows 側で Chrome の停止を確認でき、未確定の起動処理もない場合だけ対象記録を解放します。稼働中・競合・起動中・照会失敗・不明状態では記録を保持して拒否するため、原因を調べてください。記録を手作業で削除しません。
-3. 復旧に成功したら、上の `close` から始まる手動認証手順へ戻ります。`upload` / `comment` の再試行には、保存済みの画像・原稿・receipt と同じ request ID を使います。
+3. 復旧に成功したら、上の `close` から始まる手動認証手順へ戻ります。旧本文 `upload` の再試行には、保存済みの画像・原稿・receipt と同じ request ID を使います。コメントは browser 復旧を必要としません。
 
 通常の `close` と明示的な `recover` は、停止確認後の所有者記録を解放します。認証 profile は保持します。エラーに復旧案内が出ただけでは、既存の記録は変更されません。
 
-### 画像の添付
+### PR 本文への画像添付
 
 `upload` は指定した画像を GitHub の PR 本文に置いた placeholder へ反映します。明示依頼を受けてから実行してください。
 
@@ -98,17 +98,19 @@ BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
   --placeholder '<placeholder>' --request-id REQUEST_ID
 ```
 
-複数画像を一つのコメントにする場合は `comment` を使います。本文には各画像に対応する `<!-- screenshot-1 -->` から始まる placeholder を一度ずつ置き、同じ操作を再試行するときは同じ request ID を使います。
+### コメントへの画像添付
+
+`comment` は通常の Markdown 画像参照を GitHub CLI `gh pr comment --attach` に渡します。原稿の各ローカル画像参照を `--image` で指定し、掲載したい順序で画像を渡します。代替テキストと位置は原稿の Markdown で指定し、placeholder は使いません。
 
 ```sh
 BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
 "$BROWSER_BIN/browser-attachments" comment \
   --repo OWNER/REPO --pr NUMBER \
-  --image BEFORE.png --image AFTER.png \
+  --image /absolute/path/before.png --image /absolute/path/after.png \
   --body-file COMMENT.md --request-id REQUEST_ID
 ```
 
-コメントは最新の PR 情報と同じ request ID の投稿済み marker を確認してから投稿します。同一 request ID を異なる本文・画像へ再利用すると拒否します。画像 upload やコメント投稿の結果を確認できない場合、receipt を保持して再送を止めます。前回の request を GitHub 上で確認し、確認できるまで新しい ID で同じ作業を作り直さないでください。コメント投稿は PR 本文を更新しません。
+コメントは最新の PR 情報と同じ request ID の投稿済み marker を確認してから投稿します。同一 request ID を異なる本文・画像へ再利用すると拒否します。結果は `complete`、`partial`、`failed`、`unknown` で区別し、全画像と説明を確認した場合だけ成功と報告します。部分投稿や不明な送信は receipt を保持し、同じ依頼の再実行でも重ねて投稿・自動補完しません。必要な補完は明示的な別依頼にします。コメント投稿は PR 本文を更新しません。
 
 ## 検証
 
