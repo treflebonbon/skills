@@ -170,6 +170,11 @@ if [[ "$1" == api && "$2" == user ]]; then
   printf 'me'
 elif [[ "$1" == api && "$2" == --paginate && "$3" == repos/owner/repo/issues/42/comments?per_page=100 ]]; then
   count=0
+  marker="$(printf '%s\n' "$5" | sed -n 's/.*contains("\(<!-- pr-screenshots:[^"]*:\)").*/\1/p')"
+  if [[ -z "$marker" ]]; then
+    printf 'unexpected comment lookup query: %s\n' "$5" >&2
+    exit 2
+  fi
   if [[ -f "$COMMENT_LOOKUP_COUNT" ]]; then
     read -r count <"$COMMENT_LOOKUP_COUNT"
   fi
@@ -180,7 +185,12 @@ elif [[ "$1" == api && "$2" == --paginate && "$3" == repos/owner/repo/issues/42/
     exit 1
   fi
   if [[ "$count" -le "$COMMENT_HIDE_THROUGH" ]]; then exit 0; fi
-  jq -c '.[] | select(.user.login == "me" and (.body | contains("<!-- pr-screenshots:"))) | {body,html_url}' "$COMMENT_FIXTURE"
+  if [[ "${COMMENT_PAGED:-0}" == 1 ]]; then
+    jq -c --arg marker "$marker" '.[0:100][] | select(.user.login == "me" and (.body | contains($marker))) | {body,html_url}' "$COMMENT_FIXTURE"
+    jq -c --arg marker "$marker" '.[100:][] | select(.user.login == "me" and (.body | contains($marker))) | {body,html_url}' "$COMMENT_FIXTURE"
+  else
+    jq -c --arg marker "$marker" '.[] | select(.user.login == "me" and (.body | contains($marker))) | {body,html_url}' "$COMMENT_FIXTURE"
+  fi
 elif [[ "$1" == api && "$2" == repos/owner/repo/pulls/42 ]]; then
   repo=owner/repo
   if [[ "$COMMENT_WRONG_TARGET" == 1 ]]; then repo=wrong/repo; fi
@@ -192,25 +202,21 @@ elif [[ "$1" == pr && "$2" == comment ]]; then
   fi
   printf '%s\n' --POST-- "$@" >>"$GH_CALLS"
   shift 2
-  image1=''
-  image2=''
+  image_paths=()
   body_file=''
   while (($#)); do
     case "$1" in
       --body-file) body_file="$2"; shift 2 ;;
-      --attach)
-        if [[ -z "$image1" ]]; then image1="$2"; else image2="$2"; fi
-        shift 2 ;;
+      --attach) image_paths+=("$2"); shift 2 ;;
       *) shift ;;
     esac
   done
   body="$(cat "$body_file")"
-  if [[ "$COMMENT_ATTACH_LIMIT" -ge 1 ]]; then
-    body="$(printf '%s' "$body" | sed "s|]($image1)|](https://github.com/user-attachments/assets/1)|g")"
-  fi
-  if [[ "$COMMENT_ATTACH_LIMIT" -ge 2 ]]; then
-    body="$(printf '%s' "$body" | sed "s|]($image2)|](https://github.com/user-attachments/assets/2)|g")"
-  fi
+  for index in "${!image_paths[@]}"; do
+    if [[ "$COMMENT_ATTACH_LIMIT" -ge $((index + 1)) ]]; then
+      body="$(printf '%s' "$body" | sed "s|](${image_paths[index]})|](https://github.com/user-attachments/assets/$((index + 1)))|g")"
+    fi
+  done
   url='https://github.com/owner/repo/pull/42#issuecomment-1'
   comment="$(jq -n --arg body "$body" --arg url "$url" '{body:$body,user:{login:"me"},html_url:$url}')"
   jq --argjson comment "$comment" '. + [$comment]' "$COMMENT_FIXTURE" >"$COMMENT_FIXTURE.tmp"
@@ -376,6 +382,115 @@ assert.equal(comments.length, 1);
 assert.equal(calls.filter(line => line === '--POST--').length, 1);
 JS
   [ "$status" -eq 0 ]
+}
+
+@test "comment retry finds its own result on a later history page" {
+  prepare_comment_fixture
+  export COMMENT_PAGED=1
+  jq -n '[range(0; 100) as $i | {user:{login:"other"},body:"unrelated",html_url:("https://github.com/owner/repo/pull/42#issuecomment-" + ($i|tostring))}]' >"$COMMENT_FIXTURE"
+  run comment_cli paged-history
+  [ "$status" -eq 0 ]
+  run comment_cli paged-history
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"reused":true'* ]]
+  [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 101 ]
+  [ "$(jq '[.[] | select(.user.login == "me")] | length' "$COMMENT_FIXTURE")" -eq 1 ]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+}
+
+@test "comment input rejection reports its boundary and valid Markdown still posts" {
+  prepare_comment_fixture
+  local cli="$BATS_TEST_DIRNAME/../bin/browser-attachments"
+  local args=()
+  local images="$BATS_TEST_TMPDIR/many-images.md"
+  printf 'Checked gallery\n' >"$images"
+  for ((index = 0; index < 50; index += 1)); do
+    local image="$BATS_TEST_TMPDIR/image-$index.png"
+    printf 'image\n' >"$image"
+    args+=(--image "$image")
+    printf '![Image %s](%s)\n' "$index" "$image" >>"$images"
+  done
+  export COMMENT_ATTACH_LIMIT=50
+  run "$cli" comment --repo owner/repo --pr 42 "${args[@]}" --body-file "$images" --request-id max-images
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"state":"complete"'* ]]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+
+  args+=(--image "$BATS_TEST_TMPDIR/image-50.png")
+  run "$cli" comment --repo owner/repo --pr 42 "${args[@]}" --body-file "$images" --request-id too-many-images
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'comment-invalid: attach 1-50 unique image paths'* ]]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+
+  run "$cli" comment --repo owner/repo --pr 42 \
+    --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/before.png" \
+    --body-file "$BATS_TEST_TMPDIR/body.md" --request-id duplicate-path
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'comment-invalid: attach 1-50 unique image paths'* ]]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+
+  printf 'Checked these images\n![Before](%s)\n' "$BATS_TEST_TMPDIR/before.png" >"$BATS_TEST_TMPDIR/body.md"
+  run comment_cli missing-reference
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'comment-invalid: each --image needs exactly one ordinary Markdown image reference'* ]]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+
+  printf '![Before](%s)\n![After](%s)\n' "$BATS_TEST_TMPDIR/before.png" "$BATS_TEST_TMPDIR/after.png" >"$BATS_TEST_TMPDIR/body.md"
+  run comment_cli missing-explanation
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'comment-invalid: include a short explanation'* ]]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+
+  printf 'Checked images\n![Before](%s)\n\n![After](%s)\n' "$BATS_TEST_TMPDIR/before.png" "$BATS_TEST_TMPDIR/after.png" >"$BATS_TEST_TMPDIR/body.md"
+  run comment_cli valid-boundary
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"state":"complete"'* ]]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 2 ]
+}
+
+@test "comment rejects malformed local references with actionable reasons" {
+  prepare_comment_fixture
+  local cli="$BATS_TEST_DIRNAME/../bin/browser-attachments"
+  local unsafe_image="$BATS_TEST_TMPDIR/before#fragment.png"
+  printf image >"$unsafe_image"
+  run "$cli" comment --repo owner/repo --pr 42 \
+    --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/before.png" \
+    --body-file "$BATS_TEST_TMPDIR/body.md" --request-id duplicate-path
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'comment-invalid: attach 1-50 unique image paths'* ]]
+  [ ! -s "$GH_CALLS" ]
+
+  run "$cli" comment --repo owner/repo --pr 42 \
+    --image "$unsafe_image" --image "$BATS_TEST_TMPDIR/after.png" \
+    --body-file "$BATS_TEST_TMPDIR/body.md" --request-id unsafe-path
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'comment-invalid: attach 1-50 unique image paths'* ]]
+  [ ! -s "$GH_CALLS" ]
+
+  printf 'Checked images\n![Before](%s)\n' "$BATS_TEST_TMPDIR/before.png" >"$BATS_TEST_TMPDIR/body.md"
+  run comment_cli missing-reference
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'comment-invalid: each --image needs exactly one ordinary Markdown image reference'* ]]
+  [ ! -s "$GH_CALLS" ]
+
+  printf 'Checked images\n![Before](%s)\n![Again](%s)\n![After](%s)\n' \
+    "$BATS_TEST_TMPDIR/before.png" "$BATS_TEST_TMPDIR/before.png" "$BATS_TEST_TMPDIR/after.png" >"$BATS_TEST_TMPDIR/body.md"
+  run comment_cli duplicate-reference
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'comment-invalid: each local Markdown image must match one --image path exactly once'* ]]
+  [ ! -s "$GH_CALLS" ]
+
+  printf '![Before](%s)\n![After](%s)\n' "$BATS_TEST_TMPDIR/before.png" "$BATS_TEST_TMPDIR/after.png" >"$BATS_TEST_TMPDIR/body.md"
+  run comment_cli missing-explanation
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'comment-invalid: include a short explanation'* ]]
+  [ ! -s "$GH_CALLS" ]
+
+  printf 'Checked images\n![Before](%s)\n\n![After](%s)\n' "$BATS_TEST_TMPDIR/before.png" "$BATS_TEST_TMPDIR/after.png" >"$BATS_TEST_TMPDIR/body.md"
+  run comment_cli valid-markdown
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"state":"complete"'* ]]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
 }
 
 @test "connection loss with a temporarily invisible comment stays unknown and never reposts" {

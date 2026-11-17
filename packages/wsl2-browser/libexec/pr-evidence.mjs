@@ -340,6 +340,10 @@ export const commentEvidence = async ({
   const marker = prefix + signature + " -->";
   const filename = path.join(directory, "comment-" + key + ".json");
   const context = describeInputs(filename);
+  const isTransientNetworkFailure = (error) =>
+    /timeout|timed out|connection|network|socket|ECONN|EAI_AGAIN|ENOTFOUND|reset|gateway|HTTP 5[0-9]{2}/iu.test(
+      String(error?.message || ""),
+    );
   const safeReason = (error) => {
     const message = String(error?.message || "");
     if (/^target-conflict:/u.test(message)) return message;
@@ -353,11 +357,7 @@ export const commentEvidence = async ({
     if (/404|not found/iu.test(message)) {
       return "The target repository or pull request was not found or is inaccessible.";
     }
-    if (
-      /timeout|timed out|connection|network|socket|ECONN|EAI_AGAIN|ENOTFOUND|reset|gateway|HTTP 5[0-9]{2}/iu.test(
-        message,
-      )
-    ) {
+    if (isTransientNetworkFailure(error)) {
       return "The GitHub CLI request did not complete.";
     }
     if (typeof error?.code === "number") {
@@ -367,13 +367,7 @@ export const commentEvidence = async ({
   };
   const outputUrl = (output) =>
     String(output || "").match(/https?:\/\/[^\s]+\/pull\/[0-9]+#issuecomment-[0-9]+/u)?.[0];
-  const responseMayBeLost = (error) =>
-    Boolean(
-      error?.signal ||
-      /timeout|timed out|connection|network|socket|ECONN|EAI_AGAIN|ENOTFOUND|reset|gateway|HTTP 5[0-9]{2}/iu.test(
-        String(error?.message || ""),
-      ),
-    );
+  const responseMayBeLost = (error) => Boolean(error?.signal || isTransientNetworkFailure(error));
   const result = (state, target, comment, assets, missing, reason, reused) => ({
     state,
     repository: repo,
