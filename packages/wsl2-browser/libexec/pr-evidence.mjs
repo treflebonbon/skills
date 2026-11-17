@@ -429,18 +429,15 @@ export const commentEvidence = async ({
         explanationMatches = false;
       }
     }
-    const canonical = (text, posted) =>
-      text.replace(/!\[([^\]\n]*)\]\((<[^>\n]+>|[^)\n]+)\)/gu, (full, alt, destination) => {
-        const value = unwrap(destination);
-        const attached =
-          imagePaths.includes(path.resolve(path.dirname(inputBodyFile), value)) ||
-          (posted &&
-            /^https:\/\/github\.com\/user-attachments\/assets\/[A-Za-z0-9-]+$/u.test(value));
-        return attached ? "![" + alt + "](__attached_image__)" : full;
+    const canonical = (text) => {
+      let referenceIndex = 0;
+      return text.replace(/!\[([^\]\n]*)\]\((<[^>\n]+>|[^)\n]+)\)/gu, (full, alt) => {
+        const requested = references[referenceIndex++]?.imageIndex >= 0;
+        return requested ? "![" + alt + "](__attached_image__)" : full;
       });
+    };
     explanationMatches =
-      explanationMatches &&
-      canonical(normalizedBody.trimEnd(), false) === canonical(postedContent, true);
+      explanationMatches && canonical(normalizedBody.trimEnd()) === canonical(postedContent);
     const uniqueMissing = [...new Set(missing)];
     const uploaded = assets.filter(Boolean).length;
     const state =

@@ -616,3 +616,17 @@ check_unknown_post_error() {
   [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 1 ]
   [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 2 ]
 }
+
+@test "existing remote Markdown attachments are preserved with local uploads" {
+  prepare_comment_fixture
+  printf '\n![Existing](https://github.com/user-attachments/assets/existing)\n' >>"$BATS_TEST_TMPDIR/body.md"
+  run comment_cli remote-reference
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"state":"complete"'* ]]
+  [[ "$(jq -r '.[0].body' "$COMMENT_FIXTURE")" == *'![Existing](https://github.com/user-attachments/assets/existing)'* ]]
+  run comment_cli remote-reference
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"reused":true'* ]]
+  [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 1 ]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+}
