@@ -32,13 +32,13 @@ Ubuntu の AppArmor は user namespace の使用とその中の capability を�
 
 失敗probeの証跡を増やすため、development/run-linux-process-proof.ts は既存の非root条件、継承環境と次のargvを保ったまま、probeのPID・開始／終了時刻・終了状態・stdout／stderrを保存する。
 
-**--user --map-current-user --pid --fork --kill-child=SIGKILL --mount-proc -- /usr/bin/true**
+`--user --map-current-user --pid --fork --kill-child=SIGKILL --mount-proc -- /usr/bin/true`
 
-probe出力はstdout／stderrごと32 MiBで打ち切り、超過時は ENOBUFS として前提未達にする。実行中は同じPIDの /proc/<pid>/stat 開始時刻と exe を前後で照合し、実体が選択済み unshare と一致した場合だけprofile、UID／GID／groups、CapInh／Prm／Eff／Bnd／Amb、NoNewPrivs／Seccompを保存する。短命で観測できない、PID／実行体が変化した、権限で読めない場合は状態を記録する。callerの値を代用しない。
+probe出力はstdout／stderrごと32 MiBで打ち切り、超過時は `ENOBUFS` として前提未達にする。実行中は同じPIDの `/proc/<pid>/stat` から開始時刻を取り、`/proc/<pid>/exe` とともに前後で照合する。実体が選択済み `unshare` と一致した場合だけprofile、`Uid`／`Gid`／`Groups`、`CapInh`／`CapPrm`／`CapEff`／`CapBnd`／`CapAmb`、`NoNewPrivs`／`Seccomp` を保存する。短命で観測できない、PID／実行体が変化した、権限で読めない場合は状態を記録する。callerの値を代用しない。`/proc` の値は観測時点の非atomic sampleであり、`uid_map` の書込み失敗時点の状態を保証しない。これはjournalの監査イベントとも区別する。
 
-失敗したprobeに限って、終了後に既存sudoを通じて固定実体の journalctl を読み取り専用で呼ぶ。対象はkernel journal、probeの開始／終了から各1秒の範囲、--grep=pid=<PID>([^0-9]|$)、--lines=101、5秒のtimeout、256 KiBの出力上限に絞る。MESSAGE内の一意なtop-level pid field（引用文字列内を除く）と時刻を照合し、journalの _PID は対応付けに使わない。JSONの出力fieldは __REALTIME_TIMESTAMP、_PID、MESSAGE に限定し、一致したaudit eventだけをartifactへ保存する。audit行は最大20件、各messageは4096文字までとし、上限超過を明示する。成功probeでは特権journal参照を行わず not-requested と記録する。
+失敗したprobeに限って、終了後に既存 `sudo` を通じて固定実体の `journalctl` を読み取り専用で呼ぶ。対象はkernel journal、probeの開始／終了から各1秒の範囲、`--grep=(^|[^[:alnum:]_])pid=<PID>([^[:alnum:]_]|$)`、`--lines=101`、5秒のtimeout、256 KiBの出力上限に絞る。`MESSAGE` 内の一意なtop-level `pid` field（引用文字列内を除く）と時刻を照合し、journalの `_PID` は対応付けに使わない。JSONの出力fieldは `__REALTIME_TIMESTAMP`、`_PID`、`MESSAGE` に限定し、一致したaudit eventだけをartifactへ保存する。audit行は最大20件、各messageは4096文字までとし、上限超過を明示する。成功probeでは特権journal参照を行わず `not-requested` と記録する。
 
-journalctlは非rootで --version を取得し、選択実体のpath／SHA-256、版取得状態、sudoに渡したargvを記録する。取得できない場合もaudit不足として残す。取得結果の状態は matched、no-matching-events、empty、permission-denied、truncated、timeout、unavailable などに分ける。空の結果や取得失敗から拒否原因を推定しない。無関係なkernel log本文は保存しない。
+`journalctl` は非rootで `--version` を取得し、選択実体のpath／SHA-256、版取得状態、`sudo` に渡した `argv` を記録する。取得できない場合もaudit不足として残す。取得結果の状態は `matched`、`no-matching-events`、`empty`、`permission-denied`、`truncated`、`timeout`、`unavailable` などに分ける。空の結果や取得失敗から拒否原因を推定しない。無関係なkernel log本文は保存しない。
 
 保護されたローカルfixtureでCLIのstdout／stderr／終了状態と job.json を読み、PID・argv・auditのPID／時刻照合、引用文字列と別PIDの除外、101件時の切詰め状態を確認する。正式VMで取得した証跡ではないため、#33 の原因判定には使わない。
 

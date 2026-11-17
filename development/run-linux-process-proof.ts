@@ -67,7 +67,13 @@ function inspectProbeProcess(pid: number, expectedExecutable: string, expectedSt
     const startTicks = fields[19];
     if (!/^\d+$/.test(startTicks ?? ""))
       throw Object.assign(new Error("stat-parse"), { code: "EIO" });
-    return { startTicks, executable: fs.readlinkSync(proc + "/exe") };
+    let executable: string;
+    try {
+      executable = fs.readlinkSync(proc + "/exe");
+    } catch (error) {
+      throw Object.assign(error as NodeJS.ErrnoException, { startTicks });
+    }
+    return { startTicks, executable };
   };
   const processChanged = (
     before: { startTicks: string; executable: string },
@@ -78,18 +84,27 @@ function inspectProbeProcess(pid: number, expectedExecutable: string, expectedSt
     expectedStartTicks: expectedStartTicks ?? before.startTicks,
     observedStartTicks: after.startTicks,
   });
+  const failure = (error: unknown, startTicks?: string) => {
+    const code = (error as NodeJS.ErrnoException).code;
+    const knownStartTicks =
+      startTicks ??
+      (error as NodeJS.ErrnoException & { startTicks?: string }).startTicks ??
+      expectedStartTicks;
+    const result =
+      code === "ENOENT"
+        ? { status: "process-exited-before-sample", pid }
+        : {
+            status: code === "EACCES" || code === "EPERM" ? "permission-denied" : "unavailable",
+            pid,
+            error: code,
+          };
+    return knownStartTicks ? { ...result, startTicks: knownStartTicks } : result;
+  };
   let before: ReturnType<typeof identity>;
   try {
     before = identity();
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    return code === "ENOENT"
-      ? { status: "process-exited-before-sample", pid }
-      : {
-          status: code === "EACCES" || code === "EPERM" ? "permission-denied" : "unavailable",
-          pid,
-          error: code,
-        };
+    return failure(error);
   }
   if (expectedStartTicks && before.startTicks !== expectedStartTicks)
     return {
@@ -104,14 +119,7 @@ function inspectProbeProcess(pid: number, expectedExecutable: string, expectedSt
       if (after.startTicks !== before.startTicks || after.executable !== before.executable)
         return processChanged(before, after);
     } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      return code === "ENOENT"
-        ? { status: "process-exited-before-sample", pid }
-        : {
-            status: code === "EACCES" || code === "EPERM" ? "permission-denied" : "unavailable",
-            pid,
-            error: code,
-          };
+      return failure(error, before.startTicks);
     }
     return {
       status: "exe-mismatch",
@@ -143,14 +151,7 @@ function inspectProbeProcess(pid: number, expectedExecutable: string, expectedSt
         lines[name] = line.slice(separator + 1).trim();
     }
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    return code === "ENOENT"
-      ? { status: "process-exited-before-sample", pid }
-      : {
-          status: code === "EACCES" || code === "EPERM" ? "permission-denied" : "unavailable",
-          pid,
-          error: code,
-        };
+    return failure(error, before.startTicks);
   }
   const capabilityNames = ["CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb"];
   const capabilities = Object.fromEntries(
@@ -161,14 +162,7 @@ function inspectProbeProcess(pid: number, expectedExecutable: string, expectedSt
   try {
     after = identity();
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    return code === "ENOENT"
-      ? { status: "process-exited-before-sample", pid }
-      : {
-          status: code === "EACCES" || code === "EPERM" ? "permission-denied" : "unavailable",
-          pid,
-          error: code,
-        };
+    return failure(error, before.startTicks);
   }
   if (after.startTicks !== before.startTicks || after.executable !== before.executable)
     return processChanged(before, after);
@@ -241,6 +235,7 @@ async function namespaceProbe(executable: string, cwd: string) {
   const sampleTimer = setInterval(() => {
     if (
       pid &&
+      observedStartTicks &&
       ["unavailable", "permission-denied", "exe-mismatch"].includes(
         processObservation?.status ?? "",
       )
@@ -334,7 +329,7 @@ function probeAudit(
     since,
     "--until",
     until,
-    "--grep=pid=" + probe.pid + "([^0-9]|$)",
+    "--grep=(^|[^[:alnum:]_])pid=" + probe.pid + "([^[:alnum:]_]|$)",
     "--output=json",
     "--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE",
     "--no-pager",
@@ -420,12 +415,18 @@ function probeAudit(
   }
   const entries: Record<string, unknown>[] = [];
   for (const line of rows) {
-    let row: Record<string, unknown>;
+    let parsed: unknown;
     try {
-      row = JSON.parse(line);
+      parsed = JSON.parse(line);
     } catch {
       return unavailable("invalid-json", undefined, { ...context, recordCount: rows.length });
     }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+      return unavailable("unavailable", "record-not-object", {
+        ...context,
+        recordCount: rows.length,
+      });
+    const row = parsed as Record<string, unknown>;
     const message = typeof row.MESSAGE === "string" ? row.MESSAGE : "";
     const timestamp = Number(row.__REALTIME_TIMESTAMP);
     if (!message || !Number.isFinite(timestamp))

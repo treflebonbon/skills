@@ -514,28 +514,7 @@ test("bundle の raw log・binary・closure の欠落や改変を成功にしな
         imageVersion: "fixture",
         environment: { PATH: "/bin", HOME: "/home/runner" },
         kernel: "fixture",
-        probe: {
-          status: 0,
-          path: "/usr/bin/unshare",
-          argv: [
-            "--user",
-            "--map-current-user",
-            "--pid",
-            "--fork",
-            "--kill-child=SIGKILL",
-            "--mount-proc",
-            "--",
-            "/usr/bin/true",
-          ],
-          pid: 123,
-          startedAt: "2026-11-16T00:00:00.000Z",
-          endedAt: "2026-11-16T00:00:00.001Z",
-          processObservation: { status: "process-exited-before-sample", pid: 123 },
-          audit: {
-            status: "not-requested",
-            events: [],
-          },
-        },
+        probe: { status: 0 },
         nix: {
           mode: "multi-user",
           remote: "daemon",
@@ -750,7 +729,7 @@ test.skipIf(process.platform !== "linux")(
   },
 );
 
-test.skipIf(process.platform !== "linux")(
+test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"))(
   "run CLI は失敗 probe の実行体・監査観測を限定保存し終了状態を返す",
   () => {
     const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -778,9 +757,8 @@ test.skipIf(process.platform !== "linux")(
           'if (process.argv.includes("--version")) { process.stdout.write("unshare fixture\\n"); process.exit(0); }',
           "fs.writeFileSync(process.env.PROBE_PID_FILE, String(process.pid));",
           "fs.writeFileSync(process.env.PROBE_ARGV_FILE, JSON.stringify(process.argv.slice(2)));",
-          'if (process.env.PROBE_SUCCESS === "1") process.exit(0);',
-          'process.stderr.write("unshare: write failed /proc/self/uid_map: Operation not permitted\\n");',
-          "process.exitCode = 1;",
+          'const finish = () => { if (process.env.PROBE_SUCCESS === "1") process.exit(0); process.stderr.write("unshare: write failed /proc/self/uid_map: Operation not permitted\\n"); process.exitCode = 1; };',
+          "if (process.env.PROBE_HOLD_MS) setTimeout(finish, Number(process.env.PROBE_HOLD_MS)); else finish();",
         ].join("\n"),
       );
       executable(
@@ -811,11 +789,70 @@ test.skipIf(process.platform !== "linux")(
           "  const entries = [",
           '    entry(stamp(1) + "apparmor=" + quote("DENIED") + " operation=" + quote("userns_create") + " info=" + quote("pid=" + pid) + " pid=" + (pid + 1) + " comm=" + quote("decoy")),',
           '    entry(stamp(2) + "apparmor=" + quote("DENIED") + " operation=" + quote("userns_create") + " pid=" + pid + " comm=" + quote("unshare")),',
-          '    entry(stamp(3) + "apparmor=" + quote("DENIED") + " operation=" + quote("userns_create") + " pid=" + (pid + 1) + " comm=" + quote("other"))',
+          '    entry(stamp(3) + "apparmor=" + quote("DENIED") + " operation=" + quote("userns_create") + " ppid=" + pid + " comm=" + quote("parent")),',
+          '    entry(stamp(4) + "apparmor=" + quote("DENIED") + " operation=" + quote("userns_create") + " pid=" + (pid + 1) + " comm=" + quote("other"))',
           "  ];",
           '  if (process.env.PROBE_JOURNAL_MODE === "truncated") while (entries.length < 101) entries.push(entry(stamp(entries.length + 1) + "apparmor=" + quote("DENIED") + " operation=" + quote("userns_create") + " pid=" + pid));',
-          '  process.stdout.write(entries.join("\\n") + "\\n");',
+          '  if (process.env.PROBE_JOURNAL_MODE === "null") process.stdout.write("null\\n");',
+          '  else if (process.env.PROBE_JOURNAL_MODE === "empty") process.stdout.write("");',
+          '  else if (process.env.PROBE_JOURNAL_MODE === "permission-denied") { process.stderr.write("sudo: a password is required\\n"); process.exitCode = 1; }',
+          '  else process.stdout.write(entries.join("\\n") + "\\n");',
           "}",
+        ].join("\n"),
+      );
+      const procPreload = join(directory, "probe-proc-preload.js");
+      fs.writeFileSync(
+        procPreload,
+        [
+          'import { mock } from "bun:test";',
+          'import * as original from "node:fs";',
+          "const originalExports = { ...original };",
+          "const originalReadFileSync = original.readFileSync.bind(original);",
+          "const originalReadlinkSync = original.readlinkSync.bind(original);",
+          "let statReads = 0;",
+          "let statusReads = 0;",
+          "let executableReads = 0;",
+          'const denied = () => Object.assign(new Error("EACCES"), { code: "EACCES" });',
+          'const processPath = (path) => typeof path === "string" ? /^\\/proc\\/(\\d+)\\/(stat|status|attr\\/current)$/.exec(path) : null;',
+          'mock.module("node:fs", () => ({',
+          "  ...originalExports,",
+          "  readFileSync(path, ...args) {",
+          "    const match = processPath(path);",
+          "    if (!match) return originalReadFileSync(path, ...args);",
+          "    const [, pid, file] = match;",
+          "    const mode = process.env.PROBE_PROC_MODE;",
+          '    if (file === "stat") {',
+          "      const sequence = statReads++;",
+          '      if ((mode === "initial-stat-denied" && sequence === 0) || (mode === "retry-stat-denied" && sequence > 0)) throw denied();',
+          '      const startTicks = mode === "reuse" && sequence > 0 ? "200" : "100";',
+          '      const fields = Array.from({ length: 20 }, (_, index) => index === 0 ? "S" : index === 19 ? startTicks : "0");',
+          '      return pid + " (probe) " + fields.join(" ") + "\\n";',
+          "    }",
+          '    if (file === "status") {',
+          '      if ((mode === "reuse" || mode === "stable" || mode === "retry-stat-denied") && statusReads++ === 0) throw denied();',
+          "      return [",
+          '        "Uid:\\t1000\\t1000\\t1000\\t1000",',
+          '        "Gid:\\t1000\\t1000\\t1000\\t1000",',
+          '        "Groups:\\t1000",',
+          '        "CapInh:\\t0000000000000000",',
+          '        "CapPrm:\\t0000000000000000",',
+          '        "CapEff:\\t0000000000000000",',
+          '        "CapBnd:\\t0000000000000000",',
+          '        "CapAmb:\\t0000000000000000",',
+          '        "NoNewPrivs:\\t0",',
+          '        "Seccomp:\\t0",',
+          '      ].join("\\n");',
+          "    }",
+          '    return "unconfined\\n";',
+          "  },",
+          "  readlinkSync(path, ...args) {",
+          '    if (typeof path === "string" && /^\\/proc\\/\\d+\\/exe$/.test(path)) {',
+          '      if (process.env.PROBE_PROC_MODE === "exec-transition" && executableReads++ < 2) return "/tmp/pre-exec";',
+          "      return process.env.PROBE_EXPECTED_EXE;",
+          "    }",
+          "    return originalReadlinkSync(path, ...args);",
+          "  },",
+          "}));",
         ].join("\n"),
       );
       fs.symlinkSync(Bun.which("git")!, join(bin, "git"));
@@ -842,14 +879,23 @@ test.skipIf(process.platform !== "linux")(
         PROBE_PID_FILE: pidFile,
         PROBE_ARGV_FILE: argvFile,
         PROBE_SUDO_ARGS_FILE: sudoArgsFile,
+        PROBE_EXPECTED_EXE: join(bin, "unshare"),
       };
-      const execute = (evidenceDirectory: string, extraEnv: NodeJS.ProcessEnv = {}) =>
-        spawnSync(process.execPath, [cli, "run", root, evidenceDirectory], {
-          cwd: root,
-          encoding: "utf8",
-          timeout: 20_000,
-          env: { ...env, ...extraEnv },
-        });
+      const execute = (
+        evidenceDirectory: string,
+        extraEnv: NodeJS.ProcessEnv = {},
+        preload?: string,
+      ) =>
+        spawnSync(
+          process.execPath,
+          [...(preload ? ["--preload", preload] : []), cli, "run", root, evidenceDirectory],
+          {
+            cwd: root,
+            encoding: "utf8",
+            timeout: 20_000,
+            env: { ...env, ...extraEnv },
+          },
+        );
       const result = execute(output);
       expect(result.error).toBeUndefined();
       expect(result.status).toBe(1);
@@ -899,10 +945,60 @@ test.skipIf(process.platform !== "linux")(
       const sudoArgs = JSON.parse(fs.readFileSync(sudoArgsFile, "utf8"));
       expect(sudoArgs).toContain("/usr/bin/journalctl");
       expect(sudoArgs).toContain("--dmesg");
-      expect(sudoArgs).toContain("--grep=pid=" + pid + "([^0-9]|$)");
+      expect(sudoArgs).toContain("--grep=(^|[^[:alnum:]_])pid=" + pid + "([^[:alnum:]_]|$)");
       expect(sudoArgs).toContain("--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE");
       expect(probe.audit.events[0].messagePid).toBe(pid);
       expect(probe.audit.events[0].message).not.toContain("decoy");
+      const observeProbe = (name: string, mode: string) => {
+        const evidenceDirectory = join(directory, name);
+        fs.mkdirSync(evidenceDirectory);
+        const result = execute(
+          evidenceDirectory,
+          { PROBE_PROC_MODE: mode, PROBE_HOLD_MS: "100" },
+          procPreload,
+        );
+        expect(result.error).toBeUndefined();
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain("前提検査未達のため実証を開始しません");
+        return JSON.parse(fs.readFileSync(join(evidenceDirectory, "job.json"), "utf8")).preflight
+          .probe.processObservation;
+      };
+      const reusedPid = observeProbe("pid-reuse-evidence", "reuse");
+      expect(reusedPid).toMatchObject({
+        status: "process-changed",
+        expectedStartTicks: "100",
+        observedStartTicks: "200",
+      });
+      expect(reusedPid.identity).toBeUndefined();
+      const unidentified = observeProbe("unidentified-evidence", "initial-stat-denied");
+      expect(unidentified).toMatchObject({ status: "permission-denied", error: "EACCES" });
+      expect(unidentified.startTicks).toBeUndefined();
+      const retryStatDenied = observeProbe("retry-stat-denied-evidence", "retry-stat-denied");
+      expect(retryStatDenied).toMatchObject({ status: "permission-denied", startTicks: "100" });
+      const stablePid = observeProbe("stable-pid-evidence", "stable");
+      expect(stablePid).toMatchObject({ status: "observed", startTicks: "100" });
+      const execTransition = observeProbe("exec-transition-evidence", "exec-transition");
+      expect(execTransition).toMatchObject({ status: "observed", startTicks: "100" });
+      for (const [mode, expectedAuditStatus, expectedReason] of [
+        ["null", "unavailable", "record-not-object"],
+        ["empty", "empty", undefined],
+        ["permission-denied", "permission-denied", "journal-exit-1"],
+      ] as const) {
+        const evidenceDirectory = join(directory, mode + "-journal-evidence");
+        fs.mkdirSync(evidenceDirectory);
+        const result = execute(evidenceDirectory, { PROBE_JOURNAL_MODE: mode });
+        expect(result.error).toBeUndefined();
+        expect(result.status).toBe(1);
+        const failedProbe = JSON.parse(fs.readFileSync(join(evidenceDirectory, "job.json"), "utf8"))
+          .preflight.probe;
+        expect(failedProbe.status).toBe(1);
+        expect(failedProbe.stderr).toBe(
+          "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+        );
+        expect(failedProbe.audit.status).toBe(expectedAuditStatus);
+        expect(failedProbe.audit.reason).toBe(expectedReason);
+        expect(result.stderr).not.toContain("Cannot read properties of null");
+      }
       const successfulOutput = join(directory, "successful-evidence");
       fs.mkdirSync(successfulOutput);
       fs.rmSync(sudoArgsFile, { force: true });
@@ -931,4 +1027,5 @@ test.skipIf(process.platform !== "linux")(
       fs.rmSync(directory, { recursive: true, force: true });
     }
   },
+  30_000,
 );
