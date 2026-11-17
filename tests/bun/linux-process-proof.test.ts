@@ -333,6 +333,7 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
   }));
   artifacts.push({ ...artifacts[0]!, name: "linux-proof-42-2-x64", id: 3 });
   artifacts.push({ ...artifacts[0]!, name: "namespace-loop-42-1-x64", id: 4 });
+  artifacts.push({ ...artifacts[0]!, name: "namespace-minimize-42-1-x64", id: 5 });
   const read = async (path: string): Promise<Record<string, unknown>> => {
     if (path === "/actions/runs/42")
       return {
@@ -350,7 +351,7 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
         "<=2026-11-16T01:00:00Z",
       );
       return {
-        total_count: 2,
+        total_count: 3,
         workflow_runs: [
           { id: 42, run_attempt: 1, display_title: `Linux process proof: ${sourceSha}` },
           {
@@ -359,6 +360,13 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
             created_at: "2026-11-16T00:00:00Z",
             conclusion: "failure",
             display_title: `Linux namespace 再現ループ: ${sourceSha}`,
+          },
+          {
+            id: 40,
+            run_attempt: 1,
+            created_at: "2026-11-15T00:00:00Z",
+            conclusion: "failure",
+            display_title: `Linux namespace オプション削減: ${sourceSha}`,
           },
         ],
       };
@@ -382,16 +390,17 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
       [],
     ),
   ).rejects.toThrow("artifact 一覧を完全に取得できません");
-  await expect(
-    collectMetadata(
-      async (path) =>
-        path === "/actions/runs/42"
-          ? { ...(await read(path)), display_title: `Linux namespace 再現ループ: ${sourceSha}` }
-          : read(path),
-      current,
-      [],
-    ),
-  ).rejects.toThrow("実行 metadata が source/workflow/run/attempt と一致しません");
+  for (const title of ["Linux namespace 再現ループ", "Linux namespace オプション削減"])
+    await expect(
+      collectMetadata(
+        async (path) =>
+          path === "/actions/runs/42"
+            ? { ...(await read(path)), display_title: `${title}: ${sourceSha}` }
+            : read(path),
+        current,
+        [],
+      ),
+    ).rejects.toThrow("実行 metadata が source/workflow/run/attempt と一致しません");
 });
 
 test("現在の attempt 開始後の待機 run と後続 attempt を過去の失敗にしない", async () => {
@@ -778,6 +787,14 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
           'if (process.argv.includes("--version")) { process.stdout.write("unshare fixture\\n"); process.exit(0); }',
           "fs.writeFileSync(process.env.PROBE_PID_FILE, String(process.pid));",
           "fs.writeFileSync(process.env.PROBE_ARGV_FILE, JSON.stringify(process.argv.slice(2)));",
+          "const args = process.argv.slice(2);",
+          "const variant = process.env.PROBE_MINIMIZE;",
+          "if (variant) {",
+          '  const hasMap = args.includes("--map-current-user");',
+          '  if (!hasMap && variant === "other-failure") { process.stderr.write("unshare: different failure\\n"); process.exit(1); }',
+          '  if (!hasMap || (variant === "revisit" && !args.includes("--user") && args.includes("--pid"))) process.exit(0);',
+          '  if (variant === "inconsistent") { const file = process.env.PROBE_COUNTER_FILE; const count = fs.existsSync(file) ? Number(fs.readFileSync(file, "utf8")) : 0; fs.writeFileSync(file, String(count + 1)); if (count === 4) process.exit(0); }',
+          "}",
           'const finish = () => { if (process.env.PROBE_SUCCESS === "1") process.exit(0); process.stderr.write((process.env.PROBE_FAILURE_MESSAGE || "unshare: write failed /proc/self/uid_map: Operation not permitted") + "\\n"); process.exitCode = 1; };',
           "if (process.env.PROBE_HOLD_MS) setTimeout(finish, Number(process.env.PROBE_HOLD_MS)); else finish();",
         ].join("\n"),
@@ -1160,9 +1177,91 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
           expect(fs.readFileSync(join(loopOutput, "namespace-loop.json"), "utf8")).toBe(before);
         }
       }
+      for (const [variant, expectedExit, expectedOutcome] of [
+        ["revisit", 1, "minimal-options"],
+        ["other-failure", 2, "incomplete"],
+        ["inconsistent", 2, "unavailable"],
+        ["passes", 0, undefined],
+      ] as const) {
+        const output = join(directory, "minimize-" + variant);
+        const result = execute(
+          output,
+          {
+            PROBE_GROUP_VALID: "1",
+            PROBE_MINIMIZE: variant === "passes" ? undefined : variant,
+            PROBE_SUCCESS: variant === "passes" ? "1" : undefined,
+            PROBE_COUNTER_FILE: join(directory, "counter"),
+          },
+          procPreload,
+          "probe-minimize",
+        );
+        expect(result.error).toBeUndefined();
+        expect(result.status).toBe(expectedExit);
+        const evidence = JSON.parse(
+          fs.readFileSync(join(output, "namespace-minimize.json"), "utf8"),
+        );
+        expect(evidence.schema).toBe("linux-namespace-probe-minimize/v1");
+        expect(evidence.repetitions).toHaveLength(3);
+        expect(evidence.repetitions[0].preflight.probe.argv).toEqual(probe.argv);
+        expect(evidence.minimization?.outcome).toBe(expectedOutcome);
+        expect(fs.existsSync(join(output, "job.json"))).toBe(false);
+        expect(fs.existsSync(join(output, "namespace-loop.json"))).toBe(false);
+        if (variant === "passes") {
+          expect(evidence.outcome).toBe("passed");
+          expect(evidence.minimization).toBeUndefined();
+          const before = fs.readFileSync(join(output, "namespace-minimize.json"), "utf8");
+          const repeated = execute(output, {}, procPreload, "probe-minimize");
+          expect(repeated.status).toBe(2);
+          expect(repeated.stderr).toContain("EEXIST");
+          expect(fs.readFileSync(join(output, "namespace-minimize.json"), "utf8")).toBe(before);
+          continue;
+        }
+        const minimized = evidence.minimization;
+        expect(minimized.attempts.length).toBeLessThanOrEqual(22);
+        for (const attempt of minimized.attempts) {
+          expect(attempt.argv.slice(-2)).toEqual(["--", "/usr/bin/true"]);
+          expect(attempt.repetitions).toHaveLength(3);
+          expect(
+            attempt.repetitions.every(
+              (entry: { argv: string[] }) =>
+                JSON.stringify(entry.argv) === JSON.stringify(attempt.argv),
+            ),
+          ).toBe(true);
+        }
+        if (variant === "inconsistent") {
+          expect(evidence.outcome).toBe("unavailable");
+          expect(minimized.error).toContain("削減候補の3反復が一致しません");
+          expect(minimized.attempts).toHaveLength(1);
+          continue;
+        }
+        expect(minimized.remainingArgv).toEqual(["--map-current-user", "--", "/usr/bin/true"]);
+        const last = minimized.attempts.at(-1);
+        expect(last.removed).toBeUndefined();
+        expect(last.argv).toEqual(minimized.remainingArgv);
+        expect(last.outcome).toBe("uid-map-eperm");
+        if (variant === "other-failure") {
+          expect(evidence.outcome).toBe("unavailable");
+          expect(minimized.error).toContain(
+            "残るオプションの削除で別の失敗になり、最小性を確認できません",
+          );
+          expect(minimized.attempts.at(-2).outcome).toBe("other-failure");
+          expect(minimized.attempts.at(-2).repetitions[0].stderr).toBe(
+            "unshare: different failure\n",
+          );
+        } else {
+          expect(evidence.outcome).toBe("uid-map-eperm");
+          const userCuts = minimized.attempts.filter(
+            (entry: { removed: string }) => entry.removed === "--user",
+          );
+          expect(userCuts[0].outcome).toBe("passed");
+          expect(userCuts[1].outcome).toBe("uid-map-eperm");
+          expect(minimized.attempts.at(-2).outcome).toBe("passed");
+          expect(result.stdout).toContain("[DEBUG-ns-min]");
+        }
+      }
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
   },
-  30_000,
+  90_000,
 );

@@ -190,9 +190,9 @@ function inspectProbeProcess(pid: number, expectedExecutable: string, expectedSt
     ),
   };
 }
-async function namespaceProbe(executable: string, cwd: string) {
+async function namespaceProbe(executable: string, cwd: string, argv = probeArgs) {
   const startedAt = new Date().toISOString();
-  const child = spawn(executable, probeArgs, {
+  const child = spawn(executable, argv, {
     cwd,
     env: process.env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -261,7 +261,7 @@ async function namespaceProbe(executable: string, cwd: string) {
   const endedAt = new Date().toISOString();
   return {
     path: executable,
-    argv: probeArgs,
+    argv,
     pid,
     startedAt,
     endedAt,
@@ -663,9 +663,90 @@ async function preflight(root: string, onProgress?: (state: Record<string, unkno
   };
 }
 
-async function probeLoop(root: string, out: string) {
+async function minimizeProbe(root: string, executable: string) {
+  const attempts: {
+    removed?: string;
+    argv: string[];
+    outcome: string;
+    repetitions: (Awaited<ReturnType<typeof namespaceProbe>> & {
+      elapsedMs: number;
+      audit: ReturnType<typeof probeAudit> | { status: string; events: never[] };
+    })[];
+  }[] = [];
+  let options = probeArgs.slice(0, -2);
+  const result = { attempts, remainingArgv: probeArgs, outcome: "unavailable", error: "" };
+  const measure = async (candidate: string[], removed?: string) => {
+    const attempt: (typeof attempts)[number] = {
+      removed,
+      argv: [...candidate, "--", "/usr/bin/true"],
+      outcome: "unavailable",
+      repetitions: [],
+    };
+    attempts.push(attempt);
+    const outcomes: string[] = [];
+    for (const repetition of [1, 2, 3]) {
+      const started = performance.now();
+      const probe = await namespaceProbe(executable, root, attempt.argv);
+      const audit =
+        probe.status === 0
+          ? { status: "not-requested", events: [] as never[] }
+          : probeAudit(probe, Bun.which("sudo")!, root);
+      attempt.repetitions.push({ ...probe, elapsedMs: performance.now() - started, audit });
+      const outcome =
+        probe.error || probe.signal || probe.status === null
+          ? "unavailable"
+          : probe.status === 0
+            ? "passed"
+            : probe.status === 1 &&
+                probe.stderr ===
+                  "unshare: write failed /proc/self/uid_map: Operation not permitted\n"
+              ? "uid-map-eperm"
+              : "other-failure";
+      outcomes.push(outcome);
+      console.log(
+        "[DEBUG-ns-min] 試行=" + attempts.length + " 反復=" + repetition + " 結果=" + outcome,
+      );
+      if (outcome === "unavailable") throw new Error("削減候補のprobeを完了できません");
+    }
+    attempt.outcome = outcomes.every((outcome) => outcome === outcomes[0])
+      ? outcomes[0]!
+      : "inconsistent";
+    if (attempt.outcome === "inconsistent") throw new Error("削減候補の3反復が一致しません");
+    return attempt.outcome;
+  };
+  try {
+    let index = 0;
+    let otherFailure = false;
+    while (index < options.length) {
+      const candidate = options.filter((_, position) => position !== index);
+      const outcome = await measure(candidate, options[index]);
+      if (outcome === "uid-map-eperm") {
+        options = candidate;
+        result.remainingArgv = [...options, "--", "/usr/bin/true"];
+        index = 0;
+        otherFailure = false;
+      } else {
+        otherFailure ||= outcome === "other-failure";
+        index++;
+      }
+    }
+    if ((await measure(options)) !== "uid-map-eperm")
+      throw new Error("削減後の条件で元のEPERMを再確認できません");
+    result.outcome = otherFailure ? "incomplete" : "minimal-options";
+    if (otherFailure) result.error = "残るオプションの削除で別の失敗になり、最小性を確認できません";
+  } catch (error) {
+    result.error = String(error);
+  }
+  return result;
+}
+
+async function probeLoop(root: string, out: string, minimize = false) {
   fs.mkdirSync(out, { recursive: true });
-  const descriptor = fs.openSync(join(out, "namespace-loop.json"), "wx", 0o600);
+  const descriptor = fs.openSync(
+    join(out, minimize ? "namespace-minimize.json" : "namespace-loop.json"),
+    "wx",
+    0o600,
+  );
   const repetitions: {
     repetition: number;
     elapsedMs: number;
@@ -674,7 +755,7 @@ async function probeLoop(root: string, out: string) {
     error?: string;
   }[] = [];
   const record: Record<string, unknown> = {
-    schema: "linux-namespace-probe-loop/v1",
+    schema: minimize ? "linux-namespace-probe-minimize/v1" : "linux-namespace-probe-loop/v1",
     arch: process.env.PROOF_ARCH,
     repetitions,
     outcome: "unavailable",
@@ -741,6 +822,15 @@ async function probeLoop(root: string, out: string) {
         : repetitions.every((entry) => entry.outcome === "uid-map-eperm")
           ? "uid-map-eperm"
           : "inconsistent";
+    if (minimize && record.outcome === "uid-map-eperm") {
+      const baseline = repetitions[0]!.preflight as Awaited<ReturnType<typeof preflight>>;
+      const minimization = await minimizeProbe(root, baseline.tools.unshare!.path);
+      record.minimization = minimization;
+      record.sourcesAfter = sources(root);
+      if (JSON.stringify(record.sources) !== JSON.stringify(record.sourcesAfter))
+        throw new Error("実行中に source が変化しました");
+      if (minimization.outcome !== "minimal-options") record.outcome = "unavailable";
+    } else if (minimize && record.outcome === "inconsistent") record.outcome = "unavailable";
     process.exitCode = record.outcome === "passed" ? 0 : record.outcome === "unavailable" ? 2 : 1;
   } catch (error) {
     record.error = String(error);
@@ -1041,15 +1131,16 @@ if (import.meta.main) {
   try {
     if (!source || !directory)
       throw new Error(
-        "run SOURCE OUTPUT / probe-loop SOURCE OUTPUT / aggregate SOURCE RAW OUTPUT が必要です",
+        "run SOURCE OUTPUT / probe-loop SOURCE OUTPUT / probe-minimize SOURCE OUTPUT / aggregate SOURCE RAW OUTPUT が必要です",
       );
-    if (mode === "probe-loop") await probeLoop(resolve(source), resolve(directory));
+    if (mode === "probe-loop" || mode === "probe-minimize")
+      await probeLoop(resolve(source), resolve(directory), mode === "probe-minimize");
     else if (mode === "run") await run(resolve(source), resolve(directory));
     else if (mode === "aggregate" && output)
       await aggregate(resolve(source), resolve(directory), resolve(output));
     else throw new Error("不明な実行方式です");
   } catch (error) {
     console.error(String(error));
-    process.exitCode = mode === "probe-loop" ? 2 : 1;
+    process.exitCode = mode === "probe-loop" || mode === "probe-minimize" ? 2 : 1;
   }
 }

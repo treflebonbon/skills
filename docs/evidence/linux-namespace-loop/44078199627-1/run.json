@@ -1,0 +1,255 @@
+{
+  "attempt": 1,
+  "conclusion": "failure",
+  "createdAt": "2026-11-17T11:54:22Z",
+  "databaseId": 44078199627,
+  "displayTitle": "Linux namespace 再現ループ: cd4707793e32ffd25c26ed5552d6cac8c0a8d06c",
+  "event": "workflow_dispatch",
+  "headSha": "cd4707793e32ffd25c26ed5552d6cac8c0a8d06c",
+  "jobs": [
+    {
+      "completedAt": "2026-11-17T11:55:15Z",
+      "conclusion": "failure",
+      "databaseId": 134021606080,
+      "name": "namespace 再現ループ (x64)",
+      "startedAt": "2026-11-17T11:54:26Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-17T11:54:31Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-17T11:54:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:54:31Z",
+          "conclusion": "success",
+          "name": "入力 SHA と方式を検査",
+          "number": 2,
+          "startedAt": "2026-11-17T11:54:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:54:36Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 3,
+          "startedAt": "2026-11-17T11:54:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:54:37Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 4,
+          "startedAt": "2026-11-17T11:54:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:54:39Z",
+          "conclusion": "success",
+          "name": "Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 5,
+          "startedAt": "2026-11-17T11:54:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:09Z",
+          "conclusion": "success",
+          "name": "CI 専用依存と補助 group を準備",
+          "number": 6,
+          "startedAt": "2026-11-17T11:54:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:09Z",
+          "conclusion": "skipped",
+          "name": "非root で全44件を3反復",
+          "number": 7,
+          "startedAt": "2026-11-17T11:55:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:10Z",
+          "conclusion": "failure",
+          "name": "同じ条件のnamespace probeを3回測定",
+          "number": 8,
+          "startedAt": "2026-11-17T11:55:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:12Z",
+          "conclusion": "success",
+          "name": "成功・失敗の生証跡を保存",
+          "number": 9,
+          "startedAt": "2026-11-17T11:55:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:12Z",
+          "conclusion": "skipped",
+          "name": "Post Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 16,
+          "startedAt": "2026-11-17T11:55:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:12Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 17,
+          "startedAt": "2026-11-17T11:55:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:12Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 18,
+          "startedAt": "2026-11-17T11:55:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:12Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 19,
+          "startedAt": "2026-11-17T11:55:12Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44078199627/job/134021606080"
+    },
+    {
+      "completedAt": "2026-11-17T11:55:04Z",
+      "conclusion": "failure",
+      "databaseId": 134021606477,
+      "name": "namespace 再現ループ (arm64)",
+      "startedAt": "2026-11-17T11:54:28Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-17T11:54:29Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-17T11:54:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:54:29Z",
+          "conclusion": "success",
+          "name": "入力 SHA と方式を検査",
+          "number": 2,
+          "startedAt": "2026-11-17T11:54:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:54:30Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 3,
+          "startedAt": "2026-11-17T11:54:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:54:31Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 4,
+          "startedAt": "2026-11-17T11:54:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:54:33Z",
+          "conclusion": "success",
+          "name": "Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 5,
+          "startedAt": "2026-11-17T11:54:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:00Z",
+          "conclusion": "success",
+          "name": "CI 専用依存と補助 group を準備",
+          "number": 6,
+          "startedAt": "2026-11-17T11:54:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:00Z",
+          "conclusion": "skipped",
+          "name": "非root で全44件を3反復",
+          "number": 7,
+          "startedAt": "2026-11-17T11:55:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:00Z",
+          "conclusion": "failure",
+          "name": "同じ条件のnamespace probeを3回測定",
+          "number": 8,
+          "startedAt": "2026-11-17T11:55:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:01Z",
+          "conclusion": "success",
+          "name": "成功・失敗の生証跡を保存",
+          "number": 9,
+          "startedAt": "2026-11-17T11:55:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:01Z",
+          "conclusion": "skipped",
+          "name": "Post Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 16,
+          "startedAt": "2026-11-17T11:55:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:02Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 17,
+          "startedAt": "2026-11-17T11:55:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:02Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 18,
+          "startedAt": "2026-11-17T11:55:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-17T11:55:02Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 19,
+          "startedAt": "2026-11-17T11:55:02Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44078199627/job/134021606477"
+    },
+    {
+      "completedAt": "2026-11-17T11:55:16Z",
+      "conclusion": "skipped",
+      "databaseId": 134022046632,
+      "name": "両 architecture と履歴を照合",
+      "startedAt": "2026-11-17T11:55:16Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44078199627/job/134022046632"
+    }
+  ],
+  "startedAt": "2026-11-17T11:54:22Z",
+  "status": "completed",
+  "updatedAt": "2026-11-17T11:55:16Z",
+  "url": "https://github.com/treflebonbon/skills/actions/runs/44078199627"
+}

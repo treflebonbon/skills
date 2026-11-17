@@ -56,4 +56,4 @@ namespace probe の拒否原因は未確定。失敗した CI VM は終了済み
 
 両 probe の PID・実際の開始／終了の範囲に一致する AppArmor の `AUDIT / userns_create` event が1件ずつ得られ、`unconfined` から `unprivileged_userns` への遷移を確認した。一方、直接の profile / capability 観測は間に合わず、取得した event は `DENIED` でもない。拒否原因の一意な確定には至っていない。
 
-実測版と同じ上流 util-linux 2.39.3 の実装では、`--fork` の子が UID mapping を書く。今回の audit 検索は起動した親 PID だけなので、子側の拒否 event を取りこぼす可能性がある。親子の対応付けと子側の証跡取得は次の診断設計に残る。詳細・一次資料・artifact の出典は実行記録にまとめた。[次の再現ループ](bun-process-linux-feedback-loop.md)では同じ前提検査を同一VM内で3回測る入口を用意するが、実VMでの実行はまだ確認していない。環境起因と確定した履歴解決記録は追加せず、#33 と #82 の保留を維持する。
+実測版と同じ上流 util-linux 2.39.3 の実装では、`--fork` の子が UID mapping を書く。今回の audit 検索は起動した親 PID だけなので、子側の拒否 event を取りこぼす可能性がある。親子の対応付けと子側の証跡取得は次の診断設計に残る。詳細・一次資料・artifact の出典は実行記録にまとめた。[再現ループ](bun-process-linux-feedback-loop.md)は、後続の承認済み [run 44078199627](evidence/linux-namespace-loop/44078199627-1/README.md)でx64 / arm64とも3回同じEPERMとなった。前提検査は1回約0.22〜0.49秒。Phase 1は確認済みで、次はPhase 2の最小化を進める。環境起因と確定した履歴解決記録は追加せず、#33 と #82 の保留を維持する。

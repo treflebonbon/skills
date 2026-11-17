@@ -1,5 +1,5 @@
 name: Linux process proof
-run-name: "${{ inputs.mode == 'probe-loop' && 'Linux namespace 再現ループ' || 'Linux process proof' }}: ${{ inputs.source_sha }}"
+run-name: "${{ inputs.mode == 'probe-minimize' && 'Linux namespace オプション削減' || inputs.mode == 'probe-loop' && 'Linux namespace 再現ループ' || 'Linux process proof' }}: ${{ inputs.source_sha }}"
 
 on:
   workflow_dispatch:
@@ -9,13 +9,14 @@ on:
         required: true
         type: string
       mode:
-        description: 実行範囲（probe-loop は前提検査3回のみ）
+        description: 実行範囲（診断は正式実証と別に記録）
         required: false
         default: proof
         type: choice
         options:
           - proof
           - probe-loop
+          - probe-minimize
 
 concurrency:
   group: linux-process-proof-${{ inputs.source_sha }}
@@ -29,7 +30,7 @@ jobs:
   proof:
     permissions:
       contents: read
-    name: "${{ inputs.mode == 'probe-loop' && 'namespace 再現ループ' || 'Linux 追加実証' }} (${{ matrix.arch }})"
+    name: "${{ inputs.mode == 'probe-minimize' && 'namespace オプション削減' || inputs.mode == 'probe-loop' && 'namespace 再現ループ' || 'Linux 追加実証' }} (${{ matrix.arch }})"
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -48,7 +49,7 @@ jobs:
       - name: 入力 SHA と方式を検査
         run: |
           [[ "$PROOF_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$PROOF_MODE" == proof || "$PROOF_MODE" == probe-loop ]]
+          [[ "$PROOF_MODE" == proof || "$PROOF_MODE" == probe-loop || "$PROOF_MODE" == probe-minimize ]]
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.sha }}
@@ -68,16 +69,19 @@ jobs:
           bash control/development/setup-linux-process-proof.sh "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof" \
             2>&1 | tee "$RUNNER_TEMP/linux-proof/setup.log"
       - name: 非root で全44件を3反復
-        if: inputs.mode != 'probe-loop'
+        if: inputs.mode == 'proof' || !inputs.mode
         run: bun control/development/run-linux-process-proof.ts run "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof"
       - name: 同じ条件のnamespace probeを3回測定
         if: inputs.mode == 'probe-loop'
         run: bun control/development/run-linux-process-proof.ts probe-loop "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof"
+      - name: namespaceオプションを一つずつ削減
+        if: inputs.mode == 'probe-minimize'
+        run: bun control/development/run-linux-process-proof.ts probe-minimize "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof"
       - name: 成功・失敗の生証跡を保存
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ inputs.mode == 'probe-loop' && 'namespace-loop' || 'linux-proof' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
+          name: ${{ inputs.mode == 'probe-minimize' && 'namespace-minimize' || inputs.mode == 'probe-loop' && 'namespace-loop' || 'linux-proof' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
           path: ${{ runner.temp }}/linux-proof/
           if-no-files-found: error
           retention-days: 90
@@ -87,7 +91,7 @@ jobs:
     permissions:
       contents: read
     name: 両 architecture と履歴を照合
-    if: always() && inputs.mode != 'probe-loop'
+    if: always() && (inputs.mode == 'proof' || !inputs.mode)
     needs: proof
     runs-on: ubuntu-24.04
     timeout-minutes: 30
