@@ -51,7 +51,7 @@ fork後の子PIDとの対応付け、子側の拒否イベントと実際のpoli
 
 ## Phase 2: namespaceオプションの削減入口
 
-`probe-minimize SOURCE OUTPUT` とworkflowの `mode=probe-minimize` を用意した。実VMではまだ未実行。最初に従来の `preflight` を3回測り、他の前提エラーがなく3回とも対象EPERMになる場合だけ削減へ進む。
+`probe-minimize SOURCE OUTPUT` とworkflowの `mode=probe-minimize` は、承認済み [run 44091500711 / attempt 1](https://github.com/treflebonbon/skills/actions/runs/44091500711)で実行した。公開Actionsログでは両構成とも元の3回＋削減11組×3回、計36回を確認した。最終3回はすべて `uid-map-eperm`、直前の対照3回はすべて `passed`。固定版コードとログから残るargvを `--map-current-user -- /usr/bin/true` と推定できるが、取得済みartifactのJSON読取は自動承認レビューに拒否され、argv・stderr・PID・auditの直接照合は未完了。最初に従来の `preflight` を3回測り、他の前提エラーがなく3回とも対象EPERMになる場合だけ削減へ進む。
 
 元の6オプションから一つだけ外し、同じ選択実体・継承環境・非root callerで各候補を3回実行する。3回とも同じstderr全文・exit 1の場合だけ削減を採用して先頭から試し直す。成功した候補は採用せず、別エラーも成功には数えない。候補の3反復が混在する、timeoutなどで完了しない場合は停止する。最後に残った条件でEPERMを3回再確認する。
 
@@ -66,3 +66,29 @@ bun control/development/run-linux-process-proof.ts probe-minimize "$GITHUB_WORKS
 ```
 
 追加dispatchと生成runのartifact取得は、新しいsource SHAを示して事前に確認する。
+
+## 次の独立測定: 専用準備stepを省く
+
+`probe-isolate SOURCE OUTPUT` とworkflowの `mode=probe-isolate` を追加した。これは新しい測定であり、以前拒否されたartifactを読み取らない。実VMでは未実行。
+
+既存workflowの「CI専用依存と補助groupを準備」という1つのstepを省略する。Bun 1.4.4・Ubuntu 24.04・非rootは維持し、同じ選択実体で次を各3回、計9回測る。
+
+| case       | argv                                                                                        |
+| ---------- | ------------------------------------------------------------------------------------------- |
+| `original` | `--user --map-current-user --pid --fork --kill-child=SIGKILL --mount-proc -- /usr/bin/true` |
+| `minimal`  | `--map-current-user -- /usr/bin/true`                                                       |
+| `control`  | `-- /usr/bin/true`                                                                          |
+
+新しいVMで先行ログの最小候補を直接確認する実験。省略した準備stepの内部にあるNixとgroup準備の個別効果を分離する測定ではない。準備step全体が再現に必須かを確認し、原因確定やPhase 2全体の完了とは扱わない。sysctl / profile / LSMを変更せず、特権journalも参照しない。
+
+`/nix`・`/etc/nix/nix.conf`と専用準備が設定する5環境変数がある場合は開始しない。run / source / workflow、controller hash、選択実行体のpath・hash・版、caller・image・kernel・限定したnamespace / LSM contextを確認する。
+
+| 終了コード | 結果                      | 意味                                                                            |
+| ---------- | ------------------------- | ------------------------------------------------------------------------------- |
+| `1`        | `minimal-argv-reproduced` | 元argvと最小候補が各3回同じUID mappingのEPERMで、対照は3回成功                  |
+| `0`        | `not-reproduced`          | 3caseすべて3回成功し、この独立条件では対象の失敗を再現しなかった                |
+| `2`        | `unavailable`             | 別エラー、混在、前提不足、source / 実行体の変化などで上記の条件を満たさなかった |
+
+新しい各測定のargv・PID・時刻・経過時間・終了状態・stdout / stderr・分類は `[DEBUG-ns-isolate]` のJSON行で公開Actionsログへ記録する。stdout / stderrのログ表示は各1024文字までで、省略時は `logTruncated` を記録し、完全なprobe記録は `namespace-isolate.json` に残す。環境変数全体や認証値は出力しない。既存の同名結果は上書きしない。
+
+run名は `Linux namespace 独立測定: <source SHA>`、artifact名は `namespace-isolate-<run>-<attempt>-<arch>`。正式44ケース・集約・正式履歴への採用は行わない。次の実行承認は新しいsource SHAと各構成9回の範囲に固定する。結果の一次確認は許可済みのActionsログで行う。以前のartifactの読取拒否や、今回のartifact読取可否を解消したとは扱わない。

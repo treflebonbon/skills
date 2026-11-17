@@ -334,6 +334,7 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
   artifacts.push({ ...artifacts[0]!, name: "linux-proof-42-2-x64", id: 3 });
   artifacts.push({ ...artifacts[0]!, name: "namespace-loop-42-1-x64", id: 4 });
   artifacts.push({ ...artifacts[0]!, name: "namespace-minimize-42-1-x64", id: 5 });
+  artifacts.push({ ...artifacts[0]!, name: "namespace-isolate-42-1-x64", id: 6 });
   const read = async (path: string): Promise<Record<string, unknown>> => {
     if (path === "/actions/runs/42")
       return {
@@ -351,7 +352,7 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
         "<=2026-11-16T01:00:00Z",
       );
       return {
-        total_count: 3,
+        total_count: 4,
         workflow_runs: [
           { id: 42, run_attempt: 1, display_title: `Linux process proof: ${sourceSha}` },
           {
@@ -367,6 +368,13 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
             created_at: "2026-11-15T00:00:00Z",
             conclusion: "failure",
             display_title: `Linux namespace オプション削減: ${sourceSha}`,
+          },
+          {
+            id: 39,
+            run_attempt: 1,
+            created_at: "2026-11-14T00:00:00Z",
+            conclusion: "failure",
+            display_title: `Linux namespace 独立測定: ${sourceSha}`,
           },
         ],
       };
@@ -390,7 +398,11 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
       [],
     ),
   ).rejects.toThrow("artifact 一覧を完全に取得できません");
-  for (const title of ["Linux namespace 再現ループ", "Linux namespace オプション削減"])
+  for (const title of [
+    "Linux namespace 再現ループ",
+    "Linux namespace オプション削減",
+    "Linux namespace 独立測定",
+  ])
     await expect(
       collectMetadata(
         async (path) =>
@@ -848,6 +860,7 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
           "const originalReadFileSync = original.readFileSync.bind(original);",
           "const originalReadlinkSync = original.readlinkSync.bind(original);",
           "const originalStatSync = original.statSync.bind(original);",
+          "const originalExistsSync = original.existsSync.bind(original);",
           "let statReads = 0;",
           "let statusReads = 0;",
           "let executableReads = 0;",
@@ -855,6 +868,7 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
           'const processPath = (path) => typeof path === "string" ? /^\\/proc\\/(\\d+)\\/(stat|status|attr\\/current)$/.exec(path) : null;',
           'mock.module("node:fs", () => ({',
           "  ...originalExports,",
+          '  existsSync(path) { if (process.env.PROBE_ISOLATE === "1" && ["/nix", "/etc/nix/nix.conf"].includes(path)) return process.env.PROBE_ISOLATE_NIX_PRESENT === "1"; return originalExistsSync(path); },',
           "  readFileSync(path, ...args) {",
           '    if (path === "/etc/os-release" && process.env.PROBE_GROUP_VALID === "1") return "VERSION_ID=" + JSON.stringify("24.04") + "\\n";',
           "    const match = processPath(path);",
@@ -1264,6 +1278,116 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
           expect(minimized.attempts.at(-2).outcome).toBe("passed");
           expect(result.stdout).toContain("[DEBUG-ns-min]");
         }
+      }
+      for (const [variant, expectedExit, expectedOutcome] of [
+        ["minimal", 1, "minimal-argv-reproduced"],
+        ["passes", 0, "not-reproduced"],
+        ["other-failure", 2, "unavailable"],
+        ["inconsistent", 2, "unavailable"],
+        ["setup-present", 2, "unavailable"],
+        ["nix-present", 2, "unavailable"],
+        ["image-invalid", 2, "unavailable"],
+        ["source-invalid", 2, "unavailable"],
+        ["long-error", 2, "unavailable"],
+      ] as const) {
+        const output = join(directory, "isolate-" + variant);
+        const sudoBefore = fs.readFileSync(sudoArgsFile, "utf8");
+        const extraEnv = {
+          NIX_REMOTE: variant === "setup-present" ? "daemon" : undefined,
+          PROCESS_PROOF_NIX_BASH: undefined,
+          PROCESS_PROOF_NIX_STDENV: undefined,
+          PROCESS_PROOF_GROUP_FILE: undefined,
+          PROCESS_PROOF_GROUP_GID: undefined,
+          PROBE_ISOLATE: "1",
+          PROBE_GROUP_VALID: "1",
+          PROBE_MINIMIZE: variant === "passes" ? undefined : variant,
+          PROBE_SUCCESS: variant === "passes" ? "1" : undefined,
+          PROBE_COUNTER_FILE: join(directory, "isolate-counter"),
+          PROBE_ISOLATE_NIX_PRESENT: variant === "nix-present" ? "1" : undefined,
+          ImageOS: variant === "image-invalid" ? "ubuntu22" : env.ImageOS,
+          PROOF_SOURCE_SHA: variant === "source-invalid" ? "0".repeat(40) : env.PROOF_SOURCE_SHA,
+          PROBE_FAILURE_MESSAGE: variant === "long-error" ? "x".repeat(2048) : undefined,
+        };
+        const result = execute(output, extraEnv, procPreload, "probe-isolate");
+        expect(result.error).toBeUndefined();
+        expect(result.status).toBe(expectedExit);
+        expect(result.stderr).toBe("");
+        const evidence = JSON.parse(
+          fs.readFileSync(join(output, "namespace-isolate.json"), "utf8"),
+        );
+        expect(evidence.schema).toBe("linux-namespace-probe-isolate/v1");
+        expect(evidence.outcome).toBe(expectedOutcome);
+        expect(fs.readFileSync(sudoArgsFile, "utf8")).toBe(sudoBefore);
+        expect(fs.existsSync(join(output, "job.json"))).toBe(false);
+        const logs = result.stdout
+          .trim()
+          .split("\n")
+          .map((line) => {
+            expect(line.startsWith("[DEBUG-ns-isolate] ")).toBe(true);
+            return JSON.parse(line.slice("[DEBUG-ns-isolate] ".length));
+          });
+        if (["setup-present", "nix-present", "image-invalid", "source-invalid"].includes(variant)) {
+          expect(evidence.error).toContain(
+            variant === "image-invalid"
+              ? "独立probeはUbuntu 24.04・指定architecture・Bun 1.4.4・非rootで実行してください"
+              : variant === "source-invalid"
+                ? "checkout の SHA が一致しません"
+                : "独立probeでは専用のNix・group準備を省略してください",
+          );
+          expect(
+            evidence.cases.every((entry: { probes: unknown[] }) => entry.probes.length === 0),
+          ).toBe(true);
+          expect(logs).toHaveLength(1);
+          continue;
+        }
+        expect(logs[0].unshare.path).toBe(join(bin, "unshare"));
+        expect(logs[0].unshare.hash).toMatch(/^[a-f0-9]{64}$/);
+        expect(logs[0].sourceSha).toBe(head.stdout.trim());
+        expect(logs[0].setupAbsent).toBe(true);
+        expect(logs).toHaveLength(11);
+        for (const [index, argv] of [
+          probe.argv,
+          ["--map-current-user", "--", "/usr/bin/true"],
+          ["--", "/usr/bin/true"],
+        ].entries()) {
+          const scenario = evidence.cases[index];
+          expect(scenario.argv).toEqual(argv);
+          expect(scenario.probes).toHaveLength(3);
+          const observations = logs.filter((entry) => entry.case === scenario.name);
+          expect(observations).toHaveLength(3);
+          for (const [repetition, observation] of observations.entries()) {
+            expect(observation.argv).toEqual(argv);
+            expect(observation.pid).toBe(scenario.probes[repetition].pid);
+            expect(observation.status).toBe(scenario.probes[repetition].status);
+            expect(observation.stderr).toBe(scenario.probes[repetition].stderr.slice(0, 1024));
+            expect(observation.logTruncated).toBe(
+              variant === "long-error" && scenario.name !== "control",
+            );
+            expect(observation.elapsedMs).toBeGreaterThanOrEqual(0);
+          }
+        }
+        if (variant === "minimal") {
+          for (const scenario of evidence.cases.slice(0, 2))
+            for (const probe of scenario.probes) {
+              expect(probe.status).toBe(1);
+              expect(probe.stderr).toBe(
+                "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+              );
+            }
+          expect(
+            evidence.cases[2].probes.every(
+              (probe: { status: number; stderr: string }) =>
+                probe.status === 0 && probe.stderr === "",
+            ),
+          ).toBe(true);
+          const before = fs.readFileSync(join(output, "namespace-isolate.json"), "utf8");
+          const repeated = execute(output, extraEnv, procPreload, "probe-isolate");
+          expect(repeated.status).toBe(2);
+          expect(repeated.stderr).toContain("EEXIST");
+          expect(fs.readFileSync(join(output, "namespace-isolate.json"), "utf8")).toBe(before);
+        }
+        if (variant === "other-failure" || variant === "inconsistent" || variant === "long-error")
+          expect(evidence.error).toContain("元argv・最小候補・成功対照の条件を満たしません");
       }
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });

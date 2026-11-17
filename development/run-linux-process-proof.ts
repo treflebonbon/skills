@@ -663,6 +663,176 @@ async function preflight(root: string, onProgress?: (state: Record<string, unkno
   };
 }
 
+async function probeIsolate(root: string, out: string) {
+  fs.mkdirSync(out, { recursive: true });
+  const descriptor = fs.openSync(join(out, "namespace-isolate.json"), "wx", 0o600);
+  const cases = [
+    {
+      name: "original",
+      argv: probeArgs,
+      probes: [] as Awaited<ReturnType<typeof namespaceProbe>>[],
+    },
+    {
+      name: "minimal",
+      argv: ["--map-current-user", "--", "/usr/bin/true"],
+      probes: [] as Awaited<ReturnType<typeof namespaceProbe>>[],
+    },
+    {
+      name: "control",
+      argv: ["--", "/usr/bin/true"],
+      probes: [] as Awaited<ReturnType<typeof namespaceProbe>>[],
+    },
+  ];
+  const record: Record<string, unknown> = {
+    schema: "linux-namespace-probe-isolate/v1",
+    cases,
+    outcome: "unavailable",
+  };
+  try {
+    if (
+      process.platform !== "linux" ||
+      Bun.version !== "1.4.4" ||
+      process.getuid!() === 0 ||
+      process.geteuid!() === 0 ||
+      arch() !== process.env.PROOF_ARCH ||
+      !validRunnerImage(arch(), process.env.ImageOS) ||
+      !process.env.ImageVersion ||
+      !/^VERSION_ID="24\.04"$/m.test(fs.readFileSync("/etc/os-release", "utf8"))
+    )
+      throw new Error(
+        "独立probeはUbuntu 24.04・指定architecture・Bun 1.4.4・非rootで実行してください",
+      );
+    const setupKeys = [
+      "NIX_REMOTE",
+      "PROCESS_PROOF_NIX_BASH",
+      "PROCESS_PROOF_NIX_STDENV",
+      "PROCESS_PROOF_GROUP_FILE",
+      "PROCESS_PROOF_GROUP_GID",
+    ];
+    if (
+      fs.existsSync("/nix") ||
+      fs.existsSync("/etc/nix/nix.conf") ||
+      setupKeys.some((key) => process.env[key] !== undefined)
+    )
+      throw new Error("独立probeでは専用のNix・group準備を省略してください");
+    const execution = identity(root);
+    Object.assign(record, execution);
+    record.sources = sources(root);
+    const executable = fs.realpathSync(Bun.which("unshare") ?? "");
+    const executableHash = hash(executable);
+    const metadata = {
+      schema: record.schema,
+      ...execution,
+      controllerHash: hash(fileURLToPath(import.meta.url)),
+      arch: arch(),
+      kernel: release(),
+      imageOS: process.env.ImageOS,
+      imageVersion: process.env.ImageVersion,
+      uid: process.getuid!(),
+      euid: process.geteuid!(),
+      gid: process.getgid!(),
+      groups: process.getgroups!(),
+      bun: Bun.version,
+      unshare: {
+        path: executable,
+        hash: executableHash,
+        version: checked(executable, ["--version"], root),
+      },
+      setupAbsent: true,
+      contexts: Object.fromEntries(
+        [
+          "/proc/self/uid_map",
+          "/proc/self/gid_map",
+          "/proc/self/attr/current",
+          "/sys/module/apparmor/parameters/enabled",
+          "/proc/sys/kernel/apparmor_restrict_unprivileged_userns",
+          "/proc/sys/kernel/unprivileged_userns_clone",
+          "/proc/sys/user/max_user_namespaces",
+        ].map((path) => [path, readContext(path)]),
+      ),
+    };
+    Object.assign(record, metadata);
+    console.log("[DEBUG-ns-isolate] " + JSON.stringify(metadata));
+    const outcomes: string[] = [];
+    for (const scenario of cases) {
+      const results: string[] = [];
+      for (const repetition of [1, 2, 3]) {
+        const started = performance.now();
+        const probe = await namespaceProbe(executable, root, scenario.argv);
+        scenario.probes.push(probe);
+        const outcome =
+          probe.error || probe.signal || probe.status === null
+            ? "unavailable"
+            : probe.status === 0
+              ? "passed"
+              : probe.status === 1 &&
+                  probe.stderr ===
+                    "unshare: write failed /proc/self/uid_map: Operation not permitted\n"
+                ? "uid-map-eperm"
+                : "other-failure";
+        results.push(outcome);
+        console.log(
+          "[DEBUG-ns-isolate] " +
+            JSON.stringify({
+              case: scenario.name,
+              repetition,
+              argv: probe.argv,
+              pid: probe.pid,
+              startedAt: probe.startedAt,
+              endedAt: probe.endedAt,
+              elapsedMs: performance.now() - started,
+              status: probe.status,
+              signal: probe.signal,
+              error: probe.error,
+              outputTruncated: probe.outputTruncated,
+              logTruncated: probe.stdout.length > 1024 || probe.stderr.length > 1024,
+              stdout: probe.stdout.slice(0, 1024),
+              stderr: probe.stderr.slice(0, 1024),
+              outcome,
+            }),
+        );
+        if (outcome === "unavailable") throw new Error("独立probeを完了できません");
+      }
+      outcomes.push(
+        results.every((outcome) => outcome === results[0]) ? results[0]! : "inconsistent",
+      );
+    }
+    record.sourcesAfter = sources(root);
+    if (
+      JSON.stringify(record.sources) !== JSON.stringify(record.sourcesAfter) ||
+      hash(executable) !== executableHash
+    )
+      throw new Error("独立probe中にsourceまたは実行体が変化しました");
+    record.outcome = outcomes.every((outcome) => outcome === "passed")
+      ? "not-reproduced"
+      : outcomes[0] === "uid-map-eperm" &&
+          outcomes[1] === "uid-map-eperm" &&
+          outcomes[2] === "passed"
+        ? "minimal-argv-reproduced"
+        : "unavailable";
+    if (record.outcome === "unavailable")
+      record.error = "元argv・最小候補・成功対照の条件を満たしません";
+    process.exitCode =
+      record.outcome === "minimal-argv-reproduced"
+        ? 1
+        : record.outcome === "not-reproduced"
+          ? 0
+          : 2;
+  } catch (error) {
+    record.error = String(error);
+    process.exitCode = 2;
+  } finally {
+    console.log(
+      "[DEBUG-ns-isolate] " + JSON.stringify({ outcome: record.outcome, error: record.error }),
+    );
+    try {
+      fs.writeFileSync(descriptor, JSON.stringify(record, null, 2) + "\n");
+    } finally {
+      fs.closeSync(descriptor);
+    }
+  }
+}
+
 async function minimizeProbe(root: string, executable: string) {
   const attempts: {
     removed?: string;
@@ -1131,9 +1301,10 @@ if (import.meta.main) {
   try {
     if (!source || !directory)
       throw new Error(
-        "run SOURCE OUTPUT / probe-loop SOURCE OUTPUT / probe-minimize SOURCE OUTPUT / aggregate SOURCE RAW OUTPUT が必要です",
+        "run SOURCE OUTPUT / probe-loop SOURCE OUTPUT / probe-minimize SOURCE OUTPUT / probe-isolate SOURCE OUTPUT / aggregate SOURCE RAW OUTPUT が必要です",
       );
-    if (mode === "probe-loop" || mode === "probe-minimize")
+    if (mode === "probe-isolate") await probeIsolate(resolve(source), resolve(directory));
+    else if (mode === "probe-loop" || mode === "probe-minimize")
       await probeLoop(resolve(source), resolve(directory), mode === "probe-minimize");
     else if (mode === "run") await run(resolve(source), resolve(directory));
     else if (mode === "aggregate" && output)
@@ -1141,6 +1312,7 @@ if (import.meta.main) {
     else throw new Error("不明な実行方式です");
   } catch (error) {
     console.error(String(error));
-    process.exitCode = mode === "probe-loop" || mode === "probe-minimize" ? 2 : 1;
+    process.exitCode =
+      mode === "probe-loop" || mode === "probe-minimize" || mode === "probe-isolate" ? 2 : 1;
   }
 }
