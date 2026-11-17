@@ -33,4 +33,4 @@ BROWSER_PREPARE="$("$SKILL_ROOT/scripts/browser-tool-path" wsl2-browser-prepare)
 
 ## テスト
 
-回帰 suite は Bats Core 1.x、Node.js 20.19 以降、`jq` を使います。これらは skill の通常利用には不要です。fixture は使い捨て directory の中だけで動作し、実 PR への書き込みや実 browser 認証は行いません。
+回帰 suite は Bats Core 1.x、Node.js 20.19 以降、`jq` を使います。Bats と `jq` は回帰検証だけに必要です。fixture は使い捨て directory の中だけで動作し、実 PR への書き込みや実 browser 認証は行いません。
