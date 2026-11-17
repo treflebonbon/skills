@@ -29,6 +29,9 @@ function context() {
     euid: process.geteuid(),
     gid: process.getgid(),
     groups: [...new Set(process.getgroups())].sort((a, b) => a - b),
+    namespaces: Object.fromEntries(
+      ["user", "pid", "mnt"].map((name) => [name, fs.readlinkSync("/proc/self/ns/" + name)]),
+    ),
     status: status
       .split("\n")
       .filter((line) =>

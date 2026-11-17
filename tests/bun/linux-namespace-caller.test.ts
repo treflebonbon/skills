@@ -65,6 +65,14 @@ test.skipIf(process.platform !== "linux")(
           expect(record.runtime.hash).toMatch(/^[a-f0-9]{64}$/);
           expect(record.controllerHash).toMatch(/^[a-f0-9]{64}$/);
           expect(record.before).toEqual(record.after);
+          expect(record.before.namespaces).toEqual(
+            Object.fromEntries(
+              ["user", "pid", "mnt"].map((name) => [
+                name,
+                fs.readlinkSync("/proc/self/ns/" + name),
+              ]),
+            ),
+          );
           expect(record.cases).toHaveLength(2);
           for (const [index, scenario] of record.cases.entries()) {
             expect(scenario.argv).toEqual(
@@ -137,6 +145,10 @@ test.skipIf(process.platform !== "linux")(
         },
         (record: any) => {
           record.after.contexts["/proc/self/attr/current"] = { value: "changed" };
+        },
+        (record: any) => {
+          record.before.namespaces.user = "user:[different]";
+          record.after.namespaces.user = "user:[different]";
         },
         (record: any) => {
           record.unshare.hash = "0".repeat(64);

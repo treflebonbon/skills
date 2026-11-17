@@ -99,7 +99,7 @@ run名は `Linux namespace 独立測定: <source SHA>`、artifact名は `namespa
 
 各runtimeは同じ `spawnSync` API・cwd・stdio・timeout・出力上限で、最小argv `--map-current-user -- /usr/bin/true` と対照 `-- /usr/bin/true` を各3回実行する。最大12回/architecture。前の独立測定とは起動APIも異なるため、Bun側で同じEPERMを再確認することを比較の前提とする。
 
-UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、uid/gid map、callerのLSM context、選択した5環境変数を測定前後と両runtime間で照合する。これは継承環境全体の最小化や全変数の同一性の実測を意味しない。controllerと実行体のpath・hash・版、source/workflow/run/attempt、image/kernelも保存する。sysctl・profileは変更しない。
+UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、user / pid / mount namespaceの識別子、uid/gid map、callerのLSM context、選択した5環境変数を測定前後と両runtime間で照合する。これは継承環境全体の最小化や全変数の同一性の実測を意味しない。controllerと実行体のpath・hash・版、source/workflow/run/attempt、image/kernelも保存する。sysctl・profileは変更しない。
 
 | 結果               | 条件                                                     | 終了コード |
 | ------------------ | -------------------------------------------------------- | ---------- |
