@@ -367,7 +367,11 @@ export const commentEvidence = async ({
   };
   const outputUrl = (output) =>
     String(output || "").match(/https?:\/\/[^\s]+\/pull\/[0-9]+#issuecomment-[0-9]+/u)?.[0];
-  const responseMayBeLost = (error) => Boolean(error?.signal || isTransientNetworkFailure(error));
+  const definitelyNotPosted = (error) =>
+    error?.code === "ENOENT" ||
+    (typeof error?.code === "number" &&
+      !error.signal &&
+      /(?:^|\r?\n)no comment was posted\s*$/u.test(String(error.stderr || "")));
   const result = (state, target, comment, assets, missing, reason, reused) => ({
     state,
     repository: repo,
@@ -636,12 +640,7 @@ export const commentEvidence = async ({
       await save();
       return classified;
     }
-    if (
-      sendError &&
-      !sentUrl &&
-      !responseMayBeLost(sendError) &&
-      (typeof sendError.code === "number" || sendError.code === "ENOENT")
-    ) {
+    if (sendError && !sentUrl && definitelyNotPosted(sendError)) {
       receipt.phase = "failed";
       receipt.comment = null;
       receipt.postOutputUrl = null;

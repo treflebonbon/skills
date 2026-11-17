@@ -4,7 +4,7 @@
 
 ## 準備
 
-コメント添付には Node.js 20.19 以上、`flock`、GitHub CLI `gh`、通常の認証、対象 repository へのコメント書込権限が必要です。既存画像を添付するだけなら browser runtime、WSL2 接続設定、Windows 側の設定は不要です。撮影や旧本文添付を使うときは runtime 準備用の npm、Bash、`git`、`curl`、`sha256sum`、`wslinfo`、`powershell.exe`、`wslpath`、Windows 側の Stable Chrome が必要です。WSL2 の networking mode は `mirrored` にします。設定後に `wsl.exe --shutdown` を実行して WSL を再起動し、`wslinfo --networking-mode` で確認してください。
+コメント添付には Node.js 20.19 以上、`flock`、GitHub CLI `gh`（`pr comment --attach` 対応版）、通常の認証、対象 repository への push 権限が必要です。既存画像を添付するだけなら browser runtime、WSL2 接続設定、Windows 側の設定は不要です。撮影や旧本文添付を使うときは runtime 準備用の npm、Bash、`git`、`curl`、`sha256sum`、`wslinfo`、`powershell.exe`、`wslpath`、Windows 側の Stable Chrome が必要です。WSL2 の networking mode は `mirrored` にします。設定後に `wsl.exe --shutdown` を実行して WSL を再起動し、`wslinfo --networking-mode` で確認してください。
 
 まず準備済み runtime を、依存を導入・変更せず確認できます。成功時は検証した runtime の絶対 path を表示し、未準備や不一致では非0で終了します。
 

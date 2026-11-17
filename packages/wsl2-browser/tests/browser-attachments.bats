@@ -145,7 +145,8 @@ prepare_comment_fixture() {
   export COMMENT_LOOKUP_COUNT="$BATS_TEST_TMPDIR/lookup-count"
   export COMMENT_FAIL_USER=0 COMMENT_FAIL_LOOKUP_ON=0 COMMENT_WRONG_TARGET=0
   export COMMENT_ATTACH_LIMIT=2 COMMENT_DROP_RESPONSE=0 COMMENT_POST_EXIT=0
-  export COMMENT_HIDE_THROUGH=0
+  export COMMENT_POST_ERROR='connection reset by peer'
+  export COMMENT_HIDE_THROUGH=0 COMMENT_NO_POST=0
   printf '[]\n' >"$COMMENT_FIXTURE"
   printf 'before image\n' >"$BATS_TEST_TMPDIR/before.png"
   printf 'after image\n' >"$BATS_TEST_TMPDIR/after.png"
@@ -201,6 +202,10 @@ elif [[ "$1" == pr && "$2" == comment ]]; then
     exit 2
   fi
   printf '%s\n' --POST-- "$@" >>"$GH_CALLS"
+  if [[ "$COMMENT_NO_POST" == 1 ]]; then
+    printf '%s\n' "$COMMENT_POST_ERROR" >&2
+    exit "$COMMENT_POST_EXIT"
+  fi
   shift 2
   image_paths=()
   body_file=''
@@ -222,7 +227,7 @@ elif [[ "$1" == pr && "$2" == comment ]]; then
   jq --argjson comment "$comment" '. + [$comment]' "$COMMENT_FIXTURE" >"$COMMENT_FIXTURE.tmp"
   mv "$COMMENT_FIXTURE.tmp" "$COMMENT_FIXTURE"
   if [[ "$COMMENT_DROP_RESPONSE" == 1 ]]; then
-    printf 'connection reset by peer\\n' >&2
+    printf '%s\n' "$COMMENT_POST_ERROR" >&2
     exit "$COMMENT_POST_EXIT"
   fi
   printf '%s' "$url"
@@ -568,4 +573,46 @@ JS
   [ -f "$BATS_TEST_TMPDIR/body.md" ]
   [ -f "$BATS_TEST_TMPDIR/before.png" ]
   [ -f "$BATS_TEST_TMPDIR/after.png" ]
+}
+
+check_unknown_post_error() {
+  prepare_comment_fixture
+  export COMMENT_DROP_RESPONSE=1 COMMENT_POST_EXIT=1 COMMENT_HIDE_THROUGH=3
+  export COMMENT_POST_ERROR="$1"
+  run comment_cli unknown-response
+  [ "$status" -eq 1 ]
+  local first_result="$output"
+  run comment_cli unknown-response
+  [ "$status" -eq 1 ]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+  [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 1 ]
+  [[ "$first_result" == *'"state":"unknown"'* ]]
+  [[ "$output" == *'"state":"unknown"'* ]]
+}
+
+@test "EOF after posting never resends a temporarily invisible comment" {
+  check_unknown_post_error 'unexpected EOF'
+}
+
+@test "an unrecognized post error never resends a temporarily invisible comment" {
+  check_unknown_post_error 'opaque service failure'
+}
+
+@test "explicit no-comment confirmation allows the same request to retry after all uploads fail" {
+  prepare_comment_fixture
+  export COMMENT_NO_POST=1 COMMENT_POST_EXIT=1
+  export COMMENT_POST_ERROR=$'upload failed\nno comment was posted'
+  run comment_cli no-post
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'"state":"failed"'* ]]
+  [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 0 ]
+  [ -f "$BATS_TEST_TMPDIR/body.md" ]
+  [ -f "$BATS_TEST_TMPDIR/before.png" ]
+  [ -f "$BATS_TEST_TMPDIR/after.png" ]
+  export COMMENT_NO_POST=0 COMMENT_POST_EXIT=0
+  run comment_cli no-post
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"state":"complete"'* ]]
+  [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 1 ]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 2 ]
 }

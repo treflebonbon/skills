@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 ## 実行前に確認する
 
-[依存と対応環境](DEPENDENCIES.md)を確認します。添付には GitHub CLI `gh`、Node.js 20.19 以降、この plugin の添付 CLI、GitHub の通常認証が必要です。認証は `gh auth status` で確認し、token を表示する `gh auth token` は使いません。対象 repository にコメントを書き込めない場合は添付を始めず、権限の準備を案内します。
+[依存と対応環境](DEPENDENCIES.md)を確認します。添付には GitHub CLI `gh`（`pr comment --attach` 対応版）、Node.js 20.19 以降、この plugin の添付 CLI、GitHub の通常認証が必要です。認証は `gh auth status` で確認し、token を表示する `gh auth token` は使いません。対象 repository への push 権限が必要です。権限がなければ添付を始めず、権限の準備を案内します。
 
 添付 CLI は、この SKILL.md が読み込まれた実際の directory にある `scripts/browser-tool-path` から解決します。runtime が示す SKILL.md の絶対 path を基に `SKILL_ROOT` を決め、次のように絶対 path を得ます。
 
@@ -51,4 +51,4 @@ CLI の `partial`、`failed`、`unknown` は未完了として扱い、終了コ
 
 `partial` は一部画像だけが掲載された状態です。同じ request ID で再実行すると投稿済みコメントを照会します。自動で不足分を追加せず、補完する場合は明示的な別依頼にします。`unknown` は送信結果や照会結果が確定できない状態です。receipt と PR コメントを調べ、投稿済みか判定できるまで再送や別 ID での投稿を行いません。`request-conflict` は同じ ID を別の repository・PR・原稿・画像に使ったことを示すため、保存済み依頼を確認します。
 
-認証や repository 権限が不足しても旧ブラウザ経路へ切り替えません。`gh auth status` と対象 repository の書込権限を確認し、原因を解消してから元の画像・原稿・request ID で再開します。認証値は表示しません。完了報告には対象 PR、コメント URL または失敗理由、比較可能だったか、残したファイルの絶対 path を含めます。
+認証や repository 権限が不足しても旧ブラウザ経路へ切り替えません。`gh auth status` と対象 repository の push 権限を確認し、原因を解消してから元の画像・原稿・request ID で再開します。認証値は表示しません。完了報告には対象 PR、コメント URL または失敗理由、比較可能だったか、残したファイルの絶対 path を含めます。
