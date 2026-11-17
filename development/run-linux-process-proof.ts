@@ -522,6 +522,8 @@ function validRunnerImage(architecture: string, imageOS: unknown) {
     (architecture === "arm64" && imageOS === "ubuntu24-arm64")
   );
 }
+const namespacePreflightError = "同じ条件の namespace 前提検査が失敗しました。拒否原因は未確定です";
+
 async function preflight(root: string) {
   const tools = Object.fromEntries(
     proofTools.map((name) => {
@@ -600,8 +602,7 @@ async function preflight(root: string) {
     !/^VERSION_ID="24\.04"$/m.test(fs.readFileSync("/etc/os-release", "utf8"))
   )
     errors.push("Ubuntu VM image が不一致です");
-  if (probe.status !== 0 || probe.error)
-    errors.push("同じ条件の namespace 前提検査が失敗しました。拒否原因は未確定です");
+  if (probe.status !== 0 || probe.error) errors.push(namespacePreflightError);
   if (
     tools.nix!.version !== "nix (Nix) 2.34.6" ||
     nix.remote !== "daemon" ||
@@ -656,6 +657,81 @@ async function preflight(root: string) {
     groups: process.getgroups!(),
     bun: Bun.version,
   };
+}
+
+async function probeLoop(root: string, out: string) {
+  fs.mkdirSync(out, { recursive: true });
+  const descriptor = fs.openSync(join(out, "namespace-loop.json"), "wx", 0o600);
+  const repetitions: {
+    repetition: number;
+    elapsedMs: number;
+    outcome: string;
+    preflight: Awaited<ReturnType<typeof preflight>>;
+  }[] = [];
+  const record: Record<string, unknown> = {
+    schema: "linux-namespace-probe-loop/v1",
+    arch: process.env.PROOF_ARCH,
+    repetitions,
+    outcome: "unavailable",
+  };
+  try {
+    if (
+      process.platform !== "linux" ||
+      Bun.version !== "1.4.4" ||
+      process.getuid!() === 0 ||
+      process.geteuid!() === 0
+    )
+      throw new Error("probe-loop はLinux・Bun 1.4.4・非rootで実行してください");
+    Object.assign(record, identity(root));
+    record.sources = sources(root);
+    record.controllerHash = hash(fileURLToPath(import.meta.url));
+    for (const repetition of [1, 2, 3]) {
+      const started = performance.now();
+      const state = await preflight(root);
+      const outcome = state.verified
+        ? "passed"
+        : state.errors.length === 1 &&
+            state.errors[0] === namespacePreflightError &&
+            state.probe.status === 1 &&
+            !state.probe.error &&
+            state.probe.stderr.includes("write failed /proc/self/uid_map: Operation not permitted")
+          ? "uid-map-eperm"
+          : "unavailable";
+      const elapsedMs = performance.now() - started;
+      repetitions.push({ repetition, elapsedMs, outcome, preflight: state });
+      console.log(
+        "[DEBUG-ns-loop] 反復=" +
+          repetition +
+          " 結果=" +
+          outcome +
+          " 時間ms=" +
+          elapsedMs.toFixed(3),
+      );
+      if (outcome === "unavailable") break;
+    }
+    record.sourcesAfter = sources(root);
+    if (JSON.stringify(record.sources) !== JSON.stringify(record.sourcesAfter))
+      throw new Error("実行中に source が変化しました");
+    record.outcome = repetitions.some((entry) => entry.outcome === "unavailable")
+      ? "unavailable"
+      : repetitions.every((entry) => entry.outcome === "passed")
+        ? "passed"
+        : repetitions.every((entry) => entry.outcome === "uid-map-eperm")
+          ? "uid-map-eperm"
+          : "inconsistent";
+    process.exitCode = record.outcome === "passed" ? 0 : record.outcome === "unavailable" ? 2 : 1;
+  } catch (error) {
+    record.error = String(error);
+    record.outcome = "unavailable";
+    console.error("[DEBUG-ns-loop] " + String(error));
+    process.exitCode = 2;
+  } finally {
+    try {
+      fs.writeFileSync(descriptor, JSON.stringify(record, null, 2) + "\n");
+    } finally {
+      fs.closeSync(descriptor);
+    }
+  }
 }
 
 async function run(root: string, out: string) {
@@ -942,13 +1018,16 @@ if (import.meta.main) {
   const [mode, source, directory, output] = process.argv.slice(2);
   try {
     if (!source || !directory)
-      throw new Error("run SOURCE OUTPUT / aggregate SOURCE RAW OUTPUT が必要です");
-    if (mode === "run") await run(resolve(source), resolve(directory));
+      throw new Error(
+        "run SOURCE OUTPUT / probe-loop SOURCE OUTPUT / aggregate SOURCE RAW OUTPUT が必要です",
+      );
+    if (mode === "probe-loop") await probeLoop(resolve(source), resolve(directory));
+    else if (mode === "run") await run(resolve(source), resolve(directory));
     else if (mode === "aggregate" && output)
       await aggregate(resolve(source), resolve(directory), resolve(output));
     else throw new Error("不明な実行方式です");
   } catch (error) {
     console.error(String(error));
-    process.exitCode = 1;
+    process.exitCode = mode === "probe-loop" ? 2 : 1;
   }
 }

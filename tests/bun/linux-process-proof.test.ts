@@ -332,6 +332,7 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
     expired: false,
   }));
   artifacts.push({ ...artifacts[0]!, name: "linux-proof-42-2-x64", id: 3 });
+  artifacts.push({ ...artifacts[0]!, name: "namespace-loop-42-1-x64", id: 4 });
   const read = async (path: string): Promise<Record<string, unknown>> => {
     if (path === "/actions/runs/42")
       return {
@@ -349,9 +350,16 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
         "<=2026-11-16T01:00:00Z",
       );
       return {
-        total_count: 1,
+        total_count: 2,
         workflow_runs: [
           { id: 42, run_attempt: 1, display_title: `Linux process proof: ${sourceSha}` },
+          {
+            id: 41,
+            run_attempt: 1,
+            created_at: "2026-11-16T00:00:00Z",
+            conclusion: "failure",
+            display_title: `Linux namespace 再現ループ: ${sourceSha}`,
+          },
         ],
       };
     }
@@ -366,11 +374,24 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
   expect(verifyCohort({ ...cohort(), ...metadata }, manifest).verified).toBe(true);
   await expect(
     collectMetadata(
-      async (path) => (path.includes("/artifacts?") ? { total_count: 4, artifacts } : read(path)),
+      async (path) =>
+        path.includes("/artifacts?")
+          ? { total_count: artifacts.length + 1, artifacts }
+          : read(path),
       current,
       [],
     ),
   ).rejects.toThrow("artifact 一覧を完全に取得できません");
+  await expect(
+    collectMetadata(
+      async (path) =>
+        path === "/actions/runs/42"
+          ? { ...(await read(path)), display_title: `Linux namespace 再現ループ: ${sourceSha}` }
+          : read(path),
+      current,
+      [],
+    ),
+  ).rejects.toThrow("実行 metadata が source/workflow/run/attempt と一致しません");
 });
 
 test("現在の attempt 開始後の待機 run と後続 attempt を過去の失敗にしない", async () => {
@@ -757,7 +778,7 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
           'if (process.argv.includes("--version")) { process.stdout.write("unshare fixture\\n"); process.exit(0); }',
           "fs.writeFileSync(process.env.PROBE_PID_FILE, String(process.pid));",
           "fs.writeFileSync(process.env.PROBE_ARGV_FILE, JSON.stringify(process.argv.slice(2)));",
-          'const finish = () => { if (process.env.PROBE_SUCCESS === "1") process.exit(0); process.stderr.write("unshare: write failed /proc/self/uid_map: Operation not permitted\\n"); process.exitCode = 1; };',
+          'const finish = () => { if (process.env.PROBE_SUCCESS === "1") process.exit(0); process.stderr.write((process.env.PROBE_FAILURE_MESSAGE || "unshare: write failed /proc/self/uid_map: Operation not permitted") + "\\n"); process.exitCode = 1; };',
           "if (process.env.PROBE_HOLD_MS) setTimeout(finish, Number(process.env.PROBE_HOLD_MS)); else finish();",
         ].join("\n"),
       );
@@ -809,6 +830,7 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
           "const originalExports = { ...original };",
           "const originalReadFileSync = original.readFileSync.bind(original);",
           "const originalReadlinkSync = original.readlinkSync.bind(original);",
+          "const originalStatSync = original.statSync.bind(original);",
           "let statReads = 0;",
           "let statusReads = 0;",
           "let executableReads = 0;",
@@ -817,6 +839,7 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
           'mock.module("node:fs", () => ({',
           "  ...originalExports,",
           "  readFileSync(path, ...args) {",
+          '    if (path === "/etc/os-release" && process.env.PROBE_GROUP_VALID === "1") return "VERSION_ID=" + JSON.stringify("24.04") + "\\n";',
           "    const match = processPath(path);",
           "    if (!match) return originalReadFileSync(path, ...args);",
           "    const [, pid, file] = match;",
@@ -844,6 +867,11 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
           '      ].join("\\n");',
           "    }",
           '    return "unconfined\\n";',
+          "  },",
+          "  statSync(path, ...args) {",
+          "    const value = originalStatSync(path, ...args);",
+          '    if (path === process.env.PROCESS_PROOF_GROUP_FILE && process.env.PROBE_GROUP_VALID === "1") return Object.assign(value, { uid: process.getuid() + 1, gid: Number(process.env.PROCESS_PROOF_GROUP_GID), mode: (value.mode & ~0o777) | 0o060 });',
+          "    return value;",
           "  },",
           "  readlinkSync(path, ...args) {",
           '    if (typeof path === "string" && /^\\/proc\\/\\d+\\/exe$/.test(path)) {',
@@ -885,10 +913,11 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
         evidenceDirectory: string,
         extraEnv: NodeJS.ProcessEnv = {},
         preload?: string,
+        mode = "run",
       ) =>
         spawnSync(
           process.execPath,
-          [...(preload ? ["--preload", preload] : []), cli, "run", root, evidenceDirectory],
+          [...(preload ? ["--preload", preload] : []), cli, mode, root, evidenceDirectory],
           {
             cwd: root,
             encoding: "utf8",
@@ -1023,6 +1052,60 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
       expect(truncatedProbe.audit.reason).toBe("record-limit");
       expect(truncatedProbe.audit.recordCount).toBe(101);
       expect(truncatedProbe.audit.events).toEqual([]);
+
+      for (const [name, extraEnv, expectedExit, expectedOutcome, expectedCount] of [
+        ["uid-map", { PROBE_GROUP_VALID: "1" }, 1, "uid-map-eperm", 3],
+        ["passes", { PROBE_GROUP_VALID: "1", PROBE_SUCCESS: "1" }, 0, "passed", 3],
+        [
+          "other-error",
+          {
+            PROBE_GROUP_VALID: "1",
+            PROBE_FAILURE_MESSAGE: "unshare: unshare failed: Operation not permitted",
+          },
+          2,
+          "unavailable",
+          1,
+        ],
+        ["other-precondition", {}, 2, "unavailable", 1],
+      ] as const) {
+        const loopOutput = join(directory, "loop-" + name);
+        const loopResult = execute(loopOutput, extraEnv, procPreload, "probe-loop");
+        expect(loopResult.error).toBeUndefined();
+        expect(loopResult.status).toBe(expectedExit);
+        expect(loopResult.stdout).toContain("[DEBUG-ns-loop]");
+        const evidence = JSON.parse(
+          fs.readFileSync(join(loopOutput, "namespace-loop.json"), "utf8"),
+        );
+        expect(evidence.schema).toBe("linux-namespace-probe-loop/v1");
+        expect(evidence.outcome).toBe(expectedOutcome);
+        expect(evidence.repetitions).toHaveLength(expectedCount);
+        expect(fs.existsSync(join(loopOutput, "job.json"))).toBe(false);
+        for (const repetition of evidence.repetitions) {
+          expect(repetition.preflight.probe.argv).toEqual(probe.argv);
+          expect(repetition.elapsedMs).toBeGreaterThanOrEqual(0);
+        }
+        if (expectedCount === 3)
+          expect(
+            new Set(
+              evidence.repetitions.map(
+                (entry: { preflight: { probe: { pid: number } } }) => entry.preflight.probe.pid,
+              ),
+            ).size,
+          ).toBe(3);
+        if (name === "passes") {
+          expect(
+            evidence.repetitions.every(
+              (entry: { preflight: { probe: { audit: { status: string } } } }) =>
+                entry.preflight.probe.audit.status === "not-requested",
+            ),
+          ).toBe(true);
+          const before = fs.readFileSync(join(loopOutput, "namespace-loop.json"), "utf8");
+          const repeated = execute(loopOutput, extraEnv, procPreload, "probe-loop");
+          expect(repeated.status).toBe(2);
+          expect(repeated.stderr).toContain("EEXIST");
+          expect(fs.readFileSync(join(loopOutput, "namespace-loop.json"), "utf8")).toBe(before);
+        }
+      }
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
