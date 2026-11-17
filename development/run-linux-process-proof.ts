@@ -524,7 +524,7 @@ function validRunnerImage(architecture: string, imageOS: unknown) {
 }
 const namespacePreflightError = "同じ条件の namespace 前提検査が失敗しました。拒否原因は未確定です";
 
-async function preflight(root: string) {
+async function preflight(root: string, onProgress?: (state: Record<string, unknown>) => void) {
   const tools = Object.fromEntries(
     proofTools.map((name) => {
       const selected = name === "bash" ? "/bin/bash" : Bun.which(name);
@@ -557,6 +557,32 @@ async function preflight(root: string) {
     probe.status === 0
       ? { status: "not-requested", events: [] }
       : probeAudit(probe, tools.sudo!.path, root);
+  const observed = {
+    platform: process.platform,
+    arch: arch(),
+    kernel: release(),
+    imageOS: process.env.ImageOS,
+    imageVersion: process.env.ImageVersion,
+    tools,
+    contexts,
+    namespaces,
+    probe: { ...probe, audit },
+    environment: {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME,
+      NIX_REMOTE: process.env.NIX_REMOTE,
+      PROCESS_PROOF_NIX_BASH: process.env.PROCESS_PROOF_NIX_BASH,
+      PROCESS_PROOF_NIX_STDENV: process.env.PROCESS_PROOF_NIX_STDENV,
+      PROCESS_PROOF_GROUP_FILE: process.env.PROCESS_PROOF_GROUP_FILE,
+      PROCESS_PROOF_GROUP_GID: process.env.PROCESS_PROOF_GROUP_GID,
+    },
+    uid: process.getuid!(),
+    euid: process.geteuid!(),
+    gid: process.getgid!(),
+    groups: process.getgroups!(),
+    bun: Bun.version,
+  };
+  onProgress?.(observed);
   const config = JSON.parse(
     checked(
       "nix",
@@ -624,15 +650,7 @@ async function preflight(root: string) {
   return {
     verified: errors.length === 0,
     errors,
-    platform: process.platform,
-    arch: arch(),
-    kernel: release(),
-    imageOS: process.env.ImageOS,
-    imageVersion: process.env.ImageVersion,
-    tools,
-    contexts,
-    namespaces,
-    probe: { ...probe, audit },
+    ...observed,
     nix,
     group: {
       path: groupPath,
@@ -642,20 +660,6 @@ async function preflight(root: string) {
       dev: String(group.dev),
       ino: String(group.ino),
     },
-    environment: {
-      PATH: process.env.PATH,
-      HOME: process.env.HOME,
-      NIX_REMOTE: process.env.NIX_REMOTE,
-      PROCESS_PROOF_NIX_BASH: process.env.PROCESS_PROOF_NIX_BASH,
-      PROCESS_PROOF_NIX_STDENV: process.env.PROCESS_PROOF_NIX_STDENV,
-      PROCESS_PROOF_GROUP_FILE: process.env.PROCESS_PROOF_GROUP_FILE,
-      PROCESS_PROOF_GROUP_GID: process.env.PROCESS_PROOF_GROUP_GID,
-    },
-    uid: process.getuid!(),
-    euid: process.geteuid!(),
-    gid: process.getgid!(),
-    groups: process.getgroups!(),
-    bun: Bun.version,
   };
 }
 
@@ -666,7 +670,8 @@ async function probeLoop(root: string, out: string) {
     repetition: number;
     elapsedMs: number;
     outcome: string;
-    preflight: Awaited<ReturnType<typeof preflight>>;
+    preflight: Awaited<ReturnType<typeof preflight>> | Record<string, unknown>;
+    error?: string;
   }[] = [];
   const record: Record<string, unknown> = {
     schema: "linux-namespace-probe-loop/v1",
@@ -687,7 +692,24 @@ async function probeLoop(root: string, out: string) {
     record.controllerHash = hash(fileURLToPath(import.meta.url));
     for (const repetition of [1, 2, 3]) {
       const started = performance.now();
-      const state = await preflight(root);
+      let partial: Record<string, unknown> | undefined;
+      let state: Awaited<ReturnType<typeof preflight>>;
+      try {
+        state = await preflight(root, (observed) => {
+          partial = observed;
+        });
+      } catch (error) {
+        const message = String(error);
+        if (partial)
+          repetitions.push({
+            repetition,
+            elapsedMs: performance.now() - started,
+            outcome: "unavailable",
+            preflight: { ...partial, verified: false, errors: [message] },
+            error: message,
+          });
+        throw error;
+      }
       const outcome = state.verified
         ? "passed"
         : state.errors.length === 1 &&

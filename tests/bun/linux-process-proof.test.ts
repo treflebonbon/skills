@@ -787,7 +787,7 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
         [
           "const args = process.argv.slice(2);",
           'if (args[0] === "--version") process.stdout.write("nix (Nix) 2.34.6\\n");',
-          'else if (args.includes("config")) process.stdout.write(JSON.stringify({ sandbox: { value: true }, "build-users-group": { value: "nixbld" } }) + "\\n");',
+          'else if (args.includes("config")) { if (process.env.PROBE_NIX_CONFIG_FAIL === "1") { process.stderr.write("fixture Nix config failure\\n"); process.exitCode = 1; } else process.stdout.write(JSON.stringify({ sandbox: { value: true }, "build-users-group": { value: "nixbld" } }) + "\\n"); }',
           'else if (args.includes("ping")) process.stdout.write("{}\\n");',
           "else process.exitCode = 1;",
         ].join("\n"),
@@ -1067,12 +1067,19 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
           1,
         ],
         ["other-precondition", {}, 2, "unavailable", 1],
+        [
+          "config-failure",
+          { PROBE_GROUP_VALID: "1", PROBE_NIX_CONFIG_FAIL: "1" },
+          2,
+          "unavailable",
+          1,
+        ],
       ] as const) {
         const loopOutput = join(directory, "loop-" + name);
         const loopResult = execute(loopOutput, extraEnv, procPreload, "probe-loop");
         expect(loopResult.error).toBeUndefined();
         expect(loopResult.status).toBe(expectedExit);
-        expect(loopResult.stdout).toContain("[DEBUG-ns-loop]");
+        if (name !== "config-failure") expect(loopResult.stdout).toContain("[DEBUG-ns-loop]");
         const evidence = JSON.parse(
           fs.readFileSync(join(loopOutput, "namespace-loop.json"), "utf8"),
         );
@@ -1083,6 +1090,39 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
         for (const repetition of evidence.repetitions) {
           expect(repetition.preflight.probe.argv).toEqual(probe.argv);
           expect(repetition.elapsedMs).toBeGreaterThanOrEqual(0);
+        }
+        if (name === "config-failure") {
+          const repetition = evidence.repetitions[0];
+          const partial = repetition.preflight;
+          expect(repetition.error).toContain("fixture Nix config failure");
+          expect(repetition.outcome).toBe("unavailable");
+          expect(partial.verified).toBe(false);
+          expect(partial.errors).toEqual([repetition.error]);
+          expect(partial.probe.status).toBe(1);
+          expect(partial.probe.stderr).toContain(
+            "unshare: write failed /proc/self/uid_map: Operation not permitted",
+          );
+          expect(partial.probe.pid).toBeGreaterThan(0);
+          expect(Date.parse(partial.probe.startedAt)).toBeLessThanOrEqual(
+            Date.parse(partial.probe.endedAt),
+          );
+          expect(partial.probe.audit.status).toBe("matched");
+          expect(partial.tools.unshare.path).toBe(join(bin, "unshare"));
+          expect(partial.contexts["/proc/self/status"]).toBeDefined();
+          expect(partial.namespaces.user).toBeDefined();
+          expect(Object.keys(partial.environment).sort()).toEqual(
+            [
+              "HOME",
+              "NIX_REMOTE",
+              "PATH",
+              "PROCESS_PROOF_GROUP_FILE",
+              "PROCESS_PROOF_GROUP_GID",
+              "PROCESS_PROOF_NIX_BASH",
+              "PROCESS_PROOF_NIX_STDENV",
+            ].sort(),
+          );
+          expect(partial.nix).toBeUndefined();
+          expect(partial.group).toBeUndefined();
         }
         if (expectedCount === 3)
           expect(
