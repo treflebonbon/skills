@@ -31,7 +31,7 @@ BROWSER_ATTACHMENTS="$("$SKILL_ROOT/scripts/browser-tool-path" browser-attachmen
 
 ## 1つのコメントに添付する
 
-新しい添付依頼ごとに UUID などの一意な `request-id` を生成して保存します。生成例は `node -e 'console.log(crypto.randomUUID())'` です。同じ依頼の照会・再実行では、保存した ID・画像・原稿を使います。画像や説明を意図的に変更する場合は新しい依頼として扱い、過去のコメントを残します。
+新しい添付依頼ごとに UUID などの一意な `request-id` を生成して保存します。生成例は `node -e 'console.log(crypto.randomUUID())'` です。同じ依頼の照会・再実行では、同じ repository・PR と保存した ID・画像・原稿を使います。画像や説明を意図的に変更する場合は新しい依頼として扱い、過去のコメントを残します。
 
 日本語の短い修正説明と画像ラベルを `comment.md` に書きます。説明は依頼内容と実際に確認した事実に限り、画像で確認した見た目と操作して確認した挙動を区別します。行っていない動作確認を実施済みと書きません。画像ごとに通常の Markdown 画像参照を使い、代替テキスト、掲載位置、順序を指定します。原稿内の各ローカル画像参照は `--image` で渡す画像と一対一に一致させます。画像の掲載順に同じ順で `--image` を指定します。原稿と全画像を確認してから、同じ request ID で一度コメント CLI を呼びます。
 
@@ -49,6 +49,6 @@ BROWSER_ATTACHMENTS="$("$SKILL_ROOT/scripts/browser-tool-path" browser-attachmen
 
 CLI の `partial`、`failed`、`unknown` は未完了として扱い、終了コードも確認します。結果 JSON には対象 PR、コメント URL、画像 path、原稿 path、不足画像、理由が含まれます。画像と原稿は元の場所に保持し、receipt も削除しません。
 
-`partial` は一部画像だけが掲載された状態です。同じ request ID で再実行すると投稿済みコメントを照会します。自動で不足分を追加せず、補完する場合は明示的な別依頼にします。`unknown` は送信結果や照会結果が確定できない状態です。receipt と PR コメントを調べ、投稿済みか判定できるまで再送や別 ID での投稿を行いません。`request-conflict` は同じ ID を別の原稿・画像に使ったことを示すため、保存済み依頼を確認します。
+`partial` は一部画像だけが掲載された状態です。同じ request ID で再実行すると投稿済みコメントを照会します。自動で不足分を追加せず、補完する場合は明示的な別依頼にします。`unknown` は送信結果や照会結果が確定できない状態です。receipt と PR コメントを調べ、投稿済みか判定できるまで再送や別 ID での投稿を行いません。`request-conflict` は同じ ID を別の repository・PR・原稿・画像に使ったことを示すため、保存済み依頼を確認します。
 
 認証や repository 権限が不足しても旧ブラウザ経路へ切り替えません。`gh auth status` と対象 repository の書込権限を確認し、原因を解消してから元の画像・原稿・request ID で再開します。認証値は表示しません。完了報告には対象 PR、コメント URL または失敗理由、比較可能だったか、残したファイルの絶対 path を含めます。

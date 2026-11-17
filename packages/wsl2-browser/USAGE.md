@@ -110,7 +110,7 @@ BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
   --body-file COMMENT.md --request-id REQUEST_ID
 ```
 
-コメントは最新の PR 情報と同じ request ID の投稿済み marker を確認してから投稿します。同一 request ID を異なる本文・画像へ再利用すると拒否します。結果は `complete`、`partial`、`failed`、`unknown` で区別し、全画像と説明を確認した場合だけ成功と報告します。部分投稿や不明な送信は receipt を保持し、同じ依頼の再実行でも重ねて投稿・自動補完しません。必要な補完は明示的な別依頼にします。コメント投稿は PR 本文を更新しません。
+コメントは最新の PR 情報と同じ request ID の投稿済み marker を確認してから投稿します。コメント経路は request ID を repository、PR、本文、画像に結び付け、異なる対象や入力への再利用を拒否します。結果は `complete`、`partial`、`failed`、`unknown` で区別し、全画像と説明を確認した場合だけ成功と報告します。部分投稿や不明な送信は receipt を保持し、同じ依頼の再実行でも重ねて投稿・自動補完しません。必要な補完は明示的な別依頼にします。コメント投稿は PR 本文を更新しません。
 
 ## 検証
 

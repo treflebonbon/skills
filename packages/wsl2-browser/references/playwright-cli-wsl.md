@@ -66,7 +66,7 @@ BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
 "$BROWSER_BIN/browser-attachments" comment --repo OWNER/REPO --pr NUMBER --image /absolute/path/BEFORE.png --image /absolute/path/AFTER.png --body-file COMMENT.md --request-id REQUEST_ID
 ```
 
-両方の経路は GitHub の最新 PR 情報と同じ request ID の receipt を確認してから投稿します。同じ request ID を別の本文や画像に再利用すると拒否されます。コメントは全画像成功、部分成功、全画像失敗、送信結果不明を区別します。部分投稿や結果不明では receipt を保持し、自動再送や不足分の補完を行いません。GitHub 上で前回の request を確認できるまで、新しい ID で同じ作業を作り直さないでください。
+コメント経路は repository、PR、本文、画像を request ID に結び付け、異なる対象や入力への再利用を拒否します。コメントは全画像成功、部分成功、全画像失敗、送信結果不明を区別します。部分投稿や結果不明では receipt を保持し、自動再送や不足分の補完を行いません。GitHub 上で前回の request を確認できるまで、新しい ID で同じ作業を作り直さないでください。
 
 ## 対応範囲と認証
 

@@ -23,6 +23,19 @@ export const withBrowserLock = async (filename, action, shared = false) => {
     ],
     { stdio: ["pipe", "pipe", "pipe"] },
   );
+  const started = new Promise((resolve, reject) => {
+    guard.once("spawn", resolve);
+    guard.once("error", (error) => {
+      reject(
+        new Error(
+          error.code === "ENOENT"
+            ? "dependency-missing: install util-linux so flock is available to serialize attachment requests."
+            : "lock-start-failed: could not start flock.",
+          { cause: error },
+        ),
+      );
+    });
+  });
   let detail = "";
   guard.stderr.on("data", (chunk) => {
     detail += chunk;
@@ -30,8 +43,9 @@ export const withBrowserLock = async (filename, action, shared = false) => {
   guard.stdin.on("error", () => {
     /* empty */
   });
-  const ended = once(guard, "close");
+  const ended = new Promise((resolve) => guard.once("close", resolve));
   try {
+    await started;
     await Promise.race([
       once(guard.stdout, "data"),
       ended.then(() => {
@@ -314,11 +328,14 @@ export const commentEvidence = async ({
   }
   const signature = digest(
     JSON.stringify([
+      repo.toLowerCase(),
+      Number(pr),
+      inputBodyFile,
       sourceBody,
       ...imagePaths.map((image, index) => [image, digest(buffers[index])]),
     ]),
   );
-  const key = digest(repo.toLowerCase() + "#" + pr + ":" + requestId);
+  const key = digest("comment:" + requestId);
   const prefix = "<!-- pr-screenshots:" + key + ":";
   const marker = prefix + signature + " -->";
   const filename = path.join(directory, "comment-" + key + ".json");
@@ -440,6 +457,7 @@ export const commentEvidence = async ({
           : "The saved explanation or image placement could not be fully verified.";
     return result(state, target, comment.html_url, assets, uniqueMissing, reason, reused);
   };
+  const receiptPhase = { complete: "complete", partial: "partial", failed: "failed-posted" };
   return withBrowserLock(path.join(directory, "comment-" + key + ".lock"), async () => {
     const previous = await fs
       .readFile(filename, "utf-8")
@@ -539,12 +557,7 @@ export const commentEvidence = async ({
     }
     if (existing) {
       const classified = classifyComment(target, existing, true);
-      receipt.phase =
-        classified.state === "complete"
-          ? "complete"
-          : classified.state === "partial"
-            ? "partial"
-            : "failed-posted";
+      receipt.phase = receiptPhase[classified.state];
       receipt.comment = existing.html_url;
       receipt.assets = classified.assets;
       receipt.missing = classified.missing;
@@ -620,12 +633,7 @@ export const commentEvidence = async ({
     }
     if (posted) {
       const classified = classifyComment(target, posted, false);
-      receipt.phase =
-        classified.state === "complete"
-          ? "complete"
-          : classified.state === "partial"
-            ? "partial"
-            : "failed-posted";
+      receipt.phase = receiptPhase[classified.state];
       receipt.comment = posted.html_url;
       receipt.assets = classified.assets;
       receipt.missing = classified.missing;

@@ -168,7 +168,7 @@ if [[ "$1" == api && "$2" == user ]]; then
     exit 1
   fi
   printf 'me'
-elif [[ "$1" == api && "$*" == *--paginate* ]]; then
+elif [[ "$1" == api && "$2" == --paginate && "$3" == repos/owner/repo/issues/42/comments?per_page=100 ]]; then
   count=0
   if [[ -f "$COMMENT_LOOKUP_COUNT" ]]; then
     read -r count <"$COMMENT_LOOKUP_COUNT"
@@ -181,11 +181,15 @@ elif [[ "$1" == api && "$*" == *--paginate* ]]; then
   fi
   if [[ "$count" -le "$COMMENT_HIDE_THROUGH" ]]; then exit 0; fi
   jq -c '.[] | select(.user.login == "me" and (.body | contains("<!-- pr-screenshots:"))) | {body,html_url}' "$COMMENT_FIXTURE"
-elif [[ "$1" == api && "$2" == repos/*/pulls/* ]]; then
+elif [[ "$1" == api && "$2" == repos/owner/repo/pulls/42 ]]; then
   repo=owner/repo
   if [[ "$COMMENT_WRONG_TARGET" == 1 ]]; then repo=wrong/repo; fi
   printf '{"number":42,"base":{"repo":{"full_name":"%s"}}}' "$repo"
 elif [[ "$1" == pr && "$2" == comment ]]; then
+  if [[ "$3" != 42 || "$4" != --repo || "$5" != owner/repo ]]; then
+    printf 'unexpected comment target: %s\n' "$*" >&2
+    exit 2
+  fi
   printf '%s\n' --POST-- "$@" >>"$GH_CALLS"
   shift 2
   image1=''
@@ -229,8 +233,10 @@ SH
 
 comment_cli() {
   local request_id=gh-comment
+  local pr="${COMMENT_PR:-42}"
+  local repo="${COMMENT_REPO:-owner/repo}"
   if [[ "$#" -gt 0 ]]; then request_id="$1"; fi
-  "$BATS_TEST_DIRNAME/../bin/browser-attachments" comment --repo owner/repo --pr 42 \
+  "$BATS_TEST_DIRNAME/../bin/browser-attachments" comment --repo "$repo" --pr "$pr" \
     --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/after.png" \
     --body-file "$BATS_TEST_TMPDIR/body.md" --request-id "$request_id"
 }
@@ -414,4 +420,37 @@ JS
   [ "$status" -ne 0 ]
   [[ "$output" == *'request-conflict: request-id was already used with different content'* ]]
   [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+}
+
+@test "the same request ID cannot be reused for another PR" {
+  prepare_comment_fixture
+  run comment_cli target-conflict
+  [ "$status" -eq 0 ]
+  export COMMENT_PR=43
+  run comment_cli target-conflict
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'request-conflict: request-id was already used with different content'* ]]
+  [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 1 ]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+
+  unset COMMENT_PR
+  export COMMENT_REPO=other/repo
+  run comment_cli target-conflict
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'request-conflict: request-id was already used with different content'* ]]
+  [ "$(jq 'length' "$COMMENT_FIXTURE")" -eq 1 ]
+  [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+}
+
+@test "missing flock explains the dependency and preserves comment inputs" {
+  prepare_comment_fixture
+  export MANAGED_CHROME_FLOCK="$BATS_TEST_TMPDIR/missing-flock"
+  run comment_cli missing-flock
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'dependency-missing: install util-linux so flock is available'* ]]
+  [ ! -s "$GH_CALLS" ]
+  [ ! -s "$OWNER_CALLS" ]
+  [ -f "$BATS_TEST_TMPDIR/body.md" ]
+  [ -f "$BATS_TEST_TMPDIR/before.png" ]
+  [ -f "$BATS_TEST_TMPDIR/after.png" ]
 }
