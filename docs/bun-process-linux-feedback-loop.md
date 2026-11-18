@@ -182,3 +182,24 @@ UID / EUID / GID・group、namespace識別子、callerのcapability / NoNewPrivs
 結果は `namespace-cwd.json` にwx0600で保存する。`[DEBUG-ns-cwd]` のJSON行でsource/workflow/run/attempt・image/kernel・実行体hash・各条件のcwd・caller条件・各probeのargv/PID/時刻/終了状態を記録する。stdout/stderrは各1024文字までとし、省略時は `logTruncated` を示す。環境変数全体や認証値は出力しない。
 
 既存Bun setupは保持し、新たな依存install・root化・sysctl/profile変更・特権journal取得を行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace cwd比較: <source SHA>`、artifact名は `namespace-cwd-<run>-<attempt>-<arch>` として正式実証から区別する。準備・レビュー・通常CIを終えた新しいSHAに固定した1runを事前承認してから実行し、新しい公開Actionsログで確認する。今回の承認済み1runはsource / workflowを `6bbf24e1f6d33bb90a7534c4426044ca0c71e9da` に固定して実行した。artifactの取得・読取と、過去に拒否された一時ログへのアクセスは行っていない。
+
+## 次の最小化: stdoutだけを匿名Unix socketから通常pipeへ変える
+
+cwd比較の `cwd-not-required` を受け、`mode=probe-stdout` は同じPython親からの直接起動・空環境・対象のcwd `/` を固定し、stdoutだけを匿名Unix socketから通常pipeへ変える。実VMでの新しい比較は未実行。
+
+`python3 -I control/development/probe-linux-namespace-launch.py compare-stdout SOURCE OUTPUT` で起動する。親Pythonのcwdは従来どおり対象checkoutのまま保持する。まずstdoutがsocketの条件で最小argv `--map-current-user -- /usr/bin/true` が3/3同じUID-map EPERM、対照 `-- /usr/bin/true` が3/3成功することを確認し、その場合だけstdoutを `subprocess.PIPE` に変えて各3回測る。最大12回/architecture。baselineの全6回が成功ならpipe側を省略し、別エラー・混在・条件不一致でも比較へ進まない。
+
+stderrは両条件とも同じ匿名Unix socket、stdinは読み取り専用の `/dev/null` とする。stdoutのpipe化に伴いfd 1の種類とアクセスモードは変わるが、stdin/stderrの種類とflags、同じPython親・実行体・版・unshare実体・非root資格情報・namespace識別子・callerのcapability / NoNewPrivs / Seccomp / LSM・選択した5環境変数を固定する。namespace probeの環境は `{}`、実行体の `--version` 確認は従来どおり継承環境で行い、版確認のstdoutは両条件ともsocketのまま。時間上限5秒・stdout/stderr合計32MiBと超過時の所有する子へのSIGKILLも維持する。
+
+| 結果                         | 条件                                                    | 終了コード |
+| ---------------------------- | ------------------------------------------------------- | ---------- |
+| `stdout-socket-not-required` | socketとpipeで最小argvが各3回同じEPERM、対照が各3回成功 | 1          |
+| `stdout-type-dependent`      | socketだけ最小argvが3回同じEPERM、pipeと両対照は3回成功 | 1          |
+| `not-reproduced`             | socket側の最小argvと対照が各3回成功。pipe側は省略       | 0          |
+| `unavailable`                | 別エラー・混在・条件不一致・観測不足                    | 2          |
+
+結果は `namespace-stdout.json` にwx0600で保存し、途中のpipe側エラーでも取得済みbaselineを保持する。`[DEBUG-ns-stdout]` のJSON行でsource/workflow/run/attempt・image/kernel・実行体hash・caller条件・各probeのargv/PID/時刻/終了状態を記録する。条件名は `stdoutType` に保存し、実際の出力を表す `stdout` と区別する。各streamは1024文字まで、省略時は `logTruncated` を示す。環境変数全体や認証値は出力しない。
+
+空環境・cwd・親PID・stdoutのFIFO / socket判定・他stdioの種類とflagsは実子プロセスのfixtureで検証し、両stdout方式でtimeoutと合算出力の境界対照も確認する。これは設定の検証であり、実unshareの環境・fd・拒否時のLSM状態を直接dumpしたとは扱わない。結果はstdoutのsocketが今回の再現に必要かの比較に限定し、stderr・Python・OS / LSMの影響や原因を確定しない。Phase 2全体・#33は未完了、#82待ち、macOS 15と全子孫5秒保証を維持する。
+
+既存Bun setupは保持し、新たな依存install・root化・sysctl/profile変更・特権journal取得は行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace stdout比較: <source SHA>`、artifact名は `namespace-stdout-<run>-<attempt>-<arch>` として正式実証から区別する。準備・レビュー・通常CIを終えた新しいSHAに固定した1runを事前承認してから実行し、新しい公開Actionsログで結果を照合する。artifactの取得・読取と過去に拒否された一時ログへのアクセスは行わない。
