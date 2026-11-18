@@ -8,8 +8,12 @@ import { pathToFileURL } from "node:url";
 const root = resolve(import.meta.dir, "../..");
 const modulePath = join(root, "development/probe-linux-namespace-launch.py");
 
-/** 2つの一条件比較で、同じ子の観測形式を使う。 */
-function createUnshareFixture(directory: string, node: string, dependentOn: "cwd" | "stdout") {
+/** 一条件ずつの比較で、同じ子の観測形式を使う。 */
+function createUnshareFixture(
+  directory: string,
+  node: string,
+  dependentOn: "cwd" | "stdout" | "stderr",
+) {
   const capture = join(directory, "capture.jsonl");
   const behavior = join(directory, "behavior");
   const unshare = join(directory, "unshare.mjs");
@@ -23,10 +27,15 @@ function createUnshareFixture(directory: string, node: string, dependentOn: "cwd
       "const behavior = fs.readFileSync(" + JSON.stringify(behavior) + ', "utf8");',
       'const count = fs.readFileSync(capture,"utf8").trim().split("\\n").filter(Boolean).length;',
       "const outPipe = fs.fstatSync(1).isFIFO();",
-      'fs.appendFileSync(capture,JSON.stringify({pid:process.pid,ppid:process.ppid,cwd:process.cwd(),keys:Object.keys(process.env).length,sentinel:process.env.PROBE_ENV_SENTINEL==="public-fixture",stdinNull:fs.readlinkSync("/proc/self/fd/0")==="/dev/null",stdioFlags:[0,1,2].map(fd=>fs.readFileSync("/proc/self/fdinfo/"+fd,"utf8").match(/^flags:\\s+(.*)$/m)[1]),outSocket:fs.fstatSync(1).isSocket(),outPipe,errSocket:fs.fstatSync(2).isSocket()})+"\\n");',
+      "const errPipe = fs.fstatSync(2).isFIFO();",
+      'fs.appendFileSync(capture,JSON.stringify({pid:process.pid,ppid:process.ppid,cwd:process.cwd(),keys:Object.keys(process.env).length,sentinel:process.env.PROBE_ENV_SENTINEL==="public-fixture",stdinNull:fs.readlinkSync("/proc/self/fd/0")==="/dev/null",stdioFlags:[0,1,2].map(fd=>fs.readFileSync("/proc/self/fdinfo/"+fd,"utf8").match(/^flags:\\s+(.*)$/m)[1]),outSocket:fs.fstatSync(1).isSocket(),outPipe,errSocket:fs.fstatSync(2).isSocket(),errPipe})+"\\n");',
       'if (process.argv[2]==="--map-current-user" && behavior!=="passes") {',
       ' if (behavior==="dependent" && ' +
-        (dependentOn === "cwd" ? 'process.cwd()==="/"' : "outPipe") +
+        (dependentOn === "cwd"
+          ? 'process.cwd()==="/"'
+          : dependentOn === "stdout"
+            ? "outPipe"
+            : "errPipe") +
         ") process.exit(0);",
       ' if (behavior==="mixed" && count===1) process.exit(0);',
       ' process.stderr.write(behavior==="other" ? "unshare: other failure\\n" : "unshare: write failed /proc/self/uid_map: Operation not permitted\\n");',
@@ -237,13 +246,13 @@ test.skipIf(process.platform !== "linux")(
       "probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(probe)",
       "root=" + JSON.stringify(root),
       "measurements=[]",
-      "for pipe in [False,True]:",
-      ' large=probe.capture(sys.executable,["-c","print(\'x\'*1000)"],root,{},limit=64,stdout_pipe=pipe)',
-      ' slow=probe.capture(sys.executable,["-c","import time;time.sleep(2)"],root,{},timeout=0.05,stdout_pipe=pipe)',
+      "for out_pipe,err_pipe in [(False,False),(True,False),(True,True)]:",
+      ' large=probe.capture(sys.executable,["-c","print(\'x\'*1000)"],root,{},limit=64,stdout_pipe=out_pipe,stderr_pipe=err_pipe)',
+      ' slow=probe.capture(sys.executable,["-c","import time;time.sleep(2)"],root,{},timeout=0.05,stdout_pipe=out_pipe,stderr_pipe=err_pipe)',
       " boundaries=[]",
       " for out,err in [(64,0),(0,64),(32,32),(33,32),(64,1)]:",
       '  child="import os;os.write(1,b\'x\'*"+str(out)+");os.write(2,b\'y\'*"+str(err)+")"',
-      '  boundaries.append({"out":out,"err":err,"probe":probe.capture(sys.executable,["-I","-c",child],root,{},limit=64,stdout_pipe=pipe)})',
+      '  boundaries.append({"out":out,"err":err,"probe":probe.capture(sys.executable,["-I","-c",child],root,{},limit=64,stdout_pipe=out_pipe,stderr_pipe=err_pipe)})',
       " measurements.append([large,slow,boundaries])",
       "print(json.dumps(measurements))",
     ].join("\n");
@@ -430,150 +439,167 @@ test.skipIf(process.platform !== "linux")(
   60_000,
 );
 
-test.skipIf(process.platform !== "linux")(
-  "stdout比較はcwd /と空環境を固定しstderrをsocketに保ってstdoutだけpipeへ変える",
-  () => {
-    const directory = fs.mkdtempSync(join(tmpdir(), "namespace-stdout-contract-"));
-    try {
-      const node = fs.realpathSync(Bun.which("node")!);
-      const python = Bun.which("python3")!;
-      const { capture, behavior, unshare } = createUnshareFixture(directory, node, "stdout");
-      const code = [
-        "import copy,importlib.util,json,sys",
-        'spec=importlib.util.spec_from_file_location("probe",' + JSON.stringify(modulePath) + ")",
-        "probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(probe)",
-        "record=probe.measure_stdout(sys.argv[1])",
-        'baseline=record["measurements"]["socket"];changed=record["measurements"].get("pipe")',
-        'record["invalid"]=[]',
-        "if changed:",
-        ' for field in ["stdoutType","cwd","environment","runtime","context","controller","probe","unshare"]:',
-        "  invalid=copy.deepcopy(changed)",
-        '  if field=="stdoutType": invalid["stdoutType"]="socket"',
-        '  if field=="cwd": invalid["cwd"]=sys.argv[2]',
-        '  if field=="environment": invalid["probeEnvironment"]="inherited"',
-        '  if field=="runtime": invalid["runtime"]["pid"]+=1',
-        '  if field=="context": invalid["before"]["namespaces"]["user"]=invalid["after"]["namespaces"]["user"]="user:[different]"',
-        '  if field=="controller": invalid["controllerHash"]="0"*64',
-        '  if field=="probe": invalid["cases"][0]["probes"][0]["status"]=7',
-        '  if field=="unshare": invalid["unshare"]["hash"]="0"*64',
-        '  record["invalid"].append(probe.compare_stdout(baseline,invalid))',
-        ' record["missing"]=probe.compare_stdout(baseline,None)',
-        ' invalid=copy.deepcopy(baseline);invalid["stdoutType"]="pipe"',
-        ' record["invalidSource"]=probe.compare_stdout(invalid,changed)',
-        ' partial={"measurements":{},"outcome":"unavailable"}',
-        " def fail_on_pipe(executable,cwd,stdout_pipe=False):",
-        '  if stdout_pipe: raise OSError("fixture pipe failure")',
-        "  return copy.deepcopy(baseline)",
-        " probe.measure=fail_on_pipe",
-        " try: probe.measure_stdout(sys.argv[1],partial)",
-        ' except OSError as error: partial["error"]=str(error)',
-        ' record["partial"]=partial',
-        'probe.log_measurement("socket",baseline,"stdout")',
-        'if changed: probe.log_measurement("pipe",changed,"stdout")',
-        'print("RESULT "+json.dumps(record))',
-      ].join("\n");
-      for (const [variant, expected] of [
-        ["both-eperm", "stdout-socket-not-required"],
-        ["dependent", "stdout-type-dependent"],
-        ["passes", "not-reproduced"],
-        ["other", "unavailable"],
-        ["mixed", "unavailable"],
-      ]) {
-        fs.writeFileSync(behavior, variant!);
-        fs.writeFileSync(capture, "");
-        const result = spawnSync(python, ["-I", "-B", "-c", code, unshare, root], {
-          cwd: root,
-          encoding: "utf8",
-          timeout: 30_000,
-          env: { ...process.env, PROBE_ENV_SENTINEL: "public-fixture" },
-        });
-        expect(result.error).toBeUndefined();
-        expect(result.stderr).toBe("");
-        expect(result.status).toBe(0);
-        const lines = result.stdout.trim().split("\n");
-        const record = JSON.parse(lines.at(-1)!.slice("RESULT ".length));
-        expect(record.outcome).toBe(expected);
-        const changed = record.measurements.pipe;
-        const measurements = [record.measurements.socket, ...(changed ? [changed] : [])];
-        const observed = fs
-          .readFileSync(capture, "utf8")
-          .trim()
-          .split("\n")
-          .map((line) => JSON.parse(line));
-        expect(observed).toHaveLength(changed ? 12 : 6);
-        const logged = lines
-          .filter((line) => line.startsWith("[DEBUG-ns-stdout] "))
-          .map((line) => JSON.parse(line.slice("[DEBUG-ns-stdout] ".length)));
-        expect(logged).toHaveLength(changed ? 14 : 7);
-        for (const [index, measurement] of measurements.entries()) {
-          const type = index === 0 ? "socket" : "pipe";
-          expect(measurement.stdoutType).toBe(type);
-          expect(measurement.cwd).toBe("/");
-          expect(measurement.runtime).toEqual(measurements[0].runtime);
-          expect(measurement.before).toEqual(measurement.after);
-          expect(measurement.before).toEqual(measurements[0].before);
-          expect(measurement.probeEnvironment).toBe("empty");
-          expect(logged[index * 7].stdoutType).toBe(type);
-          expect(logged[index * 7].workingDirectory).toBe("/");
-          for (const scenario of measurement.cases) {
-            expect(scenario.probes).toHaveLength(3);
-            for (const probe of scenario.probes) {
-              const actual = observed.find((row) => row.pid === probe.pid);
-              expect(actual.ppid).toBe(measurement.runtime.pid);
-              expect(actual.cwd).toBe("/");
-              expect(actual.keys).toBe(0);
-              expect(actual.sentinel).toBe(false);
-              expect(actual.stdinNull).toBe(true);
-              expect(actual.outSocket).toBe(index === 0);
-              expect(actual.outPipe).toBe(index === 1);
-              expect(actual.errSocket).toBe(true);
-              expect([actual.stdioFlags[0], actual.stdioFlags[2]]).toEqual([
-                observed[0].stdioFlags[0],
-                observed[0].stdioFlags[2],
-              ]);
-              expect(parseInt(actual.stdioFlags[1], 8) & 3).toBe(index === 0 ? 2 : 1);
-              expect(probe.argv).toEqual(scenario.argv);
-              expect(probe.signal).toBeNull();
-              expect(probe.error).toBeUndefined();
-              const log = logged.find((row) => row.pid === probe.pid);
-              expect(log.stdoutType).toBe(type);
-              expect(log.stdout).toBe(probe.stdout);
-              expect(log.logTruncated).toBe(false);
-              expect(log.stderr).toBe(probe.stderr);
+for (const stream of ["stdout", "stderr"] as const) {
+  test.skipIf(process.platform !== "linux")(
+    stream + "比較はcwd /と空環境を固定し他のstdioを保って対象だけpipeへ変える",
+    () => {
+      const directory = fs.mkdtempSync(join(tmpdir(), "namespace-" + stream + "-contract-"));
+      try {
+        const node = fs.realpathSync(Bun.which("node")!);
+        const python = Bun.which("python3")!;
+        const { capture, behavior, unshare } = createUnshareFixture(directory, node, stream);
+        const field = stream + "Type";
+        const code = [
+          "import copy,importlib.util,json,sys",
+          'spec=importlib.util.spec_from_file_location("probe",' + JSON.stringify(modulePath) + ")",
+          "probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(probe)",
+          "stream=" + JSON.stringify(stream),
+          'measure=getattr(probe,"measure_"+stream);compare=getattr(probe,"compare_"+stream)',
+          "record=measure(sys.argv[1])",
+          'baseline=record["measurements"]["socket"];changed=record["measurements"].get("pipe")',
+          'record["invalid"]=[]',
+          "if changed:",
+          ' fields=["varyingType","cwd","environment","runtime","context","controller","probe","unshare"]+(["stdoutFixed"] if stream=="stderr" else [])',
+          " for field in fields:",
+          "  invalid=copy.deepcopy(changed)",
+          '  if field=="varyingType": invalid[stream+"Type"]="socket"',
+          '  if field=="stdoutFixed": invalid["stdoutType"]="socket"',
+          '  if field=="cwd": invalid["cwd"]=sys.argv[2]',
+          '  if field=="environment": invalid["probeEnvironment"]="inherited"',
+          '  if field=="runtime": invalid["runtime"]["pid"]+=1',
+          '  if field=="context": invalid["before"]["namespaces"]["user"]=invalid["after"]["namespaces"]["user"]="user:[different]"',
+          '  if field=="controller": invalid["controllerHash"]="0"*64',
+          '  if field=="probe": invalid["cases"][0]["probes"][0]["status"]=7',
+          '  if field=="unshare": invalid["unshare"]["hash"]="0"*64',
+          '  record["invalid"].append(compare(baseline,invalid))',
+          ' record["missing"]=compare(baseline,None)',
+          ' invalid=copy.deepcopy(baseline);invalid[stream+"Type"]="pipe"',
+          ' record["invalidSource"]=compare(invalid,changed)',
+          ' if stream=="stderr":',
+          '  invalid=copy.deepcopy(baseline);invalid["stdoutType"]="socket"',
+          '  record["invalidFixed"]=compare(invalid,changed)',
+          ' partial={"measurements":{},"outcome":"unavailable"}',
+          " def fail_on_pipe(executable,cwd,stdout_pipe=False,stderr_pipe=False):",
+          '  if (stdout_pipe if stream=="stdout" else stderr_pipe): raise OSError("fixture pipe failure")',
+          "  return copy.deepcopy(baseline)",
+          " probe.measure=fail_on_pipe",
+          " try: measure(sys.argv[1],partial)",
+          ' except OSError as error: partial["error"]=str(error)',
+          ' record["partial"]=partial',
+          'probe.log_measurement("socket",baseline,stream)',
+          'if changed: probe.log_measurement("pipe",changed,stream)',
+          'print("RESULT "+json.dumps(record))',
+        ].join("\n");
+        for (const [variant, expected] of [
+          ["both-eperm", stream + "-socket-not-required"],
+          ["dependent", stream + "-type-dependent"],
+          ["passes", "not-reproduced"],
+          ["other", "unavailable"],
+          ["mixed", "unavailable"],
+        ]) {
+          fs.writeFileSync(behavior, variant!);
+          fs.writeFileSync(capture, "");
+          const result = spawnSync(python, ["-I", "-B", "-c", code, unshare, root], {
+            cwd: root,
+            encoding: "utf8",
+            timeout: 30_000,
+            env: { ...process.env, PROBE_ENV_SENTINEL: "public-fixture" },
+          });
+          expect(result.error).toBeUndefined();
+          expect(result.stderr).toBe("");
+          expect(result.status).toBe(0);
+          const lines = result.stdout.trim().split("\n");
+          const record = JSON.parse(lines.at(-1)!.slice("RESULT ".length));
+          expect(record.outcome).toBe(expected);
+          const changed = record.measurements.pipe;
+          const measurements = [record.measurements.socket, ...(changed ? [changed] : [])];
+          const observed = fs
+            .readFileSync(capture, "utf8")
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+          expect(observed).toHaveLength(changed ? 12 : 6);
+          const prefix = "[DEBUG-ns-" + stream + "] ";
+          const logged = lines
+            .filter((line) => line.startsWith(prefix))
+            .map((line) => JSON.parse(line.slice(prefix.length)));
+          expect(logged).toHaveLength(changed ? 14 : 7);
+          for (const [index, measurement] of measurements.entries()) {
+            const type = index === 0 ? "socket" : "pipe";
+            expect(measurement[field]).toBe(type);
+            if (stream === "stderr") expect(measurement.stdoutType).toBe("pipe");
+            expect(measurement.cwd).toBe("/");
+            expect(measurement.runtime).toEqual(measurements[0].runtime);
+            expect(measurement.before).toEqual(measurement.after);
+            expect(measurement.before).toEqual(measurements[0].before);
+            expect(measurement.probeEnvironment).toBe("empty");
+            expect(logged[index * 7][field]).toBe(type);
+            expect(logged[index * 7].workingDirectory).toBe("/");
+            for (const scenario of measurement.cases) {
+              expect(scenario.probes).toHaveLength(3);
+              for (const probe of scenario.probes) {
+                const actual = observed.find((row) => row.pid === probe.pid);
+                const outPipe = stream === "stderr" || index === 1;
+                const errPipe = stream === "stderr" && index === 1;
+                expect(actual.ppid).toBe(measurement.runtime.pid);
+                expect(actual.cwd).toBe("/");
+                expect(actual.keys).toBe(0);
+                expect(actual.sentinel).toBe(false);
+                expect(actual.stdinNull).toBe(true);
+                expect(actual.outSocket).toBe(!outPipe);
+                expect(actual.outPipe).toBe(outPipe);
+                expect(actual.errSocket).toBe(!errPipe);
+                expect(actual.errPipe).toBe(errPipe);
+                expect(actual.stdioFlags[0]).toBe(observed[0].stdioFlags[0]);
+                const fixedFd = stream === "stdout" ? 2 : 1;
+                expect(actual.stdioFlags[fixedFd]).toBe(observed[0].stdioFlags[fixedFd]);
+                const variedFd = stream === "stdout" ? 1 : 2;
+                expect(parseInt(actual.stdioFlags[variedFd], 8) & 3).toBe(index === 0 ? 2 : 1);
+                expect(probe.argv).toEqual(scenario.argv);
+                expect(probe.signal).toBeNull();
+                expect(probe.error).toBeUndefined();
+                const log = logged.find((row) => row.pid === probe.pid);
+                expect(log[field]).toBe(type);
+                if (stream === "stderr") expect(log.stdoutType).toBe("pipe");
+                expect(log.stdout).toBe(probe.stdout);
+                expect(log.stderr).toBe(probe.stderr);
+                expect(log.logTruncated).toBe(false);
+              }
             }
           }
+          if (changed) {
+            expect(record.invalid).toEqual(Array(stream === "stderr" ? 9 : 8).fill("unavailable"));
+            expect(record.missing).toBe("unavailable");
+            expect(record.invalidSource).toBe("unavailable");
+            if (stream === "stderr") expect(record.invalidFixed).toBe("unavailable");
+            expect(record.partial.outcome).toBe("unavailable");
+            expect(record.partial.error).toBe("fixture pipe failure");
+            expect(record.partial.measurements.socket).toEqual(record.measurements.socket);
+            expect(record.partial.measurements.pipe).toBeUndefined();
+          }
         }
-        if (changed) {
-          expect(record.invalid).toEqual(Array(8).fill("unavailable"));
-          expect(record.missing).toBe("unavailable");
-          expect(record.invalidSource).toBe("unavailable");
-          expect(record.partial.outcome).toBe("unavailable");
-          expect(record.partial.error).toBe("fixture pipe failure");
-          expect(record.partial.measurements.socket).toEqual(record.measurements.socket);
-          expect(record.partial.measurements.pipe).toBeUndefined();
-        }
+        const output = join(directory, "invalid");
+        const args = ["-I", modulePath, "compare-" + stream, root, output];
+        const failed = spawnSync(python, args, {
+          encoding: "utf8",
+          timeout: 10_000,
+          env: { ...process.env, ImageOS: "ubuntu22" },
+        });
+        expect(failed.status).toBe(2);
+        const path = join(output, "namespace-" + stream + ".json");
+        const saved = fs.readFileSync(path, "utf8");
+        expect(JSON.parse(saved).outcome).toBe("unavailable");
+        expect(JSON.parse(saved).error).toContain("Ubuntu 24.04");
+        expect(failed.stdout).toContain("[DEBUG-ns-" + stream + "]");
+        expect(fs.statSync(path).mode & 0o777).toBe(0o600);
+        const repeated = spawnSync(python, args, { encoding: "utf8", timeout: 10_000 });
+        expect(repeated.status).toBe(2);
+        expect(repeated.stdout).toContain("FileExistsError");
+        expect(fs.readFileSync(path, "utf8")).toBe(saved);
+      } finally {
+        fs.rmSync(directory, { recursive: true, force: true });
       }
-      const output = join(directory, "invalid");
-      const args = ["-I", modulePath, "compare-stdout", root, output];
-      const failed = spawnSync(python, args, {
-        encoding: "utf8",
-        timeout: 10_000,
-        env: { ...process.env, ImageOS: "ubuntu22" },
-      });
-      expect(failed.status).toBe(2);
-      const path = join(output, "namespace-stdout.json");
-      const saved = fs.readFileSync(path, "utf8");
-      expect(JSON.parse(saved).outcome).toBe("unavailable");
-      expect(JSON.parse(saved).error).toContain("Ubuntu 24.04");
-      expect(failed.stdout).toContain("[DEBUG-ns-stdout]");
-      expect(fs.statSync(path).mode & 0o777).toBe(0o600);
-      const repeated = spawnSync(python, args, { encoding: "utf8", timeout: 10_000 });
-      expect(repeated.status).toBe(2);
-      expect(repeated.stdout).toContain("FileExistsError");
-      expect(fs.readFileSync(path, "utf8")).toBe(saved);
-    } finally {
-      fs.rmSync(directory, { recursive: true, force: true });
-    }
-  },
-  60_000,
-);
+    },
+    60_000,
+  );
+}

@@ -340,6 +340,7 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
   artifacts.push({ ...artifacts[0]!, name: "namespace-launch-42-1-x64", id: 9 });
   artifacts.push({ ...artifacts[0]!, name: "namespace-cwd-42-1-x64", id: 10 });
   artifacts.push({ ...artifacts[0]!, name: "namespace-stdout-42-1-x64", id: 11 });
+  artifacts.push({ ...artifacts[0]!, name: "namespace-stderr-42-1-x64", id: 12 });
   const read = async (path: string): Promise<Record<string, unknown>> => {
     if (path === "/actions/runs/42")
       return {
@@ -357,7 +358,7 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
         "<=2026-11-16T01:00:00Z",
       );
       return {
-        total_count: 9,
+        total_count: 10,
         workflow_runs: [
           { id: 42, run_attempt: 1, display_title: `Linux process proof: ${sourceSha}` },
           {
@@ -416,6 +417,13 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
             conclusion: "failure",
             display_title: `Linux namespace stdout比較: ${sourceSha}`,
           },
+          {
+            id: 33,
+            run_attempt: 1,
+            created_at: "2026-11-08T00:00:00Z",
+            conclusion: "failure",
+            display_title: `Linux namespace stderr比較: ${sourceSha}`,
+          },
         ],
       };
     }
@@ -447,6 +455,7 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
     "Linux namespace 起動経路比較",
     "Linux namespace cwd比較",
     "Linux namespace stdout比較",
+    "Linux namespace stderr比較",
   ])
     await expect(
       collectMetadata(

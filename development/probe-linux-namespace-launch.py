@@ -1,4 +1,4 @@
-"""起動経路・cwd・stdoutを一条件ずつ比較する開発用診断。"""
+"""起動経路・cwd・各出力streamを一条件ずつ比較する開発用診断。"""
 
 import datetime
 import errno
@@ -66,8 +66,8 @@ def context():
     }
 
 
-def capture(executable, argv, root, environment, timeout=5, limit=32 * 1024 * 1024, stdout_pipe=False):
-    """stdoutのsocket/pipeとstderrのsocketを上限内で取得し、超過時は子をSIGKILLする。"""
+def capture(executable, argv, root, environment, timeout=5, limit=32 * 1024 * 1024, stdout_pipe=False, stderr_pipe=False):
+    """指定streamのsocket/pipeを上限内で取得し、超過時は所有する子をSIGKILLする。"""
     started = time.monotonic()
     result = {
         "argv": argv, "pid": 0,
@@ -77,19 +77,21 @@ def capture(executable, argv, root, environment, timeout=5, limit=32 * 1024 * 10
     buffers = {"stdout": bytearray(), "stderr": bytearray()}
     child = None
     channels = {}
+    pipes = {"stdout": stdout_pipe, "stderr": stderr_pipe}
     try:
         for name in buffers:
-            if name != "stdout" or not stdout_pipe:
+            if not pipes[name]:
                 channels[name] = socket.socketpair()
         with open(os.devnull, "rb") as null_input:
             child = subprocess.Popen(
                 [str(executable), *argv], cwd=root, env=environment,
                 stdin=null_input, stdout=subprocess.PIPE if stdout_pipe else channels["stdout"][1],
-                stderr=channels["stderr"][1],
+                stderr=subprocess.PIPE if stderr_pipe else channels["stderr"][1],
             )
         result["pid"] = child.pid
-        if stdout_pipe:
-            channels["stdout"] = (child.stdout, None)
+        for name, piped in pipes.items():
+            if piped:
+                channels[name] = (getattr(child, name), None)
         for reader, writer in channels.values():
             if writer is not None:
                 writer.close()
@@ -177,7 +179,7 @@ def outcome(record):
     return "not-reproduced" if outcomes == ["passed", "passed"] else "unavailable"
 
 
-def measure(executable, root, stdout_pipe=False):
+def measure(executable, root, stdout_pipe=False, stderr_pipe=False):
     """Nodeを祖先に置かず、共通Python親から空環境で6回直接起動する。"""
     version = capture(executable, ["--version"], root, dict(os.environ), limit=64 * 1024)
     if version.get("error") or version["signal"] or version["status"] != 0 or version["stderr"] or not version["stdout"].strip():
@@ -196,7 +198,7 @@ def measure(executable, root, stdout_pipe=False):
         case = {"name": name, "argv": argv, "probes": []}
         record["cases"].append(case)
         for repetition in (1, 2, 3):
-            case["probes"].append({"repetition": repetition, **capture(executable, argv, root, {}, stdout_pipe=stdout_pipe)})
+            case["probes"].append({"repetition": repetition, **capture(executable, argv, root, {}, stdout_pipe=stdout_pipe, stderr_pipe=stderr_pipe)})
     record["after"] = context()
     record["outcome"] = outcome(record) if digest(executable) == record["unshare"]["hash"] else "unavailable"
     return record
@@ -289,17 +291,16 @@ def emit(value, prefix="launch"):
 
 def log_measurement(name, record, prefix="launch"):
     """caller条件と各probeの出力をstreamごと1024文字まで記録する。"""
-    dimension = "stdoutType" if prefix == "stdout" else prefix
-    header = {dimension: name, **{key: record[key] for key in ("runtime", "probeEnvironment", "controllerHash", "unshare", "before", "after", "outcome")}}
+    dimension = prefix + "Type" if prefix in ("stdout", "stderr") else prefix
+    labels = {dimension: name, **{key: record[key] for key in ("stdoutType", "stderrType") if key in record}}
+    header = {**labels, **{key: record[key] for key in ("runtime", "probeEnvironment", "controllerHash", "unshare", "before", "after", "outcome")}}
     if "cwd" in record:
         header["workingDirectory"] = record["cwd"]
-    if "stdoutType" in record:
-        header["stdoutType"] = record["stdoutType"]
     emit(header, prefix)
     for case in record["cases"]:
         for probe in case["probes"]:
             emit({
-                dimension: name, "case": case["name"], **probe,
+                **labels, "case": case["name"], **probe,
                 "stdout": probe["stdout"][:1024], "stderr": probe["stderr"][:1024],
                 "logTruncated": len(probe["stdout"]) > 1024 or len(probe["stderr"]) > 1024,
                 "outcome": classify(probe),
@@ -322,6 +323,11 @@ def direct_outcome(record, directory):
     return record["outcome"]
 
 
+def same_direct_conditions(baseline, changed):
+    """直接起動の同じ親・実行体・caller条件を両測定間で照合する。"""
+    return all(baseline.get(key) == changed.get(key) for key in ("runtime", "unshare", "before"))
+
+
 def compare_cwd(source, changed, root):
     """checkout側の再現と成功対照を前提に、cwdだけの比較を分類する。"""
     baseline = direct_outcome(source, root)
@@ -329,11 +335,7 @@ def compare_cwd(source, changed, root):
         return "not-reproduced"
     if baseline != "uid-map-eperm" or changed is None:
         return "unavailable"
-    if (
-        source.get("runtime") != changed.get("runtime")
-        or source.get("unshare") != changed.get("unshare")
-        or source.get("before") != changed.get("before")
-    ):
+    if not same_direct_conditions(source, changed):
         return "unavailable"
     return {
         "uid-map-eperm": "cwd-not-required",
@@ -366,9 +368,7 @@ def compare_stdout(baseline, changed):
         return "unavailable"
     if (
         changed.get("stdoutType") != "pipe"
-        or baseline.get("runtime") != changed.get("runtime")
-        or baseline.get("unshare") != changed.get("unshare")
-        or baseline.get("before") != changed.get("before")
+        or not same_direct_conditions(baseline, changed)
     ):
         return "unavailable"
     return {
@@ -391,8 +391,42 @@ def measure_stdout(executable, record=None):
     return record
 
 
+def compare_stderr(baseline, changed):
+    """stdout pipe固定でsocket側の再現と対照を確認し、stderrだけの比較を分類する。"""
+    if baseline.get("stdoutType") != "pipe" or baseline.get("stderrType") != "socket":
+        return "unavailable"
+    baseline_outcome = direct_outcome(baseline, "/")
+    if baseline_outcome == "not-reproduced" and changed is None:
+        return "not-reproduced"
+    if baseline_outcome != "uid-map-eperm" or changed is None:
+        return "unavailable"
+    if (
+        changed.get("stdoutType") != "pipe" or changed.get("stderrType") != "pipe"
+        or not same_direct_conditions(baseline, changed)
+    ):
+        return "unavailable"
+    return {
+        "uid-map-eperm": "stderr-socket-not-required",
+        "not-reproduced": "stderr-type-dependent",
+    }.get(direct_outcome(changed, "/"), "unavailable")
+
+
+def measure_stderr(executable, record=None):
+    """stdoutをpipeに固定し、stderr socketの再現確認後だけpipeへ変えて途中記録も保持する。"""
+    if record is None:
+        record = {"measurements": {}, "outcome": "unavailable"}
+    baseline = {**measure(executable, "/", stdout_pipe=True), "cwd": "/", "stdoutType": "pipe", "stderrType": "socket"}
+    record["measurements"]["socket"] = baseline
+    changed = None
+    if direct_outcome(baseline, "/") == "uid-map-eperm":
+        changed = {**measure(executable, "/", stdout_pipe=True, stderr_pipe=True), "cwd": "/", "stdoutType": "pipe", "stderrType": "pipe"}
+        record["measurements"]["pipe"] = changed
+    record["outcome"] = compare_stderr(baseline, changed)
+    return record
+
+
 def main_direct(args, comparison):
-    """cwdまたはstdoutの一条件比較を、正式実証と別の記録に保存する。"""
+    """cwdまたは各出力streamの一条件比較を、正式実証と別の記録に保存する。"""
     if len(args) != 2:
         raise ValueError("compare-" + comparison + " SOURCE OUTPUTが必要です")
     root, output = Path(args[0]).resolve(), Path(args[1]).resolve()
@@ -412,8 +446,10 @@ def main_direct(args, comparison):
         emit({key: value for key, value in record.items() if key not in ("outcome", "measurements")}, comparison)
         if comparison == "cwd":
             measure_cwd("/usr/bin/unshare", root, record)
-        else:
+        elif comparison == "stdout":
             measure_stdout("/usr/bin/unshare", record)
+        else:
+            measure_stderr("/usr/bin/unshare", record)
         if (
             context() != before or validate(root) != identity
             or digest(sys.executable) != python_hash
@@ -429,7 +465,7 @@ def main_direct(args, comparison):
         with os.fdopen(fd, "w") as stream:
             json.dump(record, stream, ensure_ascii=False, indent=2)
             stream.write("\n")
-    return 1 if record["outcome"] in ("cwd-not-required", "cwd-dependent", "stdout-socket-not-required", "stdout-type-dependent") else 0 if record["outcome"] == "not-reproduced" else 2
+    return 1 if record["outcome"] in ("cwd-not-required", "cwd-dependent", "stdout-socket-not-required", "stdout-type-dependent", "stderr-socket-not-required", "stderr-type-dependent") else 0 if record["outcome"] == "not-reproduced" else 2
 
 
 def main(args):
@@ -438,6 +474,8 @@ def main(args):
         return main_direct(args[1:], "cwd")
     if args[:1] == ["compare-stdout"]:
         return main_direct(args[1:], "stdout")
+    if args[:1] == ["compare-stderr"]:
+        return main_direct(args[1:], "stderr")
     if len(args) != 3:
         raise ValueError("SOURCE OUTPUT NODEが必要です")
     root, output, node_path = Path(args[0]).resolve(), Path(args[1]).resolve(), Path(args[2]).resolve()
@@ -489,6 +527,6 @@ if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
     except (OSError, ValueError) as error:
-        prefix = {"compare-cwd": "cwd", "compare-stdout": "stdout"}.get(sys.argv[1] if len(sys.argv) > 1 else "", "launch")
+        prefix = {"compare-cwd": "cwd", "compare-stdout": "stdout", "compare-stderr": "stderr"}.get(sys.argv[1] if len(sys.argv) > 1 else "", "launch")
         emit({"outcome": "unavailable", "error": type(error).__name__ + ": " + str(error)}, prefix)
         sys.exit(2)
