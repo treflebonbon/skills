@@ -20,7 +20,13 @@ gh pr edit NUMBER --repo OWNER/REPO --attach './after.png#変更後の画面'
 gh pr view NUMBER --repo OWNER/REPO --json body --jq .body >pr-body.md
 ```
 
-`pr-body.md` の掲載箇所に通常の Markdown 画像参照 `![変更後の画面](./after.png)` を置きます。送信直前に `gh pr view NUMBER --repo OWNER/REPO --json body --jq .body` で最新の本文を再確認します。並行編集があれば取り込んだうえで、原稿に書いた画像と同じパスを `--attach` へ渡します。
+`pr-body.md` の掲載箇所に通常の Markdown 画像参照を置きます。`./after.png` はコマンドを実行するディレクトリからの画像パスです。
+
+```markdown
+![変更後の画面](./after.png)
+```
+
+送信直前に `gh pr view NUMBER --repo OWNER/REPO --json body --jq .body` で最新の本文を再確認します。並行編集があれば取り込んだうえで、原稿に書いた画像と同じパスを `--attach` へ渡します。
 
 ```sh
 gh pr edit NUMBER --repo OWNER/REPO --body-file pr-body.md --attach ./after.png
