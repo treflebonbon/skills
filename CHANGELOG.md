@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/treflebonbon/skills/compare/v0.4.0...v0.4.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* remove fixed Nix store paths from release source ([#101](https://github.com/treflebonbon/skills/issues/101)) ([8642d04](https://github.com/treflebonbon/skills/commit/8642d04dca2785918579363bcaf3f21684892318))
+
 ## [0.4.0](https://github.com/treflebonbon/skills/compare/v0.3.0...v0.4.0) (2026-11-18)
 
 
