@@ -372,7 +372,7 @@ test.skipIf(process.platform !== "linux")(
 );
 
 test.skipIf(process.platform !== "linux")(
-  "Bash制御は専用の段階終了コードだけで追加測定と最終判定を許可する",
+  "Bash制御は親比較とstdin比較の専用段階コードだけで測定・判定を許可する",
   () => {
     const directory = fs.mkdtempSync(join(tmpdir(), "namespace-parent-gate-"));
     try {
@@ -383,13 +383,15 @@ test.skipIf(process.platform !== "linux")(
         [
           "from pathlib import Path",
           "import sys",
-          "root=Path(sys.argv[2]);output=Path(sys.argv[3])",
+          "root=Path(sys.argv[2]);output=Path(sys.argv[3]);stage=sys.argv[1]",
+          'preparing=stage in ("baseline","stdin-prepare")',
+          'prefix="namespace-stdin" if stage.startswith("stdin-") else "namespace-parent"',
           'with (root/"trace").open("a") as f:',
-          ' f.write("baseline\\n" if sys.argv[1]=="baseline" else "finalize:"+sys.argv[4]+":"+sys.argv[5]+"\\n")',
-          'if sys.argv[1]=="baseline":',
-          ' with (output/"namespace-parent-python.json").open("x") as f:f.write("owner-baseline")',
+          ' f.write(stage+"\\n" if preparing else stage+":"+sys.argv[4]+":"+sys.argv[5]+"\\n")',
+          "if preparing:",
+          ' with (output/(prefix+("-checkpoint.json" if stage=="stdin-prepare" else "-python.json"))).open("x") as f:f.write("owner-baseline")',
           ' sys.exit(int((root/"baseline-status").read_text()))',
-          'with (output/"namespace-parent.json").open("x") as f:f.write("owner-final")',
+          'with (output/(prefix+".json")).open("x") as f:f.write("owner-final")',
           'print("fixture-finalized")',
           'sys.exit(int((root/"final-status").read_text()))',
         ].join("\n"),
@@ -398,54 +400,80 @@ test.skipIf(process.platform !== "linux")(
         join(directory, "probe-linux-namespace-parent.pl"),
         [
           "use strict;use warnings;",
-          "die 'wrong executable' unless $ARGV[0] eq '/usr/bin/unshare';",
-          "open my $trace,'>>','trace' or die $!;print {$trace} qq(perl\\n);close $trace;",
+          "my $mode=@ARGV==3 && $ARGV[0] eq 'stdin' ? shift @ARGV : '';",
+          "die 'wrong executable' unless @ARGV==2 && $ARGV[0] eq '/usr/bin/unshare';",
+          "open my $trace,'>>','trace' or die $!;print {$trace} 'perl'.($mode?':stdin':'').qq(\\n);close $trace;",
           "open my $status,'<','perl-status' or die $!;exit 0+<$status>;",
         ].join("\n"),
       );
-      for (const [index, [baseline, perl, final, status]] of [
-        [41, 0, 44, 0],
-        [42, 0, 43, 1],
-        [2, 0, 2, 2],
-        [1, 0, 2, 2],
-        [0, 0, 2, 2],
-        [7, 0, 2, 2],
-        [42, 2, 2, 2],
-        [42, 0, 1, 2],
-        [42, 0, 0, 2],
-      ].entries()) {
+      const scenarios: Array<["parent" | "stdin", number, number, number, number]> = [
+        ["parent", 41, 0, 44, 0],
+        ["parent", 42, 0, 43, 1],
+        ["parent", 2, 0, 2, 2],
+        ["parent", 1, 0, 2, 2],
+        ["parent", 0, 0, 2, 2],
+        ["parent", 7, 0, 2, 2],
+        ["parent", 42, 2, 2, 2],
+        ["parent", 42, 0, 1, 2],
+        ["parent", 42, 0, 0, 2],
+        ["stdin", 45, 0, 43, 1],
+        ["stdin", 45, 0, 44, 0],
+        ["stdin", 45, 2, 2, 2],
+        ["stdin", 1, 0, 2, 2],
+        ["stdin", 0, 0, 2, 2],
+        ["stdin", 2, 0, 2, 2],
+        ["stdin", 7, 0, 2, 2],
+        ["stdin", 42, 0, 2, 2],
+        ["stdin", 41, 0, 2, 2],
+        ["stdin", 45, 0, 1, 2],
+        ["stdin", 45, 0, 0, 2],
+      ];
+      for (const [index, [mode, baseline, perl, final, status]] of scenarios.entries()) {
         fs.writeFileSync(join(directory, "trace"), "");
         fs.writeFileSync(join(directory, "baseline-status"), String(baseline));
         fs.writeFileSync(join(directory, "perl-status"), String(perl));
         fs.writeFileSync(join(directory, "final-status"), String(final));
         const output = join(directory, "output-" + index);
-        const result = spawnSync("bash", [script, directory, output], {
+        const stdin = mode === "stdin";
+        const allowed = baseline === (stdin ? 45 : 42);
+        const result = spawnSync("bash", [script, directory, output, ...(stdin ? ["stdin"] : [])], {
           encoding: "utf8",
           timeout: 10_000,
         });
         expect(result.stderr).toBe("");
         expect(result.status).toBe(status);
         expect(result.stdout).toContain("fixture-finalized");
-        expect(fs.readFileSync(join(output, "namespace-parent.json"), "utf8")).toBe("owner-final");
+        expect(
+          fs.readFileSync(
+            join(output, stdin ? "namespace-stdin.json" : "namespace-parent.json"),
+            "utf8",
+          ),
+        ).toBe("owner-final");
         expect(fs.readFileSync(join(directory, "trace"), "utf8")).toBe(
-          "baseline\n" +
-            (baseline === 42 ? "perl\n" : "") +
-            "finalize:" +
+          (stdin ? "stdin-prepare\n" : "baseline\n") +
+            (allowed ? (stdin ? "perl:stdin\n" : "perl\n") : "") +
+            (stdin ? "stdin-finalize:" : "finalize:") +
             baseline +
             ":" +
-            (baseline === 42 ? perl : -1) +
+            (allowed ? perl : -1) +
             "\n",
         );
       }
       const missing = spawnSync(
         "bash",
         [script, join(directory, "missing-source"), join(directory, "unused")],
-        {
-          encoding: "utf8",
-        },
+        { encoding: "utf8" },
       );
       expect(missing.status).toBe(2);
       expect(missing.stderr).toContain("missing-source");
+      expect(fs.existsSync(join(directory, "unused"))).toBe(false);
+      const invalid = spawnSync(
+        "bash",
+        [script, directory, join(directory, "unused"), "bad-mode"],
+        { encoding: "utf8" },
+      );
+      expect(invalid.status).toBe(2);
+      expect(invalid.stderr).toContain("方式");
       expect(fs.existsSync(join(directory, "unused"))).toBe(false);
       fs.writeFileSync(join(directory, "trace"), "");
       const occupied = join(directory, "occupied");
@@ -454,12 +482,17 @@ test.skipIf(process.platform !== "linux")(
       const owner = fs.openSync(checkpoint, "wx", 0o600);
       try {
         fs.writeSync(owner, "owner-A-in-progress");
-        const competing = spawnSync("bash", [script, directory, occupied], { encoding: "utf8" });
-        expect(competing.status).toBe(2);
-        expect(competing.stderr).toContain(occupied);
-        expect(fs.readFileSync(join(directory, "trace"), "utf8")).toBe("");
-        expect(fs.readFileSync(checkpoint, "utf8")).toBe("owner-A-in-progress");
-        expect(fs.existsSync(join(occupied, "namespace-parent.json"))).toBe(false);
+        for (const extra of [[], ["stdin"]]) {
+          const competing = spawnSync("bash", [script, directory, occupied, ...extra], {
+            encoding: "utf8",
+          });
+          expect(competing.status).toBe(2);
+          expect(competing.stderr).toContain(occupied);
+          expect(fs.readFileSync(join(directory, "trace"), "utf8")).toBe("");
+          expect(fs.readFileSync(checkpoint, "utf8")).toBe("owner-A-in-progress");
+          expect(fs.existsSync(join(occupied, "namespace-parent.json"))).toBe(false);
+          expect(fs.existsSync(join(occupied, "namespace-stdin.json"))).toBe(false);
+        }
       } finally {
         fs.closeSync(owner);
       }

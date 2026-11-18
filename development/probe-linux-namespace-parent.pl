@@ -112,7 +112,8 @@ sub timestamp {
 
 # 通常pipeで合算上限まで読み、時間切れ・超過時は未回収の所有子だけをkillする。
 sub capture {
-    my ($executable, $argv, $timeout, $limit, $inherited) = @_;
+    my ($executable, $argv, $timeout, $limit, $inherited, $stdin_type) = @_;
+    $stdin_type //= 'devnull';
     $timeout //= 5;
     $limit //= 32 * 1024 * 1024;
     my $started = clock_gettime(CLOCK_MONOTONIC);
@@ -132,6 +133,7 @@ sub capture {
         }
     };
     eval {
+        die "stdin方式が不正です\n" unless $stdin_type eq 'devnull' || $stdin_type eq 'closed';
         pipe(my $out_read, my $out_write) or die "pipe: $!\n";
         push @handles, $out_read, $out_write;
         pipe(my $err_read, my $err_write) or die "pipe: $!\n";
@@ -151,6 +153,7 @@ sub capture {
                 %ENV = () unless $inherited;
                 $SIG{PIPE} = 'DEFAULT';
                 $SIG{XFSZ} = 'DEFAULT';
+                close STDIN or die "stdin close: $!\n" if $stdin_type eq 'closed';
                 no warnings 'exec';
                 exec { $executable } $executable, @$argv or die "exec: $!\n";
             };
@@ -216,7 +219,7 @@ sub capture {
 
 # 同じPerl親から最小argvと成功対照を各3回測る。
 sub measure {
-    my ($executable, $record, $version) = @_;
+    my ($executable, $record, $version, $stdin_type) = @_;
     $record //= {};
     my $path = abs_path($executable) // die "実行体が見つかりません\n";
     die "baselineのunshare版がありません\n" unless defined($version) && $version =~ /\S/;
@@ -226,12 +229,13 @@ sub measure {
         unshare => {path => $path, hash => digest($path), version => $version},
         before => context(), cases => [], cwd => '/', stdoutType => 'pipe', stderrType => 'pipe',
     );
+    $record->{stdinType} = $stdin_type if defined $stdin_type;
     $FORK_COUNT = 0;
     for my $scenario (['minimal', ['--map-current-user', '--', '/usr/bin/true']], ['control', ['--', '/usr/bin/true']]) {
         my $case = { name => $scenario->[0], argv => $scenario->[1], probes => [] };
         push @{$record->{cases}}, $case;
         for my $repetition (1 .. 3) {
-            my $probe = capture($path, $case->{argv});
+            my $probe = capture($path, $case->{argv}, undef, undef, 0, $stdin_type);
             $probe->{repetition} = $repetition;
             push @{$case->{probes}}, $probe;
         }
@@ -242,8 +246,100 @@ sub measure {
     return $record;
 }
 
+# 正確なbaselineと変わっていないcallerだけが、stdinを閉じる追加測定を許可する。
+sub baseline_reproduced {
+    my ($record) = @_;
+    my $json = JSON::PP->new->canonical;
+    my $ok = eval {
+        die "baseline条件が一致しません\n" unless
+            $record->{probeEnvironment} eq 'empty'
+            && $record->{stdinType} eq 'devnull' && $record->{forkCount} == 6
+            && $record->{stdoutType} eq 'pipe' && $record->{stderrType} eq 'pipe'
+            && $record->{runtime}{pid} == $$ && $record->{runtime}{cwd} eq getcwd()
+            && $record->{runtime}{hash} eq digest(abs_path($^X))
+            && $json->encode($record->{before}) eq $json->encode($record->{after})
+            && $json->encode($record->{after}) eq $json->encode(context())
+            && $json->encode($record->{ancestry}) eq $json->encode(ancestry())
+            && $record->{controllerHash} eq digest($SELF)
+            && $record->{unshare}{hash} eq digest($record->{unshare}{path})
+            && @{$record->{cases}} == 2;
+        my %seen;
+        my @expected = (['minimal', ['--map-current-user', '--', '/usr/bin/true']], ['control', ['--', '/usr/bin/true']]);
+        for my $index (0 .. 1) {
+            my $case = $record->{cases}[$index];
+            die "baseline caseが一致しません\n" unless
+                $case->{name} eq $expected[$index][0]
+                && $json->encode($case->{argv}) eq $json->encode($expected[$index][1])
+                && @{$case->{probes}} == 3;
+            for my $n (0 .. 2) {
+                my $probe = $case->{probes}[$n];
+                die "baseline probeが一致しません\n" unless
+                    !$probe->{error} && !$probe->{signal}
+                    && defined($probe->{pid}) && $probe->{pid} =~ /^[1-9][0-9]*$/ && !$seen{$probe->{pid}}++
+                    && defined($probe->{status}) && $probe->{status} == ($index == 0 ? 1 : 0)
+                    && $probe->{stdout} eq ''
+                    && $probe->{stderr} eq ($index == 0 ? "unshare: write failed /proc/self/uid_map: Operation not permitted\n" : '')
+                    && $probe->{repetition} == $n + 1
+                    && $json->encode($probe->{argv}) eq $json->encode($case->{argv});
+            }
+        }
+        1;
+    };
+    return $ok ? 1 : 0;
+}
+
+# 同じPerl processを保持し、正確な再現の場合だけ子のfd 0を閉じる。
+sub measure_stdin {
+    my ($executable, $record, $version) = @_;
+    $record //= {};
+    $record->{measurements} = { devnull => {} };
+    measure($executable, $record->{measurements}{devnull}, $version, 'devnull');
+    if (baseline_reproduced($record->{measurements}{devnull})) {
+        $record->{measurements}{closed} = {};
+        measure($executable, $record->{measurements}{closed}, $version, 'closed');
+    }
+    return $record;
+}
+
+# Python準備子が終了した後、共通Bashの子としてstdinだけの比較を保存する。
+sub stdin_main {
+    die "EXECUTABLE OUTPUTが必要です\n" unless @ARGV == 2;
+    my ($executable, $output) = @ARGV;
+    sysopen my $file, "$output/namespace-stdin-perl.json", O_WRONLY | O_CREAT | O_EXCL, 0600 or die "出力を作成できません: $!\n";
+    my $record = {};
+    my $ok = eval {
+        open my $input, '<:raw', "$output/namespace-stdin-checkpoint.json" or die "準備記録: $!\n";
+        my $checkpoint = do { local $/; decode_json(<$input>) };
+        my $json = JSON::PP->new->canonical;
+        my $chain = ancestry();
+        my @common = @$chain[1 .. $#$chain];
+        my @prepared_common = @{$checkpoint->{ancestry}}[1 .. $#{$checkpoint->{ancestry}}];
+        die "stdin比較の準備またはcallerが一致しません\n" unless
+            $checkpoint->{schema} eq 'linux-namespace-stdin-checkpoint/v1'
+            && $checkpoint->{outcome} eq 'ready' && $< != 0 && $> != 0
+            && $checkpoint->{controllerHashes}{perl} eq digest($SELF)
+            && $checkpoint->{runtimeHashes}{perl} eq digest(abs_path($^X))
+            && $checkpoint->{unshare}{path} eq abs_path($executable)
+            && $checkpoint->{unshare}{hash} eq digest($executable)
+            && $json->encode(\@common) eq $json->encode(\@prepared_common)
+            && $json->encode(context()) eq $json->encode($checkpoint->{context});
+        measure_stdin($executable, $record, $checkpoint->{unshare}{version});
+        die "stdin比較中にcallerまたは実行体が変化しました\n" unless
+            $json->encode(ancestry()) eq $json->encode($chain)
+            && $json->encode(context()) eq $json->encode($checkpoint->{context})
+            && digest($SELF) eq $checkpoint->{controllerHashes}{perl}
+            && digest($executable) eq $checkpoint->{unshare}{hash};
+        1;
+    };
+    $record->{error} = $@ || 'stdin比較に失敗しました' unless $ok;
+    print {$file} JSON::PP->new->canonical->utf8->encode($record), "\n" or die "保存に失敗しました: $!\n";
+    close $file or die "保存を完了できません: $!\n";
+    return $ok ? 0 : 2;
+}
+
 # Python baselineが許可した場合だけBashから呼ばれ、途中記録も排他的に保存する。
 sub main {
+    if (@ARGV == 3 && $ARGV[0] eq 'stdin') { shift @ARGV; return stdin_main(); }
     die "EXECUTABLE OUTPUTが必要です\n" unless @ARGV == 2;
     my ($executable, $output) = @ARGV;
     sysopen my $file, "$output/namespace-parent-perl.json", O_WRONLY | O_CREAT | O_EXCL, 0600 or die "出力を作成できません: $!\n";

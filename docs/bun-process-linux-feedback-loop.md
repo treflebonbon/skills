@@ -266,3 +266,30 @@ Bashが未使用の `OUTPUT` directoryを `mkdir` で排他的に確保し、取
 実測はx64・arm64とも `python-layer-not-required`。Python 3.12.3とPerl 5.38.2の両方で、最小argvは各3回同じUID-map EPERM、対照は各3回成功した。全24回にsignal・spawn error・ログ省略はなく、予定exit 1で完了した。共通BashのPID・start time ticks・祖先列、caller条件と測定前後、unshareの実体hashが各VM内で一致した。Python測定器を含む起動層を今回の再現条件から省けたが、Python祖先と起動APIの個別効果や拒否原因を確定したものではない。
 
 [実行記録と選択した公開JSON](evidence/linux-namespace-parent/44306659985-1/README.md) に各job17行・計34行を保存した。両jobの測定器4ファイルのhashは対象commitのGit blobと一致する。修正前 `dec76e9` へのCodeRabbitの11件の指摘は `a5fc890` で修正・返信・解決し、独立した仕様・規約レビューと通常CI全6ジョブの成功を確認した。最新差分へのCodeRabbit評価は回数制限で未完了という制約を了承した承認後の1runであり、artifactの取得・読取は行っていない。
+
+## 次の最小化: 同じPerl親でstdinだけを閉じる
+
+`probe-parent` の結果を受け、`mode=probe-stdin` はPythonをnamespace probeの祖先に挟まず、同じPerl processの下で子のstdinだけを変える。新しい実VM比較は未実行。`bash control/development/probe-linux-namespace-parent.sh SOURCE OUTPUT stdin` で制御する。
+
+Python準備子はUbuntu 24.04・非root・source / workflow / run / attempt・専用Nix/group準備の省略・測定器4ファイルのGit blob一致とruntime hashを検査し、unshareの版を1回確認して終了する。専用の段階終了コード45だけでPerlを起動し、Python後処理も共通Bashの別の子として実行する。通常のinterpreter失敗を起動許可や再現成功に数えない。
+
+Perl baselineは読み取り専用 `/dev/null` stdinで最小argv `--map-current-user -- /usr/bin/true` と対照 `-- /usr/bin/true` を各3回測る。最小argvが3/3同じUID-map EPERM、対照が3/3成功し、caller・祖先・実行体が変化していない場合だけ、同じPerl親から子のfd 0をexec直前に閉じて各3回測る。namespace probeは最大12回/architecture、x64・arm64で計24回。これとは別に準備時の版確認が1回/architectureある。
+
+空環境 `{}`、cwd `/`、stdout/stderrの別々の匿名通常pipeとflags、PerlのPID・start time ticks・共通Bashと上位祖先、非root資格情報と限定したcaller観測をそろえる。各probeの5秒・合算32MiB・未回収の所有子だけへのSIGKILLを維持する。
+
+| 結果 | 条件 | 最終終了コード |
+| --- | --- | --- |
+| `stdin-devnull-not-required` | 両stdin条件とも最小argvが各3回同じEPERM、対照が各3回成功 | 1 |
+| `stdin-devnull-dependent` | baselineの最小argvだけ3回同じEPERM、閉鎖側と両対照は各3回成功 | 1 |
+| `not-reproduced` | baselineの最小argvと対照が各3回成功、閉鎖側は省略 | 0 |
+| `unavailable` | 別エラー・混在・条件不一致・観測不足・段階の失敗 | 2 |
+
+同じPerl親・祖先列・caller条件・unshareの実体hashと版、各条件6件のraw結果をPython後処理で再検証する。baselineが別エラーや混在なら閉鎖側を起動しない。Bashが未使用OUTPUTを排他的に確保し、`namespace-stdin-checkpoint.json` / `namespace-stdin-perl.json` / `namespace-stdin.json` をwx0600で保存する。閉鎖側やJSON読取りの失敗でも、取得済みbaselineと準備時のidentity・hashを保持する。
+
+`[DEBUG-ns-stdin]` のJSONでsource / workflow / run / attempt・測定器hash・各probeのargv/PID/時刻/終了状態を限定記録する。`stdinType` の `devnull` / `closed` は指定方式であり、実出力 `stdout` / `stderr` と分ける。各streamは1024文字まで、省略時は `logTruncated` を示す。環境全体や認証値を出力しない。
+
+実子fixtureはexec後のfd 0をfcntl/readlinkで観測し、親PID・cwd・他stdioの種類とflags・環境の公開sentinelの除去を比較する。この環境のPerlを観測子にするとstdinを再オープンするため、観測には既存Pythonを使い、Pythonが空環境に追加する `LC_CTYPE=C.UTF-8` だけをfixture内で区別する。fd 0の閉鎖を省くmutationはテストで失敗する。これは測定器の設定とfixtureの検証であり、実unshareのfd・環境全件・拒否時LSMを直接dumpした証跡ではない。
+
+既存Bun setupを保持し、新規依存install・Cビルド・root化・sysctl/profile変更・特権journal参照は行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace stdin比較: <source SHA>`、artifact名は `namespace-stdin-<run>-<attempt>-<arch>` とし、準備・レビュー・公開・通常CIを終えた新しいSHAを提示して1runを承認してから実行する。artifactの取得・読取は行わない。
+
+今回の切り分けはstdinの指定方式の要否に限定する。原因確定とPhase 2全体の完了は未認定。共通Bashと上位祖先、Perlの起動経路、OS / LSMなどの条件は残り、#33未完了・#82待ち、macOS 15と全子孫5秒保証を維持する。

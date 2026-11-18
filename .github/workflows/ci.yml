@@ -149,7 +149,7 @@ jobs:
       - name: 実Node版と契約fixtureを確認
         run: |
           test "$(node --version)" = v20.19.0
-          bun test tests/bun/linux-namespace-caller.test.ts tests/bun/linux-namespace-launch.test.ts tests/bun/linux-namespace-parent.test.ts
+          bun test tests/bun/linux-namespace-caller.test.ts tests/bun/linux-namespace-launch.test.ts tests/bun/linux-namespace-parent.test.ts tests/bun/linux-namespace-stdin.test.ts
 
   typescript-evidence:
     name: TypeScript evidence (Bun ${{ matrix.bun_version }})

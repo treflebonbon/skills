@@ -342,6 +342,7 @@ test("artifact API から同じ attempt の実 metadata だけを残す", async 
   artifacts.push({ ...artifacts[0]!, name: "namespace-stdout-42-1-x64", id: 11 });
   artifacts.push({ ...artifacts[0]!, name: "namespace-stderr-42-1-x64", id: 12 });
   artifacts.push({ ...artifacts[0]!, name: "namespace-parent-42-1-x64", id: 13 });
+  artifacts.push({ ...artifacts[0]!, name: "namespace-stdin-42-1-x64", id: 14 });
   const read = async (path: string): Promise<Record<string, unknown>> => {
     if (path === "/actions/runs/42")
       return {

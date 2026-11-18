@@ -1,4 +1,4 @@
-"""共通Bash親の下でPython測定器を外す比較を検証・分類する。"""
+"""共通Bash親の下で起動層とstdinの比較を検証・分類する。"""
 
 import errno
 import hashlib
@@ -20,6 +20,7 @@ BASELINE_CLEAR = 41
 BASELINE_REPRODUCED = 42
 FINAL_REPRODUCED = 43
 FINAL_CLEAR = 44
+STDIN_READY = 45
 _spec = importlib.util.spec_from_file_location("namespace_launch", SELF.with_name("probe-linux-namespace-launch.py"))
 launch = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(launch)
@@ -58,7 +59,7 @@ def measure_python(executable):
     return record
 
 
-def measurement_outcome(record, name, common):
+def measurement_outcome(record, name, common, stdin_type=None):
     """終了済み測定器のraw結果・実行体と、現在も同じ共通親を照合する。"""
     try:
         runtime, chain = record["runtime"], record["ancestry"]
@@ -73,6 +74,7 @@ def measurement_outcome(record, name, common):
             or runtime["cwd"] != os.getcwd()
             or record["controllerHash"] != launch.digest(controller)
             or record["cwd"] != "/" or record["stdoutType"] != "pipe" or record["stderrType"] != "pipe"
+            or stdin_type is not None and record.get("stdinType") != stdin_type
             or not common or Path(common[0].get("path", "")).name != "bash"
             or len(chain) < 2 or chain[1:] != common
             or chain[0]["pid"] != runtime["pid"] or chain[0]["ppid"] != runtime["ppid"]
@@ -126,6 +128,27 @@ def compare_parent(baseline, changed, common):
     }.get(second, "unavailable")
 
 
+def compare_stdin(baseline, changed, common):
+    """同じPerl親・起動条件を再検証し、devnull stdinの要否だけを分類する。"""
+    first = measurement_outcome(baseline, "perl", common, stdin_type="devnull")
+    if first == "not-reproduced" and changed is None:
+        return "not-reproduced"
+    if first != "uid-map-eperm" or changed is None:
+        return "unavailable"
+    second = measurement_outcome(changed, "perl", common, stdin_type="closed")
+    if second == "unavailable":
+        return "unavailable"
+    if any(baseline[key] != changed[key] for key in ("runtime", "ancestry", "before", "unshare")):
+        return "unavailable"
+    probes = [probe for record in (baseline, changed) for case in record["cases"] for probe in case["probes"]]
+    if len({probe["pid"] for probe in probes}) != 12:
+        return "unavailable"
+    return {
+        "uid-map-eperm": "stdin-devnull-not-required",
+        "not-reproduced": "stdin-devnull-dependent",
+    }.get(second, "unavailable")
+
+
 def controller_hashes():
     """共通判定器と両起動経路のsource hashをまとめる。"""
     return {
@@ -138,7 +161,7 @@ def validate(root):
     """既存の実VM前提に加え、新しい3測定器のcommit一致とPerlの追加optionを検査する。"""
     identity = launch.validate(root)
     if any(name in os.environ for name in ("PERL5OPT", "PERL5LIB")):
-        raise ValueError("Python起動層比較では追加Perl optionを指定できません")
+        raise ValueError("起動層・stdin比較では追加Perl optionを指定できません")
     if Path(ancestry()[1].get("path", "")).name != "bash":
         raise ValueError("PythonとPerlは共通Bash親から起動してください")
     for path in (SELF, PERL_HELPER, DRIVER):
@@ -152,16 +175,16 @@ def validate(root):
     return identity
 
 
-def log_measurement(name, record):
+def log_measurement(name, record, prefix="parent"):
     """途中記録も、方式と各probeの上限付き出力を区別して記録する。"""
     if not isinstance(record, dict):
-        launch.emit({"parent": name, "error": "測定記録がobjectではありません"}, "parent")
+        launch.emit({"parent": name, "error": "測定記録がobjectではありません"}, prefix)
         return
     header = {"parent": name}
-    for key in ("runtime", "ancestry", "probeEnvironment", "controllerHash", "unshare", "before", "after", "cwd", "stdoutType", "stderrType", "forkCount", "error"):
+    for key in ("runtime", "ancestry", "probeEnvironment", "controllerHash", "unshare", "before", "after", "cwd", "stdoutType", "stderrType", "stdinType", "forkCount", "error"):
         if key in record:
             header[key] = record[key]
-    launch.emit(header, "parent")
+    launch.emit(header, prefix)
     cases = record.get("cases", [])
     for case in cases if isinstance(cases, list) else []:
         probes = case.get("probes", []) if isinstance(case, dict) else []
@@ -173,12 +196,13 @@ def log_measurement(name, record):
             stderr = stderr if isinstance(stderr, str) else ""
             launch.emit({
                 "parent": name, "stdoutType": record.get("stdoutType"), "stderrType": record.get("stderrType"),
+                **({"stdinType": record["stdinType"]} if "stdinType" in record else {}),
                 "case": case.get("name"),
                 **{key: probe[key] for key in ("argv", "pid", "startedAt", "endedAt", "elapsedMs", "status", "signal", "error", "repetition") if key in probe},
                 "stdout": stdout[:1024], "stderr": stderr[:1024],
                 "logTruncated": len(stdout) > 1024 or len(stderr) > 1024,
                 "outcome": launch.classify(probe),
-            }, "parent")
+            }, prefix)
 
 
 def baseline(root, output):
@@ -255,13 +279,102 @@ def finalize(root, output, baseline_status, perl_status):
     return FINAL_REPRODUCED if record["outcome"] in ("python-layer-not-required", "python-layer-dependent") else FINAL_CLEAR if record["outcome"] == "not-reproduced" else 2
 
 
+def stdin_prepare(root, output):
+    """namespaceを起動せず前提と版を保存し、Perl測定を専用コードで許可する。"""
+    output.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(output / "namespace-stdin-checkpoint.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    record = {"schema": "linux-namespace-stdin-checkpoint/v1", "outcome": "unavailable"}
+    try:
+        record["identity"] = validate(root)
+        os.chdir(root)
+        record["controllerHashes"] = controller_hashes()
+        record["runtimeHashes"] = {"python": launch.digest(sys.executable), "perl": launch.digest(PERL)}
+        executable = "/usr/bin/unshare"
+        version = launch.capture(executable, ["--version"], "/", {}, limit=64 * 1024, stdout_pipe=True, stderr_pipe=True)
+        if version.get("error") or version["signal"] or version["status"] != 0 or version["stderr"] or not version["stdout"].strip():
+            raise ValueError("unshareの版を確認できません")
+        record["unshare"] = {"path": executable, "hash": launch.digest(executable), "version": version["stdout"].strip()}
+        record["context"] = launch.context()
+        record["ancestry"] = ancestry()
+        if (
+            validate(root) != record["identity"] or controller_hashes() != record["controllerHashes"]
+            or launch.context() != record["context"] or ancestry() != record["ancestry"]
+        ):
+            raise ValueError("stdin比較の準備中に条件が変化しました")
+        record["outcome"] = "ready"
+    except Exception as error:
+        record.update(outcome="unavailable", error=type(error).__name__ + ": " + str(error))
+    finally:
+        with os.fdopen(fd, "w") as stream:
+            json.dump(record, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+        launch.emit({"stage": "stdin-prepare", "outcome": record["outcome"], "error": record.get("error")}, "stdin")
+    return STDIN_READY if record["outcome"] == "ready" else 2
+
+
+def stdin_finalize(root, output, prepare_status, perl_status):
+    """同じPerl親の両測定を再検証し、途中記録と準備時の出所を保持する。"""
+    fd = os.open(output / "namespace-stdin.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    record = {"schema": "linux-namespace-stdin-comparison/v1", "outcome": "unavailable", "measurements": {}}
+    try:
+        checkpoint = json.loads((output / "namespace-stdin-checkpoint.json").read_text())
+        record.update({key: checkpoint[key] for key in ("identity", "controllerHashes", "runtimeHashes", "unshare") if key in checkpoint})
+        perl_file = output / "namespace-stdin-perl.json"
+        pair = json.loads(perl_file.read_text()) if perl_file.exists() else {}
+        if not isinstance(pair, dict):
+            raise ValueError("Perlの比較記録がobjectではありません")
+        record["measurements"] = pair.get("measurements", {})
+        os.chdir(root)
+        identity = validate(root)
+        common = ancestry()[1:]
+        if (
+            checkpoint.get("schema") != "linux-namespace-stdin-checkpoint/v1"
+            or checkpoint.get("outcome") != "ready" or prepare_status != STDIN_READY or perl_status != 0
+            or pair.get("error") or not isinstance(record["measurements"], dict)
+            or set(record["measurements"]) not in ({"devnull"}, {"devnull", "closed"})
+            or record.get("identity") != identity or record.get("controllerHashes") != controller_hashes()
+            or record.get("runtimeHashes") != {"python": launch.digest(sys.executable), "perl": launch.digest(PERL)}
+            or checkpoint.get("ancestry", [])[1:] != common
+            or checkpoint.get("context") != launch.context()
+            or record["unshare"]["path"] != "/usr/bin/unshare"
+            or record["unshare"]["hash"] != launch.digest("/usr/bin/unshare")
+        ):
+            raise ValueError("stdin比較の準備・測定段階・caller条件が一致しません")
+        baseline = record["measurements"]["devnull"]
+        changed = record["measurements"].get("closed")
+        if baseline.get("before") != checkpoint["context"] or baseline.get("unshare") != record["unshare"]:
+            raise ValueError("stdin baselineのcallerまたは実行体が一致しません")
+        record["outcome"] = compare_stdin(baseline, changed, common)
+        if validate(root) != identity:
+            raise ValueError("stdin比較の判定中にsourceが変化しました")
+    except Exception as error:
+        record.update(outcome="unavailable", error=type(error).__name__ + ": " + str(error))
+    finally:
+        with os.fdopen(fd, "w") as stream:
+            json.dump(record, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+        launch.emit({key: value for key, value in record.items() if key not in ("outcome", "measurements")}, "stdin")
+        measurements = record["measurements"]
+        for measurement in measurements.values() if isinstance(measurements, dict) else []:
+            log_measurement("perl", measurement, prefix="stdin")
+        launch.emit({"outcome": record["outcome"], "error": record.get("error")}, "stdin")
+    return FINAL_REPRODUCED if record["outcome"] in ("stdin-devnull-not-required", "stdin-devnull-dependent") else FINAL_CLEAR if record["outcome"] == "not-reproduced" else 2
+
+
 def main(args):
     """Bashが指定する段階だけを実行し、自身からPerlを子起動しない。"""
-    if not args or args[0] not in ("baseline", "finalize") or len(args) != (3 if args[0] == "baseline" else 5):
-        raise ValueError("baseline SOURCE OUTPUT または finalize SOURCE OUTPUT PYTHON_STATUS PERL_STATUSが必要です")
+    if not args or args[0] not in ("baseline", "finalize", "stdin-prepare", "stdin-finalize"):
+        raise ValueError("baseline / finalize / stdin-prepare / stdin-finalizeを指定してください")
+    preparing = args[0] in ("baseline", "stdin-prepare")
+    if len(args) != (3 if preparing else 5):
+        raise ValueError("段階に対応するSOURCE OUTPUTと終了コードが必要です")
     root, output = Path(args[1]).resolve(), Path(args[2]).resolve()
     if args[0] == "baseline":
         return baseline(root, output)
+    if args[0] == "stdin-prepare":
+        return stdin_prepare(root, output)
+    if args[0] == "stdin-finalize":
+        return stdin_finalize(root, output, int(args[3]), int(args[4]))
     return finalize(root, output, int(args[3]), int(args[4]))
 
 
@@ -269,5 +382,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
     except (OSError, ValueError) as error:
-        launch.emit({"outcome": "unavailable", "error": type(error).__name__ + ": " + str(error)}, "parent")
+        launch.emit({"outcome": "unavailable", "error": type(error).__name__ + ": " + str(error)}, "stdin" if sys.argv[1:2] and sys.argv[1].startswith("stdin-") else "parent")
         sys.exit(2)
