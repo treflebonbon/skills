@@ -134,3 +134,26 @@ UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、user / pid / moun
 今回の比較では `env` 引数全体を空にしても再現したため、空の環境を減らした再現条件として採用する。個別変数の効果やOS / LSMの原因を確定したとは扱わない。Nodeの起動経路・cwdなどの固定条件は残っており、失敗したunshare自身の拒否時の状態は未観測。記録したcallerのLSM contextだけで拒否原因を断定しない。
 
 結果は `namespace-environment.json` と `environment-inherited.json` / `environment-empty.json` にwx0600で保存する。新しい `[DEBUG-ns-env]` JSON行には各probeの方式・argv・PID・時刻・終了状態と上限付き出力を記録し、各streamの1024文字を超える場合は `logTruncated` を示す。run名は `Linux namespace 環境比較: <source SHA>`、artifact名は `namespace-environment-<run>-<attempt>-<arch>`。新しいSHAに固定した1runを事前承認してから測定し、結果は新しいActionsログで確認する。過去に拒否されたartifactや一時ログへはアクセスしない。
+
+## 次の最小化: Node測定器を起動経路から外す
+
+`mode=probe-launch` は導入済みPython 3を共通親として、空環境のNode経由とPythonからの直接起動を比較する。測定コードは準備済みで、実VMでの追加測定は未実行。
+
+`python3 -I control/development/probe-linux-namespace-launch.py SOURCE OUTPUT NODE` で起動する。Node側は既存MJSの `measure-environment ... empty` を再利用する。最初にNode経由で最小argvが3/3同じEPERM、対照が3/3成功することと共通親の条件を確認し、その場合だけ直接起動を各3回測る。最大12回/architecture。Node側で全6回が成功した場合は直接起動を省略して `not-reproduced` とし、別エラー・混在・条件不一致は `unavailable` で停止する。
+
+直接起動は共通Python親の `subprocess.Popen` から `/usr/bin/unshare` を実行するため、Node測定器はunshareの祖先に残らない。両経路ともunshareの `env` は `{}`、cwdは対象checkout、stdinは `/dev/null`、時間上限5秒、各出力上限32MiB、超過時は所有する子へSIGKILLとする。Nodeの `stdio: pipe` は通常のUnix pipeではないため、Python側も匿名Unix socket対を使う。fixtureで両経路のfd種別を確認する。[Nodeのstdio仕様](https://nodejs.org/api/child_process.html#optionsstdio)を参照。
+
+UID / EUID / GID・group、namespace識別子、callerのcapability / NoNewPrivs / Seccomp / LSM、選択した5環境変数を両経路と測定前後で照合する。Node測定器の親PIDが共通Python親PIDと一致することを要求し、両測定コード・Node/Python/unshare実体のhash、source/workflow/run/attempt、image/kernelを記録する。値の全件記録や認証値の取得は行わない。
+
+| 結果                    | 条件                                                               | 終了コード |
+| ----------------------- | ------------------------------------------------------------------ | ---------- |
+| `node-not-required`     | Node経由と直接起動で最小argvが各3回同じEPERM、対照が各3回成功      | 1          |
+| `node-launch-dependent` | Node経由だけ最小argvが3回同じEPERM、直接起動と両対照は3回成功      | 1          |
+| `not-reproduced`        | Node経由の最小argvと対照が各3回成功。直接起動は省略                | 0          |
+| `unavailable`           | 別エラー・混在・条件不一致・観測不足。直接起動前ならその時点で停止 | 2          |
+
+これはNode測定器を含む起動経路を外せるかの比較であり、起動APIと追加されたprocess世代の個別効果は分離しない。Pythonを含む全callerやOS / LSMの影響を否定せず、callerのLSM観測を失敗したunshare自身の拒否時の状態とは扱わない。Phase 2全体と原因確定は未完了。#33未完了・#82待ち、macOS 15と全子孫5秒保証の条件を維持する。
+
+結果は `namespace-launch.json`、Node側の記録は `launch-node.json` にwx0600で保存する。新しい `[DEBUG-ns-launch]` JSON行にはcaller条件・各argv・PID・時刻・終了状態を記録し、stdout/stderrは各1024文字まで、省略時は `logTruncated` を示す。環境変数全体や認証値は出力しない。
+
+既存Bun setupは維持し、新しい依存のinstallは行わない。専用Nix/group準備、正式44ケース、集約はスキップする。run名は `Linux namespace 起動経路比較: <source SHA>`、artifact名は `namespace-launch-<run>-<attempt>-<arch>`。新しいSHAに固定した1runを事前承認し、結果は新しい公開Actionsログで確認する。artifact取得は今回の準備に含めない。
