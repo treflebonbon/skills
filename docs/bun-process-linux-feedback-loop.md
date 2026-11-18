@@ -284,7 +284,9 @@ Perl baselineは読み取り専用 `/dev/null` stdinで最小argv `--map-current
 | `not-reproduced` | baselineの最小argvと対照が各3回成功、閉鎖側は省略 | 0 |
 | `unavailable` | 別エラー・混在・条件不一致・観測不足・段階の失敗 | 2 |
 
-同じPerl親・祖先列・caller条件・unshareの実体hashと版、各条件6件のraw結果をPython後処理で再検証する。baselineが別エラーや混在なら閉鎖側を起動しない。Bashが未使用OUTPUTを排他的に確保し、`namespace-stdin-checkpoint.json` / `namespace-stdin-perl.json` / `namespace-stdin.json` をwx0600で保存する。閉鎖側やJSON読取りの失敗でも、取得済みbaselineと準備時のidentity・hashを保持する。
+同じPerl親・祖先列・caller条件・unshareの実体hashと版、各条件6件のraw結果をPython後処理で再検証する。baselineが別エラーや混在なら閉鎖側を起動しない。Bashが未使用OUTPUTを排他的に確保し、`namespace-stdin-checkpoint.json` / `namespace-stdin-perl.json` / `namespace-stdin.json` をwx0600で保存する。閉鎖側やJSON読取りの失敗でも、取得済みbaselineと準備時のidentity・hashを保持する。閉鎖側はbaselineのpath/hashを受け取り、測定開始時にも一致を要求する。Pythonの祖先再検査は、完了した6件をcheckpointへ格納してから行う。
+
+callerの非ASCII cwdと、比較対象の `PATH` / `HOME` / `LANG` / `LC_ALL` / `TMPDIR` はUTF-8文字列として照合する。選択環境値に不正なUTF-8がある場合は、値そのものを出力せず、変数名と拒否理由を有効なJSONへ保存して終了2にする。比較対象外の環境変数まで拒否しない。
 
 `[DEBUG-ns-stdin]` のJSONでsource / workflow / run / attempt・測定器hash・各probeのargv/PID/時刻/終了状態を限定記録する。`stdinType` の `devnull` / `closed` は指定方式であり、実出力 `stdout` / `stderr` と分ける。各streamは1024文字まで、省略時は `logTruncated` を示す。環境全体や認証値を出力しない。
 

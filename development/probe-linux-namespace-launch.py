@@ -40,6 +40,15 @@ def digest(path):
 
 def context():
     """自身の資格情報・namespace・限定LSM/環境条件を観測する。"""
+    environment = {
+        key: os.environ.get(key) for key in ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
+    }
+    for name, value in environment.items():
+        if value is not None:
+            try:
+                value.encode("utf-8", errors="strict")
+            except UnicodeEncodeError:
+                raise ValueError(f"比較環境の{name}がUTF-8ではありません") from None
     status = Path("/proc/self/status").read_text().splitlines()
     values = {}
     for path in CONTEXTS:
@@ -60,9 +69,7 @@ def context():
             if re.match(r"^(Uid|Gid|Groups|CapInh|CapPrm|CapEff|CapBnd|CapAmb|NoNewPrivs|Seccomp):", line)
         ],
         "contexts": values,
-        "environment": {
-            key: os.environ.get(key) for key in ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
-        },
+        "environment": environment,
     }
 
 

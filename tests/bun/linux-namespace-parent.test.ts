@@ -165,6 +165,8 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
   "非root専用: PythonとPerlの共通Bash親・通常pipe・空環境を照合し追加測定のgateを固定する",
   () => {
     const directory = fs.mkdtempSync(join(tmpdir(), "namespace-parent-pair-"));
+    const callerCwd = join(directory, "café");
+    fs.mkdirSync(callerCwd);
     let cleanup = () => {};
     try {
       const python = join(directory, "perl-tools", "python3");
@@ -276,7 +278,7 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         fs.writeFileSync(capture, "");
         if (fs.existsSync(changed)) fs.unlinkSync(changed);
         const result = spawnSync("bash", [script], {
-          cwd: root,
+          cwd: callerCwd,
           encoding: "utf8",
           timeout: 30_000,
           env: { ...process.env, PROBE_ENV_SENTINEL: "public-fixture" },
@@ -649,4 +651,150 @@ test.skipIf(process.platform !== "linux")(
     expect(raw.stdout).toHaveLength(1025);
     expect(raw.detail).toHaveLength(160000);
   },
+);
+
+test.skipIf(process.platform !== "linux")(
+  "stdin比較はbaseline直後の実行体交換を追加起動前に拒否しbaselineを保持する",
+  () => {
+    const directory = fs.mkdtempSync(join(tmpdir(), "namespace-stdin-replaced-"));
+    let cleanup = () => {};
+    try {
+      const fixture = createUnshareFixture(directory, fs.realpathSync(Bun.which("node")!), "cwd");
+      cleanup = fixture.cleanup;
+      fs.writeFileSync(fixture.behavior, "both-eperm");
+      const driver = [
+        "require shift @ARGV;",
+        "my ($executable,$variant)=@ARGV;",
+        "my $original=\\&baseline_reproduced;",
+        "no warnings 'redefine';",
+        "*baseline_reproduced=sub { my $ok=$original->(@_); if ($ok && $variant eq 'replace') { open my $f,'>>:raw',$executable or die $!; print {$f} qq(\\n// changed fixture\\n); close $f; } return $ok; };",
+        "my $record={};my $ok=eval {measure_stdin($executable,$record,'fixture-unshare');1};",
+        "$record->{error}=$@ unless $ok;",
+        "print JSON::PP->new->canonical->utf8->encode($record);",
+      ].join("\n");
+      for (const variant of ["stable", "replace"]) {
+        fs.writeFileSync(fixture.capture, "");
+        const result = spawnSync(
+          Bun.which("perl")!,
+          ["-e", driver, perlModule, fixture.unshare, variant],
+          { cwd: root, encoding: "utf8", timeout: 20_000 },
+        );
+        expect(result.status, result.stderr).toBe(0);
+        expect(result.stderr).toBe("");
+        const record = JSON.parse(result.stdout);
+        const count = fs.readFileSync(fixture.capture, "utf8").trim().split("\n").length;
+        expect(count).toBe(variant === "stable" ? 12 : 6);
+        expect(
+          record.measurements.devnull.cases.flatMap((entry: { probes: unknown[] }) => entry.probes),
+        ).toHaveLength(6);
+        if (variant === "stable") {
+          expect(record.error).toBeUndefined();
+          expect(record.measurements.closed.unshare).toEqual(record.measurements.devnull.unshare);
+        } else {
+          expect(record.error).toContain("baselineの実行体");
+          expect(record.measurements.closed.cases).toBeUndefined();
+        }
+      }
+    } finally {
+      cleanup();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  },
+  30_000,
+);
+
+test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.geteuid?.() === 0)(
+  "非root専用: Python checkpointは祖先変化後の6件を保持し不正な環境値でもJSONを壊さない",
+  () => {
+    const directory = fs.mkdtempSync(join(tmpdir(), "namespace-checkpoint-failures-"));
+    const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
+    const code = [
+      "import copy,importlib.util,json,os,sys",
+      "from pathlib import Path",
+      "spec=importlib.util.spec_from_file_location('parent',sys.argv[1])",
+      "parent=importlib.util.module_from_spec(spec);spec.loader.exec_module(parent)",
+      "parent.validate=lambda root:{'sourceSha':'public-fixture'}",
+      "calls=[]",
+      "def capture(executable,argv,*args,**kwargs):",
+      " assert str(executable)=='/usr/bin/unshare'",
+      " calls.append(list(argv));version=argv==['--version'];minimal=argv[0]=='--map-current-user'",
+      " return {'argv':list(argv),'pid':1000000+len(calls),'status':1 if minimal else 0,'signal':None,'stdout':'fixture-version\\n' if version else '', 'stderr':'unshare: write failed /proc/self/uid_map: Operation not permitted\\n' if minimal else ''}",
+      "parent.launch.capture=capture",
+      "ancestry=parent.ancestry;inspections=0",
+      "def inspect():",
+      " global inspections",
+      " inspections+=1;value=ancestry()",
+      " if sys.argv[5]=='ancestry' and inspections>1:value[0]['pid']+=1",
+      " return value",
+      "parent.ancestry=inspect",
+      "os.environ['HOME']='/home/café'",
+      "if sys.argv[5]=='invalid':os.environb[b'HOME']=b'\\xff'",
+      "if sys.argv[5]=='unselected':os.environb[b'PROBE_UNUSED']=b'\\xff'",
+      "output=Path(sys.argv[3]);stage=sys.argv[4];status=None;exception=None",
+      "try:status=(parent.baseline if stage=='baseline' else parent.stdin_prepare)(Path(sys.argv[2]),output)",
+      "except Exception as error:exception=type(error).__name__",
+      "file=output/('namespace-parent-python.json' if stage=='baseline' else 'namespace-stdin-checkpoint.json')",
+      "record=None;valid_json=True",
+      "try:record=json.loads(file.read_text())",
+      "except Exception:valid_json=False",
+      "print('RESULT '+json.dumps({'status':status,'exception':exception,'validJson':valid_json,'record':record,'namespaceCalls':sum(row!=['--version'] for row in calls)}))",
+    ].join("\n");
+    const pythonModule = join(root, "development/probe-linux-namespace-parent.py");
+    try {
+      for (const stage of ["baseline", "stdin-prepare"])
+        for (const variant of ["stable", "invalid", "ancestry", "unselected"]) {
+          const output = join(directory, stage + "-" + variant);
+          const command =
+            [
+              Bun.which("python3")!,
+              "-I",
+              "-B",
+              "-c",
+              code,
+              pythonModule,
+              root,
+              output,
+              stage,
+              variant,
+            ]
+              .map(quote)
+              .join(" ") + "\n:";
+          const result = spawnSync("bash", ["-c", command], {
+            cwd: root,
+            encoding: "utf8",
+            timeout: 15_000,
+          });
+          expect(result.status, result.stderr).toBe(0);
+          expect(result.stderr).toBe("");
+          const data = JSON.parse(result.stdout.trim().split("\n").at(-1)!.slice("RESULT ".length));
+          expect(data.validJson).toBe(true);
+          expect(data.exception).toBeNull();
+          const refused = variant === "ancestry" || variant === "invalid";
+          expect(data.status).toBe(refused ? 2 : stage === "baseline" ? 42 : 45);
+          expect(data.record.outcome).toBe(
+            refused ? "unavailable" : stage === "baseline" ? "uid-map-eperm" : "ready",
+          );
+          expect(data.record.identity.sourceSha).toBe("public-fixture");
+          expect(data.record.controllerHashes).toBeDefined();
+          expect(data.record.runtimeHashes).toBeDefined();
+          expect(data.namespaceCalls).toBe(stage === "baseline" && variant !== "invalid" ? 6 : 0);
+          if (variant === "invalid") {
+            expect(data.record.error).toContain("HOME");
+            expect(data.record.error).toContain("UTF-8");
+          } else if (stage === "baseline") {
+            expect(
+              data.record.measurement.cases.flatMap((entry: { probes: unknown[] }) => entry.probes),
+            ).toHaveLength(6);
+            expect(data.record.measurement.before.environment.HOME).toBe("/home/café");
+            if (variant === "ancestry") expect(data.record.error).toContain("祖先のidentity");
+          } else {
+            expect(data.record.context.environment.HOME).toBe("/home/café");
+            if (variant === "ancestry") expect(data.record.error).toContain("準備中");
+          }
+        }
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  },
+  60_000,
 );

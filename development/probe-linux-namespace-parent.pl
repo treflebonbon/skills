@@ -220,14 +220,17 @@ sub capture {
 
 # 同じPerl親から最小argvと成功対照を各3回測る。
 sub measure {
-    my ($executable, $record, $version, $stdin_type) = @_;
+    my ($executable, $record, $version, $stdin_type, $expected_executable) = @_;
     $record //= {};
     my $path = abs_path($executable) // die "実行体が見つかりません\n";
     die "baselineのunshare版がありません\n" unless defined($version) && $version =~ /\S/;
+    my $hash = digest($path);
+    die "baselineの実行体が一致しません\n" if defined($expected_executable) &&
+        ($path ne $expected_executable->{path} || $hash ne $expected_executable->{hash});
     %$record = (
-        runtime => { name => 'perl', version => sprintf('%vd', $^V), path => abs_path($^X), hash => digest(abs_path($^X)), pid => 0 + $$, ppid => 0 + getppid(), cwd => getcwd() },
+        runtime => { name => 'perl', version => sprintf('%vd', $^V), path => abs_path($^X), hash => digest(abs_path($^X)), pid => 0 + $$, ppid => 0 + getppid(), cwd => decode('UTF-8', getcwd(), FB_CROAK | LEAVE_SRC) },
         ancestry => ancestry(), probeEnvironment => 'empty', controllerHash => digest($SELF),
-        unshare => {path => $path, hash => digest($path), version => $version},
+        unshare => {path => $path, hash => $hash, version => $version},
         before => context(), cases => [], cwd => '/', stdoutType => 'pipe', stderrType => 'pipe',
     );
     $record->{stdinType} = $stdin_type if defined $stdin_type;
@@ -256,7 +259,7 @@ sub baseline_reproduced {
             $record->{probeEnvironment} eq 'empty'
             && $record->{stdinType} eq 'devnull' && $record->{forkCount} == 6
             && $record->{stdoutType} eq 'pipe' && $record->{stderrType} eq 'pipe'
-            && $record->{runtime}{pid} == $$ && $record->{runtime}{cwd} eq getcwd()
+            && $record->{runtime}{pid} == $$ && $record->{runtime}{cwd} eq decode('UTF-8', getcwd(), FB_CROAK | LEAVE_SRC)
             && $record->{runtime}{hash} eq digest(abs_path($^X))
             && $json->encode($record->{before}) eq $json->encode($record->{after})
             && $json->encode($record->{after}) eq $json->encode(context())
@@ -297,7 +300,7 @@ sub measure_stdin {
     measure($executable, $record->{measurements}{devnull}, $version, 'devnull');
     if (baseline_reproduced($record->{measurements}{devnull})) {
         $record->{measurements}{closed} = {};
-        measure($executable, $record->{measurements}{closed}, $version, 'closed');
+        measure($executable, $record->{measurements}{closed}, $version, 'closed', $record->{measurements}{devnull}{unshare});
     }
     return $record;
 }

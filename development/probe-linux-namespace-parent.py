@@ -54,8 +54,6 @@ def measure_python(executable):
         "ancestry": before, "cwd": "/", "stdoutType": "pipe", "stderrType": "pipe",
     }
     record["runtime"]["cwd"] = os.getcwd()
-    if ancestry() != before:
-        raise ValueError("測定中に祖先のidentityが変わりました")
     return record
 
 
@@ -216,6 +214,8 @@ def baseline(root, output):
         record["controllerHashes"] = controller_hashes()
         record["runtimeHashes"] = {"python": launch.digest(sys.executable), "perl": launch.digest(PERL)}
         record["measurement"] = measure_python("/usr/bin/unshare")
+        if ancestry() != record["measurement"]["ancestry"]:
+            raise ValueError("測定中に祖先のidentityが変わりました")
         record["outcome"] = measurement_outcome(record["measurement"], "python", ancestry()[1:])
         if validate(root) != record["identity"] or controller_hashes() != record["controllerHashes"]:
             raise ValueError("測定中にsourceまたは測定器が変化しました")

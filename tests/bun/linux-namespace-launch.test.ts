@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { createUnshareFixture } from "../helpers/linux-namespace-fixture";
+import { createFixtureInterpreter, createUnshareFixture } from "../helpers/linux-namespace-fixture";
 
 const root = resolve(import.meta.dir, "../..");
 const modulePath = join(root, "development/probe-linux-namespace-launch.py");
@@ -13,8 +13,14 @@ test.skipIf(process.platform !== "linux")(
   "起動経路比較は共通Python親からNode経由と直接起動を空環境・pipeで照合する",
   () => {
     const directory = fs.mkdtempSync(join(tmpdir(), "namespace-launch-contract-"));
+    let cleanup = () => {};
     try {
-      const node = Bun.which("node")!;
+      const selectedNode = fs.realpathSync(Bun.which("node")!);
+      const tools = join(directory, "Node Tools");
+      fs.mkdirSync(tools);
+      const node = join(tools, "node");
+      // 実体pathの空白を検証するため、選択Nodeを専用pathへコピーする。
+      fs.copyFileSync(selectedNode, node, fs.constants.COPYFILE_FICLONE);
       const python = Bun.which("python3")!;
       expect(node).not.toBeNull();
       expect(python).not.toBeNull();
@@ -25,10 +31,12 @@ test.skipIf(process.platform !== "linux")(
       const capture = join(directory, "capture.jsonl");
       const behavior = join(directory, "behavior");
       const unshare = join(directory, "unshare.mjs");
+      const interpreter = createFixtureInterpreter(node);
+      cleanup = interpreter.cleanup;
       fs.writeFileSync(
         unshare,
         [
-          "#!" + fs.realpathSync(node),
+          "#!" + interpreter.path,
           'import * as fs from "node:fs";',
           'if (process.argv[2] === "--version") { console.log("fixture-unshare"); process.exit(0); }',
           "const capture = " + JSON.stringify(capture) + ";",
@@ -191,6 +199,7 @@ test.skipIf(process.platform !== "linux")(
       expect(repeated.stdout).toContain("FileExistsError");
       expect(fs.readFileSync(path, "utf8")).toBe(saved);
     } finally {
+      cleanup();
       fs.rmSync(directory, { recursive: true, force: true });
     }
   },
@@ -259,6 +268,7 @@ test.skipIf(process.platform !== "linux")(
       }
     }
   },
+  30_000,
 );
 
 test.skipIf(process.platform !== "linux")(

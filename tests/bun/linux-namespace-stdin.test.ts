@@ -115,6 +115,8 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
   "非root専用: 同じPerl親でstdinだけを比較し正確な再現時だけ閉じた条件へ進む",
   () => {
     const directory = fs.mkdtempSync(join(tmpdir(), "namespace stdin pair "));
+    const callerCwd = join(directory, "café");
+    fs.mkdirSync(callerCwd);
     let cleanup = () => {};
     try {
       const {
@@ -217,7 +219,7 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         fs.writeFileSync(behavior, variant!);
         if (fs.existsSync(pair)) fs.unlinkSync(pair);
         const result = spawnSync("bash", [script, "valid"], {
-          cwd: root,
+          cwd: callerCwd,
           encoding: "utf8",
           timeout: 30_000,
           env: { ...process.env, HOME: "/home/café", PROBE_ENV_SENTINEL: "public-fixture" },
