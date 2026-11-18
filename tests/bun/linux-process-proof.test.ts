@@ -1098,7 +1098,8 @@ for (const diagnostic of [false, true]) {
           expect(probe.processObservation.profile).toBeUndefined();
           expect(probe.processObservation.capabilities).toBeUndefined();
           expect(probe.audit.status).toBe("matched");
-          expect(probe.audit.reader.path).toBe("/usr/bin/journalctl");
+          const journalctlPath = fs.realpathSync("/usr/bin/journalctl");
+          expect(probe.audit.reader.path).toBe(journalctlPath);
           expect(probe.audit.reader.hash).toMatch(/^[a-f0-9]{64}$/);
           expect(probe.audit.reader.version.status).toBe("recorded");
           expect(probe.audit.reader.version.argv).toEqual(["--version"]);
@@ -1112,7 +1113,7 @@ for (const diagnostic of [false, true]) {
           expect(probe.audit.events[0].message).toContain("pid=" + pid);
           expect(probe.audit.events[0].message).toContain('operation="userns_create"');
           const sudoArgs = JSON.parse(fs.readFileSync(sudoArgsFile, "utf8"));
-          expect(sudoArgs).toContain("/usr/bin/journalctl");
+          expect(sudoArgs).toContain(journalctlPath);
           expect(sudoArgs).toContain("--dmesg");
           expect(sudoArgs).toContain("--grep=(^|[^[:alnum:]_])pid=" + pid + "([^[:alnum:]_]|$)");
           expect(sudoArgs).toContain("--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE");
