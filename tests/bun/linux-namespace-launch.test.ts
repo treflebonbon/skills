@@ -512,18 +512,21 @@ for (const stream of ["stdout", "stderr"] as const) {
           const record = JSON.parse(lines.at(-1)!.slice("RESULT ".length));
           expect(record.outcome).toBe(expected);
           const changed = record.measurements.pipe;
+          const shouldCompare = variant === "both-eperm" || variant === "dependent";
+          if (shouldCompare) expect(changed).toBeDefined();
+          else expect(changed).toBeUndefined();
           const measurements = [record.measurements.socket, ...(changed ? [changed] : [])];
           const observed = fs
             .readFileSync(capture, "utf8")
             .trim()
             .split("\n")
             .map((line) => JSON.parse(line));
-          expect(observed).toHaveLength(changed ? 12 : 6);
+          expect(observed).toHaveLength(shouldCompare ? 12 : 6);
           const prefix = "[DEBUG-ns-" + stream + "] ";
           const logged = lines
             .filter((line) => line.startsWith(prefix))
             .map((line) => JSON.parse(line.slice(prefix.length)));
-          expect(logged).toHaveLength(changed ? 14 : 7);
+          expect(logged).toHaveLength(shouldCompare ? 14 : 7);
           for (const [index, measurement] of measurements.entries()) {
             const type = index === 0 ? "socket" : "pipe";
             expect(measurement[field]).toBe(type);
