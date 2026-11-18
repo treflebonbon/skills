@@ -24,7 +24,7 @@ readiness の元 bytes の SHA-256 は `8984a2f5780ecfc82dd509031906c375a5677008
 
 native receipt の重複 JSON key は受入条件に合わせて拒否へ強化する。旧 Python が最後の値を採ったケースは corpus の `tightened` で区別する。readiness と手順の JSON 検査も、escape 後に同じになる key と入れ子の key を含めて重複を拒否する。整数トークンの4300桁上限は codec の BigInt 変換より前に検査し、文字列内の数字と float はこの制限に数えない。数値と非有限値の読込みには既存の peer JSON codec を使う。
 
-変更所有範囲の数字は Python の Unicode 16.0.0 の Nd 760文字を固定した [table](../lib/bun/vendor/peer-decimal.json) と [Unicode license](../lib/bun/vendor/peer-decimal.LICENSE) を同梱する。Bun の Unicode 分類が追加で認識する U+11DE0–U+11DE9 は旧版と同じく行番号にしない。整数は BigInt で比較し、旧 Python の4300桁上限も維持する。通常の数字・上限の直前と、不適合の数字・上限超過を対にして検査する。
+変更所有範囲の数字は Python の Unicode 16.0.0 の Nd 760文字を固定した [table](../lib/bun/vendor/decimal.json) と [Unicode license](../lib/bun/vendor/decimal.LICENSE) を同梱する。Bun の Unicode 分類が追加で認識する U+11DE0–U+11DE9 は旧版と同じく行番号にしない。整数は BigInt で比較し、旧 Python の4300桁上限も維持する。通常の数字・上限の直前と、不適合の数字・上限超過を対にして検査する。
 
 ## 検証する契約
 

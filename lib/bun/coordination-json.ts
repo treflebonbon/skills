@@ -1,4 +1,4 @@
-import { parsePeerJSON } from "./peer-json.ts";
+import { parseStrictJSON } from "./strict-json.ts";
 import { readFileSync } from "node:fs";
 
 export const strip = (value: string) =>
@@ -19,7 +19,7 @@ export function coordinationJSON(raw: Uint8Array): any {
     if (/^-?\d+$/.test(token) && token.replace(/^-/, "").length > 4300)
       throw new RangeError("JSON の整数は旧 Python と同じ4300桁以内で指定してください");
   }
-  const value = parsePeerJSON(raw);
+  const value = parseStrictJSON(raw);
   const stack: (Set<string> | null)[] = [];
   let previous = "";
   for (const match of text.matchAll(tokens)) {

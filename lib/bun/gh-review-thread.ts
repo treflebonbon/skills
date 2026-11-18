@@ -139,10 +139,10 @@ const USAGE: Record<string, string> = {
 
 import { readFileSync, realpathSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { parsePeerJSON, peerJSON, equalPeerJSON } from "./peer-json.ts";
+import { parseStrictJSON, strictJSON, equalStrictJSON } from "./strict-json.ts";
 import { object, strip, stripEnd } from "./coordination-json.ts";
-import casefoldTable from "./vendor/peer-casefold.json";
-import digitZeros from "./vendor/peer-decimal.json";
+import casefoldTable from "./vendor/casefold.json";
+import digitZeros from "./vendor/decimal.json";
 
 type Data = Record<string, any>;
 class Failure extends Error {
@@ -174,7 +174,7 @@ function knownStatus(statuses: Record<string, string>, key: string): string {
   return Object.hasOwn(statuses, key) ? statuses[key]! : "unknown";
 }
 function json(value: unknown, ascii = false): string {
-  return peerJSON(value).replace(/"(?:[^"\\]|\\[\s\S])*"|\s+|[,:]/g, (token) => {
+  return strictJSON(value).replace(/"(?:[^"\\]|\\[\s\S])*"|\s+|[,:]/g, (token) => {
     if (token.startsWith('"'))
       return ascii
         ? token.replace(
@@ -225,7 +225,7 @@ function runGh(args: string[]): string {
 function ghJSON(args: string[]): Data {
   let payload: Data;
   try {
-    payload = parsePeerJSON(Buffer.from(runGh(args)));
+    payload = parseStrictJSON(Buffer.from(runGh(args)));
   } catch (error) {
     if (error instanceof Failure) throw error;
     fail(`gh returned invalid JSON: ${(error as Error).message}`);
@@ -520,7 +520,7 @@ function coderabbitChecks(repo: string, pr: string, head: string): Data {
   return { ...result, status: combined(result.items.map((item: Data) => item.status)) };
 }
 function inspect(repo: string, pr: string, noDiff: boolean, plain: boolean, checks: boolean): void {
-  const metadata = parsePeerJSON(
+  const metadata = parseStrictJSON(
     Buffer.from(
       runGh([
         "pr",
@@ -628,7 +628,7 @@ function replyResolve(
     pull = thread.pullRequest,
     actualRepo = pull.repository.nameWithOwner,
     actualPr = pull.number;
-  if (fold(actualRepo) !== fold(repo) || !equalPeerJSON(actualPr, BigInt(pr)))
+  if (fold(actualRepo) !== fold(repo) || !equalStrictJSON(actualPr, BigInt(pr)))
     fail(`review thread belongs to ${actualRepo}#${actualPr}, not ${repo}#${pr}`);
   if (commit !== undefined) verifyCommit(repo, pr, commit);
   const normalize = (text: string) => text.replace(/[\r\n]+$/, "");

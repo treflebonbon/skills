@@ -2,7 +2,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { isAbsolute } from "node:path";
 import { parseArgs } from "node:util";
-import { peerJSON } from "../../../lib/bun/peer-json.ts";
+import { strictJSON } from "../../../lib/bun/strict-json.ts";
 import {
   coordinationJSON,
   DuplicateKey,
@@ -122,7 +122,7 @@ function readiness(action: string, path: string, args: Record<string, string>): 
       assignee_handle: args.assignee,
       ...checkoutIdentity(process.cwd()),
     };
-    writeFileSync(path, peerJSON(value), { flag: "wx" });
+    writeFileSync(path, strictJSON(value), { flag: "wx" });
     return;
   }
   nonempty(args.worktree, "worktree");
