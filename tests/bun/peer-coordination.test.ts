@@ -9,6 +9,7 @@ import responseCorpus from "../fixtures/peer-response-python.json";
 
 const root = resolve(import.meta.dir, "../..");
 const preflight = resolve(root, "skills/orca-peer-refactor/scripts/orca-preflight");
+const readiness = resolve(root, "bin/orca-worker-readiness");
 function withDirectory(action: (directory: string) => void) {
   try {
     fs.mkdirSync("/tmp/codex", { mode: 0o700 });
@@ -84,7 +85,7 @@ test("worker の観測を旧 readiness bytes で保存し、親が同じ linked 
       GIT_CONFIG_KEY_0: "core.worktree",
       GIT_CONFIG_VALUE_0: resolve(directory, "wrong-worktree"),
     };
-    const record = spawnSync(preflight, ["worker-readiness", "record", observation, ...context], {
+    const record = spawnSync(readiness, ["record", observation, ...context], {
       cwd: worker,
       env,
       encoding: "utf8",
@@ -96,19 +97,17 @@ test("worker の観測を旧 readiness bytes で保存し、親が同じ linked 
     // Git の実体 path だけを現在の fixture に対応させ、旧 serialization を期待値にする。
     const expected = raw.toString().replaceAll(corpus.readiness.base, fs.realpathSync(directory));
     expect(fs.readFileSync(observation, "utf8")).toBe(expected);
-    const duplicate = spawnSync(
-      preflight,
-      ["worker-readiness", "record", observation, ...context],
-      { cwd: worker, encoding: "utf8" },
-    );
+    const duplicate = spawnSync(readiness, ["record", observation, ...context], {
+      cwd: worker,
+      encoding: "utf8",
+    });
     expect(duplicate.status).toBe(1);
     expect(duplicate.stderr).toContain("EEXIST");
     expect(fs.readFileSync(observation, "utf8")).toBe(expected);
     const verify = (path: string, branch: string, task = "task-1") =>
       spawnSync(
-        preflight,
+        readiness,
         [
-          "worker-readiness",
           "verify",
           observation,
           "--worktree",
@@ -440,6 +439,11 @@ test("coordination helper は Python・compiler・native cache がない読み�
       poison = resolve(directory, "poison");
     fs.mkdirSync(resolve(payload, "lib"), { recursive: true });
     fs.cpSync(resolve(root, "lib/bun"), resolve(payload, "lib/bun"), { recursive: true });
+    fs.mkdirSync(resolve(payload, "bin"));
+    fs.copyFileSync(
+      resolve(root, "bin/orca-worker-readiness"),
+      resolve(payload, "bin/orca-worker-readiness"),
+    );
     for (const peer of ["herdr-peer-refactor", "orca-peer-refactor"]) {
       const scripts = resolve(payload, `skills/${peer}/scripts`);
       fs.mkdirSync(scripts, { recursive: true });
@@ -543,12 +547,11 @@ test("coordination helper は Python・compiler・native cache がない読み�
       return result;
     };
     try {
-      const checker = resolve(payload, "skills/orca-peer-refactor/scripts/orca-preflight"),
+      const checker = resolve(payload, "bin/orca-worker-readiness"),
         observation = resolve(directory, "observation.json");
       const context = ["--task", "task-1", "--dispatch", "dispatch-1", "--assignee", "worker-1"];
-      invoke(checker, ["worker-readiness", "record", observation, ...context]);
+      invoke(checker, ["record", observation, ...context]);
       invoke(checker, [
-        "worker-readiness",
         "verify",
         observation,
         ...context,

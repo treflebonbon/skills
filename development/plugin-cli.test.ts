@@ -156,6 +156,7 @@ smoke(
         "git-push-reviewed",
         "gh-review-thread",
         "orca-send",
+        "orca-worker-readiness",
         "codex-reviewer",
       ]) {
         const path = join(installed, "bin", name),

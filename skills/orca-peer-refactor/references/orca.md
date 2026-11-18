@@ -19,7 +19,7 @@ ORCA skills get orchestration --json
 
 評価前に、本番と同じ native 起動経路で root → peer の深度と起動 effective 値（agent / model / effort）を smoke 確認する。`nested_worker_depth_exceeded` はシナリオの失敗採点ではなく環境不適合として別に記録する。設定変更や新しい Run の作成で深度をリセットしたことにしない。
 
-Run / Dispatch の receipt は、独立した runtime の期待値と照合する。`scripts/orca-preflight` の `coordinator` / `worker-show` は保存済み native receipt を読み、`worker-readiness record` は worker 自身の Git metadata を別の JSON に記録し、`verify` はその JSON と親が独立取得した Git metadata を照合する。いずれも CLI wrapper、Run の bind、権限付与、再送は行わない。
+Run / Dispatch の receipt は、独立した runtime の期待値と照合する。`scripts/orca-preflight` の `coordinator` / `worker-show` は保存済み native receipt を読み、共用 CLI `bin/orca-worker-readiness record` は worker 自身の Git metadata を別の JSON に記録し、`verify` はその JSON と親が独立取得した Git metadata を照合する。いずれも CLI wrapper、Run の bind、権限付与、再送は行わない。
 
 ```text
 "<skill-dir>/scripts/orca-preflight" coordinator <run-receipt.json> --run <expected-run-id> --handle <coordinator-handle>
@@ -37,17 +37,18 @@ coordinator receipt は `ok: true` と `result.run.id` / `result.run.coordinator
 
 ```bash
 mkdir -p /tmp/codex
+plugin_root="$(cd -- "$SKILL_DIR/../.." && pwd -P)"
 readiness_dir=$(mktemp -d /tmp/codex/orca-readiness.XXXXXX)
-"<skill-dir>/scripts/orca-preflight" worker-readiness record "$readiness_dir/worker-readiness.json" \
+"$plugin_root/bin/orca-worker-readiness" record "$readiness_dir/worker-readiness.json" \
   --task <task-id> --dispatch <dispatch-id> --assignee <worker-handle>
 ```
 
 この JSON は native receipt ではなく、`orca-worker-readiness-observation/v1` の checkout 観測である。record は既存ファイルを上書きせず、Git metadata 読取では ambient `GIT_*` を除く。worker は絶対 path と native Task / Dispatch / handle を親へ送り、照合結果を待つ。
 
-3. 親は native 割当から固定した path・branch・開始 HEAD と ID を渡して、別の自分の process から検査する。観測ファイルの値から期待値を作らない。
+3. 親は（`plugin_root` を同様に解決し）native 割当から固定した path・branch・開始 HEAD と ID を渡して、別の自分の process から検査する。観測ファイルの値から期待値を作らない。
 
 ```bash
-"<skill-dir>/scripts/orca-preflight" worker-readiness verify <worker-readiness.json> \
+"$plugin_root/bin/orca-worker-readiness" verify <worker-readiness.json> \
   --worktree <native-assigned-absolute-path> --branch <assigned-branch> --head <assigned-start-head> \
   --task <task-id> --dispatch <dispatch-id> --assignee <worker-handle>
 ```

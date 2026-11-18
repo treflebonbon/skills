@@ -90,6 +90,7 @@
         "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/gh-review-thread.bats",
         "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/git-push-topic.bats",
         "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/orca-send.bats",
+        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/orca-worker-readiness.bats",
         "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-candidate-record.bats",
         "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-gh-once.bats",
         "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-limits-sync.bats",
