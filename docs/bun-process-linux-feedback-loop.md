@@ -1,6 +1,6 @@
 # Linux namespace の再現ループ
 
-状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。最新の[起動経路比較](evidence/linux-namespace-launch/44232172294-1/README.md)ではNode測定器を外した直接起動でも同じEPERMを再現した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
+状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。最新の[cwd比較](evidence/linux-namespace-cwd/44247496245-1/README.md)ではPython直接起動・空環境のまま対象checkoutのcwdを `/` に変えても同じEPERMを再現した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
 
 ## 測る対象
 
@@ -131,7 +131,7 @@ UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、user / pid / moun
 | `not-reproduced`           | 全12回が成功                                                | 0          |
 | `unavailable`              | 別エラー・混在・条件不一致・観測不足                        | 2          |
 
-今回の比較では `env` 引数全体を空にしても再現したため、空の環境を減らした再現条件として採用する。個別変数の効果やOS / LSMの原因を確定したとは扱わない。後続の[起動経路比較](evidence/linux-namespace-launch/44232172294-1/README.md)ではNode測定器を外した直接起動でも再現した。cwdなどの固定条件は残っており、失敗したunshare自身の拒否時の状態は未観測。記録したcallerのLSM contextだけで拒否原因を断定しない。
+今回の比較では `env` 引数全体を空にしても再現したため、空の環境を減らした再現条件として採用する。個別変数の効果やOS / LSMの原因を確定したとは扱わない。後続の[起動経路比較](evidence/linux-namespace-launch/44232172294-1/README.md)ではNode測定器を外した直接起動でも再現した。後続の[cwd比較](evidence/linux-namespace-cwd/44247496245-1/README.md)でも再現したため、対象checkoutのcwdは省けた。stdio・Python・OS / LSMなどの条件は残っており、失敗したunshare自身の拒否時の状態は未観測。記録したcallerのLSM contextだけで拒否原因を断定しない。
 
 結果は `namespace-environment.json` と `environment-inherited.json` / `environment-empty.json` にwx0600で保存する。新しい `[DEBUG-ns-env]` JSON行には各probeの方式・argv・PID・時刻・終了状態と上限付き出力を記録し、各streamの1024文字を超える場合は `logTruncated` を示す。run名は `Linux namespace 環境比較: <source SHA>`、artifact名は `namespace-environment-<run>-<attempt>-<arch>`。新しいSHAに固定した1runを事前承認してから測定し、結果は新しいActionsログで確認する。過去に拒否されたartifactや一時ログへはアクセスしない。
 
@@ -160,9 +160,11 @@ UID / EUID / GID・group、namespace識別子、callerのcapability / NoNewPrivs
 
 既存Bun setupは維持し、新しい依存のinstallは行わない。専用Nix/group準備、正式44ケース、集約はスキップする。run名は `Linux namespace 起動経路比較: <source SHA>`、artifact名は `namespace-launch-<run>-<attempt>-<arch>`。新しいSHAに固定した1runを事前承認し、結果は新しい公開Actionsログで確認する。今回の実行は承認どおり1回で、artifactの取得・読取は行っていない。
 
-## 次の最小化: 対象checkoutのcwdを外す
+## cwdの最小化: 対象checkoutのcwdを外す
 
-起動経路比較の `node-not-required` を受け、`mode=probe-cwd` は既存Python 3からの直接起動と空環境を固定し、unshareのcwdだけを対象checkoutから `/` に変える。実VMでの新しい比較は未実行。
+[run 44247496245 / attempt 1](evidence/linux-namespace-cwd/44247496245-1/README.md) で、x64 / arm64とも対象checkoutと `/` の最小argvが各3回同じEPERM、成功対照が各3回成功した。全24回の公開ログを直接照合し、両構成とも `cwd-not-required`。今回の条件で対象checkoutのcwdは再現に必須ではなく、以後は `/` を使う再現条件に縮められる。
+
+起動経路比較の `node-not-required` を受け、`mode=probe-cwd` は既存Python 3からの直接起動と空環境を固定し、unshareのcwdだけを対象checkoutから `/` に変える。
 
 `python3 -I control/development/probe-linux-namespace-launch.py compare-cwd SOURCE OUTPUT` で起動する。親Python自身のcwdは対象checkoutに固定し、各子への `cwd` 引数だけを変える。まず対象checkoutで最小argv `--map-current-user -- /usr/bin/true` が3/3同じUID-map EPERM、対照 `-- /usr/bin/true` が3/3成功することを確認し、その場合だけ `/` 側を各3回測る。最大12回/architecture。baselineの全6回が成功なら `/` 側を省略し、別エラー・混在・条件不一致でも比較へ進まない。
 
@@ -179,4 +181,4 @@ UID / EUID / GID・group、namespace識別子、callerのcapability / NoNewPrivs
 
 結果は `namespace-cwd.json` にwx0600で保存する。`[DEBUG-ns-cwd]` のJSON行でsource/workflow/run/attempt・image/kernel・実行体hash・各条件のcwd・caller条件・各probeのargv/PID/時刻/終了状態を記録する。stdout/stderrは各1024文字までとし、省略時は `logTruncated` を示す。環境変数全体や認証値は出力しない。
 
-既存Bun setupは保持し、新たな依存install・root化・sysctl/profile変更・特権journal取得を行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace cwd比較: <source SHA>`、artifact名は `namespace-cwd-<run>-<attempt>-<arch>` として正式実証から区別する。準備・レビュー・通常CIを終えた新しいSHAに固定した1runを事前承認してから実行し、新しい公開Actionsログで確認する。artifactの取得・読取と、過去に拒否された一時ログへのアクセスは行わない。
+既存Bun setupは保持し、新たな依存install・root化・sysctl/profile変更・特権journal取得を行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace cwd比較: <source SHA>`、artifact名は `namespace-cwd-<run>-<attempt>-<arch>` として正式実証から区別する。準備・レビュー・通常CIを終えた新しいSHAに固定した1runを事前承認してから実行し、新しい公開Actionsログで確認する。今回の承認済み1runはsource / workflowを `6bbf24e1f6d33bb90a7534c4426044ca0c71e9da` に固定して実行した。artifactの取得・読取と、過去に拒否された一時ログへのアクセスは行っていない。
