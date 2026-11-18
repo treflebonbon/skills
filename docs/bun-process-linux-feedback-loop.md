@@ -269,7 +269,7 @@ Bashが未使用の `OUTPUT` directoryを `mkdir` で排他的に確保し、取
 
 ## 次の最小化: 同じPerl親でstdinだけを閉じる
 
-`probe-parent` の結果を受け、`mode=probe-stdin` はPythonをnamespace probeの祖先に挟まず、同じPerl processの下で子のstdinだけを変える。新しい実VM比較は未実行。`bash control/development/probe-linux-namespace-parent.sh SOURCE OUTPUT stdin` で制御する。
+`probe-parent` の結果を受け、`mode=probe-stdin` はPythonをnamespace probeの祖先に挟まず、同じPerl processの下で子のstdinだけを変える。承認済みのrunは後掲の実測結果に記録する。`bash control/development/probe-linux-namespace-parent.sh SOURCE OUTPUT stdin` で制御する。
 
 Python準備子はUbuntu 24.04・非root・source / workflow / run / attempt・専用Nix/group準備の省略・測定器4ファイルのGit blob一致とruntime hashを検査し、unshareの版を1回確認して終了する。専用の段階終了コード45だけでPerlを起動し、Python後処理も共通Bashの別の子として実行する。通常のinterpreter失敗を起動許可や再現成功に数えない。
 
@@ -295,3 +295,9 @@ callerの非ASCII cwdと、比較対象の `PATH` / `HOME` / `LANG` / `LC_ALL` /
 既存Bun setupを保持し、新規依存install・Cビルド・root化・sysctl/profile変更・特権journal参照は行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace stdin比較: <source SHA>`、artifact名は `namespace-stdin-<run>-<attempt>-<arch>` とし、準備・レビュー・公開・通常CIを終えた新しいSHAを提示して1runを承認してから実行する。artifactの取得・読取は行わない。
 
 今回の切り分けはstdinの指定方式の要否に限定する。原因確定とPhase 2全体の完了は未認定。共通Bashと上位祖先、Perlの起動経路、OS / LSMなどの条件は残り、#33未完了・#82待ち、macOS 15と全子孫5秒保証を維持する。
+
+確認済み（confirmed）: 承認済みの [run 44366608889 / attempt 1](https://github.com/treflebonbon/skills/actions/runs/44366608889) をsource / workflow `73e36ee75839ee9d4bba6329466256e303cade73` で1回実行し、x64・arm64とも `stdin-devnull-not-required` だった。両stdin条件で最小argvは各3回同じUID-map EPERM、対照は各3回成功し、全24回にsignal・spawn error・ログ省略はなかった。予定exit 1によるfailureであり、正式実証の成功には数えない。
+
+同じPerl親のPID・start time ticks・共通Bashと上位祖先列、caller条件と測定前後、unshareとruntimeのhashが各VM内で一致した。両jobの測定器4ファイルのhashは対象commitのGit blobと一致する。各job17行・計34行の選択した公開JSONと実行metadataを [実行記録](evidence/linux-namespace-stdin/44366608889-1/README.md) に保存した。stdinの指定方式の要否に結論を限定し、実unshareの拒否時fd・環境全件・LSMの直接観測とは扱わない。
+
+評価済み `9cda5dc` との差分は文書とテストのみで、測定コードとworkflowは同一。最新 `73e36ee` のCodeRabbit評価が回数制限で未完了という制約と、symlink環境を模す追加fixture再現の未確認を了承した承認後の1runである。独立した仕様・規約レビューは各指摘0件、通常CI全6ジョブの成功を確認した。artifactの取得・読取は行っていない。
