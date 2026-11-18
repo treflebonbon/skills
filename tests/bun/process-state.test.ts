@@ -15,7 +15,9 @@ test.skipIf(process.platform !== "linux")(
       const reader = join(directory, "reader.ts");
       fs.writeFileSync(
         join(directory, "ps"),
-        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + JSON.stringify(calls) + "\nsleep 1\nexit 1\n",
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " +
+          JSON.stringify(calls) +
+          "\nsleep 1\nprintf 'S\\n'\nexit 0\n",
         { mode: 0o700 },
       );
       fs.writeFileSync(
@@ -27,9 +29,20 @@ test.skipIf(process.platform !== "linux")(
           "console.log(JSON.stringify({live:stateOf(process.pid),reaped:stateOf(child.pid)}));",
         ].join("\n"),
       );
+      const environment = { ...process.env, PATH: directory + ":" + process.env.PATH };
+      const control = spawnSync("ps", ["-o", "stat=", "-p", String(process.pid)], {
+        encoding: "utf8",
+        env: environment,
+        timeout: 3000,
+      });
+      expect(control.status).toBe(0);
+      expect(control.stdout).toBe("S\n");
+      expect(control.stderr).toBe("");
+      expect(fs.readFileSync(calls, "utf8")).toBe(`-o stat= -p ${process.pid}\n`);
+      fs.unlinkSync(calls);
       const result = spawnSync(process.execPath, [reader], {
         encoding: "utf8",
-        env: { ...process.env, PATH: directory + ":" + process.env.PATH },
+        env: environment,
         timeout: 5000,
       });
       expect(result.stderr).toBe("");
