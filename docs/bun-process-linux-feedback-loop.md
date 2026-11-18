@@ -135,7 +135,7 @@ UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、user / pid / moun
 
 結果は `namespace-environment.json` と `environment-inherited.json` / `environment-empty.json` にwx0600で保存する。新しい `[DEBUG-ns-env]` JSON行には各probeの方式・argv・PID・時刻・終了状態と上限付き出力を記録し、各streamの1024文字を超える場合は `logTruncated` を示す。run名は `Linux namespace 環境比較: <source SHA>`、artifact名は `namespace-environment-<run>-<attempt>-<arch>`。新しいSHAに固定した1runを事前承認してから測定し、結果は新しいActionsログで確認する。過去に拒否されたartifactや一時ログへはアクセスしない。
 
-## 次の最小化: Node測定器を起動経路から外す
+## 起動経路の最小化: Node測定器を起動経路から外す
 
 [run 44232172294 / attempt 1](evidence/linux-namespace-launch/44232172294-1/README.md) で、x64 / arm64ともNode経由とPython直接起動の最小argvが各3回同じEPERM、成功対照が各3回成功した。全24回の公開ログを直接照合し、両構成とも `node-not-required`。この条件でNode測定器を含む起動層は再現に必須ではない。
 
@@ -159,3 +159,24 @@ UID / EUID / GID・group、namespace識別子、callerのcapability / NoNewPrivs
 結果は `namespace-launch.json`、Node側の記録は `launch-node.json` にwx0600で保存する。新しい `[DEBUG-ns-launch]` JSON行にはcaller条件・各argv・PID・時刻・終了状態を記録し、stdout/stderrは各1024文字まで、省略時は `logTruncated` を示す。環境変数全体や認証値は出力しない。
 
 既存Bun setupは維持し、新しい依存のinstallは行わない。専用Nix/group準備、正式44ケース、集約はスキップする。run名は `Linux namespace 起動経路比較: <source SHA>`、artifact名は `namespace-launch-<run>-<attempt>-<arch>`。新しいSHAに固定した1runを事前承認し、結果は新しい公開Actionsログで確認する。今回の実行は承認どおり1回で、artifactの取得・読取は行っていない。
+
+## 次の最小化: 対象checkoutのcwdを外す
+
+起動経路比較の `node-not-required` を受け、`mode=probe-cwd` は既存Python 3からの直接起動と空環境を固定し、unshareのcwdだけを対象checkoutから `/` に変える。実VMでの新しい比較は未実行。
+
+`python3 -I control/development/probe-linux-namespace-launch.py compare-cwd SOURCE OUTPUT` で起動する。親Python自身のcwdは対象checkoutに固定し、各子への `cwd` 引数だけを変える。まず対象checkoutで最小argv `--map-current-user -- /usr/bin/true` が3/3同じUID-map EPERM、対照 `-- /usr/bin/true` が3/3成功することを確認し、その場合だけ `/` 側を各3回測る。最大12回/architecture。baselineの全6回が成功なら `/` 側を省略し、別エラー・混在・条件不一致でも比較へ進まない。
+
+両条件で同じPython親・実行体・版、unshare実体・版・hash、非root資格情報、namespace識別子、callerのcapability / NoNewPrivs / Seccomp / LSM、選択した5環境変数を照合する。unshareの環境は `{}`、stdinは読み取り専用の `/dev/null`、stdout/stderrは匿名Unix socket、上限は5秒・両stream合計32MiBとし、超過時は所有する子へSIGKILLする。各条件で最小argvと成功対照を各3回測る。空環境・cwd・親PID・stdio条件の一致は実子プロセスのfixtureで検証するが、実unshareの環境全件やfdのダンプとは扱わない。
+
+| 結果               | 条件                                                       | 終了コード |
+| ------------------ | ---------------------------------------------------------- | ---------- |
+| `cwd-not-required` | checkoutと `/` で最小argvが各3回同じEPERM、対照が各3回成功 | 1          |
+| `cwd-dependent`    | checkoutだけ最小argvが3回同じEPERM、`/` と両対照は3回成功  | 1          |
+| `not-reproduced`   | checkout側の最小argvと対照が各3回成功。`/` 側は省略        | 0          |
+| `unavailable`      | 別エラー・混在・条件不一致・観測不足                       | 2          |
+
+`cwd-not-required` は今回の条件で対象checkoutのcwdを外せるという分類であり、全cwd・Python・OS / LSMの影響を否定しない。失敗したunshare自身の拒否時の状態は未観測で、原因確定とPhase 2全体は未完了。#33未完了・#82待ち、macOS 15と全子孫5秒保証を維持する。
+
+結果は `namespace-cwd.json` にwx0600で保存する。`[DEBUG-ns-cwd]` のJSON行でsource/workflow/run/attempt・image/kernel・実行体hash・各条件のcwd・caller条件・各probeのargv/PID/時刻/終了状態を記録する。stdout/stderrは各1024文字までとし、省略時は `logTruncated` を示す。環境変数全体や認証値は出力しない。
+
+既存Bun setupは保持し、新たな依存install・root化・sysctl/profile変更・特権journal取得を行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace cwd比較: <source SHA>`、artifact名は `namespace-cwd-<run>-<attempt>-<arch>` として正式実証から区別する。準備・レビュー・通常CIを終えた新しいSHAに固定した1runを事前承認してから実行し、新しい公開Actionsログで確認する。artifactの取得・読取と、過去に拒否された一時ログへのアクセスは行わない。

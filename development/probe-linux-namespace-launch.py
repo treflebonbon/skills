@@ -1,4 +1,4 @@
-"""Node測定器を外した起動経路だけを比較する開発用診断。"""
+"""起動経路とcwdを一条件ずつ比較する開発用診断。"""
 
 import datetime
 import errno
@@ -276,26 +276,117 @@ def validate(root):
     }
 
 
-def emit(value):
+def emit(value, prefix="launch"):
     """新しい比較に限定したJSON行を出力する。"""
-    print("[DEBUG-ns-launch] " + json.dumps(value, ensure_ascii=False), flush=True)
+    print("[DEBUG-ns-" + prefix + "] " + json.dumps(value, ensure_ascii=False), flush=True)
 
 
-def log_measurement(name, record):
+def log_measurement(name, record, prefix="launch"):
     """caller条件と各probeの出力をstreamごと1024文字まで記録する。"""
-    emit({"launch": name, **{key: record[key] for key in ("runtime", "probeEnvironment", "controllerHash", "unshare", "before", "after", "outcome")}})
+    header = {prefix: name, **{key: record[key] for key in ("runtime", "probeEnvironment", "controllerHash", "unshare", "before", "after", "outcome")}}
+    if "cwd" in record:
+        header["workingDirectory"] = record["cwd"]
+    emit(header, prefix)
     for case in record["cases"]:
         for probe in case["probes"]:
             emit({
-                "launch": name, "case": case["name"], **probe,
+                prefix: name, "case": case["name"], **probe,
                 "stdout": probe["stdout"][:1024], "stderr": probe["stderr"][:1024],
                 "logTruncated": len(probe["stdout"]) > 1024 or len(probe["stderr"]) > 1024,
                 "outcome": classify(probe),
-            })
+            }, prefix)
+
+
+def direct_outcome(record, directory):
+    """cwd以外を固定した直接起動のraw結果と実行体を再検証する。"""
+    runtime = record.get("runtime", {})
+    if (
+        record.get("cwd") != str(directory) or runtime.get("name") != "python"
+        or runtime.get("pid") != os.getpid() or runtime.get("ppid") != os.getppid()
+        or runtime.get("version") != platform.python_version()
+        or runtime.get("path") != str(Path(sys.executable).resolve())
+        or runtime.get("hash") != digest(sys.executable)
+        or record.get("controllerHash") != digest(SELF)
+        or record.get("outcome") != outcome(record)
+    ):
+        return "unavailable"
+    return record["outcome"]
+
+
+def compare_cwd(source, changed, root):
+    """checkout側の再現と成功対照を前提に、cwdだけの比較を分類する。"""
+    baseline = direct_outcome(source, root)
+    if baseline == "not-reproduced" and changed is None:
+        return "not-reproduced"
+    if baseline != "uid-map-eperm" or changed is None:
+        return "unavailable"
+    if (
+        source.get("runtime") != changed.get("runtime")
+        or source.get("unshare") != changed.get("unshare")
+        or source.get("before") != changed.get("before")
+    ):
+        return "unavailable"
+    return {
+        "uid-map-eperm": "cwd-not-required",
+        "not-reproduced": "cwd-dependent",
+    }.get(direct_outcome(changed, "/"), "unavailable")
+
+
+def measure_cwd(executable, root, record=None):
+    """同じ親から再現確認後だけ/を測り、途中までの取得結果も保持する。"""
+    if record is None:
+        record = {"measurements": {}, "outcome": "unavailable"}
+    source = {**measure(executable, root), "cwd": str(root)}
+    record["measurements"]["source"] = source
+    changed = None
+    if direct_outcome(source, root) == "uid-map-eperm":
+        changed = {**measure(executable, "/"), "cwd": "/"}
+        record["measurements"]["root"] = changed
+    record["outcome"] = compare_cwd(source, changed, root)
+    return record
+
+
+def main_cwd(args):
+    """cwd比較だけを記録し、既存の起動経路比較や正式実証へ混入させない。"""
+    if len(args) != 2:
+        raise ValueError("compare-cwd SOURCE OUTPUTが必要です")
+    root, output = Path(args[0]).resolve(), Path(args[1]).resolve()
+    output.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(output / "namespace-cwd.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    record = {"schema": "linux-namespace-cwd-comparison/v1", "outcome": "unavailable", "measurements": {}}
+    try:
+        identity = validate(root)
+        os.chdir(root)
+        before = context()
+        python_hash = digest(sys.executable)
+        record.update({
+            "identity": identity, "controllerHash": digest(SELF),
+            "runtimeHash": python_hash, "workingDirectories": {"source": str(root), "root": "/"},
+        })
+        emit({key: value for key, value in record.items() if key not in ("outcome", "measurements")}, "cwd")
+        measure_cwd("/usr/bin/unshare", root, record)
+        if (
+            context() != before or validate(root) != identity
+            or digest(sys.executable) != python_hash
+            or record["measurements"]["source"]["before"] != before
+        ):
+            raise ValueError("測定中にcaller条件または実行体が変化しました")
+    except Exception as error:
+        record.update({"outcome": "unavailable", "error": type(error).__name__ + ": " + str(error)})
+    finally:
+        for name, measurement in record["measurements"].items():
+            log_measurement(name, measurement, "cwd")
+        emit({"outcome": record["outcome"], "error": record.get("error")}, "cwd")
+        with os.fdopen(fd, "w") as stream:
+            json.dump(record, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+    return 1 if record["outcome"] in ("cwd-not-required", "cwd-dependent") else 0 if record["outcome"] == "not-reproduced" else 2
 
 
 def main(args):
     """Nodeで再現を確認した後にだけ直接起動を測り、正式実証と別に保存する。"""
+    if args[:1] == ["compare-cwd"]:
+        return main_cwd(args[1:])
     if len(args) != 3:
         raise ValueError("SOURCE OUTPUT NODEが必要です")
     root, output, node_path = Path(args[0]).resolve(), Path(args[1]).resolve(), Path(args[2]).resolve()
@@ -347,5 +438,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
     except (OSError, ValueError) as error:
-        emit({"outcome": "unavailable", "error": type(error).__name__ + ": " + str(error)})
+        emit({"outcome": "unavailable", "error": type(error).__name__ + ": " + str(error)}, "cwd" if sys.argv[1:2] == ["compare-cwd"] else "launch")
         sys.exit(2)
