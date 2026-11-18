@@ -1,6 +1,6 @@
 # Linux namespace の再現ループ
 
-状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。最新の[cwd比較](evidence/linux-namespace-cwd/44247496245-1/README.md)ではPython直接起動・空環境のまま対象checkoutのcwdを `/` に変えても同じEPERMを再現した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
+状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。最新の[stdout比較](evidence/linux-namespace-stdout/44257860176-1/README.md)ではPython直接起動・空環境・cwd `/` のままstdoutだけを通常pipeに変えても同じEPERMを再現した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
 
 ## 測る対象
 
@@ -131,7 +131,7 @@ UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、user / pid / moun
 | `not-reproduced`           | 全12回が成功                                                | 0          |
 | `unavailable`              | 別エラー・混在・条件不一致・観測不足                        | 2          |
 
-今回の比較では `env` 引数全体を空にしても再現したため、空の環境を減らした再現条件として採用する。個別変数の効果やOS / LSMの原因を確定したとは扱わない。後続の[起動経路比較](evidence/linux-namespace-launch/44232172294-1/README.md)ではNode測定器を外した直接起動でも再現した。後続の[cwd比較](evidence/linux-namespace-cwd/44247496245-1/README.md)でも再現したため、対象checkoutのcwdは省けた。stdio・Python・OS / LSMなどの条件は残っており、失敗したunshare自身の拒否時の状態は未観測。記録したcallerのLSM contextだけで拒否原因を断定しない。
+今回の比較では `env` 引数全体を空にしても再現したため、空の環境を減らした再現条件として採用する。個別変数の効果やOS / LSMの原因を確定したとは扱わない。後続の[起動経路比較](evidence/linux-namespace-launch/44232172294-1/README.md)ではNode測定器を外した直接起動でも再現した。後続の[cwd比較](evidence/linux-namespace-cwd/44247496245-1/README.md)でも再現したため、対象checkoutのcwdは省けた。後続の[stdout比較](evidence/linux-namespace-stdout/44257860176-1/README.md)ではstdoutの匿名Unix socketも省けた。stdin/stderr・Python・OS / LSMなどの条件は残っており、失敗したunshare自身の拒否時の状態は未観測。記録したcallerのLSM contextだけで拒否原因を断定しない。
 
 結果は `namespace-environment.json` と `environment-inherited.json` / `environment-empty.json` にwx0600で保存する。新しい `[DEBUG-ns-env]` JSON行には各probeの方式・argv・PID・時刻・終了状態と上限付き出力を記録し、各streamの1024文字を超える場合は `logTruncated` を示す。run名は `Linux namespace 環境比較: <source SHA>`、artifact名は `namespace-environment-<run>-<attempt>-<arch>`。新しいSHAに固定した1runを事前承認してから測定し、結果は新しいActionsログで確認する。過去に拒否されたartifactや一時ログへはアクセスしない。
 
@@ -183,9 +183,11 @@ UID / EUID / GID・group、namespace識別子、callerのcapability / NoNewPrivs
 
 既存Bun setupは保持し、新たな依存install・root化・sysctl/profile変更・特権journal取得を行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace cwd比較: <source SHA>`、artifact名は `namespace-cwd-<run>-<attempt>-<arch>` として正式実証から区別する。準備・レビュー・通常CIを終えた新しいSHAに固定した1runを事前承認してから実行し、新しい公開Actionsログで確認する。今回の承認済み1runはsource / workflowを `6bbf24e1f6d33bb90a7534c4426044ca0c71e9da` に固定して実行した。artifactの取得・読取と、過去に拒否された一時ログへのアクセスは行っていない。
 
-## 次の最小化: stdoutだけを匿名Unix socketから通常pipeへ変える
+## stdoutの最小化: stdoutだけを匿名Unix socketから通常pipeへ変える
 
-cwd比較の `cwd-not-required` を受け、`mode=probe-stdout` は同じPython親からの直接起動・空環境・対象のcwd `/` を固定し、stdoutだけを匿名Unix socketから通常pipeへ変える。実VMでの新しい比較は未実行。
+[run 44257860176 / attempt 1](evidence/linux-namespace-stdout/44257860176-1/README.md) で、x64 / arm64ともstdoutがsocketとpipeの最小argvは各3回同じEPERM、成功対照は各3回成功した。全24回の公開ログを直接照合し、両構成とも `stdout-socket-not-required`。今回の条件でstdoutの匿名Unix socketは再現に必須ではなく、以後はstdoutを通常pipeにした再現条件へ縮められる。
+
+cwd比較の `cwd-not-required` を受け、`mode=probe-stdout` は同じPython親からの直接起動・空環境・対象のcwd `/` を固定し、stdoutだけを匿名Unix socketから通常pipeへ変える。
 
 `python3 -I control/development/probe-linux-namespace-launch.py compare-stdout SOURCE OUTPUT` で起動する。親Pythonのcwdは従来どおり対象checkoutのまま保持する。まずstdoutがsocketの条件で最小argv `--map-current-user -- /usr/bin/true` が3/3同じUID-map EPERM、対照 `-- /usr/bin/true` が3/3成功することを確認し、その場合だけstdoutを `subprocess.PIPE` に変えて各3回測る。最大12回/architecture。baselineの全6回が成功ならpipe側を省略し、別エラー・混在・条件不一致でも比較へ進まない。
 
@@ -202,4 +204,4 @@ stderrは両条件とも同じ匿名Unix socket、stdinは読み取り専用の 
 
 空環境・cwd・親PID・stdoutのFIFO / socket判定・他stdioの種類とflagsは実子プロセスのfixtureで検証し、両stdout方式でtimeoutと合算出力の境界対照も確認する。これは設定の検証であり、実unshareの環境・fd・拒否時のLSM状態を直接dumpしたとは扱わない。結果はstdoutのsocketが今回の再現に必要かの比較に限定し、stderr・Python・OS / LSMの影響や原因を確定しない。Phase 2全体・#33は未完了、#82待ち、macOS 15と全子孫5秒保証を維持する。
 
-既存Bun setupは保持し、新たな依存install・root化・sysctl/profile変更・特権journal取得は行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace stdout比較: <source SHA>`、artifact名は `namespace-stdout-<run>-<attempt>-<arch>` として正式実証から区別する。準備・レビュー・通常CIを終えた新しいSHAに固定した1runを事前承認してから実行し、新しい公開Actionsログで結果を照合する。artifactの取得・読取と過去に拒否された一時ログへのアクセスは行わない。
+既存Bun setupは保持し、新たな依存install・root化・sysctl/profile変更・特権journal取得は行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace stdout比較: <source SHA>`、artifact名は `namespace-stdout-<run>-<attempt>-<arch>` として正式実証から区別する。準備・レビュー・通常CIを終えた新しいSHAに固定した1runを事前承認してから実行し、新しい公開Actionsログで結果を照合する。今回の承認済み1runはsource / workflowを `811325e67d5be4b9d50ea3d3aa3f98d82efb7065` に固定して実行した。artifactの取得・読取と過去に拒否された一時ログへのアクセスは行っていない。
