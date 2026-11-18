@@ -121,12 +121,6 @@ enabled = true
 "**.github.com" = "allow"
 "denied.example" = "deny"
 
-[permissions."dotfiles-peer"]
-extends = ":workspace"
-
-[permissions."dotfiles-peer".filesystem."~/.codex-peer/gh"]
-"." = "read"
-".env" = "deny"
 '''
 Path(sys.argv[2]).write_text(config)
 PY
@@ -314,8 +308,7 @@ for path in \
   /home/agent/.cache/treflebonbon-skills/marketplaces/revision-fixture \
   /home/agent/.local/bin/fixture-tool \
   /home/agent/.config/git/config \
-  /home/agent/.config/gh/hosts.yml \
-  /home/agent/.codex-peer/gh; do
+  /home/agent/.config/gh/hosts.yml; do
   test ! -e "$path"
   test ! -L "$path"
 done

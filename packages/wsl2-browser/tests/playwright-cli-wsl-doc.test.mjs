@@ -52,5 +52,12 @@ test("WSL Playwright guidance preserves browser ownership and authentication rul
   assert.match(guidance, /"\$BROWSER_BIN\/managed-chrome-owner"/u);
   assert.match(guidance, /"\$BROWSER_BIN\/browser-attachments"/u);
   assert.match(guidance, /"\$BROWSER_BIN\/playwright-cli" attach --cdp/u);
-  assert.doesNotMatch(guidance, /```(?:bash|sh)\n(?:playwright-cli|managed-chrome-owner|browser-attachments)\b/mu);
+  assert.doesNotMatch(
+    guidance,
+    /```(?:bash|sh)\n(?:playwright-cli|managed-chrome-owner|browser-attachments)\b/mu,
+  );
+  assert.ok(usage.includes("コメントは GitHub CLI で投稿します"));
+  assert.ok(usage.includes("通常の Markdown 画像参照"));
+  assert.ok(guidance.includes("gh pr comment --attach"));
+  assert.ok(guidance.includes("placeholder や専用 browser 認証は不要"));
 });

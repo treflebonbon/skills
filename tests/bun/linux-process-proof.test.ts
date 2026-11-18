@@ -574,7 +574,13 @@ test("独立した manifest の全 case が対象 test file に存在する", ()
     {
       encoding: "utf8",
       timeout: 10_000,
-      env: { ...process.env, PROCESS_PROOF_PID_NAMESPACE: "0", NO_COLOR: "1" },
+      // CLAUDECODE があると bun test は case ごとの行を出さず、case 名を取れない
+      env: {
+        ...process.env,
+        CLAUDECODE: undefined,
+        PROCESS_PROOF_PID_NAMESPACE: "0",
+        NO_COLOR: "1",
+      },
     },
   );
   expect(result.status).toBe(0);
