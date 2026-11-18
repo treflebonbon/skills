@@ -57,13 +57,13 @@ PROCESS_PROOF_PID_NAMESPACE=1 \
 
 実 caller の1件には、導入済み Nix の Bash package root と stdenv root を明示指定する。自動導入、Nixpkgs の取得、共有設定の変更は行わない。`PROCESS_PROOF_NIX_BASH`／`PROCESS_PROOF_NIX_STDENV` を省略した結果は41 pass／1 skipで、実 caller の成功には数えない。実証専用の合成 repository に限り trust を省略し、現行関数を変更せずに呼び出す。通常 Bun suite で Python を起動する構成にはしていない。
 
-この環境で使った値と実行例は以下。検証用 wrapper が必要な環境では、この command 全体を wrapper の内側で実行する。
+実証では Bash 5.3p15 を使った。実行例のプレースホルダーは、実行環境で選んだ導入済みの Bash package root と stdenv root に置き換える。検証用 wrapper が必要な環境では、この command 全体を wrapper の内側で実行する。
 
 ```sh
 proof_dir=$(mktemp -d /tmp/codex/process-namespace.XXXXXX)
 PROCESS_PROOF_PID_NAMESPACE=1 \
-PROCESS_PROOF_NIX_BASH=/nix/store/10dxp0qxqxxsyiljrh2kp0xqhz6arhcx-bash-5.3p15 \
-PROCESS_PROOF_NIX_STDENV=/nix/store/4lgbwpg4r41kcsms7nlwrzdlmhw83skj-stdenv-linux \
+PROCESS_PROOF_NIX_BASH='<nix-bash-package-root>' \
+PROCESS_PROOF_NIX_STDENV='<nix-stdenv-root>' \
   lib/bun/run test tests/bun/process-namespace.test.ts > "$proof_dir/run.log" 2>&1
 ```
 
