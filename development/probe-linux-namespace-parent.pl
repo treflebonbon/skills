@@ -4,7 +4,7 @@ use warnings;
 use utf8;
 use Cwd qw(abs_path getcwd);
 use Digest::SHA qw(sha256_hex);
-use Encode qw(decode);
+use Encode qw(decode FB_CROAK LEAVE_SRC);
 use Errno qw(EINTR);
 use Fcntl qw(:DEFAULT);
 use IO::Select;
@@ -96,11 +96,12 @@ sub context {
         die "namespace: $!\n" unless defined $value;
         $_ => $value;
     } qw(user pid mnt);
+    # Pythonと照合する5項目だけUTF-8復号し、不正byteは推測せず拒否する。
     return {
         uid => 0 + $<, euid => 0 + $>, gid => 0 + $gid,
         groups => [map { 0 + $_ } sort { $a <=> $b } keys %groups],
         namespaces => \%namespaces, status => \@status, contexts => \%contexts,
-        environment => { map { $_ => $ENV{$_} } qw(PATH HOME LANG LC_ALL TMPDIR) },
+        environment => { map { $_ => defined($ENV{$_}) ? decode('UTF-8', $ENV{$_}, FB_CROAK | LEAVE_SRC) : undef } qw(PATH HOME LANG LC_ALL TMPDIR) },
     };
 }
 

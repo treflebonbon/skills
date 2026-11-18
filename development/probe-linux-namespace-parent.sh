@@ -25,8 +25,8 @@ stdin)
   ;;
 esac
 
-controller_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || exit 2
-source_root="$(cd -- "$1" && pwd -P)" || exit 2
+controller_dir="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || exit 2
+source_root="$(CDPATH='' cd -- "$1" && pwd -P)" || exit 2
 case "$2" in
 /*) output="$2" ;;
 *) output="$PWD/$2" ;;

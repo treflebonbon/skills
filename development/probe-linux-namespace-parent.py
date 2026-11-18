@@ -290,10 +290,13 @@ def stdin_prepare(root, output):
         record["controllerHashes"] = controller_hashes()
         record["runtimeHashes"] = {"python": launch.digest(sys.executable), "perl": launch.digest(PERL)}
         executable = "/usr/bin/unshare"
+        executable_hash = launch.digest(executable)
         version = launch.capture(executable, ["--version"], "/", {}, limit=64 * 1024, stdout_pipe=True, stderr_pipe=True)
         if version.get("error") or version["signal"] or version["status"] != 0 or version["stderr"] or not version["stdout"].strip():
             raise ValueError("unshareの版を確認できません")
-        record["unshare"] = {"path": executable, "hash": launch.digest(executable), "version": version["stdout"].strip()}
+        if launch.digest(executable) != executable_hash:
+            raise ValueError("unshareの版取得中に実行体が変化しました")
+        record["unshare"] = {"path": executable, "hash": executable_hash, "version": version["stdout"].strip()}
         record["context"] = launch.context()
         record["ancestry"] = ancestry()
         if (
@@ -324,13 +327,20 @@ def stdin_finalize(root, output, prepare_status, perl_status):
         if not isinstance(pair, dict):
             raise ValueError("Perlの比較記録がobjectではありません")
         record["measurements"] = pair.get("measurements", {})
+        if "error" in pair:
+            cause = pair["error"]
+            record["collectorError"] = {
+                "stage": "perl-stdin",
+                "message": cause[:1024] if isinstance(cause, str) else "Perlの失敗理由が文字列ではありません",
+                "truncated": isinstance(cause, str) and len(cause) > 1024,
+            }
         os.chdir(root)
         identity = validate(root)
         common = ancestry()[1:]
         if (
             checkpoint.get("schema") != "linux-namespace-stdin-checkpoint/v1"
             or checkpoint.get("outcome") != "ready" or prepare_status != STDIN_READY or perl_status != 0
-            or pair.get("error") or not isinstance(record["measurements"], dict)
+            or "error" in pair or not isinstance(record["measurements"], dict)
             or set(record["measurements"]) not in ({"devnull"}, {"devnull", "closed"})
             or record.get("identity") != identity or record.get("controllerHashes") != controller_hashes()
             or record.get("runtimeHashes") != {"python": launch.digest(sys.executable), "perl": launch.digest(PERL)}
@@ -342,6 +352,8 @@ def stdin_finalize(root, output, prepare_status, perl_status):
             raise ValueError("stdin比較の準備・測定段階・caller条件が一致しません")
         baseline = record["measurements"]["devnull"]
         changed = record["measurements"].get("closed")
+        if "closed" in record["measurements"] and not isinstance(changed, dict):
+            raise ValueError("closed測定がobjectではありません")
         if baseline.get("before") != checkpoint["context"] or baseline.get("unshare") != record["unshare"]:
             raise ValueError("stdin baselineのcallerまたは実行体が一致しません")
         record["outcome"] = compare_stdin(baseline, changed, common)

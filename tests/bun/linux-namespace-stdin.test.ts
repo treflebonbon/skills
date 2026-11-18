@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { createFixtureInterpreter } from "../helpers/linux-namespace-fixture";
 
 const root = resolve(import.meta.dir, "../..");
 const perlModule = join(root, "development/probe-linux-namespace-parent.pl");
@@ -60,6 +61,7 @@ test.skipIf(process.platform !== "linux")(
       expect(observed.cwd).toBe("/");
     }
   },
+  20_000,
 );
 
 /** fd 0を再オープンしない観測用の子で、stdin以外の設定も残す。 */
@@ -70,47 +72,59 @@ function createStdinFixture(directory: string) {
   const unshare = join(directory, "unshare.py");
   fs.writeFileSync(capture, "");
   fs.writeFileSync(versions, "");
-  fs.writeFileSync(
-    unshare,
-    [
-      "#!/usr/bin/env -S " +
-        JSON.stringify(fs.realpathSync(Bun.which("python3")!)).replaceAll("$", "\\$") +
-        " -I -B",
-      "import errno,fcntl,json,os,stat,sys",
-      "try:",
-      " fcntl.fcntl(0,fcntl.F_GETFD);closed=False",
-      "except OSError as error:",
-      " assert error.errno==errno.EBADF;closed=True",
-      "stdin=None if closed else os.readlink('/proc/self/fd/0')",
-      "stdin_mode=None if closed else fcntl.fcntl(0,fcntl.F_GETFL)&os.O_ACCMODE",
-      "if sys.argv[1:]==['--version']:",
-      " with open(" + JSON.stringify(versions) + ",'a') as stream:stream.write('version\\n')",
-      " print('fixture-unshare');sys.exit(0)",
-      "with open(" + JSON.stringify(behavior) + ") as stream:behavior=stream.read()",
-      "with open(" + JSON.stringify(capture) + ") as stream:count=len(stream.readlines())",
-      "environment_ok=len(os.environ)==0 or len(os.environ)==1 and os.environ.get('LC_CTYPE')=='C.UTF-8'",
-      "observed={'pid':os.getpid(),'ppid':os.getppid(),'parent':os.readlink('/proc/'+str(os.getppid())+'/exe'),'closed':closed,'stdin':stdin,'stdinMode':stdin_mode,'environmentOk':environment_ok,'sentinel':'PROBE_ENV_SENTINEL' in os.environ,'cwd':os.getcwd(),'pipes':[stat.S_ISFIFO(os.fstat(fd).st_mode) for fd in (1,2)],'flags':[fcntl.fcntl(fd,fcntl.F_GETFL) for fd in (1,2)],'fdFlags':[fcntl.fcntl(fd,fcntl.F_GETFD) for fd in (1,2)],'links':[os.readlink('/proc/self/fd/'+str(fd)) for fd in (1,2)]}",
-      "with open(" +
-        JSON.stringify(capture) +
-        ",'a') as stream:stream.write(json.dumps(observed)+'\\n')",
-      "if sys.argv[1]=='--map-current-user' and behavior!='passes':",
-      " if behavior=='dependent' and closed:sys.exit(0)",
-      " if behavior=='mixed' and count==1:sys.exit(0)",
-      " sys.stderr.write('unshare: other failure\\n' if behavior=='other' or behavior=='closed-other' and closed else 'unshare: write failed /proc/self/uid_map: Operation not permitted\\n')",
-      " sys.exit(1)",
-      "",
-    ].join("\n"),
-    { mode: 0o700 },
-  );
-  return { capture, behavior, unshare, versions };
+  const interpreter = createFixtureInterpreter(Bun.which("python3")!);
+  try {
+    fs.writeFileSync(
+      unshare,
+      [
+        "#!" + interpreter.path + " -IB",
+        "import errno,fcntl,json,os,stat,sys",
+        "try:",
+        " fcntl.fcntl(0,fcntl.F_GETFD);closed=False",
+        "except OSError as error:",
+        " assert error.errno==errno.EBADF;closed=True",
+        "stdin=None if closed else os.readlink('/proc/self/fd/0')",
+        "stdin_mode=None if closed else fcntl.fcntl(0,fcntl.F_GETFL)&os.O_ACCMODE",
+        "if sys.argv[1:]==['--version']:",
+        " with open(" + JSON.stringify(versions) + ",'a') as stream:stream.write('version\\n')",
+        " print('fixture-unshare');sys.exit(0)",
+        "with open(" + JSON.stringify(behavior) + ") as stream:behavior=stream.read()",
+        "with open(" + JSON.stringify(capture) + ") as stream:count=len(stream.readlines())",
+        "environment_ok=len(os.environ)==0 or len(os.environ)==1 and os.environ.get('LC_CTYPE')=='C.UTF-8'",
+        "observed={'pid':os.getpid(),'ppid':os.getppid(),'parent':os.readlink('/proc/'+str(os.getppid())+'/exe'),'closed':closed,'stdin':stdin,'stdinMode':stdin_mode,'environmentOk':environment_ok,'sentinel':'PROBE_ENV_SENTINEL' in os.environ,'cwd':os.getcwd(),'pipes':[stat.S_ISFIFO(os.fstat(fd).st_mode) for fd in (1,2)],'flags':[fcntl.fcntl(fd,fcntl.F_GETFL) for fd in (1,2)],'fdFlags':[fcntl.fcntl(fd,fcntl.F_GETFD) for fd in (1,2)],'links':[os.readlink('/proc/self/fd/'+str(fd)) for fd in (1,2)]}",
+        "with open(" +
+          JSON.stringify(capture) +
+          ",'a') as stream:stream.write(json.dumps(observed)+'\\n')",
+        "if sys.argv[1]=='--map-current-user' and behavior!='passes':",
+        " if behavior=='dependent' and closed:sys.exit(0)",
+        " if behavior=='mixed' and count==1:sys.exit(0)",
+        " sys.stderr.write('unshare: other failure\\n' if behavior=='other' or behavior=='closed-other' and closed else 'unshare: write failed /proc/self/uid_map: Operation not permitted\\n')",
+        " sys.exit(1)",
+        "",
+      ].join("\n"),
+      { mode: 0o700 },
+    );
+  } catch (error) {
+    interpreter.cleanup();
+    throw error;
+  }
+  return { capture, behavior, unshare, versions, cleanup: interpreter.cleanup };
 }
 
 test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.geteuid?.() === 0)(
   "非root専用: 同じPerl親でstdinだけを比較し正確な再現時だけ閉じた条件へ進む",
   () => {
-    const directory = fs.mkdtempSync(join(tmpdir(), "namespace-stdin-pair-"));
+    const directory = fs.mkdtempSync(join(tmpdir(), "namespace stdin pair "));
+    let cleanup = () => {};
     try {
-      const { capture, behavior, unshare, versions } = createStdinFixture(directory);
+      const {
+        capture,
+        behavior,
+        unshare,
+        versions,
+        cleanup: cleanFixture,
+      } = createStdinFixture(directory);
+      cleanup = cleanFixture;
       const pair = join(directory, "namespace-stdin-perl.json");
       const checkpoint = join(directory, "namespace-stdin-checkpoint.json");
       const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
@@ -145,6 +159,26 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         "  if field=='after':invalid['after']['uid']=0",
         "  result['invalid'].append(parent.compare_stdin(baseline,invalid,common))",
         "for record in measurements.values():parent.log_measurement('perl',record,prefix='stdin')",
+        "original_digest=parent.launch.digest;identity={'sourceSha':'public-fixture'}",
+        "parent.validate=lambda root:identity",
+        "parent.launch.digest=lambda path:original_digest(sys.argv[3] if str(path)=='/usr/bin/unshare' else path)",
+        "final_pair=copy.deepcopy(pair)",
+        "for record in final_pair['measurements'].values():record['unshare']['path']='/usr/bin/unshare'",
+        "checkpoint={'schema':'linux-namespace-stdin-checkpoint/v1','outcome':'ready','identity':identity,'controllerHashes':parent.controller_hashes(),'runtimeHashes':{'python':original_digest(sys.executable),'perl':original_digest(parent.PERL)},'unshare':final_pair['measurements']['devnull']['unshare'],'context':parent.launch.context(),'ancestry':parent.ancestry()}",
+        "result['finals']=[]",
+        "variants=[('valid',final_pair,0)]",
+        "if result['outcome']=='not-reproduced':variants.append(('null-closed',{**final_pair,'measurements':{**final_pair['measurements'],'closed':None}},0))",
+        "if changed:variants.append(('producer-error',{**final_pair,'error':'public-producer-marker:'+'x'*2048,'measurements':{'devnull':final_pair['measurements']['devnull']}},2))",
+        "for label,export,status in variants:",
+        " output=Path(sys.argv[2]).parent/('final-'+label);output.mkdir(exist_ok=True)",
+        " final=output/'namespace-stdin.json'",
+        " if final.exists():final.unlink()",
+        " (output/'namespace-stdin-checkpoint.json').write_text(json.dumps(checkpoint))",
+        " (output/'namespace-stdin-perl.json').write_text(json.dumps(export))",
+        " import contextlib,io",
+        " logs=io.StringIO()",
+        " with contextlib.redirect_stdout(logs):status=parent.stdin_finalize(Path.cwd(),output,45,status)",
+        " result['finals'].append({'label':label,'status':status,'record':json.loads(final.read_text()),'logs':logs.getvalue()})",
         "print('RESULT '+json.dumps(result))",
       ].join("\n");
       const script = join(directory, "compare.sh");
@@ -166,7 +200,7 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
             " -I -B -c " +
             quote(post) +
             " " +
-            [pythonModule, pair].map(quote).join(" "),
+            [pythonModule, pair, unshare].map(quote).join(" "),
           ":",
           "",
         ].join("\n"),
@@ -186,13 +220,39 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
           cwd: root,
           encoding: "utf8",
           timeout: 30_000,
-          env: { ...process.env, PROBE_ENV_SENTINEL: "public-fixture" },
+          env: { ...process.env, HOME: "/home/café", PROBE_ENV_SENTINEL: "public-fixture" },
         });
         expect(result.stderr).toBe("");
         expect(result.status).toBe(0);
         const lines = result.stdout.trim().split("\n");
-        const { pair: data, outcome, invalid } = JSON.parse(lines.at(-1)!.slice("RESULT ".length));
+        const {
+          pair: data,
+          outcome,
+          invalid,
+          finals,
+        } = JSON.parse(lines.at(-1)!.slice("RESULT ".length));
         expect(outcome).toBe(expected);
+        expect(data.measurements.devnull.before.environment.HOME).toBe("/home/café");
+        for (const item of finals) {
+          expect(item.record.measurements.devnull).toBeDefined();
+          if (item.label === "valid") {
+            expect(item.record.outcome).toBe(expected);
+            expect(item.status).toBe(
+              expected === "not-reproduced" ? 44 : expected === "unavailable" ? 2 : 43,
+            );
+          } else {
+            expect(item.record.outcome).toBe("unavailable");
+            expect(item.status).toBe(2);
+            if (item.label === "producer-error") {
+              expect(item.record.collectorError.stage).toBe("perl-stdin");
+              expect(item.record.collectorError.message).toStartWith("public-producer-marker:");
+              expect(item.record.collectorError.message.length).toBe(1024);
+              expect(item.record.collectorError.truncated).toBe(true);
+              expect(item.logs).toContain("public-producer-marker:");
+              expect(item.logs).not.toContain("x".repeat(1025));
+            } else expect(item.record.error).toContain("closed測定がobjectではありません");
+          }
+        }
         const compared = ["both-eperm", "dependent", "closed-other"].includes(variant!);
         const observed = fs
           .readFileSync(capture, "utf8")
@@ -266,6 +326,7 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
       expect(fs.readFileSync(pair, "utf8")).toBe(saved);
       expect(fs.statSync(pair).mode & 0o777).toBe(0o600);
     } finally {
+      cleanup();
       fs.rmSync(directory, { recursive: true, force: true });
     }
   },
@@ -323,4 +384,57 @@ test.skipIf(process.platform !== "linux")(
       fs.rmSync(directory, { recursive: true, force: true });
     }
   },
+);
+
+test.skipIf(process.platform !== "linux")(
+  "stdin準備は版取得前後のhashを照合し途中の実行体交換を拒否する",
+  () => {
+    const directory = fs.mkdtempSync(join(tmpdir(), "namespace-stdin-version-"));
+    try {
+      const code = [
+        "import importlib.util,json,sys",
+        "from pathlib import Path",
+        "spec=importlib.util.spec_from_file_location('parent',sys.argv[1])",
+        "parent=importlib.util.module_from_spec(spec);spec.loader.exec_module(parent)",
+        "base=Path(sys.argv[2]);binary=base/'version-source';binary.write_text('before')",
+        "digest=parent.launch.digest",
+        "parent.launch.digest=lambda path:digest(binary) if str(path)=='/usr/bin/unshare' else digest(path)",
+        "parent.validate=lambda root:{'sourceSha':'public-fixture'}",
+        "parent.controller_hashes=lambda:{'parent':'public-controller'}",
+        "parent.launch.context=lambda:{'uid':1001}",
+        "parent.ancestry=lambda:[]",
+        "calls=[]",
+        "def capture(executable,argv,*args,**kwargs):",
+        " assert executable=='/usr/bin/unshare' and argv==['--version']",
+        " calls.append(argv)",
+        " if sys.argv[3]=='replace':binary.write_text('after')",
+        " return {'status':0,'signal':None,'stdout':'fixture-version\\n','stderr':''}",
+        "parent.launch.capture=capture",
+        "status=parent.stdin_prepare(Path.cwd(),base/'output')",
+        "print('RESULT '+json.dumps({'status':status,'calls':calls,'record':json.loads((base/'output/namespace-stdin-checkpoint.json').read_text())}))",
+      ].join("\n");
+      for (const variant of ["stable", "replace"]) {
+        const scenario = join(directory, variant);
+        fs.mkdirSync(scenario);
+        const result = spawnSync(
+          Bun.which("python3")!,
+          ["-I", "-B", "-c", code, pythonModule, scenario, variant],
+          { cwd: root, encoding: "utf8", timeout: 10_000 },
+        );
+        expect(result.status, result.stderr).toBe(0);
+        const data = JSON.parse(result.stdout.trim().split("\n").at(-1)!.slice("RESULT ".length));
+        expect(data.calls).toEqual([["--version"]]);
+        expect(data.status).toBe(variant === "stable" ? 45 : 2);
+        expect(data.record.outcome).toBe(variant === "stable" ? "ready" : "unavailable");
+        if (variant === "stable") expect(data.record.unshare.version).toBe("fixture-version");
+        else {
+          expect(data.record.error).toContain("版取得中");
+          expect(data.record.unshare).toBeUndefined();
+        }
+      }
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  },
+  30_000,
 );

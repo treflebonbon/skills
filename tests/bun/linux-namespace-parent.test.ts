@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import * as fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { createUnshareFixture } from "../helpers/linux-namespace-fixture";
 
 const root = resolve(import.meta.dir, "../..");
@@ -12,14 +12,25 @@ test.skipIf(process.platform !== "linux")(
   "Perl直接起動はPythonを親に挟まず空環境・cwd・別々の通常pipeで6回測る",
   () => {
     const directory = fs.mkdtempSync(join(tmpdir(), "namespace-parent-contract-"));
+    let cleanup = () => {};
     try {
-      const node = join(directory, "Node Tools", "node");
-      fs.mkdirSync(join(directory, "Node Tools"));
+      const tools =
+        "Node Tools " + "x".repeat(245 - Buffer.byteLength(join(directory, "Node Tools ", "node")));
+      const node = join(directory, tools, "node");
+      fs.mkdirSync(join(directory, tools));
+      expect(Buffer.byteLength(node)).toBe(245);
       fs.symlinkSync(fs.realpathSync(Bun.which("node")!), node);
       const perl = Bun.which("perl")!;
-      const { capture, behavior, unshare, versionCapture } = createUnshareFixture(directory, node, {
+      const {
+        capture,
+        behavior,
+        unshare,
+        versionCapture,
+        cleanup: cleanFixture,
+      } = createUnshareFixture(directory, node, {
         parent: fs.realpathSync(perl),
       });
+      cleanup = cleanFixture;
       const driver =
         'require $ARGV[0]; print JSON::PP->new->canonical->encode(measure($ARGV[1],undef,"fixture-unshare"));';
       for (const variant of ["both-eperm", "dependent", "passes", "other", "mixed"]) {
@@ -93,6 +104,7 @@ test.skipIf(process.platform !== "linux")(
         }
       }
     } finally {
+      cleanup();
       fs.rmSync(directory, { recursive: true, force: true });
     }
   },
@@ -153,17 +165,22 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
   "非root専用: PythonとPerlの共通Bash親・通常pipe・空環境を照合し追加測定のgateを固定する",
   () => {
     const directory = fs.mkdtempSync(join(tmpdir(), "namespace-parent-pair-"));
+    let cleanup = () => {};
     try {
       const python = join(directory, "perl-tools", "python3");
       fs.mkdirSync(join(directory, "perl-tools"));
       fs.copyFileSync(fs.realpathSync(Bun.which("python3")!), python);
       fs.chmodSync(python, 0o700);
       const perl = Bun.which("perl")!;
-      const { capture, behavior, unshare } = createUnshareFixture(
-        directory,
-        fs.realpathSync(Bun.which("node")!),
-        { parent: fs.realpathSync(perl) },
-      );
+      const {
+        capture,
+        behavior,
+        unshare,
+        cleanup: cleanFixture,
+      } = createUnshareFixture(directory, fs.realpathSync(Bun.which("node")!), {
+        parent: fs.realpathSync(perl),
+      });
+      cleanup = cleanFixture;
       const modulePath = join(root, "development/probe-linux-namespace-parent.py");
       const baseline = join(directory, "namespace-parent-python.json");
       const changed = join(directory, "namespace-parent-perl.json");
@@ -306,6 +323,7 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         }
       }
     } finally {
+      cleanup();
       fs.rmSync(directory, { recursive: true, force: true });
     }
   },
@@ -436,10 +454,17 @@ test.skipIf(process.platform !== "linux")(
         const output = join(directory, "output-" + index);
         const stdin = mode === "stdin";
         const allowed = baseline === (stdin ? 45 : 42);
-        const result = spawnSync("bash", [script, directory, output, ...(stdin ? ["stdin"] : [])], {
-          encoding: "utf8",
-          timeout: 10_000,
-        });
+        const relative = basename(directory);
+        const result = spawnSync(
+          "bash",
+          [join(relative, basename(script)), relative, output, ...(stdin ? ["stdin"] : [])],
+          {
+            cwd: resolve(directory, ".."),
+            env: { ...process.env, CDPATH: resolve(directory, "..") },
+            encoding: "utf8",
+            timeout: 10_000,
+          },
+        );
         expect(result.stderr).toBe("");
         expect(result.status).toBe(status);
         expect(result.stdout).toContain("fixture-finalized");
@@ -500,6 +525,7 @@ test.skipIf(process.platform !== "linux")(
       fs.rmSync(directory, { recursive: true, force: true });
     }
   },
+  60_000,
 );
 
 test.skipIf(process.platform !== "linux")(
@@ -554,6 +580,32 @@ test.skipIf(process.platform !== "linux")(
         { error: "ENOENT" },
         { error: "EISDIR" },
       ]);
+      for (const hex of ["2f686f6d652f636166c3a9", "ff"]) {
+        const environment = spawnSync(
+          Bun.which("perl")!,
+          [
+            "-e",
+            "require shift @ARGV;%ENV=(HOME=>pack('H*',shift @ARGV),LANG=>'C',PROBE_ENV_SENTINEL=>pack('H*','ff'));my $ok=eval {print JSON::PP->new->utf8->encode(context()->{environment});1};print STDERR $@ unless $ok;exit($ok?0:2);",
+            perlModule,
+            hex,
+          ],
+          { encoding: "utf8", timeout: 10_000 },
+        );
+        expect(environment.status).toBe(hex === "ff" ? 2 : 0);
+        if (hex === "ff") {
+          expect(environment.stderr).toContain("UTF-8");
+          expect(environment.stderr).toContain("does not map to Unicode");
+        } else expect(environment.stderr).toBe("");
+        if (hex !== "ff")
+          expect(JSON.parse(environment.stdout)).toEqual({
+            HOME: "/home/café",
+            LANG: "C",
+            PATH: null,
+            LC_ALL: null,
+            TMPDIR: null,
+          });
+        else expect(environment.stdout).toBe("");
+      }
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }

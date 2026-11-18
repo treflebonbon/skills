@@ -265,10 +265,17 @@ test.skipIf(process.platform !== "linux")(
   "cwd比較は同じPython親・空環境のままcheckoutと/だけを切り替える",
   () => {
     const directory = fs.mkdtempSync(join(tmpdir(), "namespace-cwd-contract-"));
+    let cleanup = () => {};
     try {
       const node = fs.realpathSync(Bun.which("node")!);
       const python = Bun.which("python3")!;
-      const { capture, behavior, unshare } = createUnshareFixture(directory, node, "cwd");
+      const {
+        capture,
+        behavior,
+        unshare,
+        cleanup: cleanFixture,
+      } = createUnshareFixture(directory, node, "cwd");
+      cleanup = cleanFixture;
       const code = [
         "import copy,importlib.util,json,sys",
         'spec=importlib.util.spec_from_file_location("probe",' + JSON.stringify(modulePath) + ")",
@@ -394,6 +401,7 @@ test.skipIf(process.platform !== "linux")(
       expect(repeated.stdout).toContain("FileExistsError");
       expect(fs.readFileSync(path, "utf8")).toBe(saved);
     } finally {
+      cleanup();
       fs.rmSync(directory, { recursive: true, force: true });
     }
   },
@@ -405,10 +413,17 @@ for (const stream of ["stdout", "stderr"] as const) {
     stream + "比較はcwd /と空環境を固定し他のstdioを保って対象だけpipeへ変える",
     () => {
       const directory = fs.mkdtempSync(join(tmpdir(), "namespace-" + stream + "-contract-"));
+      let cleanup = () => {};
       try {
         const node = fs.realpathSync(Bun.which("node")!);
         const python = Bun.which("python3")!;
-        const { capture, behavior, unshare } = createUnshareFixture(directory, node, stream);
+        const {
+          capture,
+          behavior,
+          unshare,
+          cleanup: cleanFixture,
+        } = createUnshareFixture(directory, node, stream);
+        cleanup = cleanFixture;
         const field = stream + "Type";
         const code = [
           "import copy,importlib.util,json,sys",
@@ -561,6 +576,7 @@ for (const stream of ["stdout", "stderr"] as const) {
         expect(repeated.stdout).toContain("FileExistsError");
         expect(fs.readFileSync(path, "utf8")).toBe(saved);
       } finally {
+        cleanup();
         fs.rmSync(directory, { recursive: true, force: true });
       }
     },
