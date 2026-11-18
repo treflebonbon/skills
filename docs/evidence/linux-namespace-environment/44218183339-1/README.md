@@ -36,6 +36,8 @@ unshare: write failed /proc/self/uid_map: Operation not permitted
 
 [選択した公開JSON行](observations.json)には各jobの18行ずつを保存した。argv・PID・時刻・終了状態・stdout/stderrとcaller条件を照合した。[run metadata](run.json)には対象SHA・attempt・stepの終了状態を保存した。取得元は新しい[x64の公開ログ](https://github.com/treflebonbon/skills/actions/runs/44218183339/job/134513190110)と[arm64の公開ログ](https://github.com/treflebonbon/skills/actions/runs/44218183339/job/134513190477)。artifactの取得・読取は行っていない。
 
+集約jobはskippedで、GitHub返却の開始時刻が終了時刻より1秒後になっている。`run.json`ではこの返却値をそのまま保存し、測定の時間計算には使っていない。
+
 この条件では、unshareへの継承環境はUID mappingのEPERM再現に必須ではない。以後は空の環境を減らした再現条件として使える。個別の環境変数の効果や、Nodeの起動経路を含む全caller・OS / LSMの影響まで確定した結果ではない。観測したcapabilityとLSMはcallerの状態であり、失敗したunshare自身の拒否時の状態を観測したとは扱わない。
 
 Phase 2全体と原因確定は未完了。#33は未完了、#82は#33待ち、macOS 15の方式と全子孫5秒保証の条件を維持する。
