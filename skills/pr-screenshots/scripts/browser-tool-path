@@ -7,10 +7,10 @@ fail() {
   exit 1
 }
 
-[[ $# == 1 ]] || fail "usage: browser-tool-path {browser-attachments|managed-chrome-owner|playwright-cli|wsl2-browser-prepare}"
+[[ $# == 1 ]] || fail "usage: browser-tool-path {managed-chrome-owner|playwright-cli|wsl2-browser-prepare}"
 
 case "$1" in
-  browser-attachments | managed-chrome-owner | playwright-cli | wsl2-browser-prepare) ;;
+  managed-chrome-owner | playwright-cli | wsl2-browser-prepare) ;;
   *) fail "unsupported bundled CLI: $1" ;;
 esac
 

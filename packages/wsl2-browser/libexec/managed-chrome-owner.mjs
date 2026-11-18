@@ -47,6 +47,7 @@ const validUUID = (value) =>
 const validOwner = (owner) =>
   owner?.version === 1 &&
   validUUID(owner.token) &&
+  // Recognize existing attachment owners so they still protect their resources.
   ["playwright", "dogfood", "attachment"].includes(owner.role) &&
   ["reserved", "starting", "settled", "active"].includes(owner.phase) &&
   ["headless", "headed"].includes(owner.mode) &&
@@ -378,7 +379,7 @@ const reserve = async (owner, values) => {
   const automaticEndpoint =
     identity && values.role === "dogfood" && values.endpoint === "auto";
   if (
-    !["playwright", "dogfood", "attachment"].includes(values.role) ||
+    !["playwright", "dogfood"].includes(values.role) ||
     !values.id ||
     !values.profile ||
     (!validEndpoint(values.endpoint) && !automaticEndpoint) ||
@@ -475,14 +476,12 @@ const checkRelocation = async (values, key, previous) => {
 };
 
 const locate = async (values, relocate = false) => {
-  if (!["playwright", "attachment"].includes(values.role)) {
-    throw new Error("locate requires playwright or attachment role");
+  if (values.role !== "playwright") {
+    throw new Error("locate requires playwright role");
   }
-  const workspace =
-    values.role === "attachment"
-      ? "shared"
-      : await fs.realpath(values.workspace || process.cwd());
-  const key = `${values.role}-${digest(workspace)}`;
+  const workspace = await fs.realpath(values.workspace || process.cwd());
+  const workspaceHash = digest(workspace);
+  const key = `playwright-${workspaceHash}`;
   const filename = path.join(root, "allocations.json");
   const allocations = await fs
     .readFile(filename, "utf-8")
@@ -500,11 +499,7 @@ const locate = async (values, relocate = false) => {
     const used = new Set(
       Object.values(allocations).flatMap((item) => [item.port, item.dashboard])
     );
-    let port =
-      values.role === "attachment"
-        ? 9222
-        : 20_000 +
-          (Number.parseInt(digest(workspace).slice(0, 6), 16) % 18_000) * 2;
+    let port = 20_000 + (Number.parseInt(workspaceHash.slice(0, 6), 16) % 18_000) * 2;
     const [firstEphemeral, lastEphemeral] = await ephemeralRange();
     while (
       used.has(port) ||
@@ -521,9 +516,7 @@ const locate = async (values, relocate = false) => {
       port,
       profile:
         allocations[key]?.profile ??
-        (values.role === "attachment"
-          ? "%LOCALAPPDATA%\\aiakos\\playwright-cli\\chrome-profile"
-          : `%LOCALAPPDATA%\\aiakos\\playwright-cli\\worktrees\\${digest(workspace)}`),
+        `%LOCALAPPDATA%\\aiakos\\playwright-cli\\worktrees\\${workspaceHash}`,
     };
     const temporary = `${filename}.${randomUUID()}`;
     await fs.writeFile(temporary, JSON.stringify(allocations), {

@@ -9,7 +9,7 @@
     "test": "npm run typecheck && npm run test:bun && npm run test:python && npm run test:node && npm run test:bats",
     "test:python": "python3 -B -m unittest discover -s tests -v",
     "test:node": "node --test skills/dogfood/tests/runtime.test.mjs && npm --prefix skills/domain-modeling-studio test && npm --prefix packages/wsl2-browser test",
-    "test:bats": "bats skills/dogfood/tests/dogfood.bats skills/dogfood/tests/dogfood-results.bats skills/dogfood/tests/managed-dogfood-browser.bats packages/wsl2-browser/tests/*.bats tests/raw-codex/*.bats tests/*.bats tests/cli/*.bats",
+    "test:bats": "bats skills/pr-screenshots/tests/comment.bats skills/dogfood/tests/dogfood.bats skills/dogfood/tests/dogfood-results.bats skills/dogfood/tests/managed-dogfood-browser.bats packages/wsl2-browser/tests/*.bats tests/raw-codex/*.bats tests/*.bats tests/cli/*.bats",
     "test:plugin-cli": "TREFLEBONBON_PLUGIN_CLI_E2E=1 lib/bun/run test development/plugin-cli.test.ts",
     "test:plugin-sessions": "development/plugin-sessions",
     "lint:sh": "shfmt -d bin lib/bun/run development/plugin-sessions tests/cli/git-push-topic.bats && shfmt -f bin lib/bun/run development/plugin-sessions | xargs shellcheck -s bash -S warning",

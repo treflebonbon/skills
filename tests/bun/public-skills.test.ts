@@ -132,12 +132,7 @@ test("test_bundled_cli_path_is_absolute_and_independent_of_cwd", () =>
     const resolver = resolve(root, "skills/pr-screenshots/scripts/browser-tool-path");
     expect(fs.statSync(resolver).isFile()).toBe(true);
     fs.symlinkSync(resolve(root, "skills/pr-screenshots"), resolve(directory, "installed-skill"));
-    for (const entry of [
-      "browser-attachments",
-      "managed-chrome-owner",
-      "playwright-cli",
-      "wsl2-browser-prepare",
-    ])
+    for (const entry of ["managed-chrome-owner", "playwright-cli", "wsl2-browser-prepare"])
       for (const script of [
         resolver,
         resolve(directory, "installed-skill/scripts/browser-tool-path"),
@@ -153,6 +148,23 @@ test("test_bundled_cli_path_is_absolute_and_independent_of_cwd", () =>
     expect(invalid.stdout).toBe("");
     expect(invalid.stderr).toContain("unsupported bundled CLI: ../../bin/sh");
   }));
+test("test_comment_entrypoint_and_body_attachment_migration", () => {
+  const entry = "scripts/pr-screenshots-comment.mjs";
+  const guide = read("docs/pr-attachments.md");
+  fs.accessSync(resolve(root, "skills/pr-screenshots", entry), fs.constants.X_OK);
+  expect(skill("pr-screenshots")).toContain(entry);
+  expect(read("skills/pr-screenshots/DEPENDENCIES.md")).toContain(entry);
+  expect(guide).toContain("gh pr edit NUMBER --repo OWNER/REPO --attach");
+  const view = guide.indexOf("gh pr view NUMBER --repo OWNER/REPO --json body");
+  const positioned = guide.indexOf("gh pr edit NUMBER --repo OWNER/REPO --body-file");
+  expect(view).toBeGreaterThan(-1);
+  expect(positioned).toBeGreaterThan(view);
+  expect(guide.slice(view, positioned)).toContain("![変更後の画面](./after.png)");
+  expect(fs.existsSync(resolve(root, "packages/wsl2-browser/bin/browser-attachments"))).toBe(false);
+  for (const manifest of ["package.json", "package-lock.json"]) {
+    expect(read("packages/wsl2-browser/" + manifest)).not.toContain("browser-attachments");
+  }
+});
 test("test_both_supported_skill_hosts_require_explicit_invocation", () => {
   const frontmatter = skill("pr-screenshots").match(/^---\n([\s\S]*?)\n---\n/);
   expect(frontmatter).not.toBeNull();

@@ -8,7 +8,6 @@
     "node": ">=20.19"
   },
   "bin": {
-    "browser-attachments": "bin/browser-attachments",
     "managed-chrome-owner": "bin/managed-chrome-owner",
     "playwright-cli": "bin/playwright-cli",
     "wsl2-browser-prepare": "bin/wsl2-browser-prepare"

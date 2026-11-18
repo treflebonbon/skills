@@ -1,10 +1,10 @@
 # WSL2 browser 補助
 
-この package は WSL2 の Playwright CLI wrapper、Managed Chrome 所有権管理、共有添付ブラウザを提供します。Playwright の CLI 本体と Agent Skill は第三者配布元から別途導入してください。この package は上流の CLI や Skill を複製せず、固定 lock から取得した CLI の一部へ WSL2 用 patch を適用します。
+この package は WSL2 の Playwright CLI wrapper、Managed Chrome 所有権管理を提供します。Playwright の CLI 本体と Agent Skill は第三者配布元から別途導入してください。この package は上流の CLI や Skill を複製せず、固定 lock から取得した CLI の一部へ WSL2 用 patch を適用します。
 
 ## 準備
 
-コメント添付には Node.js 20.19 以上、`flock`、GitHub CLI `gh`（`pr comment --attach` 対応版）、通常の認証、対象 repository への push 権限が必要です。既存画像を添付するだけなら browser runtime、WSL2 接続設定、Windows 側の設定は不要です。撮影や旧本文添付を使うときは runtime 準備用の npm、Bash、`git`、`curl`、`sha256sum`、`wslinfo`、`powershell.exe`、`wslpath`、Windows 側の Stable Chrome が必要です。WSL2 の networking mode は `mirrored` にします。設定後に `wsl.exe --shutdown` を実行して WSL を再起動し、`wslinfo --networking-mode` で確認してください。
+WSL2 での撮影には runtime 準備用の npm、Bash、`git`、`curl`、`sha256sum`、`wslinfo`、`powershell.exe`、`wslpath`、Windows 側の Stable Chrome が必要です。WSL2 の networking mode は `mirrored` にします。設定後に `wsl.exe --shutdown` を実行して WSL を再起動し、`wslinfo --networking-mode` で確認してください。
 
 まず準備済み runtime を、依存を導入・変更せず確認できます。成功時は検証した runtime の絶対 path を表示し、未準備や不一致では非0で終了します。
 
@@ -25,7 +25,6 @@
 | コマンド | 用途 |
 | --- | --- |
 | `bin/playwright-cli` | Playwright CLI。WSL2 の `open` は headless 既定の Managed Playwright Chrome を使います。非 WSL2 では固定版の上流 CLI に委譲します。 |
-| `bin/browser-attachments` | コメントは GitHub CLI で投稿します。旧 PR 本文の `upload`、共有 browser の手動認証と終了には WSL2 mirrored networking と Windows interop が必要です。 |
 | `bin/managed-chrome-owner` | browser identity ごとの所有状態を照会・復旧する入口です。 |
 | `bin/wsl2-browser-prepare` | 引数なしで固定 runtime を外部 cache へ準備します。`--check` は既存 runtime の検証、`--help` は使い方の表示だけを行います。 |
 
@@ -33,7 +32,7 @@ CLI と補助資産はすべてこの package から解決します。どの作�
 
 ## Browser identity と状態
 
-Managed Playwright Chrome、共有添付ブラウザ、Managed Dogfood Chrome は別 identity と profile を使います。Playwright の identity は物理 worktree root から決まり、同じ worktree の subdirectory は同じ browser を使います。別 worktree、共有添付、Dogfood は状態を共有しません。WSL 側に browser を起動したり、通常の Windows Chrome profile へ fallback したりしません。
+Managed Playwright Chrome と Managed Dogfood Chrome は別 identity と profile を使います。Playwright の identity は物理 worktree root から決まり、同じ worktree の subdirectory は同じ browser を使います。worktree ごとの Playwright と Dogfood は状態を分離します。WSL 側に browser を起動したり、通常の Windows Chrome profile へ fallback したりしません。
 
 証跡を repository 外の directory から保存する場合は、すべての `playwright-cli` 呼出しに同じ Git worktree を指定します。
 
@@ -49,72 +48,26 @@ PWCLI_WORKSPACE=/absolute/path/to/task-worktree \
 | `WSL2_BROWSER_DEPS_DIR` | 固定 Playwright runtime を置く plugin root の外にある絶対 path。省略時は lock と patch の指紋を含む XDG cache path を使います。 |
 | `PWCLI_WORKSPACE` | 作業 directory が worktree 外にある場合の Managed Playwright Chrome identity。 |
 | `PWCLI_RUNTIME_DIR` | Playwright session、Dashboard、lease の一時状態 root。省略時は `XDG_RUNTIME_DIR` を使い、未設定なら `PWCLI_TMPDIR` または mode 0700 の `/tmp` 配下を使います。 |
-| `BROWSER_OWNERSHIP_DIR` | Playwright、添付、Dogfood が共有する ownership state root。各 consumer で同じ値を使います。 |
+| `BROWSER_OWNERSHIP_DIR` | Playwright と Dogfood が共有する ownership state root。各 consumer で同じ値を使います。 |
 | `PWCLI_WSLINFO` / `PWCLI_POWERSHELL` / `PWCLI_WSLPATH` | WSL と Windows interoperability の command path を上書きします。 |
 | `PWCLI_CURL` / `PWCLI_FLOCK` | CDP probe と wrapper lock に使う command path を上書きします。 |
 | `PWCLI_CDP_CLOSE` | CDP を閉じる package 内 helper を別 path から呼ぶ場合に上書きします。 |
 | `PWCLI_WINDOWS_SCRIPT` / `DOGFOOD_WINDOWS_SCRIPT` | package 内 Windows asset の既定 path を別の checkout から呼ぶ場合に上書きします。 |
 | `MANAGED_CHROME_OWNER` | ownership CLI を package 既定 path 以外から呼ぶ場合に上書きします。 |
-| `BROWSER_ATTACHMENTS_GH` | コメント添付と旧本文 upload で使う GitHub CLI command を上書きします。 |
 
-`BROWSER_ATTACHMENTS_PLAYWRIGHT` は添付 entrypoint が固定 runtime から設定します。直接 `libexec/browser-attachments.mjs` を呼ばず、`bin/browser-attachments` を使ってください。`PWCLI_UPSTREAM`、`PWCLI_RUNTIME_COMMAND`、timeout 系の `PWCLI_*` は wrapper/test 用 override です。通常利用では設定せず、package の公開 entrypoint に任せてください。
+`PWCLI_UPSTREAM`、`PWCLI_RUNTIME_COMMAND`、timeout 系の `PWCLI_*` は wrapper/test 用 override です。通常利用では設定せず、package の公開 entrypoint に任せてください。
 
-所有権が不明、起動・停止が未確認、または別 consumer が同じ resource を使っている場合、処理は state を保持して失敗します。owner 記録や profile を手で削除せず、owner が示す終了・復旧手順を使ってください。通常の `close` は profile を保持します。Managed Playwright Chrome の `reset-profile` は該当 identity が停止し所有権を解放した後にだけ使えます。共有添付ブラウザの認証 profile は reset 対象にしません。
+所有権が不明、起動・停止が未確認、または別 consumer が同じ resource を使っている場合、処理は state を保持して失敗します。owner 記録や profile を手で削除せず、owner が示す終了・復旧手順を使ってください。通常の `close` は profile を保持します。Managed Playwright Chrome の `reset-profile` は該当 identity が停止し所有権を解放した後にだけ使えます。
 
 WSL2 の headed/headless 切替、Dashboard と session の所有、port relocation、手動認証の条件は [Playwright CLI の WSL2 運用規約](references/playwright-cli-wsl.md)を参照してください。
 
-## 共有添付ブラウザ
+## 画像添付
 
-共有添付ブラウザの認証は旧 PR 本文の `upload` 用です。コメント添付は GitHub CLI の認証を使い、この browser や専用 profile を起動しません。browser 認証が必要な旧経路では利用者が専用 browser で手動確立します。認証情報をコピーせず、通常利用の Chrome profile は使いません。
-
-```sh
-BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
-"$BROWSER_BIN/browser-attachments" close
-"$BROWSER_BIN/browser-attachments" auth
-# 専用 Chrome でログイン/MFA を手動完了
-"$BROWSER_BIN/browser-attachments" close
-```
-
-旧本文の添付は同じ専用 profile を headless で再利用します。未認証なら明示的な認証手順へ戻り、通常 profile に切り替えません。
-
-### 共有添付ブラウザの復旧
-
-`close` 自体が所有権・mode・起動状態の不一致で失敗した場合は、エラーに表示される2つのコマンドを使います。
-
-1. 表示された `status` コマンドを WSL の shell で実行し、対象の所有者記録・profile を確認します。案内には実際の添付 identity、同じ package の所有権 CLI、同じ `BROWSER_OWNERSHIP_DIR` が含まれます。`status` は保存記録の表示で、生存確認ではありません。
-2. 対象を確認してから、表示された `recover` コマンドを明示的に実行します。Windows 側で Chrome の停止を確認でき、未確定の起動処理もない場合だけ対象記録を解放します。稼働中・競合・起動中・照会失敗・不明状態では記録を保持して拒否するため、原因を調べてください。記録を手作業で削除しません。
-3. 復旧に成功したら、上の `close` から始まる手動認証手順へ戻ります。旧本文 `upload` の再試行には、保存済みの画像・原稿・receipt と同じ request ID を使います。コメントは browser 復旧を必要としません。
-
-通常の `close` と明示的な `recover` は、停止確認後の所有者記録を解放します。認証 profile は保持します。エラーに復旧案内が出ただけでは、既存の記録は変更されません。
-
-### PR 本文への画像添付
-
-`upload` は指定した画像を GitHub の PR 本文に置いた placeholder へ反映します。明示依頼を受けてから実行してください。
-
-```sh
-BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
-"$BROWSER_BIN/browser-attachments" upload \
-  --repo OWNER/REPO --pr NUMBER --image PATH \
-  --placeholder '<placeholder>' --request-id REQUEST_ID
-```
-
-### コメントへの画像添付
-
-`comment` は通常の Markdown 画像参照を GitHub CLI `gh pr comment --attach` に渡します。対応版の確認・更新方法は [pr-screenshots の依存](../../skills/pr-screenshots/DEPENDENCIES.md)を参照してください。投稿前に `--attach` 対応を検査し、未対応版では画像・原稿を保持して停止します。原稿の各ローカル画像参照を `--image` で指定し、掲載したい順序で画像を渡します。代替テキストと位置は原稿の Markdown で指定し、placeholder は使いません。
-
-```sh
-BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
-"$BROWSER_BIN/browser-attachments" comment \
-  --repo OWNER/REPO --pr NUMBER \
-  --image /absolute/path/before.png --image /absolute/path/after.png \
-  --body-file COMMENT.md --request-id REQUEST_ID
-```
-
-コメントは最新の PR 情報と同じ request ID の投稿済み marker を確認してから投稿します。コメント経路は request ID を repository、PR、本文、画像に結び付け、異なる対象や入力への再利用を拒否します。結果は `complete`、`partial`、`failed`、`unknown` で区別し、全画像と説明を確認した場合だけ成功と報告します。部分投稿や不明な送信は receipt を保持し、同じ依頼の再実行でも重ねて投稿・自動補完しません。必要な補完は明示的な別依頼にします。コメント投稿は PR 本文を更新しません。
+既存画像のコメント・本文への添付と旧版からの移行は、[PR への画像添付](../../docs/pr-attachments.md)を参照してください。
 
 ## 検証
 
-package 固有の Node テストは `npm --prefix packages/wsl2-browser test` で実行します。既存の wrapper、ownership、添付、socket mock suite は Bats を用意し、次のコマンドで実行します。
+package 固有の Node テストは `npm --prefix packages/wsl2-browser test` で実行します。既存の wrapper、ownership、socket mock suite は Bats を用意し、次のコマンドで実行します。
 
 ```sh
 bats packages/wsl2-browser/tests/*.bats
