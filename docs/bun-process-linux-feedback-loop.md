@@ -114,7 +114,9 @@ UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、user / pid / moun
 
 新規の `namespace-caller.json` と `caller-bun.json` / `caller-node.json` を上書きせず0600で保存する。各probeのargv・PID・時刻・終了状態・stderrは `[DEBUG-ns-caller]` のJSON行で記録し、stdout/stderrは各1024文字まで、省略時は `logTruncated` を示す。run名・artifact名を正式実証と分け、44ケースと集約は実行しない。新しいsource SHAと最大12回/architectureの1runを対象に事前承認し、結果は新しいActionsログで確認する。以前のartifactの読取拒否は引き継ぐ。
 
-## 次の最小化: unshareへ渡す環境を空にする
+## 環境引数の最小化: unshareへ渡す環境を空にする
+
+[run 44218183339 / attempt 1](evidence/linux-namespace-environment/44218183339-1/README.md) で、x64 / arm64とも継承環境と空の環境の最小argvが各3回同じEPERM、成功対照が各3回成功した。Node.js 22.23.4と各VM内のcaller条件・実行体hashは一致し、両構成とも `environment-not-required`。全24回を公開ログで直接照合した。この条件ではunshareへの継承環境は再現に必須ではなく、以後は空の環境を再現条件に使える。原因確定とPhase 2全体の完了は未認定。
 
 `mode=probe-environment` はcaller比較と同じ測定器を使い、Node.jsを固定して `unshare` の `env` 引数だけを変える。継承環境と空の環境 `{}` の各条件で、最小argvと成功対照を各3回、最大12回/architecture測る。Node自体と測定器はCIの継承環境で動作し、CI識別・hash照合・観測条件を維持する。Bun用setup stepも前回と同じまま保持し、probeはNodeだけから起動する。
 
@@ -129,6 +131,6 @@ UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、user / pid / moun
 | `not-reproduced`           | 全12回が成功                                                | 0          |
 | `unavailable`              | 別エラー・混在・条件不一致・観測不足                        | 2          |
 
-これは `env` 引数全体の削除を比較する。空の環境でも再現すれば、その入力を減らした再現条件を採用できる。再現しなくなれば、継承環境へ戻し、変数を一つずつ削って必要なものを絞る。個別変数の効果やOS / LSMの原因を確定したとは扱わない。
+今回の比較では `env` 引数全体を空にしても再現したため、空の環境を減らした再現条件として採用する。個別変数の効果やOS / LSMの原因を確定したとは扱わない。Nodeの起動経路・cwdなどの固定条件は残っており、失敗したunshare自身の拒否時の状態は未観測。記録したcallerのLSM contextだけで拒否原因を断定しない。
 
 結果は `namespace-environment.json` と `environment-inherited.json` / `environment-empty.json` にwx0600で保存する。新しい `[DEBUG-ns-env]` JSON行には各probeの方式・argv・PID・時刻・終了状態と上限付き出力を記録し、各streamの1024文字を超える場合は `logTruncated` を示す。run名は `Linux namespace 環境比較: <source SHA>`、artifact名は `namespace-environment-<run>-<attempt>-<arch>`。新しいSHAに固定した1runを事前承認してから測定し、結果は新しいActionsログで確認する。過去に拒否されたartifactや一時ログへはアクセスしない。
