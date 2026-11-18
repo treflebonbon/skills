@@ -1,19 +1,18 @@
 import { spawn } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { once } from "node:events";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 
-export const digest = (value) => createHash("sha256").update(value).digest("hex");
+const digest = (value) => createHash("sha256").update(value).digest("hex");
 
-export const withBrowserLock = async (filename, action, shared = false) => {
+const withRequestLock = async (filename, action) => {
   await fs.mkdir(path.dirname(filename), { mode: 0o700, recursive: true });
   const guard = spawn(
-    process.env.MANAGED_CHROME_FLOCK || "flock",
+    process.env.PR_SCREENSHOTS_FLOCK || "flock",
     [
-      shared ? "--shared" : "--exclusive",
+      "--exclusive",
       "--wait",
       "30",
       filename,
@@ -57,183 +56,6 @@ export const withBrowserLock = async (filename, action, shared = false) => {
     guard.stdin.end();
     await ended;
   }
-};
-
-export const publishEvidence = ({ repo, pr, placeholder, asset, directory, github }) => {
-  const key = digest(`${repo.toLowerCase()}#${pr}`);
-  return withBrowserLock(path.join(directory, `pr-${key}.lock`), async () => {
-    const current = JSON.parse(
-      await github(["pr", "view", String(pr), "--repo", repo, "--json", "body"]),
-    ).body;
-    if (!current.includes(placeholder) && current.includes(`![Evidence](${asset})`)) {
-      return;
-    }
-    if (!placeholder || current.split(placeholder).length !== 2) {
-      throw new Error("body-conflict: expected exactly one placeholder in the fresh PR body");
-    }
-    const updated = current.replace(placeholder, `![Evidence](${asset})`);
-    const filename = path.join(directory, `body-${randomUUID()}.md`);
-    await fs.writeFile(filename, updated, { flag: "wx", mode: 0o600 });
-    try {
-      await github(["pr", "edit", String(pr), "--repo", repo, "--body-file", filename]);
-      const verified = JSON.parse(
-        await github(["pr", "view", String(pr), "--repo", repo, "--json", "body"]),
-      ).body;
-      if (!verified.includes(asset)) {
-        throw new Error("body-conflict: published image missing after update");
-      }
-    } finally {
-      await fs.unlink(filename);
-    }
-  });
-};
-
-export const uploadEvidence = async (context, { repo, pr, image, onBeforeSend }) => {
-  const page = await context.newPage();
-  try {
-    await page.goto(`https://github.com/${repo}/pull/${pr}`, {
-      timeout: 30_000,
-    });
-    if (new URL(page.url()).pathname.startsWith("/login")) {
-      throw new Error("authentication-required");
-    }
-    const body = page.locator(".js-comment-container").first();
-    await body.locator("summary.timeline-comment-action").click();
-    await body.getByText("Edit", { exact: true }).click();
-    const textarea = body.locator('textarea[name="pull_request[body]"]');
-    await textarea.waitFor({ state: "visible" });
-    const pattern = /https:\/\/github\.com\/user-attachments\/assets\/[a-zA-Z0-9-]+/gu;
-    const initialBody = await textarea.inputValue();
-    const before = new Set(initialBody.match(pattern) || []);
-    const input = body.locator("input[type=file]");
-    await input.waitFor({ state: "attached", timeout: 30_000 });
-    const started = Date.now();
-    await onBeforeSend?.();
-    await input.setInputFiles(image);
-    let asset;
-    while (Date.now() - started < 60_000) {
-      // eslint-disable-next-line no-await-in-loop -- Poll this owned editor until GitHub inserts its asset.
-      const text = await textarea.inputValue();
-      asset = (text.match(pattern) || []).find((url) => !before.has(url));
-      if (asset) {
-        break;
-      }
-      // eslint-disable-next-line no-await-in-loop -- Bound polling cadence.
-      await delay(100);
-    }
-    if (!asset) {
-      throw new Error("upload timeout");
-    }
-    return { asset, finished: Date.now(), started };
-  } catch (error) {
-    let message =
-      "upload-failed: verify PR edit access and connectivity; other requests were preserved";
-    if (error.message === "authentication-required") {
-      message =
-        "authentication-required: complete dedicated browser setup before requesting an upload";
-    }
-    throw new Error(message, { cause: error });
-  } finally {
-    await page.close();
-  }
-};
-
-export const attachEvidenceToPullRequestBody = async ({
-  repo,
-  pr,
-  image,
-  placeholder,
-  requestId,
-  directory,
-  github,
-  withUploadContext,
-}) => {
-  const imageBytes = await fs.readFile(image);
-  const key = digest(`${repo.toLowerCase()}#${pr}:${requestId}`);
-  const filename = path.join(directory, `${key}.json`);
-  const signature = digest(`${digest(imageBytes)}:${placeholder}`);
-  return withBrowserLock(path.join(directory, `${key}.lock`), async () => {
-    let receipt = await fs
-      .readFile(filename, "utf-8")
-      .then(JSON.parse)
-      .catch((error) => {
-        if (error.code !== "ENOENT") {
-          throw error;
-        }
-        return null;
-      });
-    if (receipt && receipt.signature !== signature) {
-      throw new Error("request-conflict: request-id was already used with different content");
-    }
-    if (receipt?.phase === "authentication-required") {
-      receipt = null;
-    }
-    if (receipt && !receipt.asset) {
-      throw new Error(
-        "upload-unconfirmed: previous request has no confirmed asset; inspect it before requesting another upload",
-      );
-    }
-    const save = async (value) => {
-      const temporary = `${filename}.${process.pid}.tmp`;
-      await fs.writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
-      await fs.rename(temporary, filename);
-    };
-    if (!receipt) {
-      const snapshotDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "pr-evidence-"));
-      const snapshotImage = path.join(snapshotDirectory, path.basename(image));
-      try {
-        await fs.writeFile(snapshotImage, imageBytes, { mode: 0o600 });
-        await withUploadContext(async (context) => {
-          try {
-            const result = await uploadEvidence(context, {
-              image: snapshotImage,
-              onBeforeSend: () => save({ phase: "uploading", signature }),
-              pr,
-              repo,
-            });
-            receipt = { phase: "uploaded", signature, ...result };
-            await save(receipt);
-          } catch (error) {
-            if (
-              typeof error?.message === "string" &&
-              error.message.startsWith("authentication-required")
-            ) {
-              try {
-                await save({
-                  phase: "authentication-required",
-                  signature,
-                });
-              } catch (saveError) {
-                throw new AggregateError(
-                  [error, saveError],
-                  `${error.message}; receipt-save-failed: ` + saveError.message,
-                );
-              }
-            }
-            throw error;
-          }
-        });
-      } finally {
-        await fs.rm(snapshotDirectory, { recursive: true, force: true });
-      }
-    }
-    await publishEvidence({
-      asset: receipt.asset,
-      directory,
-      github,
-      placeholder,
-      pr,
-      repo,
-    });
-    receipt = { ...receipt, phase: "published" };
-    await save(receipt);
-    return {
-      asset: receipt.asset,
-      finished: receipt.finished,
-      requestId,
-      started: receipt.started,
-    };
-  });
 };
 
 export const commentEvidence = async ({
@@ -464,7 +286,7 @@ export const commentEvidence = async ({
     return result(state, target, comment.html_url, assets, uniqueMissing, reason, reused);
   };
   const receiptPhase = { complete: "complete", partial: "partial", failed: "failed-posted" };
-  return withBrowserLock(path.join(directory, "comment-" + key + ".lock"), async () => {
+  return withRequestLock(path.join(directory, "comment-" + key + ".lock"), async () => {
     const previous = await fs
       .readFile(filename, "utf-8")
       .then(JSON.parse)

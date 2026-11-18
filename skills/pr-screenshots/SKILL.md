@@ -10,18 +10,11 @@ disable-model-invocation: true
 
 ## 実行前に確認する
 
-[依存と対応環境](DEPENDENCIES.md)を確認します。添付には GitHub CLI `gh`（`pr comment --attach` 対応版）、Node.js 20.19 以降、この plugin の添付 CLI、GitHub の通常認証が必要です。認証は `gh auth status` で確認し、token を表示する `gh auth token` は使いません。対象 repository への push 権限が必要です。権限がなければ添付を始めず、権限の準備を案内します。
+[依存と対応環境](DEPENDENCIES.md)を確認します。添付には GitHub CLI `gh`（`pr comment --attach` 対応版）、Node.js 20.19 以降、`flock`、この plugin の添付 CLI、GitHub の通常認証が必要です。認証は `gh auth status` で確認し、token を表示する `gh auth token` は使いません。対象 repository への push 権限が必要です。権限がなければ添付を始めず、権限の準備を案内します。
 
-添付 CLI は、この SKILL.md が読み込まれた実際の directory にある `scripts/browser-tool-path` から解決します。runtime が示す SKILL.md の絶対 path を基に `SKILL_ROOT` を決め、次のように絶対 path を得ます。
+runtime が示すこの `SKILL.md` の絶対 path から `SKILL_ROOT` を決めます。コメント添付には `"$SKILL_ROOT/scripts/pr-screenshots-comment.mjs"` を使います。
 
-```bash
-SKILL_ROOT=/absolute/path/to/skills/pr-screenshots
-BROWSER_ATTACHMENTS="$("$SKILL_ROOT/scripts/browser-tool-path" browser-attachments)"
-```
-
-既存画像を添付するだけなら、browser runtime の準備・確認や Windows 側の設定は不要です。撮影が必要な場合だけ、第三者の `playwright-cli` skill と package 内の撮影経路を確認します。その場合は同じ helper で `wsl2-browser-prepare` を解決し、`--check` が成功することを確認します。runtime が未準備なら画像・原稿を保持して[準備手順](DEPENDENCIES.md#準備)を案内し、browser を起動しません。引数なしの `wsl2-browser-prepare` は依存を導入するため、確認には使いません。
-
-この helper は package に同梱した `packages/wsl2-browser/bin/browser-attachments` を返します。現在の作業 directory、dotfiles checkout、`~/.local/bin`、Nix PATH にある別コピーを代用しません。第三者の `playwright-cli` CLI も `scripts/browser-tool-path playwright-cli` で絶対 path を得て使います。
+撮影が必要な場合は[撮影の準備](DEPENDENCIES.md#撮影の準備)を確認します。準備が足りない場合は画像・原稿を保持し、準備手順を案内します。
 
 ## 対象と画像を決める
 
@@ -36,14 +29,14 @@ BROWSER_ATTACHMENTS="$("$SKILL_ROOT/scripts/browser-tool-path" browser-attachmen
 日本語の短い修正説明と画像ラベルを `comment.md` に書きます。説明は依頼内容と実際に確認した事実に限り、画像で確認した見た目と操作して確認した挙動を区別します。行っていない動作確認を実施済みと書きません。画像ごとに通常の Markdown 画像参照を使い、代替テキスト、掲載位置、順序を指定します。原稿内の各ローカル画像参照は `--image` で渡す画像と一対一に一致させます。画像の掲載順に同じ順で `--image` を指定します。原稿と全画像を確認してから、同じ request ID で一度コメント CLI を呼びます。
 
 ```bash
-"$BROWSER_ATTACHMENTS" comment \
+"$SKILL_ROOT/scripts/pr-screenshots-comment.mjs" \
   --repo OWNER/REPO --pr NUMBER \
   --image /absolute/path/after.png \
   --body-file /absolute/path/comment.md \
   --request-id SAVED_REQUEST_ID
 ```
 
-この CLI は GitHub CLI の `gh pr comment --attach` を使います。添付専用 Chrome、WSL2 mirrored networking、Windows interoperability、専用 Playwright runtime は使いません。返された状態を確認し、`complete` の場合だけコメント URL と添付完了を報告します。画像を Git に commit しません。
+この CLI は GitHub CLI の `gh pr comment --attach` を使います。返された状態を確認し、`complete` の場合だけコメント URL と添付完了を報告します。画像を Git に commit しません。
 
 ## 失敗した場合
 
@@ -51,4 +44,4 @@ CLI の `partial`、`failed`、`unknown` は未完了として扱い、終了コ
 
 `partial` は画像の一部が未確認、または画像がすべてあっても説明文・配置を検証できない状態です。`reason` と `missing` を確認し、画像不足と説明文・配置の不一致を区別します。同じ request ID で再実行すると投稿済みコメントを照会します。自動で補完・修正せず、必要な場合は明示的な別依頼にします。`unknown` は送信結果や照会結果が確定できない状態です。receipt と PR コメントを調べ、投稿済みか判定できるまで再送や別 ID での投稿を行いません。`request-conflict` は同じ ID を別の repository・PR・原稿・画像に使ったことを示すため、保存済み依頼を確認します。
 
-認証や repository 権限が不足しても旧ブラウザ経路へ切り替えません。`gh auth status` と対象 repository の push 権限を確認し、原因を解消してから元の画像・原稿・request ID で再開します。認証値は表示しません。完了報告には対象 PR、コメント URL または失敗理由、比較可能だったか、残したファイルの絶対 path を含めます。
+`gh auth status` と対象 repository の push 権限を確認し、原因を解消してから元の画像・原稿・request ID で再開します。認証値は表示しません。完了報告には対象 PR、コメント URL または失敗理由、比較可能だったか、残したファイルの絶対 path を含めます。

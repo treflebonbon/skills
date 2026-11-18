@@ -1,151 +1,27 @@
 #!/usr/bin/env bats
 
 setup() {
-  ATTACHMENTS="$BATS_TEST_DIRNAME/../libexec/browser-attachments.mjs"
   export BROWSER_OWNERSHIP_DIR="$BATS_TEST_TMPDIR/ownership"
-  export MANAGED_CHROME_OWNER="$BATS_TEST_TMPDIR/owner"
-  export PWCLI_POWERSHELL="$BATS_TEST_TMPDIR/powershell"
-  export PWCLI_WINDOWS_SCRIPT='C:\fixture.ps1'
-  export BROWSER_ATTACHMENTS_PLAYWRIGHT="$BATS_TEST_TMPDIR/playwright.mjs"
   export OWNER_CALLS="$BATS_TEST_TMPDIR/owner-calls"
-  export FIXTURE_MODE=headless
+  export MANAGED_CHROME_OWNER="$BATS_TEST_TMPDIR/unexpected-browser-owner"
   cat >"$MANAGED_CHROME_OWNER" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$OWNER_CALLS"
-if [[ "$1" == locate ]]; then
-  printf 'attachment-fixture\tC:\\fixture-profile\thttp://127.0.0.1:29999\t30000\n'
-else
-  printf '{"phase":"active","mode":"%s","browserPid":4242,"token":"fixture"}\n' "$FIXTURE_MODE"
-fi
+exit 99
 SH
-  cat >"$PWCLI_POWERSHELL" <<'SH'
-#!/usr/bin/env bash
-printf 'managed:headless:4242\n'
-SH
-  chmod +x "$MANAGED_CHROME_OWNER" "$PWCLI_POWERSHELL"
-  printf 'export const chromium={connectOverCDP:async()=>{throw new Error("connection refused");}};\n' >"$BROWSER_ATTACHMENTS_PLAYWRIGHT"
-  printf image >"$BATS_TEST_TMPDIR/image.png"
-}
-
-upload() {
-  node "$ATTACHMENTS" upload --repo owner/repo --pr 42 --image "$BATS_TEST_TMPDIR/image.png" --placeholder PLACE --request-id test
-}
-
-@test "attachment mode conflict preserves the existing owner before attempting upload" {
-  export FIXTURE_MODE=headed
-  run upload
-  [ "$status" -ne 0 ]
-  [[ "$output" == *ownership-conflict:* ]]
-  ! grep -Eq 'release|run|reserve' "$OWNER_CALLS"
-  [ -z "$(find "$BROWSER_OWNERSHIP_DIR" -name '*.json' -print)" ]
-}
-
-@test "attachment CDP failure is distinguished and does not create an upload receipt" {
-  run upload
-  [ "$status" -ne 0 ]
-  [[ "$output" == *cdp-unavailable:* ]]
-  ! grep -Eq 'release|run|reserve' "$OWNER_CALLS"
-  [ -z "$(find "$BROWSER_OWNERSHIP_DIR" -name '*.json' -print)" ]
-}
-
-@test "upload CLI preserves its arguments, browser lifecycle and result" {
-  export BROWSER_ATTACHMENTS_GH="$BATS_TEST_TMPDIR/github"
-  export PR_BODY_FIXTURE="$BATS_TEST_TMPDIR/pr-body.md"
-  export GH_CALLS="$BATS_TEST_TMPDIR/github-calls"
-  export CONNECTION_LOG="$BATS_TEST_TMPDIR/connections"
-  export EXPECTED_IMAGE="$BATS_TEST_TMPDIR/image.png"
-  printf 'Before\nPLACE\nAfter\n' >"$PR_BODY_FIXTURE"
-  cat >"$BROWSER_ATTACHMENTS_GH" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "$*" >>"$GH_CALLS"
-if [[ "$1" != pr || "$3" != 42 || "$5" != owner/repo ]]; then
-  printf 'unexpected PR target: %s\n' "$*" >&2
-  exit 2
-fi
-if [[ "$2" == view ]]; then
-  jq -n --rawfile body "$PR_BODY_FIXTURE" '{body:$body}'
-elif [[ "$2" == edit ]]; then
-  cp "$7" "$PR_BODY_FIXTURE"
-else
-  printf 'unexpected GitHub command: %s\n' "$*" >&2
-  exit 2
-fi
-SH
-  chmod +x "$BROWSER_ATTACHMENTS_GH"
-  cat >"$BROWSER_ATTACHMENTS_PLAYWRIGHT" <<'JS'
-import fs from 'node:fs';
-import path from 'node:path';
-let uploads = 0;
-export const chromium = {
-  connectOverCDP: async () => {
-    fs.appendFileSync(process.env.CONNECTION_LOG, 'connect\n');
-    let text = '';
-    const textarea = {waitFor: async () => {}, inputValue: async () => text};
-    const input = {
-      waitFor: async () => {},
-      setInputFiles: async image => {
-        if (path.basename(image) !== path.basename(process.env.EXPECTED_IMAGE) ||
-            fs.readFileSync(image, 'utf8') !== fs.readFileSync(process.env.EXPECTED_IMAGE, 'utf8')) {
-          throw new Error(`wrong image payload: ${image}`);
-        }
-        uploads += 1;
-        text = `https://github.com/user-attachments/assets/cli-${uploads}`;
-      },
-    };
-    const editor = {
-      locator: selector => selector === 'textarea[name="pull_request[body]"]' ? textarea : input,
-      getByText: () => ({click: async () => {}}),
-    };
-    const container = {
-      locator: selector => selector === 'summary.timeline-comment-action'
-        ? {click: async () => {}}
-        : editor.locator(selector),
-      getByText: editor.getByText,
-    };
-    const page = {
-      goto: async () => {},
-      url: () => 'https://github.com/owner/repo/pull/42',
-      locator: () => ({first: () => container}),
-      close: async () => {},
-    };
-    return {
-      contexts: () => [{newPage: async () => page}],
-      close: async () => fs.appendFileSync(process.env.CONNECTION_LOG, 'close\n'),
-    };
-  },
-};
-JS
-  run node "$ATTACHMENTS" upload --repo owner/repo --pr 42 \
-    --image "$EXPECTED_IMAGE" --placeholder PLACE --request-id cli-request
-  [ "$status" -eq 0 ] || { printf '%s\n' "$output" >&2; false; }
-  local cli_output="$output"
-  run node --input-type=module - "$cli_output" <<'JS'
-import assert from 'node:assert/strict';
-const result = JSON.parse(process.argv[2]);
-assert.deepEqual(Object.keys(result).sort(), ['asset', 'finished', 'requestId', 'started']);
-assert.equal(result.asset, 'https://github.com/user-attachments/assets/cli-1');
-assert.equal(result.requestId, 'cli-request');
-assert.ok(Number.isFinite(result.started));
-assert.ok(Number.isFinite(result.finished));
-assert.ok(result.started <= result.finished);
-JS
-  [ "$status" -eq 0 ]
-  [[ "$(cat "$PR_BODY_FIXTURE")" == *'![Evidence](https://github.com/user-attachments/assets/cli-1)'* ]]
-  [[ "$(cat "$PR_BODY_FIXTURE")" != *PLACE* ]]
-  [[ "$(cat "$CONNECTION_LOG")" == $'connect\nclose' ]]
-  [ "$(wc -l <"$GH_CALLS")" -eq 3 ]
+  chmod +x "$MANAGED_CHROME_OWNER"
+  COMMENT_CLI="$BATS_TEST_DIRNAME/../scripts/pr-screenshots-comment.mjs"
 }
 
 prepare_comment_fixture() {
-  export BROWSER_ATTACHMENTS_GH="$BATS_TEST_TMPDIR/github"
+  export PR_SCREENSHOTS_GH="$BATS_TEST_TMPDIR/github"
   export COMMENT_FIXTURE="$BATS_TEST_TMPDIR/comments.json"
   export GH_CALLS="$BATS_TEST_TMPDIR/gh-post-calls"
   export GH_API_CALLS="$BATS_TEST_TMPDIR/gh-api-calls"
   export COMMENT_SENT_IMAGES="$BATS_TEST_TMPDIR/sent-images"
   export COMMENT_MUTATE_IMAGE=0
   export COMMENT_LOOKUP_COUNT="$BATS_TEST_TMPDIR/lookup-count"
-  export COMMENT_FAIL_USER=0 COMMENT_FAIL_LOOKUP_ON=0 COMMENT_WRONG_TARGET=0
+  export COMMENT_FAIL_USER=0 COMMENT_FAIL_TARGET=0 COMMENT_FAIL_LOOKUP_ON=0 COMMENT_WRONG_TARGET=0
   export COMMENT_ATTACH_LIMIT=2 COMMENT_DROP_RESPONSE=0 COMMENT_POST_EXIT=0
   export COMMENT_POST_ERROR='connection reset by peer'
   export COMMENT_HIDE_THROUGH=0 COMMENT_NO_POST=0 COMMENT_NO_ATTACH=0
@@ -159,7 +35,7 @@ prepare_comment_fixture() {
 変更後
 ![After]($BATS_TEST_TMPDIR/after.png)
 EOF
-  cat >"$BROWSER_ATTACHMENTS_GH" <<'SH'
+  cat >"$PR_SCREENSHOTS_GH" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "$1" == api ]]; then
@@ -195,6 +71,10 @@ elif [[ "$1" == api && "$2" == --paginate && "$3" == repos/owner/repo/issues/42/
     jq -c --arg marker "$marker" '.[] | select(.user.login == "me" and (.body | contains($marker))) | {body,html_url}' "$COMMENT_FIXTURE"
   fi
 elif [[ "$1" == api && "$2" == repos/owner/repo/pulls/42 ]]; then
+  if [[ "$COMMENT_FAIL_TARGET" == 1 ]]; then
+    printf 'temporary target failure\n' >&2
+    exit 1
+  fi
   repo=owner/repo
   if [[ "$COMMENT_MUTATE_IMAGE" == 1 ]]; then
     printf 'overwritten image\n' >"$BATS_TEST_TMPDIR/before.png"
@@ -245,8 +125,7 @@ else
   exit 2
 fi
 SH
-  chmod +x "$BROWSER_ATTACHMENTS_GH"
-  unset BROWSER_ATTACHMENTS_PLAYWRIGHT
+  chmod +x "$PR_SCREENSHOTS_GH"
   export PWCLI_TEST_WSL=0
 }
 
@@ -255,7 +134,7 @@ comment_cli() {
   local pr="${COMMENT_PR:-42}"
   local repo="${COMMENT_REPO:-owner/repo}"
   if [[ "$#" -gt 0 ]]; then request_id="$1"; fi
-  "$BATS_TEST_DIRNAME/../bin/browser-attachments" comment --repo "$repo" --pr "$pr" \
+  "$COMMENT_CLI" --repo "$repo" --pr "$pr" \
     --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/after.png" \
     --body-file "$BATS_TEST_TMPDIR/body.md" --request-id "$request_id"
 }
@@ -372,10 +251,10 @@ JS
 
 @test "same-ID concurrent comment CLI calls create one comment" {
   prepare_comment_fixture
-  local cli="$BATS_TEST_DIRNAME/../bin/browser-attachments"
-  "$cli" comment --repo owner/repo --pr 42 --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/after.png" --body-file "$BATS_TEST_TMPDIR/body.md" --request-id concurrent >"$BATS_TEST_TMPDIR/first.json" 2>"$BATS_TEST_TMPDIR/first.err" &
+  local cli="$COMMENT_CLI"
+  "$cli" --repo owner/repo --pr 42 --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/after.png" --body-file "$BATS_TEST_TMPDIR/body.md" --request-id concurrent >"$BATS_TEST_TMPDIR/first.json" 2>"$BATS_TEST_TMPDIR/first.err" &
   local first_pid=$!
-  "$cli" comment --repo owner/repo --pr 42 --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/after.png" --body-file "$BATS_TEST_TMPDIR/body.md" --request-id concurrent >"$BATS_TEST_TMPDIR/second.json" 2>"$BATS_TEST_TMPDIR/second.err" &
+  "$cli" --repo owner/repo --pr 42 --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/after.png" --body-file "$BATS_TEST_TMPDIR/body.md" --request-id concurrent >"$BATS_TEST_TMPDIR/second.json" 2>"$BATS_TEST_TMPDIR/second.err" &
   local second_pid=$!
   local first_status=0
   local second_status=0
@@ -413,7 +292,7 @@ JS
 
 @test "comment input rejection reports its boundary and valid Markdown still posts" {
   prepare_comment_fixture
-  local cli="$BATS_TEST_DIRNAME/../bin/browser-attachments"
+  local cli="$COMMENT_CLI"
   local args=()
   local images="$BATS_TEST_TMPDIR/many-images.md"
   printf 'Checked gallery\n' >"$images"
@@ -424,18 +303,18 @@ JS
     printf '![Image %s](%s)\n' "$index" "$image" >>"$images"
   done
   export COMMENT_ATTACH_LIMIT=50
-  run "$cli" comment --repo owner/repo --pr 42 "${args[@]}" --body-file "$images" --request-id max-images
+  run "$cli" --repo owner/repo --pr 42 "${args[@]}" --body-file "$images" --request-id max-images
   [ "$status" -eq 0 ]
   [[ "$output" == *'"state":"complete"'* ]]
   [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
 
   args+=(--image "$BATS_TEST_TMPDIR/image-50.png")
-  run "$cli" comment --repo owner/repo --pr 42 "${args[@]}" --body-file "$images" --request-id too-many-images
+  run "$cli" --repo owner/repo --pr 42 "${args[@]}" --body-file "$images" --request-id too-many-images
   [ "$status" -ne 0 ]
   [[ "$output" == *'comment-invalid: attach 1-50 unique image paths'* ]]
   [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
 
-  run "$cli" comment --repo owner/repo --pr 42 \
+  run "$cli" --repo owner/repo --pr 42 \
     --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/before.png" \
     --body-file "$BATS_TEST_TMPDIR/body.md" --request-id duplicate-path
   [ "$status" -ne 0 ]
@@ -463,17 +342,17 @@ JS
 
 @test "comment rejects malformed local references with actionable reasons" {
   prepare_comment_fixture
-  local cli="$BATS_TEST_DIRNAME/../bin/browser-attachments"
+  local cli="$COMMENT_CLI"
   local unsafe_image="$BATS_TEST_TMPDIR/before#fragment.png"
   printf image >"$unsafe_image"
-  run "$cli" comment --repo owner/repo --pr 42 \
+  run "$cli" --repo owner/repo --pr 42 \
     --image "$BATS_TEST_TMPDIR/before.png" --image "$BATS_TEST_TMPDIR/before.png" \
     --body-file "$BATS_TEST_TMPDIR/body.md" --request-id duplicate-path
   [ "$status" -ne 0 ]
   [[ "$output" == *'comment-invalid: attach 1-50 unique image paths'* ]]
   [ ! -s "$GH_CALLS" ]
 
-  run "$cli" comment --repo owner/repo --pr 42 \
+  run "$cli" --repo owner/repo --pr 42 \
     --image "$unsafe_image" --image "$BATS_TEST_TMPDIR/after.png" \
     --body-file "$BATS_TEST_TMPDIR/body.md" --request-id unsafe-path
   [ "$status" -ne 0 ]
@@ -572,7 +451,7 @@ JS
 
 @test "missing flock explains the dependency and preserves comment inputs" {
   prepare_comment_fixture
-  export MANAGED_CHROME_FLOCK="$BATS_TEST_TMPDIR/missing-flock"
+  export PR_SCREENSHOTS_FLOCK="$BATS_TEST_TMPDIR/missing-flock"
   run comment_cli missing-flock
   [ "$status" -ne 0 ]
   [[ "$output" == *'dependency-missing: install util-linux so flock is available'* ]]
@@ -710,4 +589,35 @@ JS
   [ "$status" -eq 1 ]
   [[ "$output" == *'same attachment URL'* ]]
   [ "$(grep -c '^--POST--$' "$GH_CALLS")" -eq 1 ]
+}
+
+@test "preflight failures can be retried without changing legacy attachment state" {
+  prepare_comment_fixture
+  local legacy="$BROWSER_OWNERSHIP_DIR/attachments/legacy-upload.json"
+  mkdir -p "$(dirname "$legacy")"
+  printf '%s\n' '{"phase":"uploading","signature":"old"}' >"$legacy"
+  printf '%s\n' '{"port":9222}' >"$BROWSER_OWNERSHIP_DIR/allocations.json"
+
+  export COMMENT_FAIL_TARGET=1
+  run comment_cli
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'preflight-failed: GitHub CLI exited with status 1.'* ]]
+  [ "$(cat "$GH_API_CALLS")" = "api repos/owner/repo/pulls/42" ]
+  export COMMENT_FAIL_TARGET=0 COMMENT_FAIL_LOOKUP_ON=1
+  run comment_cli
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'preflight-failed: GitHub CLI exited with status 1.'* ]]
+  [ "$(cat "$COMMENT_LOOKUP_COUNT")" -eq 1 ]
+  [ ! -e "$GH_CALLS" ]
+
+  run comment_cli
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"state":"complete"'* ]]
+  run comment_cli
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"reused":true'* ]]
+  [ "$(grep -c -- --POST-- "$GH_CALLS")" -eq 1 ]
+  [ ! -s "$OWNER_CALLS" ]
+  [ "$(cat "$legacy")" = '{"phase":"uploading","signature":"old"}' ]
+  [ "$(cat "$BROWSER_OWNERSHIP_DIR/allocations.json")" = '{"port":9222}' ]
 }

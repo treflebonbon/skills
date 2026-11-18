@@ -52,7 +52,7 @@ MOCK
   unset PWCLI_WINDOWS_SCRIPT DOGFOOD_WINDOWS_SCRIPT
   export DOGFOOD_POWERSHELL="$PWCLI_POWERSHELL" DOGFOOD_WSLPATH="$PWCLI_WSLPATH"
   local role token script
-  for role in attachment playwright dogfood; do
+  for role in playwright dogfood; do
     script="$PROJECT_ROOT/libexec/playwright-cli-windows.ps1"
     [[ "$role" == dogfood ]] && script="$PROJECT_ROOT/libexec/dogfood-chrome-windows.ps1"
     token="$(owner --identity "$role" reserve --role "$role" --id "$role" --pid "$$" \
@@ -137,7 +137,7 @@ MOCK
   mkdir -p "$copy/bin" "$copy/libexec"
   cp "$OWNER_CLI" "$copy/bin/managed-chrome-owner"
   cp "$PROJECT_ROOT"/libexec/*.mjs "$copy/libexec/"
-  token="$(reserve attachment missing-default)"
+  token="$(reserve playwright missing-default)"
   owner run "$token" -- true
   printf '%s\n' managed:headless:4242 >"$OWNER_PROBE_STATE"
   owner activate "$token"
@@ -184,7 +184,7 @@ printf '%s\n' fixture-wslpath-unavailable >&2
 exit 54
 MOCK
   local role token before
-  for role in attachment dogfood; do
+  for role in playwright dogfood; do
     token="$(reserve "$role" native-script)"
     owner run "$token" -- true
     printf '%s\n' managed:headless:4242 >"$OWNER_PROBE_STATE"
@@ -508,4 +508,36 @@ dogfood_cleanup() {
   command -v powershell.exe >/dev/null || skip "Windows PowerShell is unavailable"
   dogfood_cleanup stuck
   [ "$output" = "result:failed removed:False Managed Chrome did not exit for profile 'C:\\test-profile'." ]
+}
+
+@test "既存の添付 owner を保持し、重複しない撮影と Dogfood の予約を受け付ける" {
+  local legacy before
+  owner --identity legacy reserve --role playwright --id old --pid "$$" \
+    --mode headless --profile 'C:\legacy' --endpoint http://127.0.0.1:9222
+  local records=("$BROWSER_OWNERSHIP_DIR"/identity-*.json)
+  [ "${#records[@]}" -eq 1 ]
+  legacy="${records[0]}"
+  sed 's/"role":"playwright"/"role":"attachment"/' "$legacy" >"$legacy.updated"
+  mv "$legacy.updated" "$legacy"
+  before="$(cat "$legacy")"
+
+  run owner locate --role attachment
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'locate requires playwright role'* ]]
+
+  run owner --identity new reserve --role attachment --id new --pid "$$" \
+    --mode headless --profile 'C:\new' --endpoint http://127.0.0.1:9224
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'reserve requires role'* ]]
+
+  run owner --identity shot reserve --role playwright --id shot --pid "$$" \
+    --mode headless --profile 'C:\shot' --endpoint http://127.0.0.1:9222
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'Browser resource conflict'* ]]
+
+  owner --identity shot reserve --role playwright --id shot --pid "$$" \
+    --mode headless --profile 'C:\shot' --endpoint http://127.0.0.1:20000
+  owner --identity dogfood reserve --role dogfood --id dogfood --pid "$$" \
+    --mode headless --profile 'C:\dogfood' --endpoint auto
+  [ "$(cat "$legacy")" = "$before" ]
 }

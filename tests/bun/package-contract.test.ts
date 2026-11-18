@@ -256,6 +256,7 @@ test("test_default_quality_entry_runs_nested_node_and_fixture_bats", () => {
     "dogfood.bats",
     "dogfood-results.bats",
     "managed-dogfood-browser.bats",
+    "skills/pr-screenshots/tests/comment.bats",
     "packages/wsl2-browser/tests/*.bats",
     "tests/raw-codex/*.bats",
     "tests/*.bats",

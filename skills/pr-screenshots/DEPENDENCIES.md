@@ -2,31 +2,21 @@
 
 ## 実行時
 
-| 機能                      | 必要なもの                                                                                                                                                                                                               | 条件を満たさない場合                                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| PR とコメントの確認・投稿 | GitHub CLI `gh`（`pr comment --attach` 対応版）、通常の認証、対象 repository への push 権限                                                                                                                                                        | `gh auth status` と権限を案内し、画像・原稿を保持する。token を表示する `gh auth token` は使わない          |
-| コメント添付 CLI          | Node.js 20.19 以降、`flock`、この plugin の `packages/wsl2-browser/bin/browser-attachments`                                                                                                                              | package の [入口](../../packages/wsl2-browser/USAGE.md#入口)を確認する。Nix と添付用 browser runtime は不要 |
-| 既存画像の添付            | 通常の Markdown 画像参照と `gh pr comment --attach`                                                                                                                                                                      | 原稿と画像を保持し、不足条件を案内する。browser 経路へ自動で切り替えない                                    |
-| 新しい画像の撮影          | 第三者配布元の `playwright-cli` skill、package 内 `bin/playwright-cli`。WSL2 では mirrored networking、Windows interoperability、`wslinfo`、`powershell.exe`、`wslpath`、Windows Stable Chrome と固定 Playwright runtime | 撮影が必要な場合だけ package の準備を案内する。既存画像を使える場合は撮影を追加しない                       |
+| 機能 | 必要なもの |
+| --- | --- |
+| 既存画像のコメント添付 | GitHub CLI `gh`（`pr comment --attach` 対応版）、通常の認証、対象 repository への push 権限、Node.js 20.19 以降、`flock`（Linux / WSL2 では util-linux） |
+| 新しい画像の撮影 | 第三者配布元の `playwright-cli` skill と同梱の撮影 CLI。WSL2 では mirrored networking、Windows interoperability、`wslinfo`、`powershell.exe`、`wslpath`、Windows Stable Chrome と固定 Playwright runtime |
 
-既存画像をコメントへ添付するには Nix は不要です。撮影時に必要な browser 認証は利用者が手動で設定します。GitHub CLI の認証と browser の手動認証は別の仕組みです。コメント添付は GitHub CLI の認証だけを使い、専用 browser profile の認証を読みません。撮影には browser runtime が必要になる場合がありますが、既存画像の添付には必要ありません。通常利用の Chrome profile や token をコピーしません。
+既存画像のコメント添付には、同梱の `scripts/pr-screenshots-comment.mjs` を使います。Nix は不要です。撮影先のサイトで認証が必要な場合は、[撮影用 profile の手動認証手順](../../packages/wsl2-browser/references/playwright-cli-wsl.md#対応範囲と認証)を参照してください。
 
 GitHub CLI は [2.102.0](https://github.com/cli/cli/releases/tag/v2.102.0) で対応を確認しています。`gh pr comment --help` に `--attach` があることを確認し、表示されなければ対応版へ更新します。添付 CLI も投稿前にこの機能を検査するため、未対応版で停止した依頼は更新後に同じ request ID で再試行できます。`--attach` の仕様は [GitHub 公式ドキュメント](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli)を参照します。
 
-## 準備
+## 撮影の準備
 
-この skill の読み込まれた `SKILL.md` directory を `SKILL_ROOT` として、同梱 helper から package の絶対 path を取得します。
-
-```bash
-SKILL_ROOT=/absolute/path/to/skills/pr-screenshots
-BROWSER_ATTACHMENTS="$("$SKILL_ROOT/scripts/browser-tool-path" browser-attachments)"
-```
-
-既存画像をコメントへ添付する場合、これで CLI を使えます。runtime 確認や依存導入は不要です。
-
-撮影するときだけ、同じ helper から固定 runtime の確認コマンドを得ます。
+実際に読み込まれた `SKILL.md` の directory を `SKILL_ROOT` とし、撮影 CLI の絶対 path と固定 runtime の状態を確認します。
 
 ```bash
+PLAYWRIGHT_CLI="$("$SKILL_ROOT/scripts/browser-tool-path" playwright-cli)"
 BROWSER_PREPARE="$("$SKILL_ROOT/scripts/browser-tool-path" wsl2-browser-prepare)"
 "$BROWSER_PREPARE" --check
 ```
@@ -35,4 +25,4 @@ BROWSER_PREPARE="$("$SKILL_ROOT/scripts/browser-tool-path" wsl2-browser-prepare)
 
 ## テスト
 
-回帰 suite は Bats Core 1.x、Node.js 20.19 以降、`jq` を使います。Bats と `jq` は回帰検証だけに必要です。fixture は使い捨て directory の中だけで動作し、実 PR への書き込みや実 browser 認証は行いません。
+回帰 suite は Bats Core 1.x、Node.js 20.19 以降、`jq` を使います。Bats と `jq` は回帰検証だけに必要です。`bats skills/pr-screenshots/tests/comment.bats` は使い捨て directory の中だけで動作し、実 PR への書き込みや実 browser 認証は行いません。
