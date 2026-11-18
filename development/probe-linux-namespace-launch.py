@@ -102,7 +102,7 @@ def capture(executable, argv, root, environment, timeout=5, limit=32 * 1024 * 10
                         selector.unregister(key.fileobj)
                         continue
                     buffer = buffers[key.data]
-                    available = limit - len(buffer)
+                    available = limit - sum(len(data) for data in buffers.values())
                     buffer.extend(chunk[:available])
                     if len(chunk) > available:
                         result["error"] = "ENOBUFS"
@@ -173,7 +173,7 @@ def outcome(record):
 
 def measure(executable, root):
     """Nodeを祖先に置かず、共通Python親から空環境で6回直接起動する。"""
-    version = capture(executable, ["--version"], root, dict(os.environ))
+    version = capture(executable, ["--version"], root, dict(os.environ), limit=64 * 1024)
     if version.get("error") or version["signal"] or version["status"] != 0 or version["stderr"] or not version["stdout"].strip():
         raise ValueError("unshareの版を確認できません")
     record = {

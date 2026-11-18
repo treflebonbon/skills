@@ -141,7 +141,7 @@ UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、user / pid / moun
 
 `python3 -I control/development/probe-linux-namespace-launch.py SOURCE OUTPUT NODE` で起動する。Node側は既存MJSの `measure-environment ... empty` を再利用する。最初にNode経由で最小argvが3/3同じEPERM、対照が3/3成功することと共通親の条件を確認し、その場合だけ直接起動を各3回測る。最大12回/architecture。Node側で全6回が成功した場合は直接起動を省略して `not-reproduced` とし、別エラー・混在・条件不一致は `unavailable` で停止する。
 
-直接起動は共通Python親の `subprocess.Popen` から `/usr/bin/unshare` を実行するため、Node測定器はunshareの祖先に残らない。両経路ともunshareの `env` は `{}`、cwdは対象checkout、stdinは読み取り専用の `/dev/null`、時間上限5秒、各出力上限32MiB、超過時は所有する子へSIGKILLとする。Nodeの `stdio: pipe` は通常のUnix pipeではないため、Python側も匿名Unix socket対を使う。fixtureで両経路のfd種別を確認する。[Nodeのstdio仕様](https://nodejs.org/api/child_process.html#optionsstdio)を参照。
+直接起動は共通Python親の `subprocess.Popen` から `/usr/bin/unshare` を実行するため、Node測定器はunshareの祖先に残らない。両経路ともunshareの `env` は `{}`、cwdは対象checkout、stdinは読み取り専用の `/dev/null`、時間上限5秒、stdout/stderr合計32MiB、超過時は所有する子へSIGKILLとする。Nodeの `stdio: pipe` は通常のUnix pipeではないため、Python側も匿名Unix socket対を使う。fixtureで両経路のfd種別とflagsを確認する。[Nodeのstdio仕様](https://nodejs.org/api/child_process.html#optionsstdio)を参照。出力上限は[Node 22の実装](https://github.com/nodejs/node/blob/v22.x/src/spawn_sync.cc)と同じくstdout/stderr合算とし、実Nodeの `spawnSync` を使って境界ちょうどの成功と合計1 byte超過の拒否を対照する。
 
 UID / EUID / GID・group、namespace識別子、callerのcapability / NoNewPrivs / Seccomp / LSM、選択した5環境変数を両経路と測定前後で照合する。Node測定器の親PIDが共通Python親PIDと一致することを要求し、両測定コード・Node/Python/unshare実体のhash、source/workflow/run/attempt、image/kernelを記録する。値の全件記録や認証値の取得は行わない。
 

@@ -207,7 +207,11 @@ test.skipIf(process.platform !== "linux")(
       "root=" + JSON.stringify(root),
       'large=probe.capture(sys.executable,["-c","print(\'x\'*1000)"],root,{},limit=64)',
       'slow=probe.capture(sys.executable,["-c","import time;time.sleep(2)"],root,{},timeout=0.05)',
-      "print(json.dumps([large,slow]))",
+      "boundaries=[]",
+      "for out,err in [(64,0),(0,64),(32,32),(33,32),(64,1)]:",
+      ' child="import os;os.write(1,b\\\'x\\\'*"+str(out)+");os.write(2,b\\\'y\\\'*"+str(err)+")"',
+      ' boundaries.append({"out":out,"err":err,"probe":probe.capture(sys.executable,["-I","-c",child],root,{},limit=64)})',
+      "print(json.dumps([large,slow,boundaries]))",
     ].join("\n");
     const result = spawnSync(python, ["-I", "-B", "-c", code], {
       encoding: "utf8",
@@ -215,10 +219,35 @@ test.skipIf(process.platform !== "linux")(
     });
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
-    const [large, slow] = JSON.parse(result.stdout);
+    const [large, slow, boundaries] = JSON.parse(result.stdout);
     expect(large.error).toBe("ENOBUFS");
     expect(large.stdout.length).toBeLessThanOrEqual(64);
     expect(slow.error).toBe("ETIMEDOUT");
     expect(slow.signal).toBe("SIGKILL");
+    const node = Bun.which("node")!;
+    for (const { out, err, probe } of boundaries) {
+      const child =
+        "const fs=require('node:fs');fs.writeSync(1,Buffer.alloc(" +
+        out +
+        "));fs.writeSync(2,Buffer.alloc(" +
+        err +
+        "));";
+      const refCode =
+        "const {spawnSync}=require('node:child_process');const r=spawnSync(process.execPath,['-e'," +
+        JSON.stringify(child) +
+        "],{maxBuffer:64,killSignal:'SIGKILL'});console.log(JSON.stringify({error:r.error?.code??null,status:r.status}));";
+      const rawReference = spawnSync(node, ["-e", refCode], { encoding: "utf8", timeout: 10_000 });
+      expect(rawReference.status).toBe(0);
+      expect(rawReference.stderr).toBe("");
+      const reference = JSON.parse(rawReference.stdout);
+      const error = out + err > 64 ? "ENOBUFS" : null;
+      expect(reference.error).toBe(error);
+      expect(probe.error ?? null).toBe(error);
+      expect(probe.stdout.length + probe.stderr.length).toBeLessThanOrEqual(64);
+      if (error === null) {
+        expect(reference.status).toBe(0);
+        expect(probe.status).toBe(0);
+      }
+    }
   },
 );
