@@ -434,7 +434,6 @@ test(
         BUN_OPTIONS: `--preload=${preload}`,
         NODE_OPTIONS: `--require=${preload}`,
         BASH_ENV: preload,
-        TREFLEBONBON_FILE_SAFETY_DIR: resolve(directory, "native-cache"),
       };
       const invoke = (args: string[]) =>
         spawnSync(entry, args, { cwd, env: environment, maxBuffer: Infinity, timeout: 5000 });
@@ -458,7 +457,7 @@ test(
         const missing = corpus.cases.find(
           (item) =>
             item.args[0] === "run" &&
-            JSON.parse(Buffer.from(item.stdout, "base64").toString()).expected === 36,
+            JSON.parse(Buffer.from(item.stdout, "base64").toString()).expected === 30,
         )!;
         expect(result.stdout).toEqual(Buffer.from(missing.stdout, "base64"));
         expect(fs.statSync(resolve(output, "summary.json")).mode & 0o777).toBe(0o600);
@@ -485,7 +484,7 @@ test(
           resolve(directory, "again") + "/../again/output",
         ]);
         expect(repeated.status).toBe(1);
-        expect(JSON.parse(repeated.stdout.toString()).expected).toBe(36);
+        expect(JSON.parse(repeated.stdout.toString()).expected).toBe(30);
         fs.symlinkSync(resolve(directory, "cycle-b"), resolve(directory, "cycle-a"));
         fs.symlinkSync(resolve(directory, "cycle-a"), resolve(directory, "cycle-b"));
         const cycle = invoke(["run", "--output-dir", resolve(directory, "cycle-a") + "/evidence"]);
@@ -493,7 +492,6 @@ test(
         expect(JSON.parse(cycle.stdout.toString()).reasons).toEqual(["execution_unconfirmed"]);
         expect(fingerprint()).toBe(before);
         expect(fs.existsSync(marker)).toBe(false);
-        expect(fs.existsSync(environment.TREFLEBONBON_FILE_SAFETY_DIR)).toBe(false);
       } finally {
         for (const path of paths) if (fs.statSync(path).isDirectory()) fs.chmodSync(path, 0o700);
       }

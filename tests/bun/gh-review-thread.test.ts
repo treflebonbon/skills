@@ -73,7 +73,6 @@ process.exit(calls[index].status);
     let entrypoint = script;
     const payload = resolve(directory, "payload with spaces"),
       marker = resolve(directory, "preload-ran"),
-      cache = resolve(directory, "native-cache"),
       preload = resolve(directory, "preload.cjs"),
       home = resolve(directory, "home");
     if (isolated) {
@@ -126,7 +125,6 @@ process.exit(calls[index].status);
                 BUN_OPTIONS: `--preload=${preload}`,
                 NODE_OPTIONS: `--require=${preload}`,
                 BASH_ENV: preload,
-                TREFLEBONBON_FILE_SAFETY_DIR: cache,
               }
             : {}),
           REVIEW_QUEUE: queue,
@@ -163,7 +161,6 @@ process.exit(calls[index].status);
     if (isolated) {
       expect(snapshot(payload)).toEqual(before!);
       expect(fs.existsSync(marker)).toBe(false);
-      expect(fs.existsSync(cache)).toBe(false);
       expect(fs.readdirSync(home)).toEqual([".bunfig.toml"]);
     }
   });

@@ -49,7 +49,7 @@ test("package 契約は旧 corpus の12拒否と正常な配布物を区別し�
       );
     const valid = run();
     expect(valid.status, valid.stderr).toBe(0);
-    expect(valid.stderr).toContain("17 pass");
+    expect(valid.stderr).toContain("18 pass");
     const reasons: Record<string, string> = {
       "manifest-version": ".claude-plugin/plugin.json version",
       "marketplace-policy": "Codex policy",
@@ -64,6 +64,32 @@ test("package 契約は旧 corpus の12拒否と正常な配布物を区別し�
       "explicit-invocation": "pr-screenshots explicit invocation",
       "quality-node": "quality entry",
     };
+    const dangling = resolve(payload, "README.md"),
+      readme = fs.readFileSync(dangling);
+    try {
+      fs.appendFileSync(dangling, "\n" + ["orca", "peer", "refactor"].join("-") + "\n");
+      const rejected = run("test_no_dangling_references_to_removed_parts");
+      expect(rejected.status, rejected.stderr).toBe(1);
+      expect(rejected.stderr).toContain("dangling reference in README.md");
+      fs.writeFileSync(dangling, readme);
+      const control = run("test_no_dangling_references_to_removed_parts");
+      expect(control.status, control.stderr).toBe(0);
+    } finally {
+      fs.writeFileSync(dangling, readme);
+    }
+    const removedPath = "docs/" + ["orca", "peer", "refactor"].join("-") + ".md";
+    const git = (...args: string[]) => {
+      const result = spawnSync("git", args, { cwd: payload, encoding: "utf8" });
+      expect(result.status, result.stderr).toBe(0);
+    };
+    fs.writeFileSync(resolve(payload, removedPath), "x\n");
+    git("add", "--force", removedPath);
+    const named = run("test_no_dangling_references_to_removed_parts");
+    expect(named.status, named.stderr).toBe(1);
+    expect(named.stderr).toContain("dangling reference in path " + removedPath);
+    git("rm", "-qf", removedPath);
+    const clean = run("test_no_dangling_references_to_removed_parts");
+    expect(clean.status, clean.stderr).toBe(0);
     for (const item of corpus.mutations.cases) {
       const path = resolve(payload, item.path),
         before = fs.readFileSync(path);

@@ -1,12 +1,12 @@
 // 保存済み Python JSON の整数と非有限値を、丸めたり null に置換したりしない。
-export function parsePeerJSON(raw: Uint8Array): any {
+export function parseStrictJSON(raw: Uint8Array): any {
   const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(raw);
   const strings = new Set<string>();
   const tokens = /"(?:[^"\\]|\\[\s\S])*"|NaN|-?Infinity/g;
   for (const match of text.matchAll(tokens)) {
     if (match[0].startsWith('"')) strings.add(JSON.parse(match[0]));
   }
-  let marker = "\0peer-nonfinite";
+  let marker = "\0nonfinite";
   while ([...strings].some((value) => value.startsWith(marker))) marker += "!";
   const constants = new Map<string, number>();
   const compatible = text.replace(tokens, (token) => {
@@ -30,7 +30,7 @@ export function parsePeerJSON(raw: Uint8Array): any {
   });
 }
 
-export function peerJSON(value: unknown): string {
+export function strictJSON(value: unknown): string {
   const strings = new Set<string>();
   const visit = (item: any): void => {
     if (typeof item === "string") {
@@ -44,7 +44,7 @@ export function peerJSON(value: unknown): string {
     }
   };
   visit(value);
-  let marker = "\0peer-nonfinite";
+  let marker = "\0nonfinite";
   while ([...strings].some((item) => item.startsWith(marker))) marker += "!";
   const constants = new Map<string, string>();
   const text = JSON.stringify(
@@ -72,7 +72,7 @@ export function peerJSON(value: unknown): string {
   );
 }
 
-export function equalPeerJSON(left: any, right: any): boolean {
+export function equalStrictJSON(left: any, right: any): boolean {
   if (left === right || (Number.isNaN(left) && Number.isNaN(right))) return true;
   if (
     (typeof left === "bigint" && typeof right === "number") ||
@@ -94,6 +94,6 @@ export function equalPeerJSON(left: any, right: any): boolean {
   const keys = Object.keys(left);
   return (
     keys.length === Object.keys(right).length &&
-    keys.every((key) => Object.hasOwn(right, key) && equalPeerJSON(left[key], right[key]))
+    keys.every((key) => Object.hasOwn(right, key) && equalStrictJSON(left[key], right[key]))
   );
 }

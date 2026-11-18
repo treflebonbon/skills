@@ -156,6 +156,7 @@ smoke(
         "git-push-reviewed",
         "gh-review-thread",
         "orca-send",
+        "orca-worker-readiness",
         "codex-reviewer",
       ]) {
         const path = join(installed, "bin", name),
@@ -168,7 +169,7 @@ smoke(
       if (bats) {
         const cliRoot = join(directory, "codex-installed-cli-tests");
         fs.mkdirSync(cliRoot);
-        for (const name of ["bin", "contracts", "lib", "packages", "share", "skills"])
+        for (const name of ["bin", "lib", "packages", "share", "skills"])
           fs.symlinkSync(join(installed, name), join(cliRoot, name), "dir");
         fs.cpSync(join(ROOT, "tests/cli"), join(cliRoot, "tests/cli"), { recursive: true });
         fs.cpSync(join(ROOT, "tests/fixtures"), join(cliRoot, "tests/fixtures"), {

@@ -17,7 +17,6 @@
     "../../tests/bun/**/*.ts",
     "../../tests/helpers/*.ts",
     "../../skills/dogfood/tests/helpers/*.ts",
-    "../../development/*.ts",
-    "../../skills/*-peer-refactor/scripts/*.ts"
+    "../../development/*.ts"
   ]
 }
