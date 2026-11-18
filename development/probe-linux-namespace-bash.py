@@ -185,12 +185,17 @@ def merge_capture(args):
     prefix, wait_status, observer_status, owner, executable, expected = args[:6]
     argv = args[6:]
     path = Path(prefix + "-streams.json")
-    result = json.loads(path.read_text()) if path.exists() else {
-        "argv": argv, "pid": 0, "ownerPid": int(owner), "status": None, "signal": None,
-        "stdout": "", "stderr": "", "error": "EOBSERVER",
-    }
+    try:
+        result = json.loads(path.read_text())
+        if not isinstance(result, dict):
+            raise ValueError("stream記録がobjectではありません")
+    except (OSError, ValueError):
+        result = {
+            "argv": argv, "pid": 0, "ownerPid": int(owner), "status": None, "signal": None,
+            "stdout": "", "stderr": "", "error": "EOBSERVER",
+        }
     result["waitStatus"], result["observerStatus"] = int(wait_status), int(observer_status)
-    if result["argv"] != argv or result["ownerPid"] != int(owner) or int(observer_status) != 0:
+    if result.get("argv") != argv or result.get("ownerPid") != int(owner) or int(observer_status) != 0:
         result.setdefault("error", "EOBSERVER")
     if 0 <= int(wait_status) < 128:
         result["status"] = int(wait_status)
@@ -390,7 +395,7 @@ def bash_outcome(record, common, checkpoint):
         return "unavailable"
 
 
-def load_bash(output, version, checkpoint):
+def load_bash(output, checkpoint):
     """完了前のcaptureも先に取り込み、後続の検査失敗でも保存する。"""
     before_file = output / "namespace-bash-before.json"
     if not before_file.exists():
@@ -412,7 +417,6 @@ def load_bash(output, version, checkpoint):
                 probe["repetition"] = repetition
                 case["probes"].append(probe)
     record["forkCount"] = sum(len(case["probes"]) for case in record["cases"])
-    record["after"] = snapshot(version)["context"]
     return record
 
 
@@ -425,9 +429,10 @@ def finalize(root, output, version, prepare_status, perl_status, gate_status, ba
         baseline_file = output / "namespace-bash-perl.json"
         if baseline_file.exists():
             record["measurements"]["perl"] = json.loads(baseline_file.read_text())
-        bash_measurement = load_bash(output, version, checkpoint)
+        bash_measurement = load_bash(output, checkpoint)
         if bash_measurement is not None:
             record["measurements"]["bash"] = bash_measurement
+            bash_measurement["after"] = snapshot(version)["context"]
         verified = check_checkpoint(root, output, version)
         gate = json.loads((output / "namespace-bash-gate.json").read_text())
         baseline, common = record["measurements"]["perl"], parent.ancestry()[1:]

@@ -8,6 +8,69 @@ import { createFixtureInterpreter } from "../helpers/linux-namespace-fixture";
 
 const root = resolve(import.meta.dir, "../..");
 const driver = join(root, "development/probe-linux-namespace-bash.sh");
+
+test("観測streamが空または不正でもBashと観測子のwait結果を保存する", () => {
+  const directory = fs.mkdtempSync(join(fs.realpathSync(tmpdir()), "namespace-bash-merge-"));
+  try {
+    const executable = fs.realpathSync(Bun.which("true")!);
+    const hash = createHash("sha256").update(fs.readFileSync(executable)).digest("hex");
+    const argv = ["--map-current-user", "--", "/usr/bin/true"];
+    const valid = {
+      argv,
+      pid: 4243,
+      ownerPid: 4242,
+      status: null,
+      signal: null,
+      stdout: "public-captured",
+      stderr: "",
+      marker: "public-valid-streams",
+    };
+    for (const [index, raw] of [JSON.stringify(valid), null, "", "{", "[]"].entries()) {
+      const prefix = join(directory, String(index));
+      if (raw !== null) fs.writeFileSync(prefix + "-streams.json", raw);
+      const result = spawnSync(
+        "python3",
+        [
+          "-I",
+          "-B",
+          join(root, "development/probe-linux-namespace-bash.py"),
+          "merge",
+          prefix,
+          index === 0 ? "1" : "143",
+          index === 0 ? "0" : "17",
+          "4242",
+          executable,
+          hash,
+          ...argv,
+        ],
+        { encoding: "utf8", timeout: 5000 },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.stderr).toBe("");
+      expect(result.status).toBe(0);
+      const saved = JSON.parse(fs.readFileSync(prefix + ".json", "utf8"));
+      expect(saved.argv).toEqual(argv);
+      expect(saved.ownerPid).toBe(4242);
+      expect(saved.waitStatus).toBe(index === 0 ? 1 : 143);
+      expect(saved.observerStatus).toBe(index === 0 ? 0 : 17);
+      if (index === 0) {
+        expect(saved.error).toBeUndefined();
+        expect(saved.stdout).toBe("public-captured");
+        expect(saved.marker).toBe("public-valid-streams");
+        expect(saved.status).toBe(1);
+      } else {
+        expect(saved.error).toBe("EOBSERVER");
+        expect(saved.stdout).toBe("");
+        expect(saved.stderr).toBe("");
+        expect(saved.status).toBeNull();
+        expect(saved.signal).toBeNull();
+      }
+    }
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test.skipIf(process.platform !== "linux")(
   "Bash直接captureは合算上限・EOF後の生存・曖昧なwait状態を区別する",
   () => {
@@ -105,7 +168,7 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
       const module = join(root, "development/probe-linux-namespace-bash.py");
       const perl = join(root, "development/probe-linux-namespace-parent.pl");
       const wrapper = [
-        "import copy,importlib.util,json,sys,shutil",
+        "import contextlib,copy,importlib.util,io,json,sys,shutil",
         "from pathlib import Path",
         "spec=importlib.util.spec_from_file_location('bash_probe',sys.argv[1])",
         "m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)",
@@ -130,16 +193,21 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         "   if field=='context':changed['after']['euid']=0",
         "   if field=='observer':changed['cases'][0]['probes'][0]['observerPid']='public-invalid-pid'",
         "   print('INVALID '+m.bash_outcome(changed,common,checkpoint))",
-        "  for label in ['owner','corrupt']:",
+        "  original_snapshot=m.snapshot",
+        "  for label in ['owner','corrupt','snapshot']:",
         "   target=output.with_name(output.name+'-'+label)",
         "   shutil.copytree(output,target,ignore=shutil.ignore_patterns('namespace-bash.json'))",
         "   raw=target/'bash-minimal-1.json'",
         "   if label=='owner':",
         "    data=json.loads(raw.read_text());data['ownerPid']+=1;raw.write_text(json.dumps(data))",
-        "   else:raw.write_text('{')",
-        "   answer=m.finalize(root,target,version,*map(int,sys.argv[7:11]))",
+        "   elif label=='corrupt':raw.write_text('{')",
+        "   if label=='snapshot':m.snapshot=lambda version: (_ for _ in ()).throw(OSError('public-final-snapshot'))",
+        "   try:",
+        "    with contextlib.redirect_stdout(io.StringIO()) as captured:answer=m.finalize(root,target,version,*map(int,sys.argv[7:11]))",
+        "   finally:m.snapshot=original_snapshot",
         "   saved=json.loads((target/'namespace-bash.json').read_text())",
-        "   print('PARTIAL '+json.dumps({'status':answer,'outcome':saved['outcome'],'baseline':saved['measurements']['perl']}))",
+        "   logged=[json.loads(line.split('] ',1)[1]) for line in captured.getvalue().splitlines()]",
+        "   print('PARTIAL '+json.dumps({'label':label,'status':answer,'outcome':saved['outcome'],'error':saved.get('error'),'baseline':saved['measurements']['perl'],'bash':saved['measurements'].get('bash'),'loggedBashProbes':[row for row in logged if row.get('parent')=='bash' and 'case' in row]}))",
         " if final['outcome']=='perl-layer-not-required':",
         "  original=m.os.readlink",
         "  m.os.readlink=lambda path: 'public-path-marker'+chr(0xdcff) if str(path).endswith('/cwd') else original(path)",
@@ -265,12 +333,24 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
             .split("\n")
             .filter((line) => line.startsWith("PARTIAL "))
             .map((line) => JSON.parse(line.slice(8)));
-          expect(partials).toHaveLength(2);
+          expect(partials).toHaveLength(3);
           for (const partial of partials) {
             expect(partial.status).toBe(2);
             expect(partial.outcome).toBe("unavailable");
             expect(partial.baseline).toEqual(baseline);
           }
+          const snapshotFailure = partials.find((partial) => partial.label === "snapshot");
+          expect(snapshotFailure.error).toContain("public-final-snapshot");
+          expect(snapshotFailure.bash?.cases).toEqual(data.measurements.bash.cases);
+          const publicProbe = (probe: any) => ({
+            pid: probe.pid,
+            argv: probe.argv,
+            status: probe.status,
+            stderr: probe.stderr,
+          });
+          expect(snapshotFailure.loggedBashProbes.map(publicProbe)).toEqual(
+            data.measurements.bash.cases.flatMap((item: any) => item.probes).map(publicProbe),
+          );
         }
       }
     } finally {

@@ -9,15 +9,13 @@ const helper = resolve(import.meta.dir, "../helpers/process-state.ts");
 test.skipIf(process.platform !== "linux")(
   "PID 生存確認は ps の遅延に依存せず、終了済みの所有子を生存扱いしない",
   () => {
-    const directory = fs.mkdtempSync(join(fs.realpathSync(tmpdir()), "process-state-"));
+    const directory = fs.mkdtempSync(join(fs.realpathSync(tmpdir()), "process-state-$fixture-"));
     try {
       const calls = join(directory, "ps-calls");
       const reader = join(directory, "reader.ts");
       fs.writeFileSync(
         join(directory, "ps"),
-        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " +
-          JSON.stringify(calls) +
-          "\nsleep 1\nprintf 'S\\n'\nexit 0\n",
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$FIXTURE_PS_CALLS\"\nsleep 1\nprintf 'S\\n'\nexit 0\n",
         { mode: 0o700 },
       );
       fs.writeFileSync(
@@ -29,7 +27,11 @@ test.skipIf(process.platform !== "linux")(
           "console.log(JSON.stringify({live:stateOf(process.pid),reaped:stateOf(child.pid)}));",
         ].join("\n"),
       );
-      const environment = { ...process.env, PATH: directory + ":" + process.env.PATH };
+      const environment = {
+        ...process.env,
+        PATH: directory + ":" + process.env.PATH,
+        FIXTURE_PS_CALLS: calls,
+      };
       const control = spawnSync("ps", ["-o", "stat=", "-p", String(process.pid)], {
         encoding: "utf8",
         env: environment,
@@ -56,15 +58,15 @@ test.skipIf(process.platform !== "linux")(
 );
 
 test("process group は指定 PGID の非 zombie を照合し、ps の観測失敗を区別する", () => {
-  const directory = fs.mkdtempSync(join(fs.realpathSync(tmpdir()), "process-group-state-"));
+  const directory = fs.mkdtempSync(
+    join(fs.realpathSync(tmpdir()), "process-group-state-$fixture-"),
+  );
   try {
     const calls = join(directory, "ps-calls");
     const reader = join(directory, "reader.ts");
     fs.writeFileSync(
       join(directory, "ps"),
-      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " +
-        JSON.stringify(calls) +
-        '\nprintf \'%s\' "$FIXTURE_PS_OUTPUT"\nexit "$FIXTURE_PS_STATUS"\n',
+      '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$FIXTURE_PS_CALLS"\nprintf \'%s\' "$FIXTURE_PS_OUTPUT"\nexit "$FIXTURE_PS_STATUS"\n',
       { mode: 0o700 },
     );
     fs.writeFileSync(
@@ -80,6 +82,7 @@ test("process group は指定 PGID の非 zombie を照合し、ps の観測失�
         env: {
           ...process.env,
           PATH: directory + ":" + process.env.PATH,
+          FIXTURE_PS_CALLS: calls,
           FIXTURE_PS_OUTPUT: output,
           FIXTURE_PS_STATUS: status,
         },
