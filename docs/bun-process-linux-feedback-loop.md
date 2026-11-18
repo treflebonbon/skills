@@ -1,6 +1,6 @@
 # Linux namespace の再現ループ
 
-状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。最新の[stdout比較](evidence/linux-namespace-stdout/44257860176-1/README.md)ではPython直接起動・空環境・cwd `/` のままstdoutだけを通常pipeに変えても同じEPERMを再現した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
+状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。最新の[stdin比較](evidence/linux-namespace-stdin/44366608889-1/README.md)では、同じPerl親・空環境・cwd `/`・両streamの通常pipeを保ち、stdinをexec直前に閉じても同じEPERMを再現した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
 
 ## 測る対象
 
@@ -301,3 +301,34 @@ callerの非ASCII cwdと、比較対象の `PATH` / `HOME` / `LANG` / `LC_ALL` /
 同じPerl親のPID・start time ticks・共通Bashと上位祖先列、caller条件と測定前後、unshareとruntimeのhashが各VM内で一致した。両jobの測定器4ファイルのhashは対象commitのGit blobと一致する。各job17行・計34行の選択した公開JSONと実行metadataを [実行記録](evidence/linux-namespace-stdin/44366608889-1/README.md) に保存した。stdinの指定方式の要否に結論を限定し、実unshareの拒否時fd・環境全件・LSMの直接観測とは扱わない。
 
 評価済み `9cda5dc` との差分は文書とテストのみで、測定コードとworkflowは同一。最新 `73e36ee` のCodeRabbit評価が回数制限で未完了という制約と、symlink環境を模す追加fixture再現の未確認を了承した承認後の1runである。独立した仕様・規約レビューは各指摘0件、通常CI全6ジョブの成功を確認した。artifactの取得・読取は行っていない。
+
+## 次の最小化: 共通BashからPerlを経由せず直接起動する
+
+stdin比較の結果を受け、`mode=probe-bash` はstdinをexec直前のfd 0閉鎖に固定し、Perlを含む起動層の要否を比較する。新しい実VM比較は未実行。`bash control/development/probe-linux-namespace-bash.sh SOURCE OUTPUT` で制御する。
+
+共通Bashの別の子としてPython準備子、閉鎖stdinのPerl baseline、Pythonの段階検査、Bashの直接子であるunshare、Python後処理を順に待機する。baselineの最小argv `--map-current-user -- /usr/bin/true` と成功対照 `-- /usr/bin/true` を各3回測り、正確なUID-map EPERMと対照成功、caller・祖先・実行体の一致を確認した場合だけBash直接側を各3回測る。baseline全成功、別エラー、混在、条件不一致では直接側を起動しない。namespace probeは最大12回/architecture、x64・arm64で計24回。別に準備時のunshare版確認が1回/architectureある。
+
+Bash直接側は、Bashがforkした子で `exec -c` を使う。PerlとPythonを、その子と共通Bashの間には挟まない。空環境 `{}`、cwd `/`、閉鎖stdin、stdout/stderrの別々の匿名通常pipeとflagsを維持する。起動API・process世代・Bash固有の子起動時の状態をまとめて比較し、個々の効果は分離しない。
+
+Bashは[process substitutionとcoprocess](https://www.gnu.org/software/bash/manual/bash.html)で作ったpipeをbuiltinで複製する。`/proc/.../fd` のwriterを開き直す案では `O_LARGEFILE` が増える失敗を実子テストで検出したため、namespace probeのwriterには使わない。stderr pipeを引き継ぐPython補助はprobe開始前に終了し、出力を収集するPython観測子も共通Bashの別の子である。観測子はunshareの祖先には入らない。
+
+観測子はexec前のgateでBashの所有子であること、PID・親PID・実体・process group・session・start time ticksを検査し、[pidfd](https://docs.python.org/3/library/os.html#os.pidfd_open)へ固定する。各probeの5秒・stdout/stderr合計32MiBを維持し、超過時は[保持したpidfdだけへSIGKILL](https://docs.python.org/3/library/signal.html#signal.pidfd_send_signal)を送る。終了した数値PIDを再利用してsignalを送らない。Bashがprobeと両補助をwaitする。Bash 5以上とPython/Linuxのpidfdが必要で、準備時に利用可否を確認し、未達ならnamespace probeを開始しない。新しい依存installやCビルドは行わない。
+
+Bashの `wait` が返す128以上の値は、通常終了とsignalを推測で区別しない。元の `waitStatus` を保持し、`EWAITSTATUS` として `unavailable` にする。時間切れ・出力超過の `ETIMEDOUT` / `ENOBUFS` は別に保持する。正常な0/1と正確なstderrを確認できた測定だけを比較結果に使う。
+
+| 結果 | 条件 | 最終終了コード |
+| --- | --- | --- |
+| `perl-layer-not-required` | Perl/Bashとも最小argvが各3回同じEPERM、対照が各3回成功 | 1 |
+| `perl-layer-dependent` | Perlだけ最小argvが3回同じEPERM、Bashと両対照は各3回成功 | 1 |
+| `not-reproduced` | Perl baselineの最小argvと対照が各3回成功、Bash側は省略 | 0 |
+| `unavailable` | 別エラー・混在・条件不一致・観測不足・段階の失敗 | 2 |
+
+共通BashのPID世代と上位祖先、Bash/Perl/Pythonとunshareの実体hash、source/workflow/run/attempt、非root資格情報・namespace・限定したcaller観測を照合する。Bash自身の限定proc情報と、観測子へ継承された `PATH` / `HOME` / `LANG` / `LC_ALL` / `TMPDIR` の5値を使い、環境全体やcommand lineは読まない。`childBefore` はexec前のBash子の観測であり、失敗したunshare自身の拒否時LSMとは扱わない。
+
+Bashが未使用OUTPUTを排他的に確保する。準備の専用コード46でだけPerlを起動し、baselineの47でだけ直接側へ進む。後処理の43/44だけを最終1/0へ変換し、他は2にする。checkpoint、Perl raw、gate、Bash開始点、各probeのstream記録とwait結果、`namespace-bash.json` を0600で保存する。後続JSONや所有PIDの検査が失敗しても、準備時の出所と取得済みPerl baselineを保持する。
+
+`[DEBUG-ns-bash]` は方式、caller、exec前の所有PID情報、各probeのargv/PID/時刻/終了状態を限定出力する。stdout/stderrは各1024文字までで、省略時は `logTruncated` を示す。実子fixtureでfd 0の閉鎖、直接のBash親、他stdioの種類・flags、環境の公開sentinel除去を確認する。これは設定の検証であり、実unshareのfd・環境全件・拒否時LSMの直接dumpではない。
+
+既存Bun setupを保持し、専用Nix/group準備・正式44ケース・集約をスキップする。root化・sysctl/profile変更・特権journal参照は行わない。run名は `Linux namespace Bash直接起動比較: <source SHA>`、artifact名は `namespace-bash-<run>-<attempt>-<arch>` とする。実行は検証・レビュー・公開・通常CIを終えた新しいSHAへsource/workflowをそろえ、範囲を明示した1runの承認後に行う。artifactの取得・読取は行わない。
+
+結論は今回のPerlを含む起動層の要否に限定する。共通Bashと上位祖先、OS / LSMなどの条件は残り、原因確定とPhase 2全体の完了は未認定。#33未完了・#82待ち、macOS 15と全子孫5秒保証を維持する。

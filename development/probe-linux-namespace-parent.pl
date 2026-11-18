@@ -307,19 +307,22 @@ sub measure_stdin {
 
 # Python準備子が終了した後、共通Bashの子としてstdinだけの比較を保存する。
 sub stdin_main {
+    my ($comparison) = @_;
+    $comparison //= 'stdin';
+    die "比較方式が不正です\n" unless $comparison eq 'stdin' || $comparison eq 'bash';
     die "EXECUTABLE OUTPUTが必要です\n" unless @ARGV == 2;
     my ($executable, $output) = @ARGV;
-    sysopen my $file, "$output/namespace-stdin-perl.json", O_WRONLY | O_CREAT | O_EXCL, 0600 or die "出力を作成できません: $!\n";
+    sysopen my $file, "$output/namespace-$comparison-perl.json", O_WRONLY | O_CREAT | O_EXCL, 0600 or die "出力を作成できません: $!\n";
     my $record = {};
     my $ok = eval {
-        open my $input, '<:raw', "$output/namespace-stdin-checkpoint.json" or die "準備記録: $!\n";
+        open my $input, '<:raw', "$output/namespace-$comparison-checkpoint.json" or die "準備記録: $!\n";
         my $checkpoint = do { local $/; decode_json(<$input>) };
         my $json = JSON::PP->new->canonical;
         my $chain = ancestry();
         my @common = @$chain[1 .. $#$chain];
         my @prepared_common = @{$checkpoint->{ancestry}}[1 .. $#{$checkpoint->{ancestry}}];
         die "stdin比較の準備またはcallerが一致しません\n" unless
-            $checkpoint->{schema} eq 'linux-namespace-stdin-checkpoint/v1'
+            $checkpoint->{schema} eq "linux-namespace-$comparison-checkpoint/v1"
             && $checkpoint->{outcome} eq 'ready' && $< != 0 && $> != 0
             && $checkpoint->{controllerHashes}{perl} eq digest($SELF)
             && $checkpoint->{runtimeHashes}{perl} eq digest(abs_path($^X))
@@ -327,7 +330,11 @@ sub stdin_main {
             && $checkpoint->{unshare}{hash} eq digest($executable)
             && $json->encode(\@common) eq $json->encode(\@prepared_common)
             && $json->encode(context()) eq $json->encode($checkpoint->{context});
-        measure_stdin($executable, $record, $checkpoint->{unshare}{version});
+        if ($comparison eq 'bash') {
+            measure($executable, $record, $checkpoint->{unshare}{version}, 'closed', $checkpoint->{unshare});
+        } else {
+            measure_stdin($executable, $record, $checkpoint->{unshare}{version});
+        }
         die "stdin比較中にcallerまたは実行体が変化しました\n" unless
             $json->encode(ancestry()) eq $json->encode($chain)
             && $json->encode(context()) eq $json->encode($checkpoint->{context})
@@ -343,7 +350,10 @@ sub stdin_main {
 
 # Python baselineが許可した場合だけBashから呼ばれ、途中記録も排他的に保存する。
 sub main {
-    if (@ARGV == 3 && $ARGV[0] eq 'stdin') { shift @ARGV; return stdin_main(); }
+    if (@ARGV == 3 && ($ARGV[0] eq 'stdin' || $ARGV[0] eq 'bash')) {
+        my $comparison = shift @ARGV;
+        return stdin_main($comparison);
+    }
     die "EXECUTABLE OUTPUTが必要です\n" unless @ARGV == 2;
     my ($executable, $output) = @ARGV;
     sysopen my $file, "$output/namespace-parent-perl.json", O_WRONLY | O_CREAT | O_EXCL, 0600 or die "出力を作成できません: $!\n";
