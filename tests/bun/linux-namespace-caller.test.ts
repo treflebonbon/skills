@@ -8,6 +8,18 @@ import { pathToFileURL } from "node:url";
 const root = resolve(import.meta.dir, "../..");
 const modulePath = join(root, "development/probe-linux-namespace-caller.mjs");
 
+function selectedNode() {
+  const path = Bun.which("node");
+  expect(path).not.toBeNull();
+  const result = spawnSync(path!, ["--version"], { encoding: "utf8", timeout: 5_000 });
+  expect(result.error).toBeUndefined();
+  expect(result.status).toBe(0);
+  expect(result.stderr).toBe("");
+  const version = result.stdout.trim().replace(/^v/, "");
+  expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+  return { path: path!, version, supportsProbe: Number(version.split(".")[0]) >= 22 };
+}
+
 test.skipIf(process.platform !== "linux")(
   "caller比較は同じ測定コードでBunとNodeの正確なEPERM・成功対照を検査する",
   async () => {
@@ -40,8 +52,7 @@ test.skipIf(process.platform !== "linux")(
           "console.log(JSON.stringify(measure(process.argv[2], process.argv[3])));",
         ].join("\n"),
       );
-      const node = Bun.which("node");
-      expect(node).not.toBeNull();
+      const { path: node, version: nodeVersion, supportsProbe } = selectedNode();
       const api = await import(pathToFileURL(modulePath).href);
       const records = new Map<string, any>();
       for (const fixture of ["minimal", "passes", "other", "stdout"]) {
@@ -61,6 +72,7 @@ test.skipIf(process.platform !== "linux")(
           expect(result.stderr).toBe("");
           const record = JSON.parse(result.stdout);
           expect(record.runtime.name).toBe(name);
+          if (name === "node") expect(record.runtime.version).toBe(nodeVersion);
           expect(record.runtime.path).toBe(fs.realpathSync(runtime!));
           expect(record.runtime.hash).toMatch(/^[a-f0-9]{64}$/);
           expect(record.controllerHash).toMatch(/^[a-f0-9]{64}$/);
@@ -102,17 +114,30 @@ test.skipIf(process.platform !== "linux")(
           pair[name!] = record;
         }
         expect(api.compare(pair.bun, pair.node)).toBe(
-          fixture === "minimal"
-            ? "bun-not-required"
-            : fixture === "passes"
-              ? "not-reproduced"
-              : "unavailable",
+          !supportsProbe
+            ? "unavailable"
+            : fixture === "minimal"
+              ? "bun-not-required"
+              : fixture === "passes"
+                ? "not-reproduced"
+                : "unavailable",
         );
         records.set(fixture, pair);
       }
       const red = records.get("minimal");
       const green = records.get("passes");
-      expect(api.compare(red.bun, green.node)).toBe("caller-dependent");
+      expect(api.compare(red.bun, green.node)).toBe(
+        supportsProbe ? "caller-dependent" : "unavailable",
+      );
+      // metadataの版だけを変え、Node 20の拒否とNode 22の受理を同じ条件で照合する。
+      for (const [version, expected] of [
+        ["20.19.0", "unavailable"],
+        ["22.12.0", "bun-not-required"],
+      ]) {
+        const declared = structuredClone(red.node);
+        declared.runtime.version = version;
+        expect(api.compare(red.bun, declared)).toBe(expected);
+      }
       for (const mutate of [
         (record: any) => {
           record.cases[0].probes[1].status = 0;
@@ -212,8 +237,7 @@ test.skipIf(process.platform !== "linux")(
   async () => {
     const directory = fs.mkdtempSync(join(tmpdir(), "namespace-environment-contract-"));
     try {
-      const node = Bun.which("node");
-      expect(node).not.toBeNull();
+      const { path: node, version: nodeVersion, supportsProbe } = selectedNode();
       const capture = join(directory, "capture.jsonl");
       const behavior = join(directory, "behavior");
       const unshare = join(directory, "unshare.mjs");
@@ -280,6 +304,7 @@ test.skipIf(process.platform !== "linux")(
             }
           }
           expect(record.runtime.name).toBe("node");
+          expect(record.runtime.version).toBe(nodeVersion);
           expect(record.before).toEqual(record.after);
           expect(record.cases).toHaveLength(2);
           const probes = record.cases.flatMap((entry: any) => entry.probes);
@@ -307,12 +332,23 @@ test.skipIf(process.platform !== "linux")(
         }
         expect(pair.inherited.probeEnvironment).toBe("inherited");
         expect(pair.empty.probeEnvironment).toBe("empty");
-        expect(api.compareEnvironment(pair.inherited, pair.empty)).toBe(expected);
+        expect(api.compareEnvironment(pair.inherited, pair.empty)).toBe(
+          supportsProbe ? expected : "unavailable",
+        );
         pairs.set(variant!, pair);
       }
       const red = pairs.get("red")!;
       const green = pairs.get("passes")!;
       expect(api.compareEnvironment(green.inherited, red.empty)).toBe("unavailable");
+      for (const [version, expected] of [
+        ["20.19.0", "unavailable"],
+        ["22.12.0", "environment-not-required"],
+      ]) {
+        const inherited = structuredClone(red.inherited);
+        const empty = structuredClone(red.empty);
+        inherited.runtime.version = empty.runtime.version = version;
+        expect(api.compareEnvironment(inherited, empty)).toBe(expected);
+      }
       for (const mutate of [
         (record: any) => {
           record.probeEnvironment = "inherited";

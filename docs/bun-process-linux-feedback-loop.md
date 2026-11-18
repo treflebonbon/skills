@@ -120,7 +120,7 @@ UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、user / pid / moun
 
 `development/probe-linux-namespace-caller.mjs environment SOURCE OUTPUT` を既存workflowから実行する。新しい実行体・依存を導入せず、専用Nix/group準備・正式44ケース・集約はスキップする。source/workflow/run/attempt、Nodeの実行体・版・親PID、unshare実体、caller資格情報・namespace識別子・LSM等の一致を要求する。
 
-`probeEnvironment` は `inherited` / `empty` の方式だけを示す。記録する5環境変数はcallerの観測であり、空にしたunshare環境の値ではない。環境変数全体・認証値・変数一覧を記録しない。fixtureでは既知の非機密sentinelと子側の変数数で、空の環境が実際に渡ることを確認する。
+`probeEnvironment` は `inherited` / `empty` の方式だけを示す。記録する5環境変数はcallerの観測であり、空にしたunshare環境の値ではない。環境変数全体・認証値・変数一覧を記録しない。Node 20.19以上というrepoのengine契約は維持し、契約fixtureでは選択Nodeの実版を確認して20系の拒否と22以上の比較を分ける。専用CIは最小版20.19.0でこのfixtureだけを実行し、実測modeのNode 22以上という条件は変えない。fixtureでは既知の非機密sentinelと子側の変数数で、空の環境が実際に渡ることを確認する。
 
 | 結果                       | 条件                                                        | 終了コード |
 | -------------------------- | ----------------------------------------------------------- | ---------- |
