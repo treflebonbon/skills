@@ -8,6 +8,37 @@ import { pathToFileURL } from "node:url";
 const root = resolve(import.meta.dir, "../..");
 const modulePath = join(root, "development/probe-linux-namespace-launch.py");
 
+/** 2つの一条件比較で、同じ子の観測形式を使う。 */
+function createUnshareFixture(directory: string, node: string, dependentOn: "cwd" | "stdout") {
+  const capture = join(directory, "capture.jsonl");
+  const behavior = join(directory, "behavior");
+  const unshare = join(directory, "unshare.mjs");
+  fs.writeFileSync(
+    unshare,
+    [
+      "#!" + node,
+      'import * as fs from "node:fs";',
+      'if (process.argv[2] === "--version") { console.log("fixture-unshare"); process.exit(0); }',
+      "const capture = " + JSON.stringify(capture) + ";",
+      "const behavior = fs.readFileSync(" + JSON.stringify(behavior) + ', "utf8");',
+      'const count = fs.readFileSync(capture,"utf8").trim().split("\\n").filter(Boolean).length;',
+      "const outPipe = fs.fstatSync(1).isFIFO();",
+      'fs.appendFileSync(capture,JSON.stringify({pid:process.pid,ppid:process.ppid,cwd:process.cwd(),keys:Object.keys(process.env).length,sentinel:process.env.PROBE_ENV_SENTINEL==="public-fixture",stdinNull:fs.readlinkSync("/proc/self/fd/0")==="/dev/null",stdioFlags:[0,1,2].map(fd=>fs.readFileSync("/proc/self/fdinfo/"+fd,"utf8").match(/^flags:\\s+(.*)$/m)[1]),outSocket:fs.fstatSync(1).isSocket(),outPipe,errSocket:fs.fstatSync(2).isSocket()})+"\\n");',
+      'if (process.argv[2]==="--map-current-user" && behavior!=="passes") {',
+      ' if (behavior==="dependent" && ' +
+        (dependentOn === "cwd" ? 'process.cwd()==="/"' : "outPipe") +
+        ") process.exit(0);",
+      ' if (behavior==="mixed" && count===1) process.exit(0);',
+      ' process.stderr.write(behavior==="other" ? "unshare: other failure\\n" : "unshare: write failed /proc/self/uid_map: Operation not permitted\\n");',
+      " process.exitCode=1;",
+      "}",
+      "",
+    ].join("\n"),
+    { mode: 0o700 },
+  );
+  return { capture, behavior, unshare };
+}
+
 test.skipIf(process.platform !== "linux")(
   "起動経路比較は共通Python親からNode経由と直接起動を空環境・pipeで照合する",
   () => {
@@ -267,29 +298,7 @@ test.skipIf(process.platform !== "linux")(
     try {
       const node = fs.realpathSync(Bun.which("node")!);
       const python = Bun.which("python3")!;
-      const capture = join(directory, "cwd.jsonl");
-      const behavior = join(directory, "behavior");
-      const unshare = join(directory, "unshare.mjs");
-      fs.writeFileSync(
-        unshare,
-        [
-          "#!" + node,
-          'import * as fs from "node:fs";',
-          'if (process.argv[2] === "--version") { console.log("fixture-unshare"); process.exit(0); }',
-          "const capture = " + JSON.stringify(capture) + ";",
-          "const behavior = fs.readFileSync(" + JSON.stringify(behavior) + ', "utf8");',
-          'const count = fs.readFileSync(capture, "utf8").trim().split("\\n").filter(Boolean).length;',
-          'fs.appendFileSync(capture, JSON.stringify({pid:process.pid,ppid:process.ppid,cwd:process.cwd(),keys:Object.keys(process.env).length,sentinel:process.env.PROBE_ENV_SENTINEL === "public-fixture",stdinNull:fs.readlinkSync("/proc/self/fd/0") === "/dev/null",stdioFlags:[0,1,2].map(fd=>fs.readFileSync("/proc/self/fdinfo/"+fd,"utf8").match(/^flags:\\s+(.*)$/m)[1]),outSocket:fs.fstatSync(1).isSocket(),errSocket:fs.fstatSync(2).isSocket()})+"\\n");',
-          'if (process.argv[2] === "--map-current-user" && behavior !== "passes") {',
-          ' if (behavior === "dependent" && process.cwd() === "/") process.exit(0);',
-          ' if (behavior === "mixed" && count === 1) process.exit(0);',
-          ' process.stderr.write(behavior === "other" ? "unshare: other failure\\n" : "unshare: write failed /proc/self/uid_map: Operation not permitted\\n");',
-          " process.exitCode=1;",
-          "}",
-          "",
-        ].join("\n"),
-        { mode: 0o700 },
-      );
+      const { capture, behavior, unshare } = createUnshareFixture(directory, node, "cwd");
       const code = [
         "import copy,importlib.util,json,sys",
         'spec=importlib.util.spec_from_file_location("probe",' + JSON.stringify(modulePath) + ")",
@@ -428,30 +437,7 @@ test.skipIf(process.platform !== "linux")(
     try {
       const node = fs.realpathSync(Bun.which("node")!);
       const python = Bun.which("python3")!;
-      const capture = join(directory, "stdout.jsonl");
-      const behavior = join(directory, "behavior");
-      const unshare = join(directory, "unshare.mjs");
-      fs.writeFileSync(
-        unshare,
-        [
-          "#!" + node,
-          'import * as fs from "node:fs";',
-          'if (process.argv[2] === "--version") { console.log("fixture-unshare"); process.exit(0); }',
-          "const capture = " + JSON.stringify(capture) + ";",
-          "const behavior = fs.readFileSync(" + JSON.stringify(behavior) + ', "utf8");',
-          'const count = fs.readFileSync(capture,"utf8").trim().split("\\n").filter(Boolean).length;',
-          "const outPipe = fs.fstatSync(1).isFIFO();",
-          'fs.appendFileSync(capture,JSON.stringify({pid:process.pid,ppid:process.ppid,cwd:process.cwd(),keys:Object.keys(process.env).length,sentinel:process.env.PROBE_ENV_SENTINEL==="public-fixture",stdinNull:fs.readlinkSync("/proc/self/fd/0")==="/dev/null",stdioFlags:[0,1,2].map(fd=>fs.readFileSync("/proc/self/fdinfo/"+fd,"utf8").match(/^flags:\\s+(.*)$/m)[1]),outSocket:fs.fstatSync(1).isSocket(),outPipe,errSocket:fs.fstatSync(2).isSocket()})+"\\n");',
-          'if (process.argv[2]==="--map-current-user" && behavior!=="passes") {',
-          ' if (behavior==="dependent" && outPipe) process.exit(0);',
-          ' if (behavior==="mixed" && count===1) process.exit(0);',
-          ' process.stderr.write(behavior==="other" ? "unshare: other failure\\n" : "unshare: write failed /proc/self/uid_map: Operation not permitted\\n");',
-          " process.exitCode=1;",
-          "}",
-          "",
-        ].join("\n"),
-        { mode: 0o700 },
-      );
+      const { capture, behavior, unshare } = createUnshareFixture(directory, node, "stdout");
       const code = [
         "import copy,importlib.util,json,sys",
         'spec=importlib.util.spec_from_file_location("probe",' + JSON.stringify(modulePath) + ")",
@@ -487,7 +473,7 @@ test.skipIf(process.platform !== "linux")(
         'print("RESULT "+json.dumps(record))',
       ].join("\n");
       for (const [variant, expected] of [
-        ["red", "stdout-socket-not-required"],
+        ["both-eperm", "stdout-socket-not-required"],
         ["dependent", "stdout-type-dependent"],
         ["passes", "not-reproduced"],
         ["other", "unavailable"],
