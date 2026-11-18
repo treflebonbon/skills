@@ -18,7 +18,7 @@ flowchart TD
   P --> H[専用 HOME と scratch へ書込み]
 ```
 
-選択した Bun は `/nix/store/0m78sw4631vp4b3awfi0cr5laj0375qa-bun-1.4.4/bin/bun`。binary の SHA-256 は `111aefb9597cb10b201e2f3a40407f1557ac6714868481db14c6cb21ebd5cd7c`。Bun 単体の closure は5 paths、Bash・coreutils を合わせた closure は12 paths だった。roots、全 closure、選択した各 executable、版、Bun の hash を JSON に記録し、コピー元とコピー先 DB の集合が一致しなければ停止する。
+選択した Bun は `<nix-store>/bun-1.4.4/bin/bun`（`<nix-store>` は採取時の store path のハッシュ部分までを表す）。binary の SHA-256 は `111aefb9597cb10b201e2f3a40407f1557ac6714868481db14c6cb21ebd5cd7c`。Bun 単体の closure は5 paths、Bash・coreutils を合わせた closure は12 paths だった。roots、全 closure、選択した各 executable、版、Bun の hash を JSON に記録し、コピー元とコピー先 DB の集合が一致しなければ停止する。
 
 [nix copy の公式資料](https://github.com/NixOS/nix/blob/master/src/nix/copy.md)と [requisites の公式資料](https://github.com/NixOS/nix/blob/master/doc/manual/source/command-ref/nix-store/query.md)も参照する。コピー先は `file://` cache ではなく directory 形式の store。インストール済みの store paths だけを入力にし、外部 flake の評価・更新や package の取得は行わない。
 
