@@ -425,27 +425,27 @@ def finalize(root, output, version, prepare_status, perl_status, gate_status, ba
         baseline_file = output / "namespace-bash-perl.json"
         if baseline_file.exists():
             record["measurements"]["perl"] = json.loads(baseline_file.read_text())
-        changed = load_bash(output, version, checkpoint)
-        if changed is not None:
-            record["measurements"]["bash"] = changed
+        bash_measurement = load_bash(output, version, checkpoint)
+        if bash_measurement is not None:
+            record["measurements"]["bash"] = bash_measurement
         verified = check_checkpoint(root, output, version)
         gate = json.loads((output / "namespace-bash-gate.json").read_text())
         baseline, common = record["measurements"]["perl"], parent.ancestry()[1:]
-        first = parent.measurement_outcome(baseline, "perl", common, stdin_type="closed")
+        perl_outcome = parent.measurement_outcome(baseline, "perl", common, stdin_type="closed")
         if (
             prepare_status != READY or perl_status != 0 or verified != checkpoint
             or gate.get("baseline") != baseline or gate.get("identity") != checkpoint["identity"]
-            or gate.get("controllerHashes") != hashes() or gate.get("outcome") != first
+            or gate.get("controllerHashes") != hashes() or gate.get("outcome") != perl_outcome
             or baseline.get("before") != checkpoint["context"] or baseline.get("unshare") != checkpoint["unshare"]
         ):
             raise ValueError("比較段階またはbaselineが一致しません")
-        if first == "not-reproduced" and gate_status == parent.FINAL_CLEAR and bash_status == -1 and changed is None:
+        if perl_outcome == "not-reproduced" and gate_status == parent.FINAL_CLEAR and bash_status == -1 and bash_measurement is None:
             record["outcome"] = "not-reproduced"
-        elif first == "uid-map-eperm" and gate_status == BASELINE_READY and bash_status == 0 and changed is not None:
-            second = bash_outcome(changed, common, checkpoint)
-            probes = [probe for item in (baseline, changed) for case in item["cases"] for probe in case["probes"]]
+        elif perl_outcome == "uid-map-eperm" and gate_status == BASELINE_READY and bash_status == 0 and bash_measurement is not None:
+            direct_outcome = bash_outcome(bash_measurement, common, checkpoint)
+            probes = [probe for item in (baseline, bash_measurement) for case in item["cases"] for probe in case["probes"]]
             if len({probe["pid"] for probe in probes}) == 12:
-                record["outcome"] = {"uid-map-eperm": "perl-layer-not-required", "not-reproduced": "perl-layer-dependent"}.get(second, "unavailable")
+                record["outcome"] = {"uid-map-eperm": "perl-layer-not-required", "not-reproduced": "perl-layer-dependent"}.get(direct_outcome, "unavailable")
         if record["outcome"] == "unavailable":
             raise ValueError("起動層の比較条件・raw結果が成立しません")
         if validate(root) != record["identity"] or hashes() != record["controllerHashes"]:
