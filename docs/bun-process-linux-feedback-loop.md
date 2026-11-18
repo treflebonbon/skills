@@ -1,6 +1,6 @@
 # Linux namespace の再現ループ
 
-状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
+状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。最新の[起動経路比較](evidence/linux-namespace-launch/44232172294-1/README.md)ではNode測定器を外した直接起動でも同じEPERMを再現した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
 
 ## 測る対象
 
@@ -131,13 +131,15 @@ UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、user / pid / moun
 | `not-reproduced`           | 全12回が成功                                                | 0          |
 | `unavailable`              | 別エラー・混在・条件不一致・観測不足                        | 2          |
 
-今回の比較では `env` 引数全体を空にしても再現したため、空の環境を減らした再現条件として採用する。個別変数の効果やOS / LSMの原因を確定したとは扱わない。Nodeの起動経路・cwdなどの固定条件は残っており、失敗したunshare自身の拒否時の状態は未観測。記録したcallerのLSM contextだけで拒否原因を断定しない。
+今回の比較では `env` 引数全体を空にしても再現したため、空の環境を減らした再現条件として採用する。個別変数の効果やOS / LSMの原因を確定したとは扱わない。後続の[起動経路比較](evidence/linux-namespace-launch/44232172294-1/README.md)ではNode測定器を外した直接起動でも再現した。cwdなどの固定条件は残っており、失敗したunshare自身の拒否時の状態は未観測。記録したcallerのLSM contextだけで拒否原因を断定しない。
 
 結果は `namespace-environment.json` と `environment-inherited.json` / `environment-empty.json` にwx0600で保存する。新しい `[DEBUG-ns-env]` JSON行には各probeの方式・argv・PID・時刻・終了状態と上限付き出力を記録し、各streamの1024文字を超える場合は `logTruncated` を示す。run名は `Linux namespace 環境比較: <source SHA>`、artifact名は `namespace-environment-<run>-<attempt>-<arch>`。新しいSHAに固定した1runを事前承認してから測定し、結果は新しいActionsログで確認する。過去に拒否されたartifactや一時ログへはアクセスしない。
 
 ## 次の最小化: Node測定器を起動経路から外す
 
-`mode=probe-launch` は導入済みPython 3を共通親として、空環境のNode経由とPythonからの直接起動を比較する。測定コードは準備済みで、実VMでの追加測定は未実行。
+[run 44232172294 / attempt 1](evidence/linux-namespace-launch/44232172294-1/README.md) で、x64 / arm64ともNode経由とPython直接起動の最小argvが各3回同じEPERM、成功対照が各3回成功した。全24回の公開ログを直接照合し、両構成とも `node-not-required`。この条件でNode測定器を含む起動層は再現に必須ではない。
+
+`mode=probe-launch` は導入済みPython 3を共通親として、空環境のNode経由とPythonからの直接起動を比較する。
 
 `python3 -I control/development/probe-linux-namespace-launch.py SOURCE OUTPUT NODE` で起動する。Node側は既存MJSの `measure-environment ... empty` を再利用する。最初にNode経由で最小argvが3/3同じEPERM、対照が3/3成功することと共通親の条件を確認し、その場合だけ直接起動を各3回測る。最大12回/architecture。Node側で全6回が成功した場合は直接起動を省略して `not-reproduced` とし、別エラー・混在・条件不一致は `unavailable` で停止する。
 
@@ -156,4 +158,4 @@ UID / EUID / GID・group、namespace識別子、callerのcapability / NoNewPrivs
 
 結果は `namespace-launch.json`、Node側の記録は `launch-node.json` にwx0600で保存する。新しい `[DEBUG-ns-launch]` JSON行にはcaller条件・各argv・PID・時刻・終了状態を記録し、stdout/stderrは各1024文字まで、省略時は `logTruncated` を示す。環境変数全体や認証値は出力しない。
 
-既存Bun setupは維持し、新しい依存のinstallは行わない。専用Nix/group準備、正式44ケース、集約はスキップする。run名は `Linux namespace 起動経路比較: <source SHA>`、artifact名は `namespace-launch-<run>-<attempt>-<arch>`。新しいSHAに固定した1runを事前承認し、結果は新しい公開Actionsログで確認する。artifact取得は今回の準備に含めない。
+既存Bun setupは維持し、新しい依存のinstallは行わない。専用Nix/group準備、正式44ケース、集約はスキップする。run名は `Linux namespace 起動経路比較: <source SHA>`、artifact名は `namespace-launch-<run>-<attempt>-<arch>`。新しいSHAに固定した1runを事前承認し、結果は新しい公開Actionsログで確認する。今回の実行は承認どおり1回で、artifactの取得・読取は行っていない。
