@@ -1,5 +1,5 @@
 name: Linux process proof
-run-name: "${{ inputs.mode == 'probe-caller' && 'Linux namespace caller比較' || inputs.mode == 'probe-isolate' && 'Linux namespace 独立測定' || inputs.mode == 'probe-minimize' && 'Linux namespace オプション削減' || inputs.mode == 'probe-loop' && 'Linux namespace 再現ループ' || 'Linux process proof' }}: ${{ inputs.source_sha }}"
+run-name: "${{ inputs.mode == 'probe-environment' && 'Linux namespace 環境比較' || inputs.mode == 'probe-caller' && 'Linux namespace caller比較' || inputs.mode == 'probe-isolate' && 'Linux namespace 独立測定' || inputs.mode == 'probe-minimize' && 'Linux namespace オプション削減' || inputs.mode == 'probe-loop' && 'Linux namespace 再現ループ' || 'Linux process proof' }}: ${{ inputs.source_sha }}"
 
 on:
   workflow_dispatch:
@@ -19,6 +19,7 @@ on:
           - probe-minimize
           - probe-isolate
           - probe-caller
+          - probe-environment
 
 concurrency:
   group: linux-process-proof-${{ inputs.source_sha }}
@@ -32,7 +33,7 @@ jobs:
   proof:
     permissions:
       contents: read
-    name: "${{ inputs.mode == 'probe-caller' && 'namespace caller比較' || inputs.mode == 'probe-isolate' && 'namespace 独立測定' || inputs.mode == 'probe-minimize' && 'namespace オプション削減' || inputs.mode == 'probe-loop' && 'namespace 再現ループ' || 'Linux 追加実証' }} (${{ matrix.arch }})"
+    name: "${{ inputs.mode == 'probe-environment' && 'namespace 環境比較' || inputs.mode == 'probe-caller' && 'namespace caller比較' || inputs.mode == 'probe-isolate' && 'namespace 独立測定' || inputs.mode == 'probe-minimize' && 'namespace オプション削減' || inputs.mode == 'probe-loop' && 'namespace 再現ループ' || 'Linux 追加実証' }} (${{ matrix.arch }})"
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -51,7 +52,7 @@ jobs:
       - name: 入力 SHA と方式を検査
         run: |
           [[ "$PROOF_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$PROOF_MODE" == proof || "$PROOF_MODE" == probe-loop || "$PROOF_MODE" == probe-minimize || "$PROOF_MODE" == probe-isolate || "$PROOF_MODE" == probe-caller ]]
+          [[ "$PROOF_MODE" == proof || "$PROOF_MODE" == probe-loop || "$PROOF_MODE" == probe-minimize || "$PROOF_MODE" == probe-isolate || "$PROOF_MODE" == probe-caller || "$PROOF_MODE" == probe-environment ]]
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.sha }}
@@ -66,7 +67,7 @@ jobs:
         with:
           bun-version: "1.4.4"
       - name: CI 専用依存と補助 group を準備
-        if: inputs.mode != 'probe-isolate' && inputs.mode != 'probe-caller'
+        if: inputs.mode != 'probe-isolate' && inputs.mode != 'probe-caller' && inputs.mode != 'probe-environment'
         run: |
           mkdir -p "$RUNNER_TEMP/linux-proof"
           bash control/development/setup-linux-process-proof.sh "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof" \
@@ -89,11 +90,15 @@ jobs:
         if: inputs.mode == 'probe-caller'
         timeout-minutes: 2
         run: node control/development/probe-linux-namespace-caller.mjs run "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof" "$(command -v bun)"
+      - name: Nodeを固定してunshareの継承環境と空環境を比較
+        if: inputs.mode == 'probe-environment'
+        timeout-minutes: 2
+        run: node control/development/probe-linux-namespace-caller.mjs environment "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof"
       - name: 成功・失敗の生証跡を保存
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ inputs.mode == 'probe-caller' && 'namespace-caller' || inputs.mode == 'probe-isolate' && 'namespace-isolate' || inputs.mode == 'probe-minimize' && 'namespace-minimize' || inputs.mode == 'probe-loop' && 'namespace-loop' || 'linux-proof' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
+          name: ${{ inputs.mode == 'probe-environment' && 'namespace-environment' || inputs.mode == 'probe-caller' && 'namespace-caller' || inputs.mode == 'probe-isolate' && 'namespace-isolate' || inputs.mode == 'probe-minimize' && 'namespace-minimize' || inputs.mode == 'probe-loop' && 'namespace-loop' || 'linux-proof' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
           path: ${{ runner.temp }}/linux-proof/
           if-no-files-found: error
           retention-days: 90

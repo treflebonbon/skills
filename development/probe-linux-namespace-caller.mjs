@@ -12,7 +12,10 @@ const scenarios = [
   ["control", ["--", "/usr/bin/true"]],
 ];
 const hash = (path) => createHash("sha256").update(fs.readFileSync(path)).digest("hex");
-const emit = (value) => console.log("[DEBUG-ns-caller] " + JSON.stringify(value));
+const logPrefix = ["environment", "measure-environment"].includes(process.argv[2])
+  ? "[DEBUG-ns-env] "
+  : "[DEBUG-ns-caller] ";
+const emit = (value) => console.log(logPrefix + JSON.stringify(value));
 const contexts = [
   "/proc/self/uid_map",
   "/proc/self/gid_map",
@@ -81,10 +84,14 @@ function outcome(record) {
   return "unavailable";
 }
 
-// 両runtimeで同じコード・spawnSync API・argv・stdio・継承環境を使う。
-export function measure(executable, root) {
+// 両比較で同じコード・argv・stdio・上限を使い、環境比較だけ子へ渡すenvを変更する。
+export function measure(executable, root, probeEnvironment = "inherited") {
+  if (!["inherited", "empty"].includes(probeEnvironment))
+    throw new Error("probeの環境方式が不正です");
+  const probeEnv = probeEnvironment === "empty" ? {} : process.env;
   const record = {
     schema: "linux-namespace-caller/v1",
+    probeEnvironment,
     runtime: {
       name: process.versions.bun ? "bun" : "node",
       version: process.versions.bun ?? process.versions.node,
@@ -110,7 +117,7 @@ export function measure(executable, root) {
       const started = performance.now();
       const result = spawnSync(executable, argv, {
         cwd: root,
-        env: process.env,
+        env: probeEnv,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
         timeout: 5_000,
@@ -138,17 +145,25 @@ export function measure(executable, root) {
   return record;
 }
 
+function sameConditions(first, second) {
+  return (
+    first.controllerHash === second.controllerHash &&
+    JSON.stringify(first.unshare) === JSON.stringify(second.unshare) &&
+    JSON.stringify(first.before) === JSON.stringify(second.before) &&
+    first.outcome === outcome(first) &&
+    second.outcome === outcome(second)
+  );
+}
+
 export function compare(bun, node) {
   if (
     bun.runtime?.name !== "bun" ||
     bun.runtime.version !== "1.4.4" ||
     node.runtime?.name !== "node" ||
     Number(node.runtime.version.split(".")[0]) < 22 ||
-    bun.controllerHash !== node.controllerHash ||
-    JSON.stringify(bun.unshare) !== JSON.stringify(node.unshare) ||
-    JSON.stringify(bun.before) !== JSON.stringify(node.before) ||
-    bun.outcome !== outcome(bun) ||
-    node.outcome !== outcome(node)
+    bun.probeEnvironment !== "inherited" ||
+    node.probeEnvironment !== "inherited" ||
+    !sameConditions(bun, node)
   )
     return "unavailable";
   if (bun.outcome === "uid-map-eperm" && node.outcome === "uid-map-eperm")
@@ -156,6 +171,32 @@ export function compare(bun, node) {
   if (bun.outcome === "uid-map-eperm" && node.outcome === "not-reproduced")
     return "caller-dependent";
   if (bun.outcome === "not-reproduced" && node.outcome === "not-reproduced")
+    return "not-reproduced";
+  return "unavailable";
+}
+
+export function compareEnvironment(inherited, empty) {
+  if (
+    [inherited, empty].some(
+      (record) =>
+        record.runtime?.name !== "node" ||
+        !/^\d+\.\d+\.\d+$/.test(record.runtime.version) ||
+        Number(record.runtime.version.split(".")[0]) < 22,
+    ) ||
+    inherited.runtime.path !== empty.runtime.path ||
+    inherited.runtime.hash !== empty.runtime.hash ||
+    inherited.runtime.version !== empty.runtime.version ||
+    inherited.runtime.ppid !== empty.runtime.ppid ||
+    inherited.probeEnvironment !== "inherited" ||
+    empty.probeEnvironment !== "empty" ||
+    !sameConditions(inherited, empty)
+  )
+    return "unavailable";
+  if (inherited.outcome === "uid-map-eperm" && empty.outcome === "uid-map-eperm")
+    return "environment-not-required";
+  if (inherited.outcome === "uid-map-eperm" && empty.outcome === "not-reproduced")
+    return "environment-dependent";
+  if (inherited.outcome === "not-reproduced" && empty.outcome === "not-reproduced")
     return "not-reproduced";
   return "unavailable";
 }
@@ -188,7 +229,7 @@ function validate(root) {
       : Number(process.versions.node.split(".")[0]) < 22)
   )
     throw new Error(
-      "caller比較はUbuntu 24.04・指定architecture・Bun 1.4.4 / Node 22以上・非rootで実行してください",
+      "namespace比較はUbuntu 24.04・指定architecture・Bun 1.4.4 / Node 22以上・非rootで実行してください",
     );
   if (
     fs.existsSync("/nix") ||
@@ -253,6 +294,7 @@ function validate(root) {
 function logMeasurement(record) {
   emit({
     runtime: record.runtime,
+    probeEnvironment: record.probeEnvironment,
     controllerHash: record.controllerHash,
     unshare: record.unshare,
     before: record.before,
@@ -263,6 +305,7 @@ function logMeasurement(record) {
     for (const probe of scenario.probes)
       emit({
         runtime: record.runtime.name,
+        probeEnvironment: record.probeEnvironment,
         case: scenario.name,
         ...probe,
         stdout: probe.stdout.slice(0, 1024),
@@ -272,22 +315,46 @@ function logMeasurement(record) {
       });
 }
 function main(args) {
-  const [mode, source, output, bunPath] = args;
-  if (!["run", "measure"].includes(mode) || !source || !output)
-    throw new Error("run SOURCE OUTPUT BUN / measure SOURCE OUTPUT が必要です");
+  const [mode, source, output] = args;
+  const environment = mode === "environment" || mode === "measure-environment";
+  const measuring = mode === "measure" || mode === "measure-environment";
+  const bunPath = mode === "run" ? args[3] : undefined;
+  const probeEnvironment = mode === "measure-environment" ? args[3] : "inherited";
+  if (
+    !["run", "measure", "environment", "measure-environment"].includes(mode) ||
+    !source ||
+    !output
+  )
+    throw new Error(
+      "run SOURCE OUTPUT BUN / environment SOURCE OUTPUT / measure SOURCE OUTPUT が必要です",
+    );
+  if (mode === "measure-environment" && !["inherited", "empty"].includes(probeEnvironment))
+    throw new Error("probeの環境方式が不正です");
   const root = resolve(source);
-  if (mode === "run") fs.mkdirSync(output, { recursive: true, mode: 0o700 });
-  const path = mode === "run" ? join(output, "namespace-caller.json") : output;
+  if (!measuring) fs.mkdirSync(output, { recursive: true, mode: 0o700 });
+  const path = measuring
+    ? output
+    : join(output, environment ? "namespace-environment.json" : "namespace-caller.json");
   const fd = fs.openSync(path, "wx", 0o600);
-  let record = { schema: "linux-namespace-caller-comparison/v1", outcome: "unavailable" };
+  let record = {
+    schema: environment
+      ? "linux-namespace-environment-comparison/v1"
+      : "linux-namespace-caller-comparison/v1",
+    outcome: "unavailable",
+  };
   try {
     const identity = validate(root);
-    if (mode === "measure") {
-      record = { ...measure("/usr/bin/unshare", root), identity };
+    if (environment && process.versions.bun) throw new Error("環境比較はNode.jsで実行してください");
+    if (measuring) {
+      record = { ...measure("/usr/bin/unshare", root, probeEnvironment), identity };
       logMeasurement(record);
     } else {
-      if (process.versions.bun || !bunPath) throw new Error("比較の親はNode.jsで起動してください");
-      const runtimes = { bun: fs.realpathSync(bunPath), node: fs.realpathSync(process.execPath) };
+      if (process.versions.bun || (!environment && !bunPath))
+        throw new Error("比較の親はNode.jsで起動してください");
+      const node = fs.realpathSync(process.execPath);
+      const runtimes = environment
+        ? { inherited: node, empty: node }
+        : { bun: fs.realpathSync(bunPath), node };
       const hashes = Object.fromEntries(
         Object.entries(runtimes).map(([name, path]) => [name, hash(path)]),
       );
@@ -300,8 +367,14 @@ function main(args) {
         runtimeHashes: hashes,
       });
       for (const [name, runtime] of Object.entries(runtimes)) {
-        const resultPath = join(output, "caller-" + name + ".json");
-        const result = spawnSync(runtime, [self, "measure", root, resultPath], {
+        const resultPath = join(
+          output,
+          (environment ? "environment-" : "caller-") + name + ".json",
+        );
+        const childArgs = environment
+          ? [self, "measure-environment", root, resultPath, name]
+          : [self, "measure", root, resultPath];
+        const result = spawnSync(runtime, childArgs, {
           cwd: root,
           env: process.env,
           encoding: "utf8",
@@ -315,7 +388,9 @@ function main(args) {
         const observed = JSON.parse(fs.readFileSync(resultPath, "utf8"));
         record.measurements[name] = observed;
         if (
-          observed.runtime.name !== name ||
+          observed.runtime.name !== (environment ? "node" : name) ||
+          observed.probeEnvironment !== (environment ? name : "inherited") ||
+          observed.runtime.ppid !== process.pid ||
           observed.runtime.path !== runtime ||
           observed.runtime.hash !== hashes[name] ||
           JSON.stringify(observed.identity) !== JSON.stringify(identity) ||
@@ -323,10 +398,13 @@ function main(args) {
         )
           throw new Error(name + "の測定条件が一致しません");
       }
-      record.outcome = compare(record.measurements.bun, record.measurements.node);
+      record.outcome = environment
+        ? compareEnvironment(record.measurements.inherited, record.measurements.empty)
+        : compare(record.measurements.bun, record.measurements.node);
+      const baseline = record.measurements[environment ? "inherited" : "bun"];
       if (
         Object.entries(runtimes).some(([name, path]) => hash(path) !== hashes[name]) ||
-        hash(self) !== record.measurements.bun.controllerHash
+        hash(self) !== baseline.controllerHash
       )
         throw new Error("測定中に実行体またはcontrollerが変化しました");
       validate(root);
@@ -342,7 +420,13 @@ function main(args) {
       fs.closeSync(fd);
     }
   }
-  return ["uid-map-eperm", "bun-not-required", "caller-dependent"].includes(record.outcome)
+  return [
+    "uid-map-eperm",
+    "bun-not-required",
+    "caller-dependent",
+    "environment-not-required",
+    "environment-dependent",
+  ].includes(record.outcome)
     ? 1
     : record.outcome === "not-reproduced"
       ? 0

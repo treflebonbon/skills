@@ -113,3 +113,22 @@ UID・EUID・GID・group、capability / NoNewPrivs / Seccomp、user / pid / moun
 `bun-not-required` はこの比較にBunが必須ではないという結果であり、原因確定やPhase 2全体の完了ではない。`caller-dependent` でもruntime内部のどの差が必要かは未確定とする。
 
 新規の `namespace-caller.json` と `caller-bun.json` / `caller-node.json` を上書きせず0600で保存する。各probeのargv・PID・時刻・終了状態・stderrは `[DEBUG-ns-caller]` のJSON行で記録し、stdout/stderrは各1024文字まで、省略時は `logTruncated` を示す。run名・artifact名を正式実証と分け、44ケースと集約は実行しない。新しいsource SHAと最大12回/architectureの1runを対象に事前承認し、結果は新しいActionsログで確認する。以前のartifactの読取拒否は引き継ぐ。
+
+## 次の最小化: unshareへ渡す環境を空にする
+
+`mode=probe-environment` はcaller比較と同じ測定器を使い、Node.jsを固定して `unshare` の `env` 引数だけを変える。継承環境と空の環境 `{}` の各条件で、最小argvと成功対照を各3回、最大12回/architecture測る。Node自体と測定器はCIの継承環境で動作し、CI識別・hash照合・観測条件を維持する。Bun用setup stepも前回と同じまま保持し、probeはNodeだけから起動する。
+
+`development/probe-linux-namespace-caller.mjs environment SOURCE OUTPUT` を既存workflowから実行する。新しい実行体・依存を導入せず、専用Nix/group準備・正式44ケース・集約はスキップする。source/workflow/run/attempt、Nodeの実行体・版・親PID、unshare実体、caller資格情報・namespace識別子・LSM等の一致を要求する。
+
+`probeEnvironment` は `inherited` / `empty` の方式だけを示す。記録する5環境変数はcallerの観測であり、空にしたunshare環境の値ではない。環境変数全体・認証値・変数一覧を記録しない。fixtureでは既知の非機密sentinelと子側の変数数で、空の環境が実際に渡ることを確認する。
+
+| 結果                       | 条件                                                        | 終了コード |
+| -------------------------- | ----------------------------------------------------------- | ---------- |
+| `environment-not-required` | 両環境で最小argvが各3回同じEPERM、対照が各3回成功           | 1          |
+| `environment-dependent`    | 継承環境だけ最小argvが3回同じEPERM、空環境と両対照は3回成功 | 1          |
+| `not-reproduced`           | 全12回が成功                                                | 0          |
+| `unavailable`              | 別エラー・混在・条件不一致・観測不足                        | 2          |
+
+これは `env` 引数全体の削除を比較する。空の環境でも再現すれば、その入力を減らした再現条件を採用できる。再現しなくなれば、継承環境へ戻し、変数を一つずつ削って必要なものを絞る。個別変数の効果やOS / LSMの原因を確定したとは扱わない。
+
+結果は `namespace-environment.json` と `environment-inherited.json` / `environment-empty.json` にwx0600で保存する。新しい `[DEBUG-ns-env]` JSON行には各probeの方式・argv・PID・時刻・終了状態と上限付き出力を記録し、各streamの1024文字を超える場合は `logTruncated` を示す。run名は `Linux namespace 環境比較: <source SHA>`、artifact名は `namespace-environment-<run>-<attempt>-<arch>`。新しいSHAに固定した1runを事前承認してから測定し、結果は新しいActionsログで確認する。過去に拒否されたartifactや一時ログへはアクセスしない。
