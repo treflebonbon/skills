@@ -238,7 +238,7 @@ stdoutは両条件とも通常pipe、stdinは読み取り専用の `/dev/null` �
 
 ## 次の最小化: 共通Bash親の下でPython測定器を外す
 
-`mode=probe-parent` は同じBash親の子としてPython baselineを先に終了させ、正確な再現を確認した場合だけPerl測定器を起動する。PerlをPythonの子にはせず、共通Bashより下のPython測定器を含む起動層を除く比較とする。実VMでの新しい比較は未実行。
+`mode=probe-parent` は同じBash親の子としてPython baselineを先に終了させ、正確な再現を確認した場合だけPerl測定器を起動する。PerlをPythonの子にはせず、共通Bashより下のPython測定器を含む起動層を除く比較とする。承認済みの [run 44306659985 / attempt 1](https://github.com/treflebonbon/skills/actions/runs/44306659985) をsource / workflow `a5fc890c9cd94d1df5a43cf143625c18ad2e9d1e` で1回実行した。
 
 `bash control/development/probe-linux-namespace-parent.sh SOURCE OUTPUT` が制御する。Pythonは既存captureで最小argv `--map-current-user -- /usr/bin/true` と成功対照 `-- /usr/bin/true` を各3回測る。最小argvが3/3同じUID-map EPERM、対照が3/3成功した場合だけ段階間専用の終了コード42を返し、Perl側も各3回、最大12回/architectureを測る。baseline全6回成功ならPerl側を省略し、別エラー・混在・不足でも追加起動しない。Perlの失敗も含めてPythonの後処理へ渡し、取得済みbaselineを保持して判定する。
 
@@ -262,3 +262,7 @@ Bashが未使用の `OUTPUT` directoryを `mkdir` で排他的に確保し、取
 既存Bun setupを保持し、新規依存install・Cビルド・root化・sysctl/profile変更・特権journal参照は行わない。専用Nix/group準備・正式44ケース・集約をスキップし、run名 `Linux namespace Python起動層比較: <source SHA>`、artifact名 `namespace-parent-<run>-<attempt>-<arch>` で区別する。準備・レビュー・通常CIを終えた新しいSHAに固定した1runを事前承認してから実行し、新しい公開Actionsログで照合する。artifactの取得・読取や、過去に拒否された一時ログへのアクセスは行わない。
 
 原因確定とPhase 2全体の完了は未認定。stdin・共通親より上の祖先・OS / LSMなどの条件は残り、#33未完了・#82待ち、macOS 15と全子孫5秒保証を維持する。
+
+実測はx64・arm64とも `python-layer-not-required`。Python 3.12.3とPerl 5.38.2の両方で、最小argvは各3回同じUID-map EPERM、対照は各3回成功した。全24回にsignal・spawn error・ログ省略はなく、予定exit 1で完了した。共通BashのPID・start time ticks・祖先列、caller条件と測定前後、unshareの実体hashが各VM内で一致した。Python測定器を含む起動層を今回の再現条件から省けたが、Python祖先と起動APIの個別効果や拒否原因を確定したものではない。
+
+[実行記録と選択した公開JSON](evidence/linux-namespace-parent/44306659985-1/README.md) に各job17行・計34行を保存した。両jobの測定器4ファイルのhashは対象commitのGit blobと一致する。修正前 `dec76e9` へのCodeRabbitの11件の指摘は `a5fc890` で修正・返信・解決し、独立した仕様・規約レビューと通常CI全6ジョブの成功を確認した。最新差分へのCodeRabbit評価は回数制限で未完了という制約を了承した承認後の1runであり、artifactの取得・読取は行っていない。
