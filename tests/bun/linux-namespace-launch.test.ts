@@ -35,7 +35,7 @@ test.skipIf(process.platform !== "linux")(
           'const parent = fs.realpathSync("/proc/" + process.ppid + "/exe");',
           "const fromNode = parent === " + JSON.stringify(fs.realpathSync(node)) + ";",
           'const count = fs.readFileSync(capture, "utf8").trim().split("\\n").filter(Boolean).length;',
-          'fs.appendFileSync(capture, JSON.stringify({pid:process.pid, ppid:process.ppid, keys:Object.keys(process.env).length, sentinel:process.env.PROBE_ENV_SENTINEL === "public-fixture", cwd:process.cwd(), outSocket:fs.fstatSync(1).isSocket(), errSocket:fs.fstatSync(2).isSocket()}) + "\\n");',
+          'fs.appendFileSync(capture, JSON.stringify({pid:process.pid, ppid:process.ppid, keys:Object.keys(process.env).length, sentinel:process.env.PROBE_ENV_SENTINEL === "public-fixture", cwd:process.cwd(), stdinNull:fs.readlinkSync("/proc/self/fd/0") === "/dev/null", stdioFlags:[0,1,2].map(fd => fs.readFileSync("/proc/self/fdinfo/" + fd,"utf8").match(/^flags:\\s+(.*)$/m)[1]), outSocket:fs.fstatSync(1).isSocket(), errSocket:fs.fstatSync(2).isSocket()}) + "\\n");',
           'if (process.argv[2] === "--map-current-user" && behavior !== "passes") {',
           '  if (behavior === "dependent" && !fromNode) process.exit(0);',
           '  if (behavior === "mixed" && count === 1) process.exit(0);',
@@ -120,6 +120,8 @@ test.skipIf(process.platform !== "linux")(
           expect(observation.keys).toBe(0);
           expect(observation.sentinel).toBe(false);
           expect(observation.cwd).toBe(root);
+          expect(observation.stdinNull).toBe(true);
+          expect(observation.stdioFlags).toEqual(observed[0].stdioFlags);
           expect(observation.outSocket).toBe(true);
           expect(observation.errSocket).toBe(true);
         }

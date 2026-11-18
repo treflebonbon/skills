@@ -80,10 +80,11 @@ def capture(executable, argv, root, environment, timeout=5, limit=32 * 1024 * 10
     try:
         for name in buffers:
             sockets[name] = socket.socketpair()
-        child = subprocess.Popen(
-            [str(executable), *argv], cwd=root, env=environment,
-            stdin=subprocess.DEVNULL, stdout=sockets["stdout"][1], stderr=sockets["stderr"][1],
-        )
+        with open(os.devnull, "rb") as null_input:
+            child = subprocess.Popen(
+                [str(executable), *argv], cwd=root, env=environment,
+                stdin=null_input, stdout=sockets["stdout"][1], stderr=sockets["stderr"][1],
+            )
         result["pid"] = child.pid
         for reader, writer in sockets.values():
             writer.close()
