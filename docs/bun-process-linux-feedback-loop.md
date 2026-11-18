@@ -1,6 +1,6 @@
 # Linux namespace の再現ループ
 
-状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。最新の[stdin比較](evidence/linux-namespace-stdin/44366608889-1/README.md)では、同じPerl親・空環境・cwd `/`・両streamの通常pipeを保ち、stdinをexec直前に閉じても同じEPERMを再現した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
+状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。stdin比較に続く最新の[Bash直接起動比較](evidence/linux-namespace-bash/44418918065-1/README.md)では、共通Bashと上位祖先・閉鎖stdin・空環境・cwd `/`・両streamの通常pipeを保ち、Perlを含む起動層を外しても同じEPERMを再現した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
 
 ## 測る対象
 
@@ -210,12 +210,12 @@ stderrは両条件とも同じ匿名Unix socket、stdinは読み取り専用の 
 
 stdout比較の `stdout-socket-not-required` を受け、`mode=probe-stderr` は同じPython親からの直接起動・空環境・対象cwd `/` とstdoutの通常pipeを固定し、stderrだけを匿名Unix socketから通常pipeへ変える。[run 44271416358 / attempt 1](https://github.com/treflebonbon/skills/actions/runs/44271416358) をsource / workflow `6937f37083b47b393a60363a8e4d3dc03c85864d` で1回実行し、両構成とも `stderr-socket-not-required` を確認した。
 
-| architecture | stderrの指定方式 | 最小argv | 成功対照 |
-| --- | --- | --- | --- |
-| x64 | 匿名Unix socket | 3/3 EPERM | 3/3 成功 |
-| x64 | 通常pipe | 3/3 EPERM | 3/3 成功 |
-| arm64 | 匿名Unix socket | 3/3 EPERM | 3/3 成功 |
-| arm64 | 通常pipe | 3/3 EPERM | 3/3 成功 |
+| architecture | stderrの指定方式 | 最小argv  | 成功対照 |
+| ------------ | ---------------- | --------- | -------- |
+| x64          | 匿名Unix socket  | 3/3 EPERM | 3/3 成功 |
+| x64          | 通常pipe         | 3/3 EPERM | 3/3 成功 |
+| arm64        | 匿名Unix socket  | 3/3 EPERM | 3/3 成功 |
+| arm64        | 通常pipe         | 3/3 EPERM | 3/3 成功 |
 
 全24回のargv・PID・時刻・終了状態・stderr全文を新しい公開ログと照合し、signal・spawn error・ログ省略がないことを確認した。測定前後と条件間でPython親・実行体・caller条件が各VM内で一致し、測定コードhashも対象blobと一致した。[実行記録と選択した公開JSON](evidence/linux-namespace-stderr/44271416358-1/README.md)に保存した。今回の条件ではstderrのsocketも再現に必須ではなく、stdout/stderrを通常pipeにした状態でも最小argvのEPERMが続く。runのfailureは対象症状を検出した予定exit 1による。
 
@@ -248,12 +248,12 @@ stdoutは両条件とも通常pipe、stdinは読み取り専用の `/dev/null` �
 
 Pythonの祖先が消えることと、Python固有の起動API・process世代がPerlのfork/execへ変わることを一つの起動層として比較する。結果が依存を示しても、祖先と起動APIの個別効果は分離しない。
 
-| 結果 | 条件 | 終了コード |
-| --- | --- | --- |
-| `python-layer-not-required` | Python/Perlとも最小argvが各3回同じEPERM、対照が各3回成功 | 1 |
-| `python-layer-dependent` | Pythonだけ最小argvが3回同じEPERM、Perlと両対照は3回成功 | 1 |
-| `not-reproduced` | Python baselineの最小argvと対照が各3回成功、Perl側は省略 | 0 |
-| `unavailable` | 別エラー・混在・条件不一致・観測不足・起動段階の失敗 | 2 |
+| 結果                        | 条件                                                     | 終了コード |
+| --------------------------- | -------------------------------------------------------- | ---------- |
+| `python-layer-not-required` | Python/Perlとも最小argvが各3回同じEPERM、対照が各3回成功 | 1          |
+| `python-layer-dependent`    | Pythonだけ最小argvが3回同じEPERM、Perlと両対照は3回成功  | 1          |
+| `not-reproduced`            | Python baselineの最小argvと対照が各3回成功、Perl側は省略 | 0          |
+| `unavailable`               | 別エラー・混在・条件不一致・観測不足・起動段階の失敗     | 2          |
 
 Bashが未使用の `OUTPUT` directoryを `mkdir` で排他的に確保し、取得した実行だけが測定と後処理へ進む。Python baselineは全成功で41、正確な再現で42、後処理は全成功で44、比較成立で43を返す。Bashが後処理の44を最終0、43を最終1へ変換し、それ以外の終了コードは2にする。通常のinterpreter起動失敗は追加測定や再現成功を許可しない。`namespace-parent-python.json`、`namespace-parent-perl.json`、`namespace-parent.json` をwx0600で保存する。途中記録や不正な形の記録も保存を先に行い、ログ生成の失敗でbaselineを失わない。`[DEBUG-ns-parent]` はsource/workflow/run/attemptと測定器hash、各probeのargv/PID/時刻/終了状態を限定記録し、`parent` / `stdoutType` / `stderrType` と実出力を分ける。出力は各stream1024文字まで、省略時は `logTruncated` を示す。
 
@@ -277,12 +277,12 @@ Perl baselineは読み取り専用 `/dev/null` stdinで最小argv `--map-current
 
 空環境 `{}`、cwd `/`、stdout/stderrの別々の匿名通常pipeとflags、PerlのPID・start time ticks・共通Bashと上位祖先、非root資格情報と限定したcaller観測をそろえる。各probeの5秒・合算32MiB・未回収の所有子だけへのSIGKILLを維持する。
 
-| 結果 | 条件 | 最終終了コード |
-| --- | --- | --- |
-| `stdin-devnull-not-required` | 両stdin条件とも最小argvが各3回同じEPERM、対照が各3回成功 | 1 |
-| `stdin-devnull-dependent` | baselineの最小argvだけ3回同じEPERM、閉鎖側と両対照は各3回成功 | 1 |
-| `not-reproduced` | baselineの最小argvと対照が各3回成功、閉鎖側は省略 | 0 |
-| `unavailable` | 別エラー・混在・条件不一致・観測不足・段階の失敗 | 2 |
+| 結果                         | 条件                                                          | 最終終了コード |
+| ---------------------------- | ------------------------------------------------------------- | -------------- |
+| `stdin-devnull-not-required` | 両stdin条件とも最小argvが各3回同じEPERM、対照が各3回成功      | 1              |
+| `stdin-devnull-dependent`    | baselineの最小argvだけ3回同じEPERM、閉鎖側と両対照は各3回成功 | 1              |
+| `not-reproduced`             | baselineの最小argvと対照が各3回成功、閉鎖側は省略             | 0              |
+| `unavailable`                | 別エラー・混在・条件不一致・観測不足・段階の失敗              | 2              |
 
 同じPerl親・祖先列・caller条件・unshareの実体hashと版、各条件6件のraw結果をPython後処理で再検証する。baselineが別エラーや混在なら閉鎖側を起動しない。Bashが未使用OUTPUTを排他的に確保し、`namespace-stdin-checkpoint.json` / `namespace-stdin-perl.json` / `namespace-stdin.json` をwx0600で保存する。閉鎖側やJSON読取りの失敗でも、取得済みbaselineと準備時のidentity・hashを保持する。閉鎖側はbaselineのpath/hashを受け取り、測定開始時にも一致を要求する。Pythonの祖先再検査は、完了した6件をcheckpointへ格納してから行う。
 
@@ -302,9 +302,9 @@ callerの非ASCII cwdと、比較対象の `PATH` / `HOME` / `LANG` / `LC_ALL` /
 
 評価済み `9cda5dc` との差分は文書とテストのみで、測定コードとworkflowは同一。最新 `73e36ee` のCodeRabbit評価が回数制限で未完了という制約と、symlink環境を模す追加fixture再現の未確認を了承した承認後の1runである。独立した仕様・規約レビューは各指摘0件、通常CI全6ジョブの成功を確認した。artifactの取得・読取は行っていない。
 
-## 次の最小化: 共通BashからPerlを経由せず直接起動する
+## 起動経路の最小化: 共通BashからPerlを経由せず直接起動する
 
-stdin比較の結果を受け、`mode=probe-bash` はstdinをexec直前のfd 0閉鎖に固定し、Perlを含む起動層の要否を比較する。新しい実VM比較は未実行。`bash control/development/probe-linux-namespace-bash.sh SOURCE OUTPUT` で制御する。
+stdin比較の結果を受け、`mode=probe-bash` はstdinをexec直前のfd 0閉鎖に固定し、Perlを含む起動層の要否を比較する。承認済みの [run 44418918065 / attempt 1](https://github.com/treflebonbon/skills/actions/runs/44418918065) をsource / workflow `d358f8cab04c70cf3986f122b9df320bc4bcd60d` に固定して1回実行した。`bash control/development/probe-linux-namespace-bash.sh SOURCE OUTPUT` で制御する。
 
 共通Bashの別の子としてPython準備子、閉鎖stdinのPerl baseline、Pythonの段階検査、Bashの直接子であるunshare、Python後処理を順に待機する。baselineの最小argv `--map-current-user -- /usr/bin/true` と成功対照 `-- /usr/bin/true` を各3回測り、正確なUID-map EPERMと対照成功、caller・祖先・実行体の一致を確認した場合だけBash直接側を各3回測る。baseline全成功、別エラー、混在、条件不一致では直接側を起動しない。namespace probeは最大12回/architecture、x64・arm64で計24回。別に準備時のunshare版確認が1回/architectureある。
 
@@ -316,19 +316,25 @@ Bashは[process substitutionとcoprocess](https://www.gnu.org/software/bash/manu
 
 Bashの `wait` が返す128以上の値は、通常終了とsignalを推測で区別しない。元の `waitStatus` を保持し、`EWAITSTATUS` として `unavailable` にする。時間切れ・出力超過の `ETIMEDOUT` / `ENOBUFS` は別に保持する。正常な0/1と正確なstderrを確認できた測定だけを比較結果に使う。
 
-| 結果 | 条件 | 最終終了コード |
-| --- | --- | --- |
-| `perl-layer-not-required` | Perl/Bashとも最小argvが各3回同じEPERM、対照が各3回成功 | 1 |
-| `perl-layer-dependent` | Perlだけ最小argvが3回同じEPERM、Bashと両対照は各3回成功 | 1 |
-| `not-reproduced` | Perl baselineの最小argvと対照が各3回成功、Bash側は省略 | 0 |
-| `unavailable` | 別エラー・混在・条件不一致・観測不足・段階の失敗 | 2 |
+| 結果                      | 条件                                                    | 最終終了コード |
+| ------------------------- | ------------------------------------------------------- | -------------- |
+| `perl-layer-not-required` | Perl/Bashとも最小argvが各3回同じEPERM、対照が各3回成功  | 1              |
+| `perl-layer-dependent`    | Perlだけ最小argvが3回同じEPERM、Bashと両対照は各3回成功 | 1              |
+| `not-reproduced`          | Perl baselineの最小argvと対照が各3回成功、Bash側は省略  | 0              |
+| `unavailable`             | 別エラー・混在・条件不一致・観測不足・段階の失敗        | 2              |
 
 共通BashのPID世代と上位祖先、Bash/Perl/Pythonとunshareの実体hash、source/workflow/run/attempt、非root資格情報・namespace・限定したcaller観測を照合する。Bash自身の限定proc情報と、観測子へ継承された `PATH` / `HOME` / `LANG` / `LC_ALL` / `TMPDIR` の5値を使い、環境全体やcommand lineは読まない。`childBefore` はexec前のBash子の観測であり、失敗したunshare自身の拒否時LSMとは扱わない。
 
-Bashが未使用OUTPUTを排他的に確保する。準備の専用コード46でだけPerlを起動し、baselineの47でだけ直接側へ進む。後処理の43/44だけを最終1/0へ変換し、他は2にする。checkpoint、Perl raw、gate、Bash開始点、各probeのstream記録とwait結果、`namespace-bash.json` を0600で保存する。後続JSONや所有PIDの検査が失敗しても、準備時の出所と取得済みPerl baselineを保持する。
+Bashが未使用OUTPUTを排他的に確保する。準備の専用コード46でだけPerlを起動し、baselineの47でだけ直接側へ進む。後処理の43/44だけを最終1/0へ変換し、他は2にする。checkpoint、Perl raw、gate、Bash開始点、各probeのstream記録とwait結果、`namespace-bash.json` を0600で保存する。後続JSONや所有PIDの検査が失敗しても、準備時の出所と取得済みPerl baselineを保持する。stream記録が空・不正でもBashと観測子のwait結果を保存し、終了時snapshot失敗でも取得済みBash probeを最終JSONと公開ログに保持する。
 
 `[DEBUG-ns-bash]` は方式、caller、exec前の所有PID情報、各probeのargv/PID/時刻/終了状態を限定出力する。stdout/stderrは各1024文字までで、省略時は `logTruncated` を示す。実子fixtureでfd 0の閉鎖、直接のBash親、他stdioの種類・flags、環境の公開sentinel除去を確認する。これは設定の検証であり、実unshareのfd・環境全件・拒否時LSMの直接dumpではない。
 
 既存Bun setupを保持し、専用Nix/group準備・正式44ケース・集約をスキップする。root化・sysctl/profile変更・特権journal参照は行わない。run名は `Linux namespace Bash直接起動比較: <source SHA>`、artifact名は `namespace-bash-<run>-<attempt>-<arch>` とする。実行は検証・レビュー・公開・通常CIを終えた新しいSHAへsource/workflowをそろえ、範囲を明示した1runの承認後に行う。artifactの取得・読取は行わない。
 
 結論は今回のPerlを含む起動層の要否に限定する。共通Bashと上位祖先、OS / LSMなどの条件は残り、原因確定とPhase 2全体の完了は未認定。#33未完了・#82待ち、macOS 15と全子孫5秒保証を維持する。
+
+実測はx64・arm64とも `perl-layer-not-required`。Perl経由とBash直接起動の両方で、最小argvは各3/3同じUID-map EPERM、対照は各3/3成功した。全24回にsignal・spawn error・ログ省略はなく、Bash側のwait statusはexit statusと一致し、観測子は全てexit 0だった。両jobは予定exit 1で完了した。共通BashのPID世代と上位祖先、caller条件と測定前後、runtimeとunshareのhashが各VM内で一致し、測定器6ファイルのhashが対象commitのGit blobと一致した。
+
+[実行記録と選択した公開JSON](evidence/linux-namespace-bash/44418918065-1/README.md) に各job18行・計36行を保存した。直前 `0f7bffc` のCodeRabbit評価は4項目成功し、その3指摘は `d358f8c` で修正・返信・解決した。修正差分の追加評価が回数制限で未完了という制約を了承した承認後の1runであり、最終差分の独立した仕様・規約レビューと通常CI全6ジョブは成功している。artifactの取得・読取は行っていない。
+
+このペアではPerlを含む起動層を再現条件から省けた。共通Bashと上位祖先、unshareの起動path、OS / LSMなどの残る条件を次に検討する。起動API・process世代・Bash固有の初期状態の個別効果や、拒否原因を確定したものではない。Phase 2全体・#33は未完了、#82は#33待ちを維持する。
