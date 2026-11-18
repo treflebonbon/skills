@@ -166,7 +166,7 @@ UID / EUID / GID・group、namespace識別子、callerのcapability / NoNewPrivs
 
 `python3 -I control/development/probe-linux-namespace-launch.py compare-cwd SOURCE OUTPUT` で起動する。親Python自身のcwdは対象checkoutに固定し、各子への `cwd` 引数だけを変える。まず対象checkoutで最小argv `--map-current-user -- /usr/bin/true` が3/3同じUID-map EPERM、対照 `-- /usr/bin/true` が3/3成功することを確認し、その場合だけ `/` 側を各3回測る。最大12回/architecture。baselineの全6回が成功なら `/` 側を省略し、別エラー・混在・条件不一致でも比較へ進まない。
 
-両条件で同じPython親・実行体・版、unshare実体・版・hash、非root資格情報、namespace識別子、callerのcapability / NoNewPrivs / Seccomp / LSM、選択した5環境変数を照合する。unshareの環境は `{}`、stdinは読み取り専用の `/dev/null`、stdout/stderrは匿名Unix socket、上限は5秒・両stream合計32MiBとし、超過時は所有する子へSIGKILLする。各条件で最小argvと成功対照を各3回測る。空環境・cwd・親PID・stdio条件の一致は実子プロセスのfixtureで検証するが、実unshareの環境全件やfdのダンプとは扱わない。
+両条件で同じPython親・実行体・版、unshare実体・版・hash、非root資格情報、namespace識別子、callerのcapability / NoNewPrivs / Seccomp / LSM、選択した5環境変数を照合する。namespace probeへ渡す環境は `{}` とし、実行体の版確認は両cwdとも従来どおり継承環境で行う。stdinは読み取り専用の `/dev/null`、stdout/stderrは匿名Unix socket、上限は5秒・両stream合計32MiBとし、超過時は所有する子へSIGKILLする。各条件で最小argvと成功対照を各3回測る。空環境・cwd・親PID・stdio条件の一致は実子プロセスのfixtureで検証するが、実unshareの環境全件やfdのダンプとは扱わない。
 
 | 結果               | 条件                                                       | 終了コード |
 | ------------------ | ---------------------------------------------------------- | ---------- |
