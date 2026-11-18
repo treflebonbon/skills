@@ -208,7 +208,16 @@ stderrは両条件とも同じ匿名Unix socket、stdinは読み取り専用の 
 
 ## 次の最小化: stdoutをpipeに固定してstderrだけ通常pipeへ変える
 
-stdout比較の `stdout-socket-not-required` を受け、`mode=probe-stderr` は同じPython親からの直接起動・空環境・対象cwd `/` とstdoutの通常pipeを固定し、stderrだけを匿名Unix socketから通常pipeへ変える。実VMでの新しい比較は未実行。
+stdout比較の `stdout-socket-not-required` を受け、`mode=probe-stderr` は同じPython親からの直接起動・空環境・対象cwd `/` とstdoutの通常pipeを固定し、stderrだけを匿名Unix socketから通常pipeへ変える。[run 44271416358 / attempt 1](https://github.com/treflebonbon/skills/actions/runs/44271416358) をsource / workflow `6937f37083b47b393a60363a8e4d3dc03c85864d` で1回実行し、両構成とも `stderr-socket-not-required` を確認した。
+
+| architecture | stderrの指定方式 | 最小argv | 成功対照 |
+| --- | --- | --- | --- |
+| x64 | 匿名Unix socket | 3/3 EPERM | 3/3 成功 |
+| x64 | 通常pipe | 3/3 EPERM | 3/3 成功 |
+| arm64 | 匿名Unix socket | 3/3 EPERM | 3/3 成功 |
+| arm64 | 通常pipe | 3/3 EPERM | 3/3 成功 |
+
+全24回のargv・PID・時刻・終了状態・stderr全文を新しい公開ログと照合し、signal・spawn error・ログ省略がないことを確認した。測定前後と条件間でPython親・実行体・caller条件が各VM内で一致し、測定コードhashも対象blobと一致した。[実行記録と選択した公開JSON](evidence/linux-namespace-stderr/44271416358-1/README.md)に保存した。今回の条件ではstderrのsocketも再現に必須ではなく、stdout/stderrを通常pipeにした状態でも最小argvのEPERMが続く。runのfailureは対象症状を検出した予定exit 1による。
 
 `python3 -I control/development/probe-linux-namespace-launch.py compare-stderr SOURCE OUTPUT` で起動する。親Pythonのcwdは従来どおり対象checkoutに保持する。まずstderrがsocketの条件で最小argv `--map-current-user -- /usr/bin/true` が3/3同じUID-map EPERM、対照 `-- /usr/bin/true` が3/3成功することを確認し、その場合だけstderrを `subprocess.PIPE` に変えて各3回測る。最大12回/architecture。baselineの全6回が成功ならpipe側を省略し、別エラー・混在・条件不一致でも比較へ進まない。
 
@@ -225,4 +234,4 @@ stdoutは両条件とも通常pipe、stdinは読み取り専用の `/dev/null` �
 
 実子fixtureでstdoutのpipe固定、stderrのFIFO/socket判定、他stdioの種類とflags、空環境・cwd・親PIDを検証する。両streamがpipeの場合もtimeout・合算出力上限・境界ちょうどと1 byte超過の対照を確認する。これらは設定の検証であり、実unshareのfd・環境・拒否時LSM状態を直接dumpしたとは扱わない。結果は今回の再現にstderrのsocketが必要かの比較に限定し、stdin・Python・OS / LSMの影響や原因を確定しない。Phase 2全体・#33は未完了、#82待ち、macOS 15と全子孫5秒保証を維持する。
 
-既存Bun setupは保持し、新たな依存install・root化・sysctl/profile変更・特権journal取得は行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace stderr比較: <source SHA>`、artifact名は `namespace-stderr-<run>-<attempt>-<arch>` として正式実証から区別する。準備・レビュー・通常CIを終えた新しいSHAに固定した1runを事前承認してから実行し、新しい公開Actionsログで結果を照合する。artifactの取得・読取と過去に拒否された一時ログへのアクセスは行わない。
+既存Bun setupは保持し、新たな依存install・root化・sysctl/profile変更・特権journal取得は行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace stderr比較: <source SHA>`、artifact名は `namespace-stderr-<run>-<attempt>-<arch>` として正式実証から区別する。今回の承認済み1runはsource / workflowを `6937f37083b47b393a60363a8e4d3dc03c85864d` に固定して実行した。CodeRabbitは測定コード `8860a6a` を評価済みだが、テスト修正 `6937f37` は回数制限で未評価だった。修正差分の独立した仕様・規約レビューと通常CI全6ジョブの成功を確認し、その制約を了承した承認後に実行した。artifactの取得・読取と過去に拒否された一時ログへのアクセスは行っていない。
