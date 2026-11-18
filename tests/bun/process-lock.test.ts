@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
 import corpus from "../fixtures/bun-process-lock-python.json";
 import launcherCorpus from "../fixtures/bun-exec-python.json";
+import { stateOf } from "../helpers/process-state";
 
 const root = fs.mkdtempSync(join(tmpdir(), "bun-process-lock-"));
 const observer = join(root, "observer");
@@ -961,24 +962,7 @@ for (const escapeMode of ["group", "session"]) {
       child.stdout.on("data", (bytes) => {
         output += bytes.toString();
       });
-      const stateOf = (pid: number) => {
-        const args = pid > 0 ? ["-o", "stat=", "-p", String(pid)] : ["-A", "-o", "pgid=,stat="];
-        const state = spawnSync("ps", args, {
-          encoding: "utf8",
-          timeout: 500,
-        });
-        if (state.error || (state.status !== 0 && (pid < 0 || state.status !== 1)))
-          throw new Error("process の状態を観測できません");
-        if (pid > 0) return state.status === 0 && !state.stdout.trim().startsWith("Z");
-        return state.stdout
-          .trim()
-          .split("\n")
-          .some((line) => {
-            const match = /^\s*(\d+)\s+(\S+)\s*$/.exec(line);
-            if (!match) throw new Error("process group の状態を解釈できません");
-            return Number(match[1]) === -pid && !match[2]!.startsWith("Z");
-          });
-      };
+
       try {
         await within(
           (async () => {
