@@ -5,7 +5,7 @@ import { join } from "node:path";
 export function createUnshareFixture(
   directory: string,
   node: string,
-  dependentOn: "cwd" | "stdout" | "stderr" | "parent",
+  dependentOn: "cwd" | "stdout" | "stderr" | { parent: string },
 ) {
   const capture = join(directory, "capture.jsonl");
   const behavior = join(directory, "behavior");
@@ -15,7 +15,7 @@ export function createUnshareFixture(
   fs.writeFileSync(
     unshare,
     [
-      "#!" + node,
+      "#!/usr/bin/env -S " + JSON.stringify(node).replaceAll("$", "\\$"),
       'import * as fs from "node:fs";',
       'if (process.argv[2] === "--version") { fs.appendFileSync(' +
         JSON.stringify(versionCapture) +
@@ -31,8 +31,8 @@ export function createUnshareFixture(
       ' if (behavior==="dependent" && ' +
         (dependentOn === "cwd"
           ? 'process.cwd()==="/"'
-          : dependentOn === "parent"
-            ? 'parent.includes("perl")'
+          : typeof dependentOn === "object"
+            ? "parent===" + JSON.stringify(dependentOn.parent)
             : dependentOn === "stdout"
               ? "outPipe"
               : "errPipe") +

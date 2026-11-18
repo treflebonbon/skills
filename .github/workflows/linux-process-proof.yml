@@ -27,7 +27,7 @@ on:
           - probe-parent
 
 concurrency:
-  group: linux-process-proof-${{ inputs.source_sha }}
+  group: linux-process-proof-${{ inputs.mode || 'proof' }}-${{ inputs.source_sha }}
   cancel-in-progress: false
 
 defaults:

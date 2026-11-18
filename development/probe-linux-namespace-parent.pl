@@ -24,17 +24,31 @@ sub digest {
     return sha256_hex(<$file>);
 }
 
-# procの読取り失敗を観測値として残す。
+# Python errno.errorcodeと同じ名前へ、Linuxで重複する別名を揃える。
+sub errno_name {
+    my ($number) = @_;
+    local $! = $number;
+    my %aliases = (EWOULDBLOCK => 'EAGAIN', EDEADLK => 'EDEADLOCK', EOPNOTSUPP => 'ENOTSUP');
+    my @names = sort map { $aliases{$_} // $_ } grep { $!{$_} } keys %!;
+    return @names ? $names[0] : "ERRNO_$number";
+}
+
+# open成功後のread失敗と正常な空ファイルを区別して記録する。
 sub read_context {
     my ($path) = @_;
-    if (open my $file, '<:raw', $path) {
-        local $/;
-        my $value = <$file>;
-        $value =~ s/^\s+|\s+$//g;
-        return { value => $value };
+    open my $file, '<:raw', $path or return { error => errno_name(0 + $!) };
+    my $value = '';
+    while (1) {
+        my $count = sysread($file, my $chunk, 65536);
+        if (!defined $count) {
+            next if $! == EINTR;
+            return { error => errno_name(0 + $!) };
+        }
+        last if $count == 0;
+        $value .= $chunk;
     }
-    my $number = 0 + $!;
-    return { error => $number == 1 ? 'EPERM' : $number == 13 ? 'EACCES' : $number == 2 ? 'ENOENT' : "ERRNO_$number" };
+    $value =~ s/^\s+|\s+$//g;
+    return { value => $value };
 }
 
 # 動的なCPU時間やcommand lineを含めず、process世代と共通親を照合する。
@@ -53,7 +67,7 @@ sub ancestry {
             pid => 0 + $pid, ppid => 0 + $fields[1],
             processGroup => 0 + $fields[2], session => 0 + $fields[3],
             startTimeTicks => 0 + $fields[19],
-            defined($path) ? (path => $path) : (pathError => $number == 1 ? 'EPERM' : $number == 13 ? 'EACCES' : $number == 2 ? 'ENOENT' : "ERRNO_$number"),
+            defined($path) ? (path => $path) : (pathError => errno_name($number)),
         };
         return \@chain if $fields[1] == 0;
         $pid = $fields[1];

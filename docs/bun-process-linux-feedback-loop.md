@@ -240,7 +240,7 @@ stdoutは両条件とも通常pipe、stdinは読み取り専用の `/dev/null` �
 
 `mode=probe-parent` は同じBash親の子としてPython baselineを先に終了させ、正確な再現を確認した場合だけPerl測定器を起動する。PerlをPythonの子にはせず、共通Bashより下のPython測定器を含む起動層を除く比較とする。実VMでの新しい比較は未実行。
 
-`bash control/development/probe-linux-namespace-parent.sh SOURCE OUTPUT` が制御する。Pythonは既存captureで最小argv `--map-current-user -- /usr/bin/true` と成功対照 `-- /usr/bin/true` を各3回測る。最小argvが3/3同じUID-map EPERM、対照が3/3成功した場合だけexit 1を返し、Perl側も各3回、最大12回/architectureを測る。baseline全6回成功ならPerl側を省略し、別エラー・混在・不足でも追加起動しない。Perlの失敗も含めてPythonの後処理へ渡し、取得済みbaselineを保持して判定する。
+`bash control/development/probe-linux-namespace-parent.sh SOURCE OUTPUT` が制御する。Pythonは既存captureで最小argv `--map-current-user -- /usr/bin/true` と成功対照 `-- /usr/bin/true` を各3回測る。最小argvが3/3同じUID-map EPERM、対照が3/3成功した場合だけ段階間専用の終了コード42を返し、Perl側も各3回、最大12回/architectureを測る。baseline全6回成功ならPerl側を省略し、別エラー・混在・不足でも追加起動しない。Perlの失敗も含めてPythonの後処理へ渡し、取得済みbaselineを保持して判定する。
 
 両測定のnamespace probeは空環境 `{}`、cwd `/`、読み取り専用の `/dev/null` stdinと、別々の匿名の通常pipeであるstdout/stderrを使う。Pythonは既存 `subprocess.Popen`、Perlはpipe・fork・execを使う。各probeは5秒・stdout/stderr合計32MiBを維持し、時間切れ・出力超過では未回収の所有する対象子だけへSIGKILLを送る。Perlのunshare版表記はbaselineの観測を同一実体hashと照合して引き継ぎ、Perl側に追加の `--version` 起動を置かない。
 
@@ -255,7 +255,7 @@ Pythonの祖先が消えることと、Python固有の起動API・process世代�
 | `not-reproduced` | Python baselineの最小argvと対照が各3回成功、Perl側は省略 | 0 |
 | `unavailable` | 別エラー・混在・条件不一致・観測不足・起動段階の失敗 | 2 |
 
-`namespace-parent-python.json`、`namespace-parent-perl.json`、`namespace-parent.json` をwx0600で保存する。途中記録や不正な形の記録も保存を先に行い、ログ生成の失敗でbaselineを失わない。`[DEBUG-ns-parent]` はsource/workflow/run/attemptと測定器hash、各probeのargv/PID/時刻/終了状態を限定記録し、`parent` / `stdoutType` / `stderrType` と実出力を分ける。出力は各stream1024文字まで、省略時は `logTruncated` を示す。
+Bashが未使用の `OUTPUT` directoryを `mkdir` で排他的に確保し、取得した実行だけが測定と後処理へ進む。Python baselineは全成功で41、正確な再現で42、後処理は全成功で44、比較成立で43を返す。Bashが後処理の44を最終0、43を最終1へ変換し、それ以外の終了コードは2にする。通常のinterpreter起動失敗は追加測定や再現成功を許可しない。`namespace-parent-python.json`、`namespace-parent-perl.json`、`namespace-parent.json` をwx0600で保存する。途中記録や不正な形の記録も保存を先に行い、ログ生成の失敗でbaselineを失わない。`[DEBUG-ns-parent]` はsource/workflow/run/attemptと測定器hash、各probeのargv/PID/時刻/終了状態を限定記録し、`parent` / `stdoutType` / `stderrType` と実出力を分ける。出力は各stream1024文字まで、省略時は `logTruncated` を示す。
 
 実子fixtureではPython/Perlの共通Bash親、通常pipeのflags一致、空環境・cwd・親PIDとfork数6を観測し、追加測定が必要な2ケースだけで記録を要求する。合算上限ちょうどの成功と1 byte超過、時間切れ・exec失敗・子の回収、条件やPID世代の改変、部分記録と上書き拒否も検証する。これは測定器の契約検証であり、実VMのnamespace成功や正式44ケースの成功には数えない。
 

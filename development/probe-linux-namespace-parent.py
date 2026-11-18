@@ -15,6 +15,11 @@ SELF = Path(__file__).resolve()
 PERL_HELPER = SELF.with_suffix(".pl")
 DRIVER = SELF.with_suffix(".sh")
 PERL = Path("/usr/bin/perl").resolve()
+# 通常のinterpreter終了コードと区別する段階間protocol。Bashが最終0/1/2へ変換する。
+BASELINE_CLEAR = 41
+BASELINE_REPRODUCED = 42
+FINAL_REPRODUCED = 43
+FINAL_CLEAR = 44
 _spec = importlib.util.spec_from_file_location("namespace_launch", SELF.with_name("probe-linux-namespace-launch.py"))
 launch = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(launch)
@@ -168,14 +173,16 @@ def log_measurement(name, record):
             stderr = stderr if isinstance(stderr, str) else ""
             launch.emit({
                 "parent": name, "stdoutType": record.get("stdoutType"), "stderrType": record.get("stderrType"),
-                "case": case.get("name"), **probe, "stdout": stdout[:1024], "stderr": stderr[:1024],
+                "case": case.get("name"),
+                **{key: probe[key] for key in ("argv", "pid", "startedAt", "endedAt", "elapsedMs", "status", "signal", "error", "repetition") if key in probe},
+                "stdout": stdout[:1024], "stderr": stderr[:1024],
                 "logTruncated": len(stdout) > 1024 or len(stderr) > 1024,
                 "outcome": launch.classify(probe),
             }, "parent")
 
 
 def baseline(root, output):
-    """6回のPython測定をwx0600で保存し、正確な再現のときだけexit1を返す。"""
+    """6回のPython測定をwx0600で保存し、正確な再現を専用の段階終了コードで返す。"""
     output.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd = os.open(output / "namespace-parent-python.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     record = {"schema": "linux-namespace-parent-checkpoint/v1", "outcome": "unavailable"}
@@ -195,7 +202,7 @@ def baseline(root, output):
             json.dump(record, stream, ensure_ascii=False, indent=2)
             stream.write("\n")
         launch.emit({"stage": "python-baseline", "outcome": record["outcome"], "error": record.get("error")}, "parent")
-    return 1 if record["outcome"] == "uid-map-eperm" else 0 if record["outcome"] == "not-reproduced" else 2
+    return BASELINE_REPRODUCED if record["outcome"] == "uid-map-eperm" else BASELINE_CLEAR if record["outcome"] == "not-reproduced" else 2
 
 
 def finalize(root, output, baseline_status, perl_status):
@@ -206,10 +213,10 @@ def finalize(root, output, baseline_status, perl_status):
         checkpoint = json.loads((output / "namespace-parent-python.json").read_text())
         if "measurement" in checkpoint:
             record["measurements"]["python"] = checkpoint["measurement"]
+        record.update({key: checkpoint[key] for key in ("identity", "controllerHashes", "runtimeHashes") if key in checkpoint})
         perl_file = output / "namespace-parent-perl.json"
         if perl_file.exists():
             record["measurements"]["perl"] = json.loads(perl_file.read_text())
-        record.update({key: checkpoint[key] for key in ("identity", "controllerHashes", "runtimeHashes") if key in checkpoint})
         os.chdir(root)
         identity = validate(root)
         if (
@@ -222,7 +229,7 @@ def finalize(root, output, baseline_status, perl_status):
         changed = record["measurements"].get("perl")
         common = ancestry()[1:]
         first = measurement_outcome(python, "python", common)
-        expected_status = 1 if first == "uid-map-eperm" else 0 if first == "not-reproduced" else 2
+        expected_status = BASELINE_REPRODUCED if first == "uid-map-eperm" else BASELINE_CLEAR if first == "not-reproduced" else 2
         if (
             checkpoint.get("outcome") != first or baseline_status != expected_status
             or (first == "uid-map-eperm" and (perl_status != 0 or changed is None))
@@ -245,7 +252,7 @@ def finalize(root, output, baseline_status, perl_status):
         for name, measurement in record["measurements"].items():
             log_measurement(name, measurement)
         launch.emit({"outcome": record["outcome"], "error": record.get("error")}, "parent")
-    return 1 if record["outcome"] in ("python-layer-not-required", "python-layer-dependent") else 0 if record["outcome"] == "not-reproduced" else 2
+    return FINAL_REPRODUCED if record["outcome"] in ("python-layer-not-required", "python-layer-dependent") else FINAL_CLEAR if record["outcome"] == "not-reproduced" else 2
 
 
 def main(args):

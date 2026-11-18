@@ -6,7 +6,7 @@
 
 ## 実測結果
 
-同じPython 3.12.3親から、最初にstderrが匿名Unix socketの条件で最小argvと成功対照を各3回測った。同じEPERM・対照の成功とcaller条件の一致を確認してから、stderrだけを通常pipeに変えて各3回測った。stdoutは両条件とも通常pipe。
+同じPython 3.12.3親から、最初にstderrが匿名Unix socketの条件で最小argvと成功対照を各3回測った。同じEPERMと対照の成功を確認してから、stderrだけを通常pipeに変えて各3回測った。その後、`same_direct_conditions()` で両条件のcallerの観測値を照合した。stdoutは両条件とも通常pipe。
 
 | architecture | stderrの指定方式 | 最小argv  | 成功対照 |
 | ------------ | ---------------- | --------- | -------- |

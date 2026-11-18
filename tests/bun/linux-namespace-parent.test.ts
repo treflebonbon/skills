@@ -13,13 +13,13 @@ test.skipIf(process.platform !== "linux")(
   () => {
     const directory = fs.mkdtempSync(join(tmpdir(), "namespace-parent-contract-"));
     try {
-      const node = fs.realpathSync(Bun.which("node")!);
+      const node = join(directory, "Node Tools", "node");
+      fs.mkdirSync(join(directory, "Node Tools"));
+      fs.symlinkSync(fs.realpathSync(Bun.which("node")!), node);
       const perl = Bun.which("perl")!;
-      const { capture, behavior, unshare, versionCapture } = createUnshareFixture(
-        directory,
-        node,
-        "parent",
-      );
+      const { capture, behavior, unshare, versionCapture } = createUnshareFixture(directory, node, {
+        parent: fs.realpathSync(perl),
+      });
       const driver =
         'require $ARGV[0]; print JSON::PP->new->canonical->encode(measure($ARGV[1],undef,"fixture-unshare"));';
       for (const variant of ["both-eperm", "dependent", "passes", "other", "mixed"]) {
@@ -149,17 +149,20 @@ test.skipIf(process.platform !== "linux")(
   },
 );
 
-test.skipIf(process.platform !== "linux")(
-  "PythonとPerlの共通Bash親・通常pipe・空環境を照合し追加測定のgateを固定する",
+test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.geteuid?.() === 0)(
+  "非root専用: PythonとPerlの共通Bash親・通常pipe・空環境を照合し追加測定のgateを固定する",
   () => {
     const directory = fs.mkdtempSync(join(tmpdir(), "namespace-parent-pair-"));
     try {
-      const python = Bun.which("python3")!;
+      const python = join(directory, "perl-tools", "python3");
+      fs.mkdirSync(join(directory, "perl-tools"));
+      fs.copyFileSync(fs.realpathSync(Bun.which("python3")!), python);
+      fs.chmodSync(python, 0o700);
       const perl = Bun.which("perl")!;
       const { capture, behavior, unshare } = createUnshareFixture(
         directory,
         fs.realpathSync(Bun.which("node")!),
-        "parent",
+        { parent: fs.realpathSync(perl) },
       );
       const modulePath = join(root, "development/probe-linux-namespace-parent.py");
       const baseline = join(directory, "namespace-parent-python.json");
@@ -341,7 +344,16 @@ test.skipIf(process.platform !== "linux")(
         join(partial, "namespace-parent-python.json"),
         JSON.stringify({ measurement: baseline }),
       );
-      fs.writeFileSync(join(partial, "namespace-parent-perl.json"), "[]");
+      const provenance = {
+        identity: { sourceSha: "public-source" },
+        controllerHashes: { parent: "public-controller" },
+        runtimeHashes: { python: "public-runtime" },
+      };
+      fs.writeFileSync(
+        join(partial, "namespace-parent-python.json"),
+        JSON.stringify({ measurement: baseline, ...provenance }),
+      );
+      fs.writeFileSync(join(partial, "namespace-parent-perl.json"), "[");
       const finalized = spawnSync(python, ["-I", modulePath, "finalize", root, partial, "1", "0"], {
         encoding: "utf8",
         timeout: 10_000,
@@ -350,9 +362,9 @@ test.skipIf(process.platform !== "linux")(
       expect(finalized.status).toBe(2);
       const record = JSON.parse(fs.readFileSync(join(partial, "namespace-parent.json"), "utf8"));
       expect(record.outcome).toBe("unavailable");
-      expect(record.error).toContain("Ubuntu 24.04");
+      expect(record.error).toContain("JSONDecodeError");
       expect(record.measurements.python).toEqual(baseline);
-      expect(record.measurements.perl).toEqual([]);
+      for (const [key, value] of Object.entries(provenance)) expect(record[key]).toEqual(value);
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
@@ -360,7 +372,7 @@ test.skipIf(process.platform !== "linux")(
 );
 
 test.skipIf(process.platform !== "linux")(
-  "Bash制御はbaseline exit1だけでPerlを起動し失敗時も後処理へ渡す",
+  "Bash制御は専用の段階終了コードだけで追加測定と最終判定を許可する",
   () => {
     const directory = fs.mkdtempSync(join(tmpdir(), "namespace-parent-gate-"));
     try {
@@ -371,11 +383,15 @@ test.skipIf(process.platform !== "linux")(
         [
           "from pathlib import Path",
           "import sys",
-          "root=Path(sys.argv[2])",
+          "root=Path(sys.argv[2]);output=Path(sys.argv[3])",
           'with (root/"trace").open("a") as f:',
           ' f.write("baseline\\n" if sys.argv[1]=="baseline" else "finalize:"+sys.argv[4]+":"+sys.argv[5]+"\\n")',
-          'if sys.argv[1]=="baseline":sys.exit(int((root/"baseline-status").read_text()))',
+          'if sys.argv[1]=="baseline":',
+          ' with (output/"namespace-parent-python.json").open("x") as f:f.write("owner-baseline")',
+          ' sys.exit(int((root/"baseline-status").read_text()))',
+          'with (output/"namespace-parent.json").open("x") as f:f.write("owner-final")',
           'print("fixture-finalized")',
+          'sys.exit(int((root/"final-status").read_text()))',
         ].join("\n"),
       );
       fs.writeFileSync(
@@ -387,35 +403,165 @@ test.skipIf(process.platform !== "linux")(
           "open my $status,'<','perl-status' or die $!;exit 0+<$status>;",
         ].join("\n"),
       );
-      for (const [baseline, perl] of [
-        [0, 0],
-        [1, 0],
-        [2, 0],
-        [7, 0],
-        [1, 2],
-      ]) {
+      for (const [index, [baseline, perl, final, status]] of [
+        [41, 0, 44, 0],
+        [42, 0, 43, 1],
+        [2, 0, 2, 2],
+        [1, 0, 2, 2],
+        [0, 0, 2, 2],
+        [7, 0, 2, 2],
+        [42, 2, 2, 2],
+        [42, 0, 1, 2],
+        [42, 0, 0, 2],
+      ].entries()) {
         fs.writeFileSync(join(directory, "trace"), "");
         fs.writeFileSync(join(directory, "baseline-status"), String(baseline));
         fs.writeFileSync(join(directory, "perl-status"), String(perl));
-        const result = spawnSync("bash", [script, directory, join(directory, "output")], {
+        fs.writeFileSync(join(directory, "final-status"), String(final));
+        const output = join(directory, "output-" + index);
+        const result = spawnSync("bash", [script, directory, output], {
           encoding: "utf8",
           timeout: 10_000,
         });
-        expect(result.status).toBe(0);
         expect(result.stderr).toBe("");
+        expect(result.status).toBe(status);
         expect(result.stdout).toContain("fixture-finalized");
+        expect(fs.readFileSync(join(output, "namespace-parent.json"), "utf8")).toBe("owner-final");
         expect(fs.readFileSync(join(directory, "trace"), "utf8")).toBe(
           "baseline\n" +
-            (baseline === 1 ? "perl\n" : "") +
+            (baseline === 42 ? "perl\n" : "") +
             "finalize:" +
             baseline +
             ":" +
-            (baseline === 1 ? perl : -1) +
+            (baseline === 42 ? perl : -1) +
             "\n",
         );
+      }
+      const missing = spawnSync(
+        "bash",
+        [script, join(directory, "missing-source"), join(directory, "unused")],
+        {
+          encoding: "utf8",
+        },
+      );
+      expect(missing.status).toBe(2);
+      expect(missing.stderr).toContain("missing-source");
+      expect(fs.existsSync(join(directory, "unused"))).toBe(false);
+      fs.writeFileSync(join(directory, "trace"), "");
+      const occupied = join(directory, "occupied");
+      fs.mkdirSync(occupied);
+      const checkpoint = join(occupied, "namespace-parent-python.json");
+      const owner = fs.openSync(checkpoint, "wx", 0o600);
+      try {
+        fs.writeSync(owner, "owner-A-in-progress");
+        const competing = spawnSync("bash", [script, directory, occupied], { encoding: "utf8" });
+        expect(competing.status).toBe(2);
+        expect(competing.stderr).toContain(occupied);
+        expect(fs.readFileSync(join(directory, "trace"), "utf8")).toBe("");
+        expect(fs.readFileSync(checkpoint, "utf8")).toBe("owner-A-in-progress");
+        expect(fs.existsSync(join(occupied, "namespace-parent.json"))).toBe(false);
+      } finally {
+        fs.closeSync(owner);
       }
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
+  },
+);
+
+test.skipIf(process.platform !== "linux")(
+  "Perl contextは空ファイルと読取失敗を区別しPythonと同じerrno名を残す",
+  () => {
+    const directory = fs.mkdtempSync(join(tmpdir(), "namespace-parent-context-"));
+    try {
+      fs.writeFileSync(join(directory, "empty"), "");
+      fs.writeFileSync(join(directory, "value"), "  public-value\n");
+      const paths = [
+        join(directory, "empty"),
+        join(directory, "value"),
+        join(directory, "missing"),
+        directory,
+      ];
+      const actual = spawnSync(
+        Bun.which("perl")!,
+        [
+          "-e",
+          "require shift @ARGV;print JSON::PP->new->encode([map { read_context($_) } @ARGV]);",
+          perlModule,
+          ...paths,
+        ],
+        { encoding: "utf8" },
+      );
+      const expected = spawnSync(
+        Bun.which("python3")!,
+        [
+          "-I",
+          "-c",
+          [
+            "import errno,json,sys",
+            "from pathlib import Path",
+            "result=[]",
+            "for path in sys.argv[1:]:",
+            " try:result.append({'value':Path(path).read_text().strip()})",
+            " except OSError as error:result.append({'error':errno.errorcode[error.errno]})",
+            "print(json.dumps(result))",
+          ].join("\n"),
+          ...paths,
+        ],
+        { encoding: "utf8" },
+      );
+      expect(actual.stderr).toBe("");
+      expect(actual.status).toBe(0);
+      expect(expected.stderr).toBe("");
+      expect(expected.status).toBe(0);
+      expect(JSON.parse(actual.stdout)).toEqual(JSON.parse(expected.stdout));
+      expect(JSON.parse(actual.stdout)).toEqual([
+        { value: "" },
+        { value: "public-value" },
+        { error: "ENOENT" },
+        { error: "EISDIR" },
+      ]);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform !== "linux")(
+  "親比較ログはprobeの限定項目と上限付きstreamだけを出しrawを保持する",
+  () => {
+    const modulePath = join(root, "development/probe-linux-namespace-parent.py");
+    const result = spawnSync(
+      Bun.which("python3")!,
+      [
+        "-I",
+        "-c",
+        [
+          "import copy,importlib.util,json,sys",
+          "spec=importlib.util.spec_from_file_location('parent',sys.argv[1])",
+          "parent=importlib.util.module_from_spec(spec);spec.loader.exec_module(parent)",
+          'probe={"argv":["--"],"pid":123,"status":1,"signal":None,"stdout":"x"*1025,"stderr":"y"*1025,"detail":"public-unbounded"*10000,"parent":"injected"}',
+          'record={"stdoutType":"pipe","stderrType":"pipe","cases":[{"name":"minimal","probes":[probe]}]}',
+          "before=copy.deepcopy(record)",
+          'parent.log_measurement("python",record)',
+          "assert record==before",
+          'print("RAW "+json.dumps(record))',
+        ].join("\n"),
+        modulePath,
+      ],
+      { encoding: "utf8" },
+    );
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    const lines = result.stdout.trim().split("\n");
+    const log = JSON.parse(lines[1]!.slice("[DEBUG-ns-parent] ".length));
+    expect(log.parent).toBe("python");
+    expect(log.detail).toBeUndefined();
+    expect(log.stdout).toBe("x".repeat(1024));
+    expect(log.stderr).toBe("y".repeat(1024));
+    expect(log.logTruncated).toBe(true);
+    const raw = JSON.parse(lines[2]!.slice("RAW ".length)).cases[0].probes[0];
+    expect(raw.stdout).toHaveLength(1025);
+    expect(raw.detail).toHaveLength(160000);
   },
 );
