@@ -235,3 +235,30 @@ stdoutは両条件とも通常pipe、stdinは読み取り専用の `/dev/null` �
 実子fixtureでstdoutのpipe固定、stderrのFIFO/socket判定、他stdioの種類とflags、空環境・cwd・親PIDを検証する。両streamがpipeの場合もtimeout・合算出力上限・境界ちょうどと1 byte超過の対照を確認する。これらは設定の検証であり、実unshareのfd・環境・拒否時LSM状態を直接dumpしたとは扱わない。結果は今回の再現にstderrのsocketが必要かの比較に限定し、stdin・Python・OS / LSMの影響や原因を確定しない。Phase 2全体・#33は未完了、#82待ち、macOS 15と全子孫5秒保証を維持する。
 
 既存Bun setupは保持し、新たな依存install・root化・sysctl/profile変更・特権journal取得は行わない。専用Nix/group準備・正式44ケース・集約はスキップする。run名は `Linux namespace stderr比較: <source SHA>`、artifact名は `namespace-stderr-<run>-<attempt>-<arch>` として正式実証から区別する。今回の承認済み1runはsource / workflowを `6937f37083b47b393a60363a8e4d3dc03c85864d` に固定して実行した。CodeRabbitは測定コード `8860a6a` を評価済みだが、テスト修正 `6937f37` は回数制限で未評価だった。修正差分の独立した仕様・規約レビューと通常CI全6ジョブの成功を確認し、その制約を了承した承認後に実行した。artifactの取得・読取と過去に拒否された一時ログへのアクセスは行っていない。
+
+## 次の最小化: 共通Bash親の下でPython測定器を外す
+
+`mode=probe-parent` は同じBash親の子としてPython baselineを先に終了させ、正確な再現を確認した場合だけPerl測定器を起動する。PerlをPythonの子にはせず、共通Bashより下のPython測定器を含む起動層を除く比較とする。実VMでの新しい比較は未実行。
+
+`bash control/development/probe-linux-namespace-parent.sh SOURCE OUTPUT` が制御する。Pythonは既存captureで最小argv `--map-current-user -- /usr/bin/true` と成功対照 `-- /usr/bin/true` を各3回測る。最小argvが3/3同じUID-map EPERM、対照が3/3成功した場合だけexit 1を返し、Perl側も各3回、最大12回/architectureを測る。baseline全6回成功ならPerl側を省略し、別エラー・混在・不足でも追加起動しない。Perlの失敗も含めてPythonの後処理へ渡し、取得済みbaselineを保持して判定する。
+
+両測定のnamespace probeは空環境 `{}`、cwd `/`、読み取り専用の `/dev/null` stdinと、別々の匿名の通常pipeであるstdout/stderrを使う。Pythonは既存 `subprocess.Popen`、Perlはpipe・fork・execを使う。各probeは5秒・stdout/stderr合計32MiBを維持し、時間切れ・出力超過では未回収の所有する対象子だけへSIGKILLを送る。Perlのunshare版表記はbaselineの観測を同一実体hashと照合して引き継ぎ、Perl側に追加の `--version` 起動を置かない。
+
+共通BashのPID・start time ticks・祖先列、測定器のPID/親PID・実行体/版/hash、callerの非root資格情報・namespace識別子・map・capability / NoNewPrivs / Seccomp / LSM・選択した5環境変数を照合する。共通Bashより上の祖先は両条件で保持し、command lineや環境全体は読まない。祖先のexeが読めない場合はそのerrorを記録する。stdin/stdout/stderrの種類・flags・空環境・cwd・実子の親PIDはfixtureで観測するが、実unshareの拒否時のfd・環境全件・LSMを直接dumpしたとは扱わない。
+
+Pythonの祖先が消えることと、Python固有の起動API・process世代がPerlのfork/execへ変わることを一つの起動層として比較する。結果が依存を示しても、祖先と起動APIの個別効果は分離しない。
+
+| 結果 | 条件 | 終了コード |
+| --- | --- | --- |
+| `python-layer-not-required` | Python/Perlとも最小argvが各3回同じEPERM、対照が各3回成功 | 1 |
+| `python-layer-dependent` | Pythonだけ最小argvが3回同じEPERM、Perlと両対照は3回成功 | 1 |
+| `not-reproduced` | Python baselineの最小argvと対照が各3回成功、Perl側は省略 | 0 |
+| `unavailable` | 別エラー・混在・条件不一致・観測不足・起動段階の失敗 | 2 |
+
+`namespace-parent-python.json`、`namespace-parent-perl.json`、`namespace-parent.json` をwx0600で保存する。途中記録や不正な形の記録も保存を先に行い、ログ生成の失敗でbaselineを失わない。`[DEBUG-ns-parent]` はsource/workflow/run/attemptと測定器hash、各probeのargv/PID/時刻/終了状態を限定記録し、`parent` / `stdoutType` / `stderrType` と実出力を分ける。出力は各stream1024文字まで、省略時は `logTruncated` を示す。
+
+実子fixtureではPython/Perlの共通Bash親、通常pipeのflags一致、空環境・cwd・親PIDとfork数6を観測し、追加測定が必要な2ケースだけで記録を要求する。合算上限ちょうどの成功と1 byte超過、時間切れ・exec失敗・子の回収、条件やPID世代の改変、部分記録と上書き拒否も検証する。これは測定器の契約検証であり、実VMのnamespace成功や正式44ケースの成功には数えない。
+
+既存Bun setupを保持し、新規依存install・Cビルド・root化・sysctl/profile変更・特権journal参照は行わない。専用Nix/group準備・正式44ケース・集約をスキップし、run名 `Linux namespace Python起動層比較: <source SHA>`、artifact名 `namespace-parent-<run>-<attempt>-<arch>` で区別する。準備・レビュー・通常CIを終えた新しいSHAに固定した1runを事前承認してから実行し、新しい公開Actionsログで照合する。artifactの取得・読取や、過去に拒否された一時ログへのアクセスは行わない。
+
+原因確定とPhase 2全体の完了は未認定。stdin・共通親より上の祖先・OS / LSMなどの条件は残り、#33未完了・#82待ち、macOS 15と全子孫5秒保証を維持する。
