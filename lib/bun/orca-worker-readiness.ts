@@ -94,8 +94,12 @@ function observation(path: string): Record<string, any> {
 function readiness(action: string, path: string, args: Record<string, string>): void {
   for (const field of ["task", "dispatch", "assignee"]) nonempty(args[field], field);
   nonempty(path, "observation");
+  if (action !== "record") {
+    nonempty(args.worktree, "worktree");
+    if (!isAbsolute(args.worktree!)) throw new Error("worktree は絶対パスで指定してください");
+  }
+  if (!isAbsolute(path)) throw new Error("observation は絶対パスで指定してください");
   if (action === "record") {
-    if (!isAbsolute(path)) throw new Error("observation は絶対パスで指定してください");
     const value = {
       schema,
       task_id: args.task,
@@ -106,9 +110,6 @@ function readiness(action: string, path: string, args: Record<string, string>): 
     writeFileSync(path, strictJSON(value), { flag: "wx" });
     return;
   }
-  nonempty(args.worktree, "worktree");
-  if (!isAbsolute(args.worktree!)) throw new Error("worktree は絶対パスで指定してください");
-  if (!isAbsolute(path)) throw new Error("observation は絶対パスで指定してください");
   const value = observation(path);
   match(value.task_id, args.task, "Task ID");
   match(value.dispatch_id, args.dispatch, "Dispatch ID");

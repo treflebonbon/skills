@@ -70,7 +70,7 @@ CodeRabbit の `head_evidence` は、サマリーで見つけた HEAD を `{sour
 
 ## Bun CLI の起動
 
-`gh-review-thread`、`orca-send`、`orca-worker-readiness`と `serve-local` は Bash の privileged mode（`#!/bin/bash -p`）から `lib/bun/run` を使う。`BASH_ENV` と exported shell function を起動前に読み込ませず、symlink の実体から package root を解決する。呼び出し方と選択済み CLI への native 引数は従来どおりである。
+`gh-review-thread`、`orca-send`、`orca-worker-readiness` と `serve-local` は Bash の privileged mode（`#!/bin/bash -p`）から `lib/bun/run` を使う。`BASH_ENV` と exported shell function を起動前に読み込ませず、symlink の実体から package root を解決する。呼び出し方と選択済み CLI への native 引数は従来どおりである。
 
 共用起動は `BUN_*`・`JSC_*`・`NODE_OPTIONS`・`NODE_PATH` を除去してから Bun を起動し、package の bunfig と tsconfig を絶対パスで指定する。dotenv、auto-install、macro、transpiler cache と crash report upload を無効にする。これらの runtime 設定は子 CLI にも引き継がれない。`PATH`、`HOME`、`XDG_CONFIG_HOME`、proxy や認証用の環境、cwd は保つ。Bun 自体と選択済み CLI、package payload は信頼済みの実体を使う。これはそれらの実体を隔離する sandbox ではない。
 

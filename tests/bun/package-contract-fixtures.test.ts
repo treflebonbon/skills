@@ -77,6 +77,19 @@ test("package 契約は旧 corpus の12拒否と正常な配布物を区別し�
     } finally {
       fs.writeFileSync(dangling, readme);
     }
+    const removedPath = "docs/" + ["orca", "peer", "refactor"].join("-") + ".md";
+    const git = (...args: string[]) => {
+      const result = spawnSync("git", args, { cwd: payload, encoding: "utf8" });
+      expect(result.status, result.stderr).toBe(0);
+    };
+    fs.writeFileSync(resolve(payload, removedPath), "x\n");
+    git("add", "--force", removedPath);
+    const named = run("test_no_dangling_references_to_removed_parts");
+    expect(named.status, named.stderr).toBe(1);
+    expect(named.stderr).toContain("dangling reference in path " + removedPath);
+    git("rm", "-qf", removedPath);
+    const clean = run("test_no_dangling_references_to_removed_parts");
+    expect(clean.status, clean.stderr).toBe(0);
     for (const item of corpus.mutations.cases) {
       const path = resolve(payload, item.path),
         before = fs.readFileSync(path);

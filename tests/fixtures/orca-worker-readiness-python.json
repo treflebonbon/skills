@@ -3,11 +3,11 @@
   "sourceHash": "82be9f809a280bf955e19bf97b014fea6e5eff2ed21064b5f40ddaf470bc0ac4",
   "python": "Python 3.14.7",
   "readiness": {
-    "base": "/tmp/codex/peer-coordination-39-corpus-v1",
+    "base": "/tmp/codex/readiness-corpus-v1",
     "commit": "tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904\nauthor Fixture <fixture@example.invalid> 1600000000 +0000\ncommitter Fixture <fixture@example.invalid> 1600000000 +0000\n\ncoordination corpus\n",
     "head": "65ec06f904d15dd5cdb6e333f797b35d433fe12e",
-    "base64": "ewogICJzY2hlbWEiOiAib3JjYS13b3JrZXItcmVhZGluZXNzLW9ic2VydmF0aW9uL3YxIiwKICAidGFza19pZCI6ICJ0YXNrLTEiLAogICJkaXNwYXRjaF9pZCI6ICJkaXNwYXRjaC0xIiwKICAiYXNzaWduZWVfaGFuZGxlIjogInRlcm0tMSIsCiAgImN3ZCI6ICIvdG1wL2NvZGV4L3BlZXItY29vcmRpbmF0aW9uLTM5LWNvcnB1cy12MS93b3JrZXIiLAogICJwaHlzaWNhbF9yb290IjogIi90bXAvY29kZXgvcGVlci1jb29yZGluYXRpb24tMzktY29ycHVzLXYxL3dvcmtlciIsCiAgImJyYW5jaCI6ICJ3b3JrZXIiLAogICJoZWFkIjogIjY1ZWMwNmY5MDRkMTVkZDVjZGI2ZTMzM2Y3OTdiMzVkNDMzZmUxMmUiLAogICJnaXRfZGlyIjogIi90bXAvY29kZXgvcGVlci1jb29yZGluYXRpb24tMzktY29ycHVzLXYxL3JlcG8vLmdpdC93b3JrdHJlZXMvd29ya2VyIiwKICAiY29tbW9uX2RpciI6ICIvdG1wL2NvZGV4L3BlZXItY29vcmRpbmF0aW9uLTM5LWNvcnB1cy12MS9yZXBvLy5naXQiCn0K",
-    "sha256": "8984a2f5780ecfc82dd509031906c375a5677008f8630c304a32c5bf6f5ec6ae",
+    "base64": "ewogICJzY2hlbWEiOiAib3JjYS13b3JrZXItcmVhZGluZXNzLW9ic2VydmF0aW9uL3YxIiwKICAidGFza19pZCI6ICJ0YXNrLTEiLAogICJkaXNwYXRjaF9pZCI6ICJkaXNwYXRjaC0xIiwKICAiYXNzaWduZWVfaGFuZGxlIjogInRlcm0tMSIsCiAgImN3ZCI6ICIvdG1wL2NvZGV4L3JlYWRpbmVzcy1jb3JwdXMtdjEvd29ya2VyIiwKICAicGh5c2ljYWxfcm9vdCI6ICIvdG1wL2NvZGV4L3JlYWRpbmVzcy1jb3JwdXMtdjEvd29ya2VyIiwKICAiYnJhbmNoIjogIndvcmtlciIsCiAgImhlYWQiOiAiNjVlYzA2ZjkwNGQxNWRkNWNkYjZlMzMzZjc5N2IzNWQ0MzNmZTEyZSIsCiAgImdpdF9kaXIiOiAiL3RtcC9jb2RleC9yZWFkaW5lc3MtY29ycHVzLXYxL3JlcG8vLmdpdC93b3JrdHJlZXMvd29ya2VyIiwKICAiY29tbW9uX2RpciI6ICIvdG1wL2NvZGV4L3JlYWRpbmVzcy1jb3JwdXMtdjEvcmVwby8uZ2l0Igp9Cg==",
+    "sha256": "2ef2fa7a6f096d8b141562a53437fd9d70b960ad4f2e12830fd0eed62ff60058",
     "stdout": "preflight OK: worker checkout observation saved\n"
   }
 }

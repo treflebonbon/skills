@@ -338,7 +338,7 @@ test("test_npm_locks_use_public_registry_urls_and_integrity", () => {
 const removed = [
   new RegExp(["herdr", "peer", "refactor"].join("-")),
   new RegExp(["orca", "peer", "refactor"].join("-")),
-  new RegExp(["peer", "", ""].join("[-_]")),
+  new RegExp("\\b" + "peer" + "[-_]"),
   new RegExp(["--", "peer\\b"].join("")),
   new RegExp(["html", "report"].join("[-_]")),
   new RegExp(["file", "safety"].join("[-_]")),
@@ -346,20 +346,11 @@ const removed = [
   new RegExp("(^|[^\\w])" + "contracts" + "/"),
   new RegExp(["html", "parser2"].join("")),
 ];
-// 履歴の採取元を示す fixture の sources field は、今の tree と照合しない
+// 旧 Python 時代の corpus（tests/fixtures/*-python.json）の最上位 sources は履歴の採取元なので、今の tree と照合しない
 const withoutSources = (path: string, body: string) => {
-  if (extname(path) !== ".json" || !path.startsWith("tests/fixtures/")) return body;
-  const strip = (value: any): any =>
-    Array.isArray(value)
-      ? value.map(strip)
-      : value && typeof value === "object"
-        ? Object.fromEntries(
-            Object.entries(value)
-              .filter(([key]) => key !== "sources")
-              .map(([key, item]) => [key, strip(item)]),
-          )
-        : value;
-  return JSON.stringify(strip(JSON.parse(body)));
+  if (!/^tests\/fixtures\/[^/]+-python\.json$/.test(path)) return body;
+  const { sources, ...rest } = JSON.parse(body);
+  return JSON.stringify(rest);
 };
 
 test("test_no_dangling_references_to_removed_parts", () => {
