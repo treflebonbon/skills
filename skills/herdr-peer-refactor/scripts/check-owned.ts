@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import { resolve } from "node:path";
 import { strip } from "../../../lib/bun/coordination-json.ts";
-import digitZeros from "../../../lib/bun/vendor/peer-decimal.json";
+import digitZeros from "../../../lib/bun/vendor/decimal.json";
 
 type Range = [bigint, bigint];
 // Python 3.14 の Unicode 16 と同じ数字だけを行番号として受け入れる。

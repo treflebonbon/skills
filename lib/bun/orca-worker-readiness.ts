@@ -2,7 +2,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { isAbsolute } from "node:path";
 import { parseArgs } from "node:util";
-import { peerJSON } from "./peer-json.ts";
+import { strictJSON } from "./strict-json.ts";
 import { coordinationJSON, DuplicateKey, object, strip } from "./coordination-json.ts";
 
 function match(actual: unknown, expected: unknown, label: string): void {
@@ -103,7 +103,7 @@ function readiness(action: string, path: string, args: Record<string, string>): 
       assignee_handle: args.assignee,
       ...checkoutIdentity(process.cwd()),
     };
-    writeFileSync(path, peerJSON(value), { flag: "wx" });
+    writeFileSync(path, strictJSON(value), { flag: "wx" });
     return;
   }
   nonempty(args.worktree, "worktree");

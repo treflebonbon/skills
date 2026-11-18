@@ -11,8 +11,8 @@ import {
 } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { artifactText } from "../../../lib/bun/html-report.ts";
-import { parsePeerJSON, peerJSON, equalPeerJSON } from "../../../lib/bun/peer-json.ts";
-import folds from "../../../lib/bun/vendor/peer-casefold.json";
+import { parseStrictJSON, strictJSON, equalStrictJSON } from "../../../lib/bun/strict-json.ts";
+import folds from "../../../lib/bun/vendor/casefold.json";
 import { native, openParent, removeCreated, type Identity } from "../../../lib/bun/file-safety.ts";
 
 export function fail(message: string): never {
@@ -46,7 +46,7 @@ function checkAncestor(source: string): void {
 type Reader = (path: string) => Buffer;
 function loadJSON(path: string, label: string, read: Reader): any {
   try {
-    return parsePeerJSON(read(path));
+    return parseStrictJSON(read(path));
   } catch {
     return fail(`${label} を読めません`);
   }
@@ -121,7 +121,7 @@ export function pin(
   const sourceCommit = commitId(sourceSha);
   checkAncestor(sourceCommit);
   const rawRecord = Buffer.from(
-    peerJSON({
+    strictJSON({
       version: 1,
       repo_common_dir: identity,
       artifact_path: artifactPath,
@@ -179,7 +179,7 @@ export function check(
   if (digest(rawRecord) !== fingerprint) fail("記録ファイルの fingerprint が一致しません");
   let record: any;
   try {
-    record = parsePeerJSON(rawRecord);
+    record = parseStrictJSON(rawRecord);
   } catch {
     fail("記録ファイルを読めません");
   }
@@ -187,7 +187,7 @@ export function check(
     !record ||
     typeof record !== "object" ||
     Array.isArray(record) ||
-    !equalPeerJSON(record.version, 1)
+    !equalStrictJSON(record.version, 1)
   )
     fail("記録ファイルの形式が不正です");
   if (
@@ -209,7 +209,7 @@ export function check(
   checkAncestor(sourceCommit);
   const proposed = loadJSON(candidatesPath, "候補ファイル", read);
   validateCandidates(proposed, source);
-  if (!equalPeerJSON(proposed, record.candidates)) fail("候補が固定記録と一致しません");
+  if (!equalStrictJSON(proposed, record.candidates)) fail("候補が固定記録と一致しません");
 }
 if (import.meta.main) {
   try {

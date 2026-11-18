@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import { constants as osConstants } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { check, digest, fail, git, repoIdentity } from "./candidate-record.ts";
-import { equalPeerJSON, parsePeerJSON, peerJSON } from "../../../lib/bun/peer-json.ts";
+import { equalStrictJSON, parseStrictJSON, strictJSON } from "../../../lib/bun/strict-json.ts";
 import {
   native,
   openParent,
@@ -76,7 +76,7 @@ function readPublic(value: string, artifactPath?: string): Buffer {
 }
 function originalArtifact(raw: Buffer, fingerprint: string): string {
   if (digest(raw) !== fingerprint) fail("記録ファイルの fingerprint が一致しません");
-  const record = parsePeerJSON(raw);
+  const record = parseStrictJSON(raw);
   if (!record || typeof record !== "object" || typeof record.artifact_path !== "string")
     fail("記録ファイルの形式が不正です");
   return record.artifact_path;
@@ -157,7 +157,7 @@ function probe(
         result.status ??
         -(osConstants.signals[result.signal as keyof typeof osConstants.signals] ?? 1);
     const raw = Buffer.from(
-      peerJSON({
+      strictJSON({
         version: 1,
         nonce,
         fingerprint,
@@ -198,7 +198,7 @@ function checkpoint(
     files.get(path) ?? fail("checkpoint に必要なファイルがありません");
   check(recordPath, candidatesPath, fingerprint, read);
   const raw = Buffer.from(
-    peerJSON({
+    strictJSON({
       version: 1,
       record_path: recordPath,
       candidates_path: candidatesPath,
@@ -254,12 +254,12 @@ function restore(fingerprint: string, hash: string): void {
     fs.closeSync(parent.fd);
   }
   if (digest(raw) !== hash) fail("checkpoint の hash が一致しません");
-  const data = parsePeerJSON(raw);
+  const data = parseStrictJSON(raw);
   if (
     !data ||
     typeof data !== "object" ||
     Array.isArray(data) ||
-    !equalPeerJSON(data.version, 1) ||
+    !equalStrictJSON(data.version, 1) ||
     data.fingerprint !== fingerprint
   )
     fail("checkpoint の形式または fingerprint が不正です");

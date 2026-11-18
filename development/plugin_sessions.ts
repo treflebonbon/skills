@@ -13,10 +13,10 @@ import {
 import { basename, dirname, join, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { constants } from "node:os";
-import { equalPeerJSON, parsePeerJSON, peerJSON } from "../lib/bun/peer-json.ts";
+import { equalStrictJSON, parseStrictJSON, strictJSON } from "../lib/bun/strict-json.ts";
 import { object, strip } from "../lib/bun/coordination-json.ts";
 import { findCLI } from "../lib/bun/cli-path.ts";
-import digitZeros from "../lib/bun/vendor/peer-decimal.json";
+import digitZeros from "../lib/bun/vendor/decimal.json";
 
 const ROOT = resolve(import.meta.dir, "..");
 const SKILLS = readdirSync(resolve(ROOT, "skills"))
@@ -64,7 +64,7 @@ function document(raw: Uint8Array): { value: any; integerExit: boolean } {
     if (token === "}" || token === "]") depth--;
     previous = token;
   }
-  return { value: parsePeerJSON(raw), integerExit };
+  return { value: parseStrictJSON(raw), integerExit };
 }
 
 function shellWords(script: unknown): string[] {
@@ -230,7 +230,7 @@ function checkCase(
       if (
         field(event, "type") === "item.completed" &&
         field(item, "type") === "command_execution" &&
-        equalPeerJSON(field(item, "exit_code"), 0) &&
+        equalStrictJSON(field(item, "exit_code"), 0) &&
         truthy(field(item, "aggregated_output"))
       )
         reads.push(codexRead(field(item, "command", "")));
@@ -266,7 +266,7 @@ function checkCase(
     reasons.push("official_invocation_missing");
   if (sessionIds.size !== 1) reasons.push("session_id_missing_or_ambiguous");
   if (!detected) reasons.push("skill_not_detected");
-  if (!equalPeerJSON(field(process, "exit_code"), 0)) reasons.push("process_failed");
+  if (!equalStrictJSON(field(process, "exit_code"), 0)) reasons.push("process_failed");
   if (!complete) reasons.push("incomplete_session");
   if (installedRoot && !skillPath) reasons.push("skill_not_read");
   if (installedRoot && !resources.length) reasons.push("resource_not_read");
@@ -345,7 +345,7 @@ function writeJSON(path: string, value: unknown): void {
   const fd = openSync(path, "wx", 0o600);
   try {
     fchmodSync(fd, 0o600);
-    writeFileSync(fd, peerJSON(value));
+    writeFileSync(fd, strictJSON(value));
   } finally {
     closeSync(fd);
   }
@@ -704,5 +704,5 @@ try {
     ],
   };
 }
-process.stdout.write(peerJSON(result));
+process.stdout.write(strictJSON(result));
 process.exitCode = result.status === "passed" ? 0 : 1;
