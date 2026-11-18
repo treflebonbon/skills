@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0](https://github.com/treflebonbon/skills/compare/v0.3.0...v0.4.0) (2026-11-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **pr-screenshots:** retire browser-based PR attachments ([#98](https://github.com/treflebonbon/skills/issues/98))
+
+### Features
+
+* **pr-screenshots:** retire browser-based PR attachments ([#98](https://github.com/treflebonbon/skills/issues/98)) ([91325ee](https://github.com/treflebonbon/skills/commit/91325ee7cb199822df01bc5cc3d6b48c5ea9fb7c))
+
 ## [0.3.0](https://github.com/treflebonbon/skills/compare/v0.2.10...v0.3.0) (2026-11-18)
 
 
