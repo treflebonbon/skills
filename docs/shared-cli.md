@@ -42,7 +42,6 @@ environment = git_environment()
 | `serve-local` | Bash、Bun 1.4.4+ | `serve-local <document-root> <port>` で専用 root を `127.0.0.1` のみへ配信する。port `0` は OS が空きを選び、listen 後に `{root,url}` の JSON を1行出す。foreground の process を runtime の session handle で管理する。GET/HEAD、通常ファイルと `index.html`、directory の末尾 `/` redirect を扱い、root 外の参照と index のない directory は404。追加 install と payload 書込みは不要。 |
 | `orca-worker-readiness` | Bash、Bun 1.4.4+、Git | `record <file> --task --dispatch --assignee` は worker 自身の checkout（cwd、physical root、branch、HEAD、Git dir、common dir）を `orca-worker-readiness-observation/v1` として新規ファイルへ記録し、既存ファイルを上書きしない。`verify <file> --worktree --branch --head --task --dispatch --assignee` は親が独立に取得した割当先の Git metadata と native ID を観測と照合し、不一致・欠落・不正な入力・primary checkout を拒否する。Git metadata の取得では ambient `GIT_*` を除く。 |
 | `orca-send` | Bash、Bun 1.4.4+、選択済み Orca CLI | UTF-8 本文ファイルを最大 8 KiB まで読み、空本文・NUL・不正 UTF-8・重複 body 引数を拒否する。`--body` は shell を通さず literal のまま一度だけ渡す。本文は Orca CLI の argv に入るため、同一 host 上の process から見える可能性がある。 |
-| `prepare-file-safety` | Bash、Bun 1.4.4+、導入済み Node.js と対応する Node-API header、`cc` | candidate/evidence の利用前に、採用済み6操作の native module を payload 外へ source build する明示的な準備入口。保存先・保護・既存 module の検査は[移行手順](bun-peer-evidence-proof.md#入口と準備)を参照する。通常の helper 実行は自動 build / install しない。 |
 | `codex-reviewer` | Bash、Python 3.9+、Git、Codex CLI | linked worktree だけを受け入れ、`-C <root>` で起動する。worktree 固有 Git dir と common Git dir だけを、選択した既存 profile の read-only filesystem 許可として渡す。 |
 
 `git-push-topic` と `git-push-reviewed` は実際の push を行う入口であり、検証では mock のみを使う。`gh-review-thread reply-resolve` と `orca-send` も外部への書込みを行うため、skill とその利用者が通常の承認契約を確認してから実行する。
@@ -65,13 +64,13 @@ CodeRabbit の `head_evidence` は、サマリーで見つけた HEAD を `{sour
 
 ## `codex-reviewer` の read-only 起動
 
-通常起動は `dotfiles-secure`、先頭の `--peer` は `dotfiles-peer` profile を選択する。引数で `-C`、worktree、sandbox、profile、remote、権限変更を指定することはできない。`-c` / `--config` は model 関連 key だけを許可し、`--` の後は Codex に positional arguments として渡す。
+通常起動は `dotfiles-secure`を選択する。引数で `-C`、worktree、sandbox、profile、remote、権限変更を指定することはできない。`-c` / `--config` は model 関連 key だけを許可し、`--` の後は Codex に positional arguments として渡す。
 
-この launcher は linked worktree の正確な Git metadata に read-only access を加える。profile 欠損や実効性の preflight は行わず、Codex の起動失敗をそのまま返す。別 profile や通常起動へ切り替えない。profile の実効性は専用 auto の保護検証で別途確認する。Codex の秘密情報は隔離せず、`--peer` も秘密隔離を意味しない。
+この launcher は linked worktree の正確な Git metadata に read-only access を加える。profile 欠損や実効性の preflight は行わず、Codex の起動失敗をそのまま返す。別 profile や通常起動へ切り替えない。Codex の秘密情報は隔離しない。
 
 ## Bun CLI の起動
 
-`gh-review-thread`、`orca-send`、`orca-worker-readiness`、`serve-local`、`prepare-file-safety` と両 peer の candidate/evidence wrapper は Bash の privileged mode（`#!/bin/bash -p`）から `lib/bun/run` を使う。`BASH_ENV` と exported shell function を起動前に読み込ませず、symlink の実体から package root を解決する。呼び出し方と選択済み CLI への native 引数は従来どおりである。
+`gh-review-thread`、`orca-send`、`orca-worker-readiness`と `serve-local` は Bash の privileged mode（`#!/bin/bash -p`）から `lib/bun/run` を使う。`BASH_ENV` と exported shell function を起動前に読み込ませず、symlink の実体から package root を解決する。呼び出し方と選択済み CLI への native 引数は従来どおりである。
 
 共用起動は `BUN_*`・`JSC_*`・`NODE_OPTIONS`・`NODE_PATH` を除去してから Bun を起動し、package の bunfig と tsconfig を絶対パスで指定する。dotenv、auto-install、macro、transpiler cache と crash report upload を無効にする。これらの runtime 設定は子 CLI にも引き継がれない。`PATH`、`HOME`、`XDG_CONFIG_HOME`、proxy や認証用の環境、cwd は保つ。Bun 自体と選択済み CLI、package payload は信頼済みの実体を使う。これはそれらの実体を隔離する sandbox ではない。
 

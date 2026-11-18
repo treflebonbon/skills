@@ -10,11 +10,9 @@ const version = json("plugin.json").version;
 const skills = [
   "dogfood",
   "domain-modeling-studio",
-  "herdr-peer-refactor",
   "marp",
   "md-agents-review",
   "md-claude-review",
-  "orca-peer-refactor",
   "pr-screenshots",
   "product-guide",
   "rop",
@@ -32,6 +30,7 @@ test("test_skill_directories_are_the_exact_public_set", () => {
   const names = fs
     .readdirSync(resolve(root, "skills"))
     .filter((name) => fs.existsSync(resolve(root, "skills", name, "SKILL.md")));
+  expect(names, "公開 skill 数").toHaveLength(10);
   expect(names.sort(), "公開 skill 集合").toEqual([...skills].sort());
   for (const name of skills) {
     expect(frontmatter(name), name + " name").toMatch(new RegExp("^name: " + name + "$", "m"));
@@ -91,7 +90,6 @@ test("test_formatter_dependencies_live_outside_the_plugin_root", () => {
     oxfmt: "0.67.0",
     typescript: "7.0.2",
     "@types/bun": "1.4.4",
-    htmlparser2: "12.0.0",
   });
   for (const document of [lock, lock.packages[""]]) {
     expect(document.name).toBe(development.name);
@@ -156,12 +154,7 @@ test("test_readme_documents_all_skills_platforms_and_dependency_routes", () => {
     "skills/dogfood/references/dependencies.md",
     "skills/domain-modeling-studio/references/dependencies.md",
     "skills/product-guide/references/dependencies.md",
-    "skills/herdr-peer-refactor/references/dependencies.md",
-    "skills/herdr-peer-refactor/references/auto-session.md",
-    "contracts/auto-peer-protection.md",
     "docs/raw-codex-isolation.md",
-    "Python 3.9+",
-    "Python 3.11+ (\x60tomllib\x60)",
   ])
     expect(readme, requirement).toContain(requirement);
   for (const cli of ["claude", "codex"])
@@ -338,5 +331,51 @@ test("test_npm_locks_use_public_registry_urls_and_integrity", () => {
         );
         expect(value.integrity, path + " integrity " + name).toMatch(/^sha(256|384|512)-/);
       }
+  }
+});
+
+// 撤去済みの部品名。この test 自身に載らないよう分割して組み立てる。
+const removed = [
+  new RegExp(["herdr", "peer", "refactor"].join("-")),
+  new RegExp(["orca", "peer", "refactor"].join("-")),
+  new RegExp(["peer", "", ""].join("[-_]")),
+  new RegExp(["--", "peer\\b"].join("")),
+  new RegExp(["html", "report"].join("[-_]")),
+  new RegExp(["file", "safety"].join("[-_]")),
+  new RegExp(["auto", "peer"].join("[-_]")),
+  new RegExp("(^|[^\\w])" + "contracts" + "/"),
+  new RegExp(["html", "parser2"].join("")),
+];
+// 履歴の採取元を示す fixture の sources field は、今の tree と照合しない
+const withoutSources = (path: string, body: string) => {
+  if (extname(path) !== ".json" || !path.startsWith("tests/fixtures/")) return body;
+  const strip = (value: any): any =>
+    Array.isArray(value)
+      ? value.map(strip)
+      : value && typeof value === "object"
+        ? Object.fromEntries(
+            Object.entries(value)
+              .filter(([key]) => key !== "sources")
+              .map(([key, item]) => [key, strip(item)]),
+          )
+        : value;
+  return JSON.stringify(strip(JSON.parse(body)));
+};
+
+test("test_no_dangling_references_to_removed_parts", () => {
+  const git = spawnSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" });
+  expect(git.status, git.stderr).toBe(0);
+  for (const path of git.stdout.split("\0").filter(Boolean)) {
+    if (path === "CHANGELOG.md" || path.startsWith("docs/adr/0004-")) continue;
+    for (const pattern of removed) {
+      expect(pattern.test(path), "dangling reference in path " + path + " " + pattern).toBe(false);
+      if (!fs.existsSync(resolve(root, path))) continue;
+      const bytes = fs.readFileSync(resolve(root, path));
+      if (bytes.includes(0)) continue;
+      expect(
+        pattern.test(withoutSources(path, bytes.toString("utf8"))),
+        "dangling reference in " + path + " " + pattern,
+      ).toBe(false);
+    }
   }
 });

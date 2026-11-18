@@ -35,7 +35,7 @@ if (mode === "execve") {
   );
   let child: ReturnType<typeof spawn> | undefined;
   try {
-    // 既存 peer-request.sh と同じ open file description で flock を取得する。
+    // Perl と同じ open file description で flock を取得する。
     const acquired = spawnSync(
       "perl",
       [

@@ -1,6 +1,6 @@
 # report と質問シートの loopback 配信の Bun 移行
 
-対象は [#37](https://github.com/treflebonbon/skills/issues/37)。両 peer と `ui-grill-with-docs` の配信手順を、Python 標準 HTTP server から package の `bin/serve-local` に切り替える。HTML checker と candidate/evidence は変更しない。
+対象は [#37](https://github.com/treflebonbon/skills/issues/37)。`ui-grill-with-docs` の配信手順を、Python 標準 HTTP server から package の `bin/serve-local` に切り替える。
 
 ## 入口と配信範囲
 
@@ -19,7 +19,7 @@ port は `0`〜`65535`。`0` は OS が空きを選ぶ。listen 成功後に `{ 
 - 解決した path が root 外なら、親参照・encode された参照・symlink も404。dangling symlink・不正 URL・NUL・FIFO などの非通常ファイルも404。open は `O_NOFOLLOW | O_NONBLOCK` を使い、開いた FD が通常ファイルか検査する。
 - GET / HEAD 以外は501。拒否応答は日本語の固定本文を返す。
 
-root は session が管理する配信用 directory として使う。非協調 writer との競合下での directory FD 操作を評価する [#32 の証跡](bun-file-safety-proof.md)は、この server の検証結果へ転用しない。
+root は session が管理する配信用 directory として使う。非協調 writer との競合下での directory FD 操作の評価（#32）は、この server の検証結果へ転用しない。
 
 ## 移行前の比較データ
 
@@ -35,7 +35,7 @@ root は session が管理する配信用 directory として使う。非協調 
 
 ## process と検証
 
-runtime 管理の長時間 terminal/session で foreground のまま起動する。起動 JSON の root と URL を照合し、HTTP 応答を確認してから browser を開く。session handle を保持し、peer の描画検査後、または質問の聞き取り終了後にその handle で終了する。短命 shell の background job にしない。
+runtime 管理の長時間 terminal/session で foreground のまま起動する。起動 JSON の root と URL を照合し、HTTP 応答を確認してから browser を開く。session handle を保持し、描画検査後、または質問の聞き取り終了後にその handle で終了する。短命 shell の background job にしない。
 
 質問シートは専用 root の `index.html` だけを次 round の内容へ更新し、同じ URL を reload する。executor 側 HTTP の成功と、人が使う browser での session / round の表示確認は別の証拠とする。
 
@@ -61,12 +61,11 @@ repo 外の固定 plugin・agent 設定・flake・呼出し元の更新、導入
 
 2026-11-13 の確認環境では、`~/.config/nix-devshell/skills-plugin.json` の固定 revision は `fd2a50c558288b3661e5066b94b1196453ef9269` だった。次の3手順に旧 `python3 -m http.server` の呼出しを確認した（confirmed）。固定 source と Codex の導入済み cache にある各 `SKILL.md` の SHA-256 も一致した。
 
-| 所在                                                                                                                                         | 更新対象と手順                                                                                                                                                                                                           |
-| -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `~/.cache/treflebonbon-skills/marketplaces/<rev>/skills/herdr-peer-refactor/SKILL.md` と同じ配置の `orca-peer-refactor/SKILL.md`             | いずれも旧23行目の report 配信コマンドが対象。この変更を含む payload へ再配備し、専用 root を新 CLI へ渡す手順を再読込する。cache を直接編集しない。                                                                     |
-| `~/.cache/treflebonbon-skills/marketplaces/<rev>/skills/ui-grill-with-docs/SKILL.md`                                                         | 旧46行目の質問シート配信コマンドが対象。同じ payload の新手順で専用 root と port `0` を渡し、起動 JSON の URL を browser に使う。                                                                                        |
-| `~/.codex/plugins/cache/treflebonbon/treflebonbon-skills/0.2.10/skills/{herdr-peer-refactor,orca-peer-refactor,ui-grill-with-docs}/SKILL.md` | 上記3手順の導入済みコピーが残る。通常の plugin 更新と再読込で切り替え、`SKILL.md` と新しい `bin/serve-local` が同じ配布元の root にあることを照合する。                                                                  |
-| `treflebonbon/dotfiles` の `private_dot_config/nix-devshell/skills-plugin.json` と配備先 `~/.config/nix-devshell/skills-plugin.json`         | 固定版を更新する管理元と配備先。#37 を含む受入済み release の revision / hash へ通常の更新手順で変更し、`sync-skills-plugin --verify-only` で配備元を確認する。採用する release の選択・pin 更新・再配備は別工程とする。 |
+| 所在                                                                                                                                 | 更新対象と手順                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `~/.cache/treflebonbon-skills/marketplaces/<rev>/skills/ui-grill-with-docs/SKILL.md`                                                 | 旧46行目の質問シート配信コマンドが対象。同じ payload の新手順で専用 root と port `0` を渡し、起動 JSON の URL を browser に使う。                                                                                        |
+| `~/.codex/plugins/cache/treflebonbon/treflebonbon-skills/0.2.10/skills/ui-grill-with-docs/SKILL.md`                                  | 上記手順の導入済みコピーが残る。通常の plugin 更新と再読込で切り替え、`SKILL.md` と新しい `bin/serve-local` が同じ配布元の root にあることを照合する。                                                                   |
+| `treflebonbon/dotfiles` の `private_dot_config/nix-devshell/skills-plugin.json` と配備先 `~/.config/nix-devshell/skills-plugin.json` | 固定版を更新する管理元と配備先。#37 を含む受入済み release の revision / hash へ通常の更新手順で変更し、`sync-skills-plugin --verify-only` で配備元を確認する。採用する release の選択・pin 更新・再配備は別工程とする。 |
 
 調査した dotfiles の `docs/` と `runtime/` には、この HTTP server を直接起動する追加の呼出しは見つからなかった。別環境の独立した script や利用者の alias まで網羅したという意味ではない。確認環境の Bun 1.4.4 は新入口の条件を満たしており、この確認を他の配布先の runtime / flake の証拠には使わない。
 

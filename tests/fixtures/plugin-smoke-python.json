@@ -14,7 +14,7 @@
       "cwd": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.dgggcwo1",
       "home": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.dgggcwo1/home",
       "codexHome": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.dgggcwo1/codex",
-      "output": "{\"name\":\"treflebonbon-skills\",\"components\":{\"skills\":12},\"findings\":[]}\n"
+      "output": "{\"name\":\"treflebonbon-skills\",\"components\":{\"skills\":10},\"findings\":[]}\n"
     },
     {
       "name": "agy",
@@ -60,7 +60,7 @@
       "cwd": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin._22t6ymu",
       "home": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin._22t6ymu/home",
       "codexHome": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin._22t6ymu/codex",
-      "output": "dogfood\ndomain-modeling-studio\nherdr-peer-refactor\nmarp\nmd-agents-review\nmd-claude-review\norca-peer-refactor\npr-screenshots\nproduct-guide\nrop\nui-grill-with-docs\nworktree-gc\n"
+      "output": "dogfood\ndomain-modeling-studio\nmarp\nmd-agents-review\nmd-claude-review\npr-screenshots\nproduct-guide\nrop\nui-grill-with-docs\nworktree-gc\n"
     },
     {
       "name": "codex",
@@ -90,19 +90,12 @@
         "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/gh-review-thread.bats",
         "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/git-push-topic.bats",
         "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/orca-send.bats",
-        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/orca-worker-readiness.bats",
-        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-candidate-record.bats",
-        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-gh-once.bats",
-        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-limits-sync.bats",
-        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-orca-preflight.bats",
-        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-orca-receipts.bats",
-        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-peer-request.bats",
-        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/peer-run-evidence.bats"
+        "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests/tests/cli/orca-worker-readiness.bats"
       ],
       "cwd": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex-installed-cli-tests",
       "home": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/home",
       "codexHome": "/tmp/codex/verification-env.ayy04bns/tmp/skills-plugin.53_jrwdm/codex",
-      "output": "fake installed CLI suites: 10\n"
+      "output": "fake installed CLI suites: 4\n"
     }
   ]
 }

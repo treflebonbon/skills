@@ -1,6 +1,6 @@
 # 品質検査と browser fixture の Bun 移行
 
-[#50](https://github.com/treflebonbon/skills/issues/50) は plugin／一般 skill の静的契約、TypeScript evidence の検査、dogfood／WSL2 browser の Python 補助を Bun に移す。既存 Node・Bats・npm を維持し、peer・auto・raw 専用の fixture は各機能 ticket に残す。docstring 診断と最後の Python 品質配線の撤去は #51 が扱う。
+[#50](https://github.com/treflebonbon/skills/issues/50) は plugin／一般 skill の静的契約、TypeScript evidence の検査、dogfood／WSL2 browser の Python 補助を Bun に移す。既存 Node・Bats・npm を維持し、auto・raw 専用の fixture は各機能 ticket に残す。docstring 診断と最後の Python 品質配線の撤去は #51 が扱う。
 
 ## 旧実装の固定と比較
 

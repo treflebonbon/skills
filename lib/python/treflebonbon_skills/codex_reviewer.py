@@ -70,9 +70,6 @@ def validate_arguments(arguments: list[str]) -> None:
 def main() -> None:
     profile = "dotfiles-secure"
     arguments = sys.argv[1:]
-    if arguments[:1] == ["--peer"]:
-        profile = "dotfiles-peer"
-        arguments = arguments[1:]
     validate_arguments(arguments)
 
     repository = Repository.discover(Path.cwd(), linked_only=True)

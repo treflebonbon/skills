@@ -44,8 +44,6 @@ CI の `bun-cli` は Bun 1.4.4 で型検査と `npm run test:bun` を実行し�
 
 `typescript-evidence` の旧版 job では共用起動の拒否も検査します。
 
-安全なファイル操作の候補と採用条件は [Bun ファイル操作の実証](bun-file-safety-proof.md)に記録します。`tests/bun/file-safety.test.ts` の機能判定と、必要な契約テストの成功・失敗・skip を併せて確認します。不適合の判定や skip を、移植完了の証拠にはしません。
-
 process 置換・TTY・signal・FD と lock の比較は [Bun process / lock の実証](bun-process-lock-proof.md)に記録します。旧契約との不適合を検出するテストの成功は、方式の採用や後続 ticket の解禁を意味しません。
 
 namespace・UID/GID mapping・capability・loopback の比較は [Bun namespace の実証](bun-namespace-proof.md)に記録します。実 namespace のテストは Linux / WSL2 で `NAMESPACE_PROOF_REAL=1` を明示して実行します。通常 CI の skip と実測の成功を区別し、必要な OS と配布環境の確認が揃うまで採用と後続の依存解除を判断しません。
@@ -62,13 +60,11 @@ npm run lint
 npm run lint:sh
 ```
 
-`lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `lib/bun/run`、`development/plugin-sessions`、両 peer の `scripts/check-architecture-report`・`scripts/candidate-record`・`scripts/run-evidence`・`scripts/check-owned.sh`、Herdr の `scripts/peer-request.sh`、Orca の `scripts/orca-preflight`、`tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトと `lib/bun/run`、`development/plugin-sessions`、両 peer の `scripts/check-architecture-report`・`scripts/candidate-record`・`scripts/run-evidence`・`scripts/check-owned.sh`、Herdr の `scripts/peer-request.sh`、Orca の `scripts/orca-preflight` です（`-S warning` 以上。info と style は見ません）。対象のファイルを commit するときは、pre-commit hook が実行します。CI では走りません。
-
-HTML report の静的 checker と text 抽出の比較 corpus、同梱 parser、入口の更新は [移行記録](html-report-parser-proof.md) を参照してください。
+`lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `lib/bun/run`、`development/plugin-sessions`、`tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトと `lib/bun/run`、`development/plugin-sessions` です（`-S warning` 以上。info と style は見ません）。対象のファイルを commit するときは、pre-commit hook が実行します。CI では走りません。
 
 report と質問シートの loopback 配信、旧 HTTP corpus、専用 root と process の開始終了は [配信の移行記録](bun-loopback-proof.md)と `tests/bun/serve-local.test.ts` で確認します。
 
-coordination helper の旧 corpus、readiness の独立検証、terminal 応答と所有範囲の比較は [移行記録](bun-peer-coordination-proof.md)と `tests/bun/peer-coordination.test.ts`、対応する公開 Bats で確認します。
+worker-readiness の独立検証は `tests/bun/orca-worker-readiness.test.ts` と `tests/cli/orca-worker-readiness.bats` で確認します。
 
 `gh-review-thread` の旧 CLI 出力・段階別失敗・返信と resolve の順序は [移行記録](bun-review-thread-proof.md)、`tests/bun/gh-review-thread.test.ts` と `tests/cli/gh-review-thread.bats` で確認します。実 GitHub への返信・resolve は行わず、fake `gh` の argv と応答を比較します。
 
@@ -76,15 +72,13 @@ coordination helper の旧 corpus、readiness の独立検証、terminal 応答�
 
 package／一般 skill の契約、TypeScript evidence ドライバーと dogfood／WSL2 browser の fixture は [品質検査の移行記録](bun-quality-fixtures-proof.md)にまとめます。静的契約は `tests/bun/package-contract.test.ts` と `public-skills.test.ts`、旧拒否 corpus と payload snapshot は対応する fixture テストで確認します。browser fixture の補助は Bun を使い、実 browser の受入とは区別します。
 
-他のシェルファイルは対象外です。そのうち次の Bats 7 ファイルは、`.editorconfig` の `indent_size = 2` で `shfmt -l` に差分が出ることを確認しました。対象へ足すときは、先に整形を揃えます。`peer-peer-request`、`peer-run-evidence`、`peer-skills-contracts`、`devshell-env`、`isolated-github`、`raw-codex-integration`、`secret-isolation-worktree`。他の対象外のファイルは、差分の有無を確認していません。
+他のシェルファイルは対象外です。そのうち次の Bats 4 ファイルは、`.editorconfig` の `indent_size = 2` で `shfmt -l` に差分が出ることを確認しました。対象へ足すときは、先に整形を揃えます。`devshell-env`、`isolated-github`、`raw-codex-integration`、`secret-isolation-worktree`。他の対象外のファイルは、差分の有無を確認していません。
 
 `npm test` は Bun CLI の型検査・`tests/bun/` の Bun suite、Python の unittest discovery、dogfood / domain-modeling-studio / WSL2 browser package の Node suite、dogfood / WSL2 browser package / raw Codex fixture、および公開 `tests/*.bats` と `tests/cli/*.bats` を実行します。通常 suite は実 browser suite を起動しません。`npm run test:plugin-cli` は3 CLI すべてを要求する install smoke test で、モデルを呼ぶ実 session の証拠にはなりません。
 
 `tests/raw-codex/raw-managed-profile.bats` の「managed host grants and ancestor path rules stay scoped in raw namespace」は、Claude Code の worktree 隔離 session（Bats の一時 directory が `/tmp/nix-shell.*/` 配下）で失敗し、単独実行でも再現することを確認しました。sandbox 内の task が `mkdir: cannot create directory …/raw/home: Read-only file system` で終了します（confirmed）。原因の特定と、この環境の外で成功するかは未確認です。`npm test` の失敗にこのテスト 1 件だけが現れる場合は、環境依存の可能性が高い（推定）ので、通常の端末で単独実行して切り分けます。
 
 同じ失敗が Nix shell 配下の一時 directory で起きた場合は、`TMPDIR` だけを Nix shell 外の書込み可能な directory に変えて、この1件を再実行します。WSL2 の通常セッションではこの変更で成功したことを確認しました（confirmed）。fixture の保管先を変える切り分けであり、権限と host 非公開の検査は同じものを実行します。単独実行が通ったら、その `TMPDIR` と同じ HEAD で全 `npm test` を実行します。
-
-candidate と公開証跡の移行・native module の明示的な準備・旧 corpus の復旧は [移行記録](bun-peer-evidence-proof.md)と `tests/bun/peer-evidence.test.ts` で確認します。`npm run test:bun` は先に `npm run prepare:file-safety` を実行します。準備には導入済み Node.js と対応する Node-API header、`cc` が必要で、通常の helper 実行では build しません。
 
 ## product-guide のブラウザ受入（人手）
 
@@ -239,7 +233,7 @@ hook は `lefthook.yml` が定義し、`lefthook install` で入ります。hook
 | hook       | job                    | 内容                                                                                                                                                                                                                                                                                                                                                                                        |
 | ---------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | pre-commit | `format`               | `npm run format:check`。oxfmt が無ければ `npm ci --prefix development` を促して失敗します。新しい clone や worktree では先に導入します。                                                                                                                                                                                                                                                    |
-| pre-commit | `shell`                | `npm run lint:sh`。`bin/**`、`lib/bun/run`、上記の peer helper、`tests/cli/git-push-topic.bats`、`.editorconfig`、`package.json` を変更したときだけ動きます。                                                                                                                                                                                                                               |
+| pre-commit | `shell`                | `npm run lint:sh`。`bin/**`、`lib/bun/run`、`tests/cli/git-push-topic.bats`、`.editorconfig`、`package.json` を変更したときだけ動きます。                                                                                                                                                                                                                                                   |
 | pre-commit | `docstrings`           | `npm run --silent report:docstrings`。変更した Python 関数の docstring 有無を JSON で表示します。説明不足だけでは止めず、比較元不明・構文不正など診断不能の場合は失敗します。                                                                                                                                                                                                               |
 | pre-commit | `workflows`            | `.github/workflows/*.{yaml,yml}` を変更したときだけ、`pinact`（action の SHA 固定）、`actionlint`、`ghalint` を順に実行します。                                                                                                                                                                                                                                                             |
 | pre-commit | `gitleaks`             | staged の変更に秘密情報がないことを確認します。                                                                                                                                                                                                                                                                                                                                             |

@@ -92,16 +92,6 @@ class CodexReviewerTest(unittest.TestCase):
         self.assertEqual(launched["argv"], expected)
         self.assertEqual(launched["git_env"], {})
 
-    def test_peer_profile_preserves_the_same_read_only_metadata(self):
-        result = self.run_reviewer("--peer", "--disable", "apps")
-
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        launched = self.launched()
-        self.assertEqual(launched["argv"][3], 'default_permissions="dotfiles-peer"')
-        self.assertIn('permissions.dotfiles-peer.filesystem={"', launched["argv"][5])
-        self.assertTrue(launched["argv"][5].endswith('"read"}'))
-        self.assertEqual(launched["argv"][6:], ["--disable", "apps"])
-
     def test_boundary_replacing_arguments_are_rejected_before_start(self):
         cases = [
             ("-C/tmp",), ("--cd=/tmp",), ("-s",), ("--sandbox=danger-full-access",),
