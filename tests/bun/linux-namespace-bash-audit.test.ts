@@ -36,6 +36,12 @@ test("Bash監査modeだけが比較後の読取を要求し、専用準備と正
   );
   expect(audit).not.toContain("sudo");
   expect(audit).not.toContain("probe-userns");
+  expect(audit).not.toContain("probe-uid");
+  expect(comparison).toContain("|| inputs.mode == 'probe-uid'");
+  expect(workflow).toContain("          - probe-uid");
+  expect(workflow).toContain('"$PROOF_MODE" == probe-uid');
+  expect(workflow).toContain("&& inputs.mode != 'probe-uid'");
+  expect(workflow).toContain("inputs.mode == 'probe-uid' && 'namespace-uid'");
   expect(comparison).toContain("|| inputs.mode == 'probe-userns'");
   expect(workflow).toContain("          - probe-userns");
   expect(workflow).toContain('"$PROOF_MODE" == probe-userns');

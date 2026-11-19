@@ -283,14 +283,19 @@ def runtime_hashes(version):
 
 def comparison_kind():
     """同じcaptureで比較する対照と、結果の保存先を選ぶ。"""
-    return "userns" if os.environ.get("PROOF_MODE") == "probe-userns" else "bash"
+    mode = os.environ.get("PROOF_MODE")
+    return "uid" if mode == "probe-uid" else "userns" if mode == "probe-userns" else "bash"
 
 
 def comparison_scenarios():
-    """userns方式ではnamespace作成を保ち、mapping関連操作だけを省く。"""
-    if comparison_kind() == "userns":
-        return [launch.SCENARIOS[0], ("control", ["--user", "--", "/usr/bin/true"])]
-    return launch.SCENARIOS
+    """namespace作成を保つ対照と、必要なら現在EUIDだけのmappingを選ぶ。"""
+    kind = comparison_kind()
+    if kind not in ("userns", "uid"):
+        return launch.SCENARIOS
+    scenarios = [launch.SCENARIOS[0], ("control", ["--user", "--", "/usr/bin/true"])]
+    if kind == "uid":
+        scenarios.insert(1, ("uid-only", [f"--map-user={os.geteuid()}", "--", "/usr/bin/true"]))
+    return scenarios
 
 
 def prepare(root, output, version):
@@ -373,18 +378,21 @@ def bash_outcome(record, common, checkpoint):
     """Bashの直接子の所有権、全raw結果と測定前後の条件を分類する。"""
     try:
         runtime = record["runtime"]
+        scenarios = comparison_scenarios()
+        expected_count = 3 * len(scenarios)
         if (
             record.get("error") or record["ancestry"] != common or runtime != checkpoint["bash"]["runtime"]
             or record["before"] != checkpoint["context"] or record["after"] != record["before"]
             or record["controllerHash"] != digest(DRIVER) or record["unshare"] != checkpoint["unshare"]
             or record["stdinType"] != "closed" or record["cwd"] != "/"
             or record["stdoutType"] != "pipe" or record["stderrType"] != "pipe"
-            or record["probeEnvironment"] != "empty" or record["forkCount"] != 6
+            or record["probeEnvironment"] != "empty" or record["forkCount"] != expected_count
+            or len(record["cases"]) != len(scenarios)
         ):
             return "unavailable"
         probes = [probe for case in record["cases"] for probe in case["probes"]]
         ancestor_pids = {entry["pid"] for entry in common}
-        if len(probes) != 6 or len({probe["pid"] for probe in probes}) != 6:
+        if len(probes) != expected_count or len({probe["pid"] for probe in probes}) != expected_count:
             return "unavailable"
         for probe in probes:
             initial = probe["childBefore"]
@@ -403,7 +411,13 @@ def bash_outcome(record, common, checkpoint):
                 or probe["executableHashAfter"] != checkpoint["unshare"]["hash"]
             ):
                 return "unavailable"
-        return launch.outcome(record, comparison_scenarios())
+        if comparison_kind() == "uid":
+            cases = record["cases"]
+            baseline = {**record, "cases": [cases[0], cases[2]]}
+            if launch.outcome(baseline, [scenarios[0], scenarios[2]]) != "uid-map-eperm":
+                return "unavailable"
+            return launch.outcome({**record, "cases": cases[1:]}, scenarios[1:])
+        return launch.outcome(record, scenarios)
     except (KeyError, TypeError, ValueError, IndexError, AttributeError, OSError):
         return "unavailable"
 
@@ -469,10 +483,13 @@ def finalize(root, output, version, prepare_status, perl_status, gate_status, ba
         elif perl_outcome == "uid-map-eperm" and gate_status == BASELINE_READY and bash_status == 0 and bash_measurement is not None:
             direct_outcome = bash_outcome(bash_measurement, common, checkpoint)
             probes = [probe for item in (baseline, bash_measurement) for case in item["cases"] for probe in case["probes"]]
-            if len({probe["pid"] for probe in probes}) == 12:
-                outcomes = {"uid-map-eperm": "id-mapping-required", "not-reproduced": "bash-not-reproduced"} if kind == "userns" else {
-                    "uid-map-eperm": "perl-layer-not-required", "not-reproduced": "perl-layer-dependent",
-                }
+            if len({probe["pid"] for probe in probes}) == 6 + 3 * len(comparison_scenarios()):
+                if kind == "uid":
+                    outcomes = {"uid-map-eperm": "uid-mapping-reproduced", "not-reproduced": "uid-mapping-not-reproduced"}
+                elif kind == "userns":
+                    outcomes = {"uid-map-eperm": "id-mapping-required", "not-reproduced": "bash-not-reproduced"}
+                else:
+                    outcomes = {"uid-map-eperm": "perl-layer-not-required", "not-reproduced": "perl-layer-dependent"}
                 record["outcome"] = outcomes.get(direct_outcome, "unavailable")
         if record["outcome"] == "unavailable":
             raise ValueError("選択した対照の比較条件・raw結果が成立しません")
@@ -486,7 +503,7 @@ def finalize(root, output, version, prepare_status, perl_status, gate_status, ba
         for name, measurement in record["measurements"].items():
             parent.log_measurement(name, measurement, prefix=kind)
         launch.emit({"outcome": record["outcome"], "error": record.get("error")}, kind)
-    return parent.FINAL_REPRODUCED if record["outcome"] in ("perl-layer-not-required", "perl-layer-dependent", "id-mapping-required", "bash-not-reproduced") else parent.FINAL_CLEAR if record["outcome"] == "not-reproduced" else 2
+    return parent.FINAL_REPRODUCED if record["outcome"] in ("perl-layer-not-required", "perl-layer-dependent", "id-mapping-required", "bash-not-reproduced", "uid-mapping-reproduced", "uid-mapping-not-reproduced") else parent.FINAL_CLEAR if record["outcome"] == "not-reproduced" else 2
 
 
 def comparison_main(args):

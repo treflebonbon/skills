@@ -68,7 +68,10 @@ compare_bash() {
   fi
   local source_root output prepare_status=0 perl_status=-1 gate_status=-1 bash_status=-1 final_status=0
   local executable_hash case_name repetition prefix capture_status
-  local -a case_argv
+  local -a case_argv case_names=(minimal control)
+  if [[ ${PROOF_MODE:-} == probe-uid ]]; then
+    case_names=(minimal uid-only control)
+  fi
   source_root="$(CDPATH='' cd -- "$1" && pwd -P)" || return 2
   case "$2" in
   /*) output=$2 ;;
@@ -88,11 +91,13 @@ compare_bash() {
       if [[ $bash_status == 0 ]]; then
         executable_hash="$(python3 -I "$capture_helper" settings "$source_root" "$output" "$BASH_VERSION")" || bash_status=$?
         if [[ $bash_status == 0 ]]; then
-          for case_name in minimal control; do
+          for case_name in "${case_names[@]}"; do
             case_argv=(-- /usr/bin/true)
             if [[ $case_name == minimal ]]; then
               case_argv=(--map-current-user -- /usr/bin/true)
-            elif [[ ${PROOF_MODE:-} == probe-userns ]]; then
+            elif [[ $case_name == uid-only ]]; then
+              case_argv=("--map-user=$EUID" -- /usr/bin/true)
+            elif [[ ${PROOF_MODE:-} == probe-userns || ${PROOF_MODE:-} == probe-uid ]]; then
               case_argv=(--user -- /usr/bin/true)
             fi
             for repetition in 1 2 3; do

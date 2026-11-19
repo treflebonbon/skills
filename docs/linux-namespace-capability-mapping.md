@@ -55,3 +55,5 @@ flowchart TD
 既存の共通Bash比較を使う `mode=probe-userns` を承認後に1回実行した。Perl基準測定の最小argv・普通の対照を各3回実行し、正確なEPERMと対照成功を確認した場合だけ、Bash直接側で `--map-current-user -- /usr/bin/true` と `--user -- /usr/bin/true` を各3回比較する。最大12 namespace probe/architecture、計24回と、別に版確認各1回。新しいjournal検索はしない。詳細は [比較の契約](bun-process-linux-feedback-loop.md#mapping関連操作の最小化-namespace作成だけを残す) に記す。
 
 確認済み（confirmed）: [run 44458506354 / attempt 1](evidence/linux-namespace-userns/44458506354-1/README.md) はsource / workflow `e25a535074c26f2520d1e09b4f9ac6cf26ff354c` に固定し、両構成とも `id-mapping-required` だった。Perl基準測定を含め計24回を測り、Bashのmapping関連操作付きは各3回同じEPERM、namespace作成だけの対照は各3回成功した。今回の条件ではmapping関連操作が再現に必要だった。UID書込みだけの分離や、前回runの監査と今回のPIDの直接対応ではない。新しいjournal検索・設定変更・artifact取得/読取は行っていない。実VMのloaded policyと当該syscallの直接因果は引き続き未確認である。Phase 2全体・#33は未完了、#82は#33待ち、macOS 15と全子孫5秒保証の未解決を維持する。
+
+次の最小化は、同じBash内で現行argv・UID-only・namespace-onlyを各3回比較する未実行の `probe-uid` とする。現在EUIDの数値を使う `--map-user=<EUID>` でUIDのmappingを残し、GID mappingとsetgroups指定を省く。Perl基準6回を含む最大30 namespace probeと版確認2回で、Bash現行argvの再現と対照成功を条件に分類する。[UID単独比較の契約](bun-process-linux-feedback-loop.md#uid-mapping単独の最小化) に範囲を記す。新しい実行には検証・レビュー・公開・CI後のSHAについて別の1runの承認が必要である。

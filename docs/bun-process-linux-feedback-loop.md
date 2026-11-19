@@ -417,3 +417,34 @@ Bashの比較ではnamespace作成を保った対照が成功し、mapping関連
 [実行記録](evidence/linux-namespace-userns/44458506354-1/README.md) に公開JSON各18行・計36行の全値と掲載順、公開run metadata14項目・3jobのstep結果、exit 1の終了行を保存した。実行対象の独立レビューは各指摘0件、通常CI全6ジョブとCodeRabbitの同じheadに対する4評価項目は成功している。追加dispatch・kernel journal検索・設定変更・新規install・artifactの取得/読取は行っていない。
 
 今回のrunで拒否時LSMを観測したものではなく、前回runの監査PIDを今回のPIDへ対応させない。実VMの完全なpackage版、loaded policy、当該syscallの直接因果と、残る固定条件の要否は未確認。Phase 2全体・#33未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。
+
+## UID mapping単独の最小化
+
+前回の [namespace作成だけを残す比較](evidence/linux-namespace-userns/44458506354-1/README.md) は、UID/GID mappingとsetgroups指定をまとめて省いたものだった。次の `mode=probe-uid` は、同じBash内に現行argvとUID-onlyの両方を置き、GID mappingとsetgroups指定を省いても同じUID-map EPERMになるかを測る未実行の入口である。
+
+util-linux `v2.39.3` の [固定manual source](https://github.com/util-linux/util-linux/blob/2da5c904e18fdcffd2b252d641e6f76374c7b406/sys-utils/unshare.1.adoc#L93) は、`--map-user=<UID>` が現在の実効UIDを指定UIDへmappingし、`--user` を含むと説明する。`--map-group` と `--map-current-user` は `--setgroups=deny` も含む。manualのSHA-256は `723f7dbb45ca1d04a90a6cad1407d482083c0ee6cbf4e7c2619b33b3df745db8`。実VMの完全なpackage revisionやbinaryとの同一性は引き続き未確認である。
+
+既存Perl基準測定の最小argvと普通の対照を各3回測り、正確なEPERMと対照成功を確認した場合だけ、同じ共通Bashから次の3caseを各3回実行する。
+
+| case       | argv                                           | 役割                                              |
+| ---------- | ---------------------------------------------- | ------------------------------------------------- |
+| `minimal`  | `--map-current-user -- /usr/bin/true`          | 今回のBashでも元の最小条件が再現することを確認    |
+| `uid-only` | `--map-user=<Bashの現在EUID> -- /usr/bin/true` | 同じUIDのmappingを残し、GID / setgroups指定を省く |
+| `control`  | `--user -- /usr/bin/true`                      | namespace作成だけの成功対照                       |
+
+EUIDは1001へ固定せず、Bashのreadonly `EUID` と、Bashとのcaller一致を検査するPython観測子の `os.geteuid()` から同じ数値を得る。namespace内のUID 0へのmappingは指定しない。Perl 6回とBash 9回の最大15 namespace probe/architecture、x64・arm64で最大30回。unshare版確認は別に各1回、計2回。Bashの3caseを同じ親で測ることで、起動層の変更とUID-onlyの効果を混同しない。
+
+| 結果                         | 条件                                                                                    | 最終終了コード |
+| ---------------------------- | --------------------------------------------------------------------------------------- | -------------- |
+| `uid-mapping-reproduced`     | Perl基準が再現し、Bashの現行argvとUID-onlyが各3回同じEPERM、namespace-only対照が3回成功 | 1              |
+| `uid-mapping-not-reproduced` | Perl基準とBashの現行argvは同じEPERM、UID-onlyとnamespace-only対照が各3回成功            | 1              |
+| `not-reproduced`             | Perl基準の最小argvと普通の対照が各3回成功。Bash側は省略                                 | 0              |
+| `unavailable`                | Bash現行argvの未再現、対照失敗、別エラー、混在、観測不足、方式や出所などの不一致        | 2              |
+
+Bashの現行argvと成功対照から再現を確認し、その同じ対照とUID-onlyを比べる。両比較は全raw結果から再計算する。`uid-mapping-not-reproduced` はUID-onlyのargvで未再現だったという結果で、GID mappingまたはsetgroupsのどちらかが原因と確定するものではない。どちらのexit 1も元の症状の修正成功ではない。今回のrunで再現するか、最小化が完了するかは実測後に判断する。
+
+空環境・cwd `/`・閉鎖stdin・両streamの通常pipeとflags、非root、共通Bashと上位祖先、PID世代・所有権・pidfd、各5秒/合算32MiB、sourceと実行体hash、checkpointの方式固定を維持する。全15 probeのPID重複も拒否する。UID-only途中のcaptureが壊れても、case / 反復番号 / 例外を保存し、他の正常captureとPerl基準測定を最終結果とログへ残す。
+
+最終出力は `linux-namespace-uid-comparison/v1` の `namespace-uid.json`、公開ログは `[DEBUG-ns-uid]`。途中ファイルは既存の専用OUTPUT内に保存し、既存ファイルは上書きしない。run名は `Linux namespace UID mapping比較: <source SHA>`、artifact名は `namespace-uid-<run>-<attempt>-<arch>`。専用Nix/group準備・正式44件・集約を省略し、既存Bun setupを保持する。journal検索・設定変更・root化・新規install・artifact取得/読取は行わない。
+
+新しい実VM実行は未承認・未実行である。テスト・独立レビュー・公開・通常CI後のSHAを提示し、対象と最大30回の範囲を示した1runの承認を得る。前回runの承認は消費済み。Phase 2全体・#33未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。
