@@ -281,9 +281,21 @@ def runtime_hashes(version):
             "bash": snapshot(version)["runtime"]["hash"]}
 
 
+def comparison_kind():
+    """同じcaptureで比較する対照と、結果の保存先を選ぶ。"""
+    return "userns" if os.environ.get("PROOF_MODE") == "probe-userns" else "bash"
+
+
+def comparison_scenarios():
+    """userns方式ではnamespace作成を保ち、mapping関連操作だけを省く。"""
+    if comparison_kind() == "userns":
+        return [launch.SCENARIOS[0], ("control", ["--user", "--", "/usr/bin/true"])]
+    return launch.SCENARIOS
+
+
 def prepare(root, output, version):
     """namespaceは起動せず、実体・版・共通Bashの前提を先に保存する。"""
-    record = {"schema": "linux-namespace-bash-checkpoint/v1", "outcome": "unavailable"}
+    record = {"schema": "linux-namespace-bash-checkpoint/v1", "comparisonKind": comparison_kind(), "outcome": "unavailable"}
     try:
         record["identity"] = validate(root)
         os.chdir(root)
@@ -304,7 +316,7 @@ def prepare(root, output, version):
         record["error"] = type(error).__name__ + ": " + str(error)
     finally:
         save(output / "namespace-bash-checkpoint.json", record)
-        launch.emit({"stage": "bash-prepare", "outcome": record["outcome"], "error": record.get("error")}, "bash")
+        launch.emit({"stage": comparison_kind() + "-prepare", "outcome": record["outcome"], "error": record.get("error")}, comparison_kind())
     return READY if record["outcome"] == "ready" else 2
 
 
@@ -313,6 +325,7 @@ def check_checkpoint(root, output, version):
     checkpoint = json.loads((output / "namespace-bash-checkpoint.json").read_text())
     if (
         checkpoint.get("schema") != "linux-namespace-bash-checkpoint/v1" or checkpoint.get("outcome") != "ready"
+        or checkpoint.get("comparisonKind") != comparison_kind()
         or checkpoint.get("identity") != validate(root) or checkpoint.get("controllerHashes") != hashes()
         or checkpoint.get("runtimeHashes") != runtime_hashes(version) or checkpoint.get("bash") != snapshot(version)
         or checkpoint.get("context") != launch.context() or checkpoint.get("ancestry", [])[1:] != parent.ancestry()[1:]
@@ -341,7 +354,7 @@ def baseline_check(root, output, version, status):
         record["error"] = type(error).__name__ + ": " + str(error)
     finally:
         save(output / "namespace-bash-gate.json", record)
-        launch.emit({"stage": "perl-baseline", "outcome": record["outcome"], "error": record.get("error")}, "bash")
+        launch.emit({"stage": "perl-baseline", "outcome": record["outcome"], "error": record.get("error")}, comparison_kind())
     return BASELINE_READY if record["outcome"] == "uid-map-eperm" else parent.FINAL_CLEAR if record["outcome"] == "not-reproduced" else 2
 
 
@@ -390,7 +403,7 @@ def bash_outcome(record, common, checkpoint):
                 or probe["executableHashAfter"] != checkpoint["unshare"]["hash"]
             ):
                 return "unavailable"
-        return launch.outcome(record)
+        return launch.outcome(record, comparison_scenarios())
     except (KeyError, TypeError, ValueError, IndexError, AttributeError, OSError):
         return "unavailable"
 
@@ -407,7 +420,7 @@ def load_bash(output, checkpoint):
         "cwd": "/", "stdinType": "closed", "stdoutType": "pipe", "stderrType": "pipe",
         "probeEnvironment": "empty", "cases": [],
     }
-    for name, argv in (("minimal", ["--map-current-user", "--", "/usr/bin/true"]), ("control", ["--", "/usr/bin/true"])):
+    for name, argv in comparison_scenarios():
         case = {"name": name, "argv": argv, "probes": []}
         record["cases"].append(case)
         for repetition in range(1, 4):
@@ -427,8 +440,9 @@ def load_bash(output, checkpoint):
 
 
 def finalize(root, output, version, prepare_status, perl_status, gate_status, bash_status):
-    """途中証跡と準備時の出所を保持し、起動層の要否だけを最終判定する。"""
-    record = {"schema": "linux-namespace-bash-comparison/v1", "outcome": "unavailable", "measurements": {}}
+    """途中証跡と出所を保持し、選択した対照との比較を分類する。"""
+    kind = comparison_kind()
+    record = {"schema": f"linux-namespace-{kind}-comparison/v1", "outcome": "unavailable", "measurements": {}}
     try:
         checkpoint = json.loads((output / "namespace-bash-checkpoint.json").read_text())
         record.update({key: checkpoint[key] for key in ("identity", "controllerHashes", "runtimeHashes", "unshare") if key in checkpoint})
@@ -456,20 +470,23 @@ def finalize(root, output, version, prepare_status, perl_status, gate_status, ba
             direct_outcome = bash_outcome(bash_measurement, common, checkpoint)
             probes = [probe for item in (baseline, bash_measurement) for case in item["cases"] for probe in case["probes"]]
             if len({probe["pid"] for probe in probes}) == 12:
-                record["outcome"] = {"uid-map-eperm": "perl-layer-not-required", "not-reproduced": "perl-layer-dependent"}.get(direct_outcome, "unavailable")
+                outcomes = {"uid-map-eperm": "id-mapping-required", "not-reproduced": "bash-not-reproduced"} if kind == "userns" else {
+                    "uid-map-eperm": "perl-layer-not-required", "not-reproduced": "perl-layer-dependent",
+                }
+                record["outcome"] = outcomes.get(direct_outcome, "unavailable")
         if record["outcome"] == "unavailable":
-            raise ValueError("起動層の比較条件・raw結果が成立しません")
+            raise ValueError("選択した対照の比較条件・raw結果が成立しません")
         if validate(root) != record["identity"] or hashes() != record["controllerHashes"]:
             raise ValueError("最終判定中にsourceが変化しました")
     except Exception as error:
         record.update(outcome="unavailable", error=type(error).__name__ + ": " + str(error))
     finally:
-        save(output / "namespace-bash.json", record)
-        launch.emit({key: value for key, value in record.items() if key not in ("measurements", "outcome")}, "bash")
+        save(output / f"namespace-{kind}.json", record)
+        launch.emit({key: value for key, value in record.items() if key not in ("measurements", "outcome")}, kind)
         for name, measurement in record["measurements"].items():
-            parent.log_measurement(name, measurement, prefix="bash")
-        launch.emit({"outcome": record["outcome"], "error": record.get("error")}, "bash")
-    return parent.FINAL_REPRODUCED if record["outcome"] in ("perl-layer-not-required", "perl-layer-dependent") else parent.FINAL_CLEAR if record["outcome"] == "not-reproduced" else 2
+            parent.log_measurement(name, measurement, prefix=kind)
+        launch.emit({"outcome": record["outcome"], "error": record.get("error")}, kind)
+    return parent.FINAL_REPRODUCED if record["outcome"] in ("perl-layer-not-required", "perl-layer-dependent", "id-mapping-required", "bash-not-reproduced") else parent.FINAL_CLEAR if record["outcome"] == "not-reproduced" else 2
 
 
 def comparison_main(args):

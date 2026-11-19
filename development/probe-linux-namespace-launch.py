@@ -164,7 +164,7 @@ def classify(probe):
     return "unavailable"
 
 
-def outcome(record):
+def outcome(record, scenarios=SCENARIOS):
     """同じ条件の3反復と成功対照から測定の分類を再計算する。"""
     if record.get("probeEnvironment") != "empty" or record.get("before") != record.get("after"):
         return "unavailable"
@@ -172,7 +172,7 @@ def outcome(record):
     if len(cases) != 2:
         return "unavailable"
     outcomes = []
-    for case, (name, argv) in zip(cases, SCENARIOS):
+    for case, (name, argv) in zip(cases, scenarios):
         probes = case.get("probes", [])
         if case.get("name") != name or case.get("argv") != argv or len(probes) != 3:
             return "unavailable"

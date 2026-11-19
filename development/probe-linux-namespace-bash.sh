@@ -92,6 +92,8 @@ compare_bash() {
             case_argv=(-- /usr/bin/true)
             if [[ $case_name == minimal ]]; then
               case_argv=(--map-current-user -- /usr/bin/true)
+            elif [[ ${PROOF_MODE:-} == probe-userns ]]; then
+              case_argv=(--user -- /usr/bin/true)
             fi
             for repetition in 1 2 3; do
               prefix="$output/bash-$case_name-$repetition"

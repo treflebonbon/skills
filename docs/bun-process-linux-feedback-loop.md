@@ -381,3 +381,24 @@ collectorのUID/EUID/GID/EGIDは両構成とも1001で、sudoを経由してい�
 [実行記録と選択した公開JSON](evidence/linux-namespace-bash-audit/44438396275-1/README.md) に、比較JSON36行・監査JSON16行の計52行と、公開run metadata14項目・3jobのstep結果を保存した。sourceの8ファイルをGit blobと照合し、全て一致した。CodeRabbitは `127b7b0` の4項目成功、その3指摘を直した `dc16ae1` の追加評価は回数制限で未完了という制約を了承した承認後の1runである。修正差分の独立した仕様・規約レビューは各指摘0件、通常CI全6ジョブは成功している。
 
 専用Nix/group準備・正式44ケース・集約はスキップし、既存Bun setupを保持した。新規install・Cビルド・root化・profile/sysctl変更・artifactの取得/読取は行っていない。原因確定とPhase 2全体の完了は未認定。UID-map書込みと能力拒否の対応、loaded policyの根拠、残る固定条件を次の判断対象とし、#33未完了・#82待ち、macOS 15と全子孫5秒保証を維持する。
+
+## mapping関連操作の最小化: namespace作成だけを残す
+
+公開sourceの [対応調査](linux-namespace-capability-mapping.md) で、`--map-current-user` がnamespace作成とUID/GID mapping関連操作をまとめて指定することを確認した。版を固定したUbuntu kernelではUID-map書込みの先行する `CAP_SYS_ADMIN` 検査からAppArmorの能力検査へ進む経路があり、取得済みの拒否と整合する。実VMの完全なpackage版・loaded policy・当該syscallの直接traceは未確認で、原因確定とは扱わない。
+
+`mode=probe-userns` は既存の共通Bash比較を再利用する。Perl baselineは従来の最小argv `--map-current-user -- /usr/bin/true` と普通の対照 `-- /usr/bin/true` を各3回測る。正確なUID-map EPERMと対照成功を確認した場合だけ、同じBashから最小argvと新しい対照 `--user -- /usr/bin/true` を各3回測る。両Bash条件でuser namespace作成を保ち、mapping関連操作の有無を比べる。UID書込みだけを分離する実験ではない。
+
+共通Bashと上位祖先、非root、空環境、cwd `/`、閉鎖stdin、両streamの通常pipeとflags、所有PID・pidfdの扱い、各probeの5秒・合算32MiB、sourceと実行体hashの検査を引き継ぐ。checkpointへ比較方式を固定し、段階間の変更を拒否する。namespace probeは最大12回/architecture、x64・arm64で最大24回、unshare版確認は別に各1回。baselineが全成功ならBash側を省略し、別エラー・混在・条件不一致でも進まない。
+
+| 結果                  | 条件                                                                                      | 最終終了コード |
+| --------------------- | ----------------------------------------------------------------------------------------- | -------------- |
+| `id-mapping-required` | Perl baselineが再現し、Bash最小argvは3回同じEPERM、Bashのnamespace作成だけの対照は3回成功 | 1              |
+| `bash-not-reproduced` | Perl baselineが再現し、Bash最小argvとnamespace作成だけの対照が各3回成功                   | 1              |
+| `not-reproduced`      | Perl baselineの最小argvと普通の対照が各3回成功。Bash側を省略                              | 0              |
+| `unavailable`         | 別エラー、混在、対照失敗、観測不足、方式・出所・callerなどの不一致                        | 2              |
+
+`id-mapping-required` は今回の指定条件でmapping関連操作が再現に必要という限定した結果である。`bash-not-reproduced` はBash側の未再現だけを述べ、対照が異なるPerl/Bashの起動層依存とは命名しない。どちらも元の症状の修正成功ではない。
+
+最終結果は `linux-namespace-userns-comparison/v1` の `namespace-userns.json`、公開ログは `[DEBUG-ns-userns]`。共有する途中ファイル名 `namespace-bash-*` は専用OUTPUT内に保持する。run名は `Linux namespace mapping比較: <source SHA>`、artifact名は `namespace-userns-<run>-<attempt>-<arch>`。専用Nix/group準備・正式44件・集約をスキップし、既存Bun setupを維持する。root化・設定変更・追加install・kernel journal検索・artifact取得/読取は行わない。
+
+実子fixtureで新しい対照argv、直接Bash親、fd・環境条件、3反復、対照の別エラー、元の対照への差替え拒否、方式変更拒否、baseline成功時の省略を検証する。実VMでの新しい比較は未実行である。検証・独立レビュー・公開・通常CIを終えたSHAを提示して1runの承認を得る。Phase 2全体・#33は未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。

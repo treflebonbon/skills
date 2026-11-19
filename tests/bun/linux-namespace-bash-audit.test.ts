@@ -35,6 +35,12 @@ test("Bash監査modeだけが比較後の読取を要求し、専用準備と正
     'run: bun control/development/probe-linux-namespace-bash-audit.ts "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof"',
   );
   expect(audit).not.toContain("sudo");
+  expect(audit).not.toContain("probe-userns");
+  expect(comparison).toContain("|| inputs.mode == 'probe-userns'");
+  expect(workflow).toContain("          - probe-userns");
+  expect(workflow).toContain('"$PROOF_MODE" == probe-userns');
+  expect(workflow).toContain("&& inputs.mode != 'probe-userns'");
+  expect(workflow).toContain("inputs.mode == 'probe-userns' && 'namespace-userns'");
   expect(workflow.indexOf("- name: 共通BashからPerl")).toBeLessThan(
     workflow.indexOf("- name: Bash直接の失敗PID"),
   );
@@ -126,7 +132,7 @@ function fixture() {
       "}}));",
       'if(process.env.FIXTURE_AUDIT_ROOT==="1")Object.defineProperty(process,"geteuid",{value:()=>0});',
       'mock.module("node:child_process",()=>({...cp,spawnSync:(file,args,options)=>{',
-      ' const observerPaths=["development/probe-linux-namespace-bash-audit.ts","development/run-linux-process-proof.ts","development/probe-linux-namespace-bash.py"];',
+      ' const observerPaths=["development/probe-linux-namespace-bash-audit.ts","development/run-linux-process-proof.ts","development/probe-linux-namespace-bash.py","development/probe-linux-namespace-launch.py","development/probe-linux-namespace-bash.sh"];',
       ' if(file==="git"&&args[0]==="show"&&observerPaths.some(p=>args[1].endsWith(":"+p))){',
       '  const path=args[1].split(":").slice(1).join(":");',
       '  fs.appendFileSync(process.env.FIXTURE_AUDIT_CALLS!+".sources",JSON.stringify({file,args})+"\\n");',
@@ -230,7 +236,7 @@ test.skipIf(!supported)(
         .trim()
         .split("\n")
         .map((line) => JSON.parse(line));
-      expect(sourceCalls).toHaveLength(3);
+      expect(sourceCalls).toHaveLength(5);
       expect(sourceCalls.every((item: any) => item.file === "git" && item.args[0] === "show")).toBe(
         true,
       );
