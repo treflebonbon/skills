@@ -61,3 +61,11 @@ flowchart TD
 確認済み（confirmed）: [run 44542479679 / attempt 1](evidence/linux-namespace-uid/44542479679-1/README.md) はsource / workflow `915de5f50fa2ff3154b1cb0dd71cdbc596ff87ad` に固定した承認済み1runで、両構成とも数値名検査が `ready / numeric-fallback` となった。検索時点で数値表記と同名の別アカウントへ解決される条件を除外した後も、同じBashの現行argvとUID-onlyは各3回同じUID-map EPERM、namespace-only対照は各3回成功した。公開JSON44行・全30 probeと出所を照合した。
 
 今回のx64は `7.0.0-1014-aws`、arm64は `7.0.0-1017-azure`。x64は旧runのimage・kernel・祖先などと異なるため、検索検査だけを変えたrun間差分実験とは扱わず、各VM内の比較として解釈する。本書で参照したAzure kernelの固定sourceを、新しいx64 kernelへ対応済みとは扱わない。名前検査後のNSS変化、実unshareの当該syscall、拒否時LSM、loaded policy全内容と直接因果は未観測である。新しいjournal検索・設定変更・artifact取得/読取・追加dispatchは行っていない。Phase 2全体・#33未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。
+
+## 直接UID-map書込みの実測
+
+承認済み [run 44633267572 / attempt 1](evidence/linux-namespace-uid-write/44633267572-1/README.md) をsource / workflow `c43477a91ae98a42fb6edfa12732e955e02f9542` で1回実行した。両構成で既存の15 probe基準を再現した後、同じBashからのPython直接経路でもnamespace作成とmapのopenは各3回成功し、writeだけが各3回 `errno=1 / EPERM` になった。namespace作成だけの直接対照は各3回成功した。
+
+公開JSON各32行・計64行の全値と掲載順、metadata14項目・3jobの全50 step、exit 1の終了行を保存した。全42 probeのPID・時刻・raw結果、共通Bash/祖先・caller・測定前後・実行体、測定器7ファイルのGit blob hashを照合した。最終判定は両構成とも `direct-write-reproduced` で、比較stepのfailureは予定exit 1である。
+
+この再現ではutil-linuxのCLIや `true` のexecを使わず、作成・openとwriteを分離できた。直接子の操作別errno記録であり、独立したsyscall traceや当該PIDの拒否時LSM監査ではない。原症状と直接writeが同じkernel/LSM規則で拒否されたこと、loaded policyの該当規則と因果関係は未確認である。今回も新しいjournal検索・設定変更・artifact取得/読取・追加dispatchは行っていない。Phase 2全体・#33未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。

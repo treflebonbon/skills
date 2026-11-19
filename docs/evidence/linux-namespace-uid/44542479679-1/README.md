@@ -79,3 +79,7 @@ unshareは `/usr/bin/unshare`、`util-linux 2.39.3`。各VM内で準備時・Per
 検索時点の同名アカウントなしを確認したUID-only argvでも、このrunの条件で同じEPERMが残った。これはCLI操作の比較であり、syscall列やAppArmor拒否との直接因果の観測ではない。完全なpackage版、loaded policy、直接因果と、共通Bash・上位祖先・起動path・OS / LSMなど残る固定条件の要否は未確認である。
 
 Phase 2全体・原因確定・#33は未完了、#82待ち、macOS 15のcontainment方式と全子孫5秒保証の未解決を維持する。条件は [再現ループ](../../../bun-process-linux-feedback-loop.md) で管理する。
+
+## 後続の直接write比較
+
+[run 44633267572](../../linux-namespace-uid-write/44633267572-1/README.md) では、同じVMでこのUID基準を再現してから、util-linuxを使わないPython直接経路を比較した。両構成でnamespace作成・mapのopenは各3回成功し、writeだけが各3回EPERM、namespace-only対照は各3回成功した。今回の記録を遡ってsyscall traceやLSMの因果確認とするものではなく、旧runのJSONは変更していない。

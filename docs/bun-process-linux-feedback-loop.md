@@ -1,6 +1,6 @@
 # Linux namespace の再現ループ
 
-状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。stdin比較に続く[Bash直接起動比較](evidence/linux-namespace-bash/44418918065-1/README.md)では、共通Bashと上位祖先・閉鎖stdin・空環境・cwd `/`・両streamの通常pipeを保ち、Perlを含む起動層を外しても同じEPERMを再現した。最新の[Bash監査取得](evidence/linux-namespace-bash-audit/44438396275-1/README.md)では、両構成それぞれ2 PIDに対応する時間窓でAppArmorの `sys_admin` 能力拒否を通常権限で取得した。[namespace作成だけを残す比較](evidence/linux-namespace-userns/44458506354-1/README.md)では両構成とも最小argvが各3回EPERM、namespace作成だけの対照が各3回成功し、mapping関連操作が今回の再現に必要だった。[数値名検査を加えたUID mapping単独の比較](evidence/linux-namespace-uid/44542479679-1/README.md)では、両構成で数値名が正常な未登録と分類された後、UID-onlyも各3回同じEPERMとなり、namespace-only対照は各3回成功した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
+状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。stdin比較に続く[Bash直接起動比較](evidence/linux-namespace-bash/44418918065-1/README.md)では、共通Bashと上位祖先・閉鎖stdin・空環境・cwd `/`・両streamの通常pipeを保ち、Perlを含む起動層を外しても同じEPERMを再現した。最新の[Bash監査取得](evidence/linux-namespace-bash-audit/44438396275-1/README.md)では、両構成それぞれ2 PIDに対応する時間窓でAppArmorの `sys_admin` 能力拒否を通常権限で取得した。[namespace作成だけを残す比較](evidence/linux-namespace-userns/44458506354-1/README.md)では両構成とも最小argvが各3回EPERM、namespace作成だけの対照が各3回成功し、mapping関連操作が今回の再現に必要だった。[数値名検査を加えたUID mapping単独の比較](evidence/linux-namespace-uid/44542479679-1/README.md)では、両構成で数値名が正常な未登録と分類された後、UID-onlyも各3回同じEPERMとなり、namespace-only対照は各3回成功した。[直接UID-map書込み比較](evidence/linux-namespace-uid-write/44633267572-1/README.md)では、両構成でnamespace作成・openは各3回成功し、writeだけが各3回EPERM、直接namespace-only対照は各3回成功した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
 
 ## 測る対象
 
@@ -463,7 +463,7 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 
 ## 次の最小化: UID-mapを直接書き込む
 
-`mode=probe-uid-write` は準備済み・実VM未実行の診断である。同じVM・同じBashで既存の `probe-uid` 基準15回を実行し、Perlの最小argvとBashの最小argv・現在EUIDのUID-onlyが各3回同じEPERM、対照が各3回成功した場合だけ直接経路へ進む。数値名検査も既存の1回を再利用し、追加検索は行わない。
+`mode=probe-uid-write` は[run 44633267572](evidence/linux-namespace-uid-write/44633267572-1/README.md)で承認された1回を実行済みの診断である。同じVM・同じBashで既存の `probe-uid` 基準15回を実行し、Perlの最小argvとBashの最小argv・現在EUIDのUID-onlyが各3回同じEPERM、対照が各3回成功した場合だけ直接経路へ進む。数値名検査も既存の1回を再利用し、追加検索は行わない。
 
 直接経路はPython 3.12以降の標準 [`os.unshare()`](https://docs.python.org/3.12/library/os.html#os.unshare) を使う。同じBashからPythonを空環境・cwd `/`・閉鎖stdin・stdout/stderrの通常pipeで起動する。Pythonのlocale coercionが追加し得る既知の `LC_CTYPE` だけを `os.unsetenv()` で消し、環境全体を読み出さない。新しいFFI、Cビルド、依存導入は不要である。
 
@@ -479,3 +479,9 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 結果は `namespace-uid-write.json`、artifact名は `namespace-uid-write-<run>-<attempt>-<arch>`。既存の `[DEBUG-ns-uid]` に続き、直接経路を `[DEBUG-ns-uid-write]` のJSON行で記録する。正常に読めた途中captureも基準全体とともに保存し、後続のcontext・source検査が失敗しても失わない。各streamの公開ログは1024文字までで、省略を明示する。
 
 専用Nix/group準備、root化、sysctl/profile変更、journal検索、正式44ケース・集約は行わない。Pythonの起動と直接操作を含む比較なので、直接経路が成功してもutil-linux固有の原因とは確定しない。新しいVMのkernel/imageが以前と異なる可能性もあるため、そのVM内の再現を比較の前提とする。Phase 2全体・原因確定・ADR 0003の条件は未完了のまま維持する。追加dispatchは公開済みSHAと上限を示し、1回ごとに確認する。
+
+### 直接書込み比較の結果
+
+[run 44633267572 / attempt 1](evidence/linux-namespace-uid-write/44633267572-1/README.md) では、両構成で新しいVM内のPerl/Bash/UID-only基準を再現した後、直接mapのnamespace作成・openが各3回成功し、writeだけが各3回 `errno=1 / EPERM` になった。直接のnamespace-only対照は各3回成功した。両構成とも `direct-write-reproduced` / 予定exit 1である。各21・計42 probeと公開JSON64行を照合した。
+
+この条件ではutil-linuxを起動せずUID-mapのwrite失敗を再現できた。拒否段階を作成・openから分離できたが、どのkernel/LSM規則が返したEPERMかや、以前のCLIの拒否と同じ規則かは未確認。Pythonの初期化・共通Bashと上位祖先・OS/LSM条件も残る。Phase 2全体・原因確定・#33未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。
