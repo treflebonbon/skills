@@ -45,7 +45,7 @@ GitHubは手動workflowのdefault branchへの登録を要求するため、既�
 
 ## まだ確認していないこと
 
-fork後の子PIDとの対応付け、子側の拒否イベントと実際のpolicyは未確認。現在のaudit取得範囲は起動した親PIDのままで、子の情報を観測したとは扱わない。
+正式実証と `probe-loop` では、起動したunshareのPID・測定時刻に一致するAppArmorの `AUDIT` 遷移を保存した。fork後の子PIDとの対応付け、UID-map拒否操作そのものと実際のpolicyは未確認。通常の `probe-bash` は監査を取得せず、追加の `probe-bash-audit` は実VMで未実行である。
 
 実際の症状で赤になる短いループは確認できた。次に再現条件を一つずつ減らし、最小化が済んでから原因仮説や修正の検証へ進む。診断モードで3回成功しても、44ケースの互換性や全子孫5秒保証の成功には数えない。#33は未完了、#82は#33待ち、macOS 15の方式は保留を維持する。
 
@@ -338,3 +338,29 @@ Bashが未使用OUTPUTを排他的に確保する。準備の専用コード46�
 [実行記録と選択した公開JSON](evidence/linux-namespace-bash/44418918065-1/README.md) に各job18行・計36行を保存した。直前 `0f7bffc` のCodeRabbit評価は4項目成功し、その3指摘は `d358f8c` で修正・返信・解決した。修正差分の追加評価が回数制限で未完了という制約を了承した承認後の1runであり、最終差分の独立した仕様・規約レビューと通常CI全6ジョブは成功している。artifactの取得・読取は行っていない。
 
 このペアではPerlを含む起動層を再現条件から省けた。共通Bashと上位祖先、unshareの起動path、OS / LSMなどの残る条件を次に検討する。起動API・process世代・Bash固有の初期状態の個別効果や、拒否原因を確定したものではない。Phase 2全体・#33は未完了、#82は#33待ちを維持する。
+
+## 次の観測: Bash直接起動後のPIDと時刻に対応するkernel監査
+
+保存済みの [正式run](evidence/linux-process-proof/44049468642-1/README.md) と [反復run](evidence/linux-namespace-loop/44078199627-1/README.md) では、実unshareのPIDと測定時刻に一致する `apparmor="AUDIT"`・`operation="userns_create"`・`target="unprivileged_userns"` のイベントを確認した。これはprofile遷移の記録であり、UID-map書込みの拒否イベントと同一とは認定していない。
+
+[Ubuntu 24.04の公式仕様](https://documentation.ubuntu.com/release-notes/24.04/#unprivileged-user-namespace-restrictions)は、unconfinedな非特権processのuser namespace作成を許容し、その後のnamespace内capability利用を制限する既定profileを説明している。保存イベントはこの説明と整合するが、最新のBash最小条件での遷移・拒否操作・loaded policyとの対応は未確認である。sysctlやprofileを変更して原因と認定する検証は行わない。
+
+`mode=probe-bash-audit` は既存のBash比較を先にそのまま実行し、比較後に [専用collector](../development/probe-linux-namespace-bash-audit.ts) を別stepで実行する。namespace probeはPerl/Bash各6回・最大12回/architectureで、x64・arm64合計最大24回、unshare版確認は別に各1回。空環境・cwd `/`・閉鎖stdin・通常pipe・非root・5秒/合算32MiBを維持する。
+
+collectorは正式実証で使う `probeAudit` を共有し、sudoを渡さない経路で `/usr/bin/journalctl` の実体を実行する。通常の `proof` / `probe-loop` / `probe-minimize` の既存sudo経路は維持する。新しい読取は呼出しユーザーの権限だけを使い、権限拒否や不完全な結果では後続の検索を省略する。sudoへの自動fallback、追加install、root化、profile/sysctl変更は行わない。
+
+入力は所有する非公開OUTPUT内の `namespace-bash.json` だけとし、通常ファイル・非公開mode・256KiB上限を検査し、symlinkを開かない。source/workflow/run/attemptと両checkoutを照合し、既存6測定器・collector・共有readerの計8ファイルをsource commitのGit blobと両checkoutの内容へ固定する。Bash側の測定前後・非root資格情報・argv・3反復・終了状態・所有PID情報・重複PIDを検査し、全6probeが120秒以内、各probeが5秒以内であることを確認する。検査が全て済むまでjournalを起動しない。
+
+正確な `perl-layer-not-required` でBash最小argv3回が同じUID-map EPERM、対照3回が成功した場合だけ、最小argv側の3 PIDを検索する。対照・Perl・祖先のPIDへ検索を広げない。各検索は既存readerと同じくprobe開始/終了の前後1秒、最大7秒の範囲で、MESSAGE内の一意な非引用 `pid=` tokenとaudit表記を照合する。journalの `_PID` を対象PIDの代わりに使わず、quotedな偽PID・別PID・範囲外時刻を除外する。これはPIDと時刻の対応であり、kernel監査によるPID世代の証明とは扱わない。
+
+[systemd 255の仕様](https://www.freedesktop.org/software/systemd/man/255/journalctl.html)では `--dmesg` がkernel transportと現在bootに限定し、`--grep` がMESSAGEを検索する。読める範囲はcallerの権限に依存する。各検索は5秒・256KiB・101行で上限超過を検知し、最大20イベント・各MESSAGE 4096文字を保持する。2構成合計でkernel journal検索は最大6回、journalctl版確認も最大6回。検索結果が空でも、全kernelログが可視であることや拒否・遷移が無かったことの証明には数えない。retry・`--sync`・ログ全体の取得は行わない。
+
+| collectorの状態 | 意味                                                                                                |
+| --------------- | --------------------------------------------------------------------------------------------------- |
+| `collected`     | 予定した3 PIDでreaderが `matched` / `no-matching-events` / `empty` を返した。拒否原因の認定ではない |
+| `not-requested` | 比較がBash最小条件の正確なEPERMを示さず、検索しなかった                                             |
+| `unavailable`   | 出所・入力・PID・時刻の不一致、読取拒否、版確認不可、切り詰めなど。取得済み部分記録は保持する       |
+
+`namespace-bash-audit.json` をwx0600で保存する。`[DEBUG-ns-bash-audit]` はsummary・probe・eventを別JSON行にし、両code hash、collectorのUID/EUID・GID/EGID・補助group・PID namespace、reader実体/hash/版、検索argv・時刻・対象PID・結果を残す。`matched` を `DENIED` と同義にせず、`AUDIT` のprofile遷移も元の内容を保持する。Bash比較がfailureでもcollector stepを実行し、collector自体の未確認・取得不能を比較結果から区別する。
+
+fixtureでは実journalをmockし、正常出力・正確な読取argvと対象3 PID、権限拒否時の停止、出所不一致・不正PID/時刻・root条件・symlink・入力上限と上書き拒否を検証する。実VMでの通常読取権限・新しい監査イベントは未確認である。run/artifact名は `Linux namespace Bash監査` / `namespace-bash-audit-<run>-<attempt>-<arch>` とし、既存の専用準備・正式44件・集約をスキップする。新しい実行は検証・独立レビュー・公開・通常CI後のSHAに固定した1runについて、検索範囲まで明示して承認を得てから行う。artifactの取得・読取は行わない。Phase 2全体・#33は未完了、#82待ちとmacOS 15・全子孫5秒保証を維持する。

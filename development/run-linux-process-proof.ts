@@ -302,9 +302,10 @@ function auditMessagePid(message: string) {
   collect();
   return pids.length === 1 ? pids[0] : undefined;
 }
+/** probeのPIDと時刻に限定し、journalの取得不能と一致なしを区別する。 */
 function probeAudit(
   probe: { pid?: number; startedAt: string; endedAt: string },
-  sudoPath: string,
+  sudoPath: string | undefined,
   cwd: string,
 ) {
   const unavailable = (status: string, reason?: string, extra: Record<string, unknown> = {}) => ({
@@ -371,8 +372,9 @@ function probeAudit(
           reason: versionError ?? "version-exit-" + versionResult.status,
         };
   const reader = { path: readerPath, hash: readerHash, version };
-  const argv = ["-n", "--", readerPath, ...journalArgs];
-  const command = { path: sudoPath, argv };
+  const command = sudoPath
+    ? { path: sudoPath, argv: ["-n", "--", readerPath, ...journalArgs] }
+    : { path: readerPath, argv: journalArgs };
   const context = { reader, window, command };
   const result = spawnSync(command.path, command.argv, {
     cwd,
@@ -487,6 +489,7 @@ function readContext(path: string) {
     return { error: (error as NodeJS.ErrnoException).code };
   }
 }
+/** 両checkoutと実行環境のsource/workflow/run/attemptを検査する。 */
 function identity(root: string) {
   const sourceSha = process.env.PROOF_SOURCE_SHA!,
     workflowSha = process.env.GITHUB_SHA!;
@@ -1310,6 +1313,8 @@ async function aggregate(root: string, raw: string, out: string) {
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
   if (!verdict.verified) process.exitCode = 1;
 }
+
+export { probeAudit, identity as proofIdentity };
 
 if (import.meta.main) {
   const [mode, source, directory, output] = process.argv.slice(2);
