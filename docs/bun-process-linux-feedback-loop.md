@@ -1,6 +1,6 @@
 # Linux namespace の再現ループ
 
-状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。stdin比較に続く[Bash直接起動比較](evidence/linux-namespace-bash/44418918065-1/README.md)では、共通Bashと上位祖先・閉鎖stdin・空環境・cwd `/`・両streamの通常pipeを保ち、Perlを含む起動層を外しても同じEPERMを再現した。最新の[Bash監査取得](evidence/linux-namespace-bash-audit/44438396275-1/README.md)では、両構成それぞれ2 PIDに対応する時間窓でAppArmorの `sys_admin` 能力拒否を通常権限で取得した。[namespace作成だけを残す比較](evidence/linux-namespace-userns/44458506354-1/README.md)では両構成とも最小argvが各3回EPERM、namespace作成だけの対照が各3回成功し、mapping関連操作が今回の再現に必要だった。[UID mapping単独の比較](evidence/linux-namespace-uid/44486490046-1/README.md)でも両構成各3回の同じEPERMを確認した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
+状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。stdin比較に続く[Bash直接起動比較](evidence/linux-namespace-bash/44418918065-1/README.md)では、共通Bashと上位祖先・閉鎖stdin・空環境・cwd `/`・両streamの通常pipeを保ち、Perlを含む起動層を外しても同じEPERMを再現した。最新の[Bash監査取得](evidence/linux-namespace-bash-audit/44438396275-1/README.md)では、両構成それぞれ2 PIDに対応する時間窓でAppArmorの `sys_admin` 能力拒否を通常権限で取得した。[namespace作成だけを残す比較](evidence/linux-namespace-userns/44458506354-1/README.md)では両構成とも最小argvが各3回EPERM、namespace作成だけの対照が各3回成功し、mapping関連操作が今回の再現に必要だった。[UID mapping単独の比較](evidence/linux-namespace-uid/44486490046-1/README.md)でも両構成各3回の同じEPERMを確認したが、数値表記のユーザー名の解決先は記録しておらず、同じUIDを指定した前提は未確認。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
 
 ## 測る対象
 
@@ -432,14 +432,14 @@ util-linux `v2.39.3` の [固定manual source](https://github.com/util-linux/uti
 | `uid-only` | `--map-user=<Bashの現在EUID> -- /usr/bin/true` | 同じUIDのmappingを残し、GID / setgroups指定を省く |
 | `control`  | `--user -- /usr/bin/true`                      | namespace作成だけの成功対照                       |
 
-EUIDは1001へ固定せず、Bashのreadonly `EUID` と、Bashとのcaller一致を検査するPython観測子の `os.geteuid()` から同じ数値を得る。namespace内のUID 0へのmappingは指定しない。Perl 6回とBash 9回の最大15 namespace probe/architecture、x64・arm64で最大30回。unshare版確認は別に各1回、計2回。Bashの3caseを同じ親で測ることで、起動層の変更とUID-onlyの効果を混同しない。
+EUIDは1001へ固定せず、Bashのreadonly `EUID` と、Bashとのcaller一致を検査するPython観測子の `os.geteuid()` から同じ数値を得る。UID-onlyの直前に、観測子が数値EUIDの文字列だけを `pwd.getpwnam` で1回検索する。同名アカウントがない場合は数値へのfallback、同じUIDの場合は同じmappingとして続行する。別UIDへ解決される場合や検索エラーでは、UID-onlyと後続対照を起動せず `unavailable` とし、Perl基準とBash現行argvの途中記録を残す。検索対象名と結果のUID・分類・限定したエラーを `namespace-uid-name-check.json` と最終結果・公開ログへ残し、passwdの他の項目や一覧は取得しない。検索は各構成最大1回・計2回で、実unshare内の後続検索との間のNSS変化までは保証しない。namespace内のUID 0へのmappingは指定しない。Perl 6回とBash 9回の最大15 namespace probe/architecture、x64・arm64で最大30回。unshare版確認は別に各1回、計2回。Bashの3caseを同じ親で測ることで、起動層の変更とUID-onlyの効果を混同しない。
 
-| 結果                         | 条件                                                                                    | 最終終了コード |
-| ---------------------------- | --------------------------------------------------------------------------------------- | -------------- |
-| `uid-mapping-reproduced`     | Perl基準が再現し、Bashの現行argvとUID-onlyが各3回同じEPERM、namespace-only対照が3回成功 | 1              |
-| `uid-mapping-not-reproduced` | Perl基準とBashの現行argvは同じEPERM、UID-onlyとnamespace-only対照が各3回成功            | 1              |
-| `not-reproduced`             | Perl基準の最小argvと普通の対照が各3回成功。Bash側は省略                                 | 0              |
-| `unavailable`                | Bash現行argvの未再現、対照失敗、別エラー、混在、観測不足、方式や出所などの不一致        | 2              |
+| 結果                         | 条件                                                                                                     | 最終終了コード |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------- | -------------- |
+| `uid-mapping-reproduced`     | Perl基準が再現し、Bashの現行argvとUID-onlyが各3回同じEPERM、namespace-only対照が3回成功                  | 1              |
+| `uid-mapping-not-reproduced` | Perl基準とBashの現行argvは同じEPERM、UID-onlyとnamespace-only対照が各3回成功                             | 1              |
+| `not-reproduced`             | Perl基準の最小argvと普通の対照が各3回成功。Bash側は省略                                                  | 0              |
+| `unavailable`                | 名前解決の不一致・失敗、Bash現行argvの未再現、対照失敗、別エラー、混在、観測不足、方式や出所などの不一致 | 2              |
 
 Bashの現行argvと成功対照から再現を確認し、その同じ対照とUID-onlyを比べる。両比較は全raw結果から再計算する。`uid-mapping-not-reproduced` はUID-onlyのargvで未再現だったという結果で、GID mappingまたはsetgroupsのどちらかが原因と確定するものではない。どちらのexit 1も元の症状の修正成功ではない。今回のrunで再現するか、最小化が完了するかは実測後に判断する。
 
@@ -449,7 +449,7 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 
 実VM実行は、テスト・独立レビュー・公開・通常CI・CodeRabbit評価を終えた `f2d0e83` に固定し、最大30回の範囲を示した1runの承認後に実行した。承認分は完了し、追加の実行には対象と範囲を示した別の承認を得る。Phase 2全体・#33未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。
 
-確認済み（confirmed）: [run 44486490046 / attempt 1](evidence/linux-namespace-uid/44486490046-1/README.md) をsource / workflow `f2d0e838ffc05f2009b4dc22580c45057c13ce93`、mode `probe-uid` で承認どおり1回実行し、両構成とも `uid-mapping-reproduced` だった。同じBashの現行argvと `--map-user=1001 -- /usr/bin/true` は各3回同じUID-map EPERM、namespace-only対照は各3回成功した。GID mappingとsetgroupsの指定を省いても今回の症状は再現した。
+確認済み（confirmed）: [run 44486490046 / attempt 1](evidence/linux-namespace-uid/44486490046-1/README.md) をsource / workflow `f2d0e838ffc05f2009b4dc22580c45057c13ce93`、mode `probe-uid` で承認どおり1回実行し、両構成とも `uid-mapping-reproduced` だった。同じBashの現行argvと `--map-user=1001 -- /usr/bin/true` は各3回同じUID-map EPERM、namespace-only対照は各3回成功した。GID mappingとsetgroupsの指定を省いたargvでも今回の症状は再現した。ただし、このsourceには数値表記のユーザー名の検索検査がなく、VM上の `1001` という名前の解決先は記録していない。「同じUIDを指定した比較」という前提は未確認である。上記の検査を追加したsourceは、まだ実VMで実行していない。
 
 全30 probeにsignal・spawn error・ログ省略はなく、各VMの15 PIDは重複しなかった。Bash側のwait statusはexit statusと一致し、全観測子はexit 0。共通Bashと祖先、caller、測定前後、runtime / unshareのhashを照合し、測定器6ファイルのhashが対象commitのGit blobと一致した。
 

@@ -7,6 +7,7 @@ import json
 import math
 import os
 from pathlib import Path
+import pwd
 import re
 import select
 import selectors
@@ -374,6 +375,36 @@ def start_bash(root, output, version):
     save(output / "namespace-bash-before.json", snapshot(version))
 
 
+def uid_check(root, output, version):
+    """数値EUIDと同名のアカウントが別UIDを指す場合はUID-onlyを起動しない。"""
+    record = {"schema": "linux-namespace-uid-name-check/v1", "outcome": "unavailable",
+              "requestedUid": os.geteuid(), "resolvedUid": None, "resolution": "not-checked"}
+    try:
+        if comparison_kind() != "uid":
+            raise ValueError("UID-only比較だけで名前解決を確認できます")
+        checkpoint = check_checkpoint(root, output, version)
+        record.update(identity=checkpoint["identity"], controllerHashes=checkpoint["controllerHashes"])
+        try:
+            record["resolvedUid"] = pwd.getpwnam(str(record["requestedUid"])).pw_uid
+        except KeyError:
+            record["resolution"] = "numeric-fallback"
+        except Exception as error:
+            record["resolution"] = "lookup-error"
+            raise ValueError(type(error).__name__ + ": " + errno.errorcode.get(getattr(error, "errno", None), "UNKNOWN")) from None
+        else:
+            if type(record["resolvedUid"]) is not int or record["resolvedUid"] != record["requestedUid"]:
+                record["resolution"] = "different-uid"
+                raise ValueError("数値表記のユーザー名が現在EUIDと異なるUIDへ解決されました")
+            record["resolution"] = "same-uid"
+        record["outcome"] = "ready"
+    except Exception as error:
+        record["error"] = type(error).__name__ + ": " + str(error)
+    finally:
+        save(output / "namespace-uid-name-check.json", record)
+        launch.emit({"stage": "uid-name-check", **record}, "uid")
+    return 0 if record["outcome"] == "ready" else 2
+
+
 def bash_outcome(record, common, checkpoint):
     """Bashの直接子の所有権、全raw結果と測定前後の条件を分類する。"""
     try:
@@ -466,6 +497,10 @@ def finalize(root, output, version, prepare_status, perl_status, gate_status, ba
         bash_measurement = load_bash(output, checkpoint)
         if bash_measurement is not None:
             record["measurements"]["bash"] = bash_measurement
+        lookup_file = output / "namespace-uid-name-check.json"
+        if kind == "uid" and lookup_file.exists():
+            record["uidMappingLookup"] = json.loads(lookup_file.read_text())
+        if bash_measurement is not None:
             bash_measurement["after"] = snapshot(version)["context"]
         verified = check_checkpoint(root, output, version)
         gate = json.loads((output / "namespace-bash-gate.json").read_text())
@@ -478,6 +513,19 @@ def finalize(root, output, version, prepare_status, perl_status, gate_status, ba
             or baseline.get("before") != checkpoint["context"] or baseline.get("unshare") != checkpoint["unshare"]
         ):
             raise ValueError("比較段階またはbaselineが一致しません")
+        if kind == "uid" and bash_measurement is not None:
+            lookup = record.get("uidMappingLookup", {})
+            euid = checkpoint["context"]["euid"]
+            if (
+                lookup.get("schema") != "linux-namespace-uid-name-check/v1" or lookup.get("outcome") != "ready"
+                or lookup.get("identity") != checkpoint["identity"] or lookup.get("controllerHashes") != checkpoint["controllerHashes"]
+                or type(lookup.get("requestedUid")) is not int or lookup["requestedUid"] != euid
+                or not (
+                    lookup.get("resolution") == "numeric-fallback" and lookup.get("resolvedUid") is None
+                    or lookup.get("resolution") == "same-uid" and type(lookup.get("resolvedUid")) is int and lookup["resolvedUid"] == euid
+                )
+            ):
+                raise ValueError("UID-onlyの名前解決を確認できません: " + lookup.get("error", "名前解決記録が不正または不足しています"))
         if perl_outcome == "not-reproduced" and gate_status == parent.FINAL_CLEAR and bash_status == -1 and bash_measurement is None:
             record["outcome"] = "not-reproduced"
         elif perl_outcome == "uid-map-eperm" and gate_status == BASELINE_READY and bash_status == 0 and bash_measurement is not None:
@@ -516,6 +564,8 @@ def comparison_main(args):
     if stage == "start":
         start_bash(root, output, version)
         return 0
+    if stage == "uid-check":
+        return uid_check(root, output, version)
     if stage == "finalize":
         return finalize(root, output, version, *map(int, args[4:8]))
     if stage == "settings":

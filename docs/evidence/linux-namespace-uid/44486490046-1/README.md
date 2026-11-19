@@ -1,6 +1,6 @@
 # UID mapping単独でも同じEPERMが残った比較記録
 
-[run 44486490046 / attempt 1](https://github.com/treflebonbon/skills/actions/runs/44486490046) は、source / workflowを `f2d0e838ffc05f2009b4dc22580c45057c13ce93` に固定し、承認された `mode=probe-uid` を1回実行した。実行前に対象commitの独立した仕様指摘0件・規約違反0件、[通常CI全6ジョブの成功](https://github.com/treflebonbon/skills/actions/runs/44484191643)、CodeRabbitの同じheadに対する4評価項目の成功・未解決0件を確認した。規約軸の既存workflow定義重複に関する参考指摘1件は、今回の接続テストを維持し、共通化を別の整理対象とした。
+[run 44486490046 / attempt 1](https://github.com/treflebonbon/skills/actions/runs/44486490046) は、source / workflowを `f2d0e838ffc05f2009b4dc22580c45057c13ce93` に固定し、承認された `mode=probe-uid` を1回実行した。実行前に対象commitの独立した仕様指摘0件・規約違反0件、[通常CI全6ジョブの成功](https://github.com/treflebonbon/skills/actions/runs/44484191643)、CodeRabbitの同じheadに対する4評価項目の成功と、当時取得したスレッド一覧の未解決0件を確認した。その後の再取得では、このsourceへの追加指摘4件を確認した。数値表記のユーザー名の解決先を確認していない指摘を受け、以下では実際のargvと出力の観測、および同じUIDへmappingしたかという未確認の前提を区別する。規約軸の既存workflow定義重複に関する参考指摘1件は、今回の接続テストを維持し、共通化を別の整理対象とした。
 
 確認済み（confirmed）: x64・arm64とも `uid-mapping-reproduced`。同じBashで現行の `--map-current-user` と `--map-user=1001` が各3回同じUID-map EPERM、namespace作成だけの対照は各3回成功した。GID mappingとsetgroupsの指定を省いても今回の症状は再現した。runのfailureは予定exit 1によるもので、正式実証や修正の成功には数えない。
 
@@ -13,7 +13,7 @@
 | x64          | 3/3同じEPERM / 3/3成功 | 3/3同じEPERM | 3/3同じEPERM  | 3/3成功             |
 | arm64        | 3/3同じEPERM / 3/3成功 | 3/3同じEPERM | 3/3同じEPERM  | 3/3成功             |
 
-Perl最小とBash現行argvは `--map-current-user -- /usr/bin/true`。Perl対照は `-- /usr/bin/true`、Bash UID-onlyは `--map-user=1001 -- /usr/bin/true`、Bash対照は `--user -- /usr/bin/true`。1001は測定時の現在EUIDで、sourceに固定した値ではない。
+Perl最小とBash現行argvは `--map-current-user -- /usr/bin/true`。Perl対照は `-- /usr/bin/true`、Bash UID-onlyは `--map-user=1001 -- /usr/bin/true`、Bash対照は `--user -- /usr/bin/true`。1001は測定時の現在EUIDで、sourceに固定した値ではない。ただし `--map-user` はUIDとユーザー名の両方を受け付ける。数値表記のユーザー名 `1001` の解決先をこのVMでは記録していないため、UID-onlyが同じUIDを指定したかは未確認である。後から追加した名前解決検査はこのrunには含まれず、まだ実VMで実行していない。元の `run.json` と `observations.json` は観測時の内容を保持する。
 
 mappingを指定した計18回はexit 1・空stdoutと次のstderr全文、対照の計12回はexit 0・空stdout/stderrだった。全30回にsignal・spawn error・ログ省略はなかった。
 
@@ -60,6 +60,6 @@ unshareは `/usr/bin/unshare`、`util-linux 2.39.3`。実体hashはx64が `a23c8
 - [observations.json](observations.json): [x64 job 135431143691](https://github.com/treflebonbon/skills/actions/runs/44486490046/job/135431143691) と [arm64 job 135431143165](https://github.com/treflebonbon/skills/actions/runs/44486490046/job/135431143165) の `[DEBUG-ns-uid]` JSON各21行・計42行の全値と掲載順、およびexit 1の終了行を保存した。
 - 専用Nix/group準備・正式44件・監査・集約はスキップし、既存Bun setupを保持した。追加dispatch・新規install・Cビルド・root化・profile/sysctl変更・kernel journal検索・artifact取得/読取は行っていない。
 
-UID mappingだけを指定したargvでも、今回の条件で同じEPERMが再現した。GID mappingとsetgroups指定はこの症状に必須ではなかった。これは指定したCLI操作の比較であり、実際のsyscall列やAppArmor拒否との直接因果を観測したものではない。[公開sourceの能力検査経路](../../../linux-namespace-capability-mapping.md) は整合する説明だが、完全なpackage版・loaded policyと直接因果は未確認である。
+UID mappingだけを指定したargvでも、今回の条件で同じEPERMが再現した。GID mappingとsetgroups指定を省いたargvでの観測だが、指定した数値が同じUIDに解決されたかは未確認である。これは指定したCLI操作の比較であり、実際のsyscall列やAppArmor拒否との直接因果を観測したものではない。[公開sourceの能力検査経路](../../../linux-namespace-capability-mapping.md) は整合する説明だが、完全なpackage版・loaded policyと直接因果は未確認である。
 
 共通Bashと上位祖先、起動path、OS / LSMなどの条件は残る。Phase 2全体・原因確定・#33は未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。条件は [再現ループ](../../../bun-process-linux-feedback-loop.md) で管理する。

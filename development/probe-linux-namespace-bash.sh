@@ -96,6 +96,10 @@ compare_bash() {
             if [[ $case_name == minimal ]]; then
               case_argv=(--map-current-user -- /usr/bin/true)
             elif [[ $case_name == uid-only ]]; then
+              python3 -I "$capture_helper" uid-check "$source_root" "$output" "$BASH_VERSION" || {
+                bash_status=$?
+                break
+              }
               case_argv=("--map-user=$EUID" -- /usr/bin/true)
             elif [[ ${PROOF_MODE:-} == probe-userns || ${PROOF_MODE:-} == probe-uid ]]; then
               case_argv=(--user -- /usr/bin/true)

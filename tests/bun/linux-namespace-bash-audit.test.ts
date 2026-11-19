@@ -29,7 +29,9 @@ test("Bash監査modeだけが比較後の読取を要求し、専用準備と正
   expect(comparison).toContain(
     "if: inputs.mode == 'probe-bash' || inputs.mode == 'probe-bash-audit'",
   );
-  expect(audit).toContain("if: always() && inputs.mode == 'probe-bash-audit'");
+  expect(audit.match(/^\s+if:\s*(.+)$/m)?.[1]).toBe(
+    "always() && inputs.mode == 'probe-bash-audit'",
+  );
   expect(audit).toContain("timeout-minutes: 2");
   expect(audit).toContain(
     'run: bun control/development/probe-linux-namespace-bash-audit.ts "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof"',

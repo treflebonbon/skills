@@ -184,6 +184,18 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         "if stage=='prepare':sys.exit(m.prepare(root,output,version))",
         "if stage=='baseline-check':sys.exit(m.baseline_check(root,output,version,int(sys.argv[7])))",
         "if stage=='start':m.start_bash(root,output,version);sys.exit(0)",
+        "if stage=='uid-check':",
+        " import types",
+        " mode=Path(" + JSON.stringify(behavior) + ").read_text()",
+        " def lookup(name):",
+        "  assert name==str(m.os.geteuid())",
+        "  print('UID-NAME-LOOKUP '+name)",
+        "  if mode=='uid-name-same':return types.SimpleNamespace(pw_uid=m.os.geteuid())",
+        "  if mode=='uid-name-other':return types.SimpleNamespace(pw_uid=m.os.geteuid()+1)",
+        "  if mode=='uid-name-error':raise OSError(m.errno.EIO,'public-name-lookup')",
+        "  raise KeyError(name)",
+        " m.pwd.getpwnam=lookup",
+        " sys.exit(m.uid_check(root,output,version))",
         "if stage=='finalize':",
         " status=m.finalize(root,output,version,*map(int,sys.argv[7:11]))",
         " final=json.loads((output/('namespace-'+{'probe-userns':'userns','probe-uid':'uid'}.get(m.os.environ.get('PROOF_MODE'),'bash')+'.json')).read_text())",
@@ -205,6 +217,17 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         "  saved=json.loads((target/'namespace-uid.json').read_text())",
         "  logged=[json.loads(line.split('] ',1)[1]) for line in captured.getvalue().splitlines()]",
         "  print('UID-PARTIAL '+json.dumps({'status':answer,'record':saved,'loggedProbes':[row for row in logged if row.get('parent')=='bash' and 'case' in row]}))",
+        "  for label in ['missing','different','malformed']:",
+        "   target=output.with_name(output.name+'-lookup-'+label);shutil.copytree(output,target,ignore=shutil.ignore_patterns('namespace-uid.json'))",
+        "   lookup=target/'namespace-uid-name-check.json'",
+        "   if label=='missing':lookup.rename(target/'ignored-lookup.json')",
+        "   elif label=='malformed':lookup.write_text('{')",
+        "   else:",
+        "    changed=json.loads(lookup.read_text());changed.update(resolution='same-uid',resolvedUid=m.os.geteuid()+1);lookup.write_text(json.dumps(changed))",
+        "   with contextlib.redirect_stdout(io.StringIO()) as captured:answer=m.finalize(root,target,version,*map(int,sys.argv[7:11]))",
+        "   saved=json.loads((target/'namespace-uid.json').read_text())",
+        "   logged=[json.loads(line.split('] ',1)[1]) for line in captured.getvalue().splitlines()]",
+        "   print('UID-CHECK-BROKEN '+json.dumps({'label':label,'status':answer,'record':saved,'loggedProbes':[row for row in logged if row.get('parent')=='bash' and 'case' in row]}))",
         " if final['outcome']=='id-mapping-required':",
         "  checkpoint=json.loads((output/'namespace-bash-checkpoint.json').read_text());common=m.parent.ancestry()[1:]",
         "  print('USERNS-VALID '+m.bash_outcome(final['measurements']['bash'],common,checkpoint))",
@@ -279,7 +302,7 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         "   names=(minimal control);[[ @@PROOF_MODE != probe-uid ]] || names=(minimal uid-only control)",
         '   for name in "@@{names[@]}";do',
         "    args=(-- /usr/bin/true);[[ @@PROOF_MODE != probe-userns && @@PROOF_MODE != probe-uid ]] || args=(--user -- /usr/bin/true);[[ $name != minimal ]] || args=(--map-current-user -- /usr/bin/true)",
-        '    if [[ $name == uid-only ]];then args=("--map-user=@@EUID" -- /usr/bin/true);fi',
+        '    if [[ $name == uid-only ]];then stage uid-check || { bash_status=$?;break; };args=("--map-user=@@EUID" -- /usr/bin/true);fi',
         "    for n in 1 2 3;do",
         "     capture_probe " +
           quote(executable) +
@@ -315,6 +338,9 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         ["uid-baseline-passes", "unavailable"],
         ["uid-control-fails", "unavailable"],
         ["uid-passes", "not-reproduced"],
+        ["uid-name-same", "uid-mapping-reproduced"],
+        ["uid-name-other", "unavailable"],
+        ["uid-name-error", "unavailable"],
       ]) {
         fs.writeFileSync(observed, "");
         fs.writeFileSync(versions, "");
@@ -357,7 +383,41 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
           .trim()
           .split("\n")
           .map((line) => JSON.parse(line));
-        expect(rows).toHaveLength(compared ? (uid ? 15 : 12) : 6);
+        const lookupBlocked = ["uid-name-other", "uid-name-error"].includes(variant!);
+        expect(rows).toHaveLength(compared ? (uid ? (lookupBlocked ? 9 : 15) : 12) : 6);
+        expect(result.stdout.match(/^UID-NAME-LOOKUP /gm) ?? []).toHaveLength(
+          uid && compared ? 1 : 0,
+        );
+        if (uid && compared) {
+          const lookup = data.uidMappingLookup;
+          expect(lookup.requestedUid).toBe(process.geteuid?.());
+          expect(lookup.outcome).toBe(lookupBlocked ? "unavailable" : "ready");
+          expect(lookup.resolvedUid).toBe(
+            variant === "uid-name-same"
+              ? process.geteuid?.()
+              : variant === "uid-name-other"
+                ? process.geteuid!() + 1
+                : null,
+          );
+          expect(lookup.resolution).toBe(
+            variant === "uid-name-same"
+              ? "same-uid"
+              : variant === "uid-name-other"
+                ? "different-uid"
+                : variant === "uid-name-error"
+                  ? "lookup-error"
+                  : "numeric-fallback",
+          );
+          if (lookupBlocked) {
+            expect(data.error).toContain("UID-onlyの名前解決を確認できません");
+            expect(lookup.error).toContain(
+              variant === "uid-name-other" ? "現在EUIDと異なるUID" : "OSError: EIO",
+            );
+            expect(rows.slice(6).map((row: any) => row.argv)).toEqual(
+              Array(3).fill(["--map-current-user", "--", "/usr/bin/true"]),
+            );
+          }
+        }
         expect(fs.readFileSync(versions, "utf8")).toBe("version\n");
         const baseline = data.measurements.perl;
         expect(baseline.before.environment.HOME).toBe("/home/café");
@@ -392,8 +452,8 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         if (uid && compared) {
           const cases = data.measurements.bash.cases;
           expect(cases.map((item: any) => item.name)).toEqual(["minimal", "uid-only", "control"]);
-          expect(data.measurements.bash.forkCount).toBe(9);
-          if (expected === "unavailable")
+          expect(data.measurements.bash.forkCount).toBe(lookupBlocked ? 3 : 9);
+          if (expected === "unavailable" && !lookupBlocked)
             expect(data.error).toContain("選択した対照の比較条件・raw結果が成立しません");
           if (variant === "uid-baseline-passes")
             expect(cases[0].probes.map((p: any) => [p.status, p.stderr])).toEqual([
@@ -428,14 +488,67 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
           expect(partial.record.measurements.bash.captureErrors).toEqual([
             { case: "uid-only", repetition: 2, error: "JSONDecodeError" },
           ]);
-          expect(
-            partial.record.measurements.bash.cases.map((item: any) => item.probes.length),
-          ).toEqual([3, 2, 3]);
-          expect(partial.loggedProbes.map((p: any) => p.pid)).toEqual(
-            partial.record.measurements.bash.cases.flatMap((item: any) =>
-              item.probes.map((p: any) => p.pid),
-            ),
-          );
+          const expectedCases = structuredClone(data.measurements.bash.cases);
+          expectedCases[1].probes.splice(1, 1);
+          expect(partial.record.measurements.bash.cases).toEqual(expectedCases);
+          const publicFields = [
+            "argv",
+            "pid",
+            "startedAt",
+            "endedAt",
+            "elapsedMs",
+            "status",
+            "signal",
+            "error",
+            "repetition",
+            "ownerPid",
+            "observerPid",
+            "waitStatus",
+            "observerStatus",
+            "executableHash",
+            "executableHashAfter",
+          ];
+          const childFields = ["pid", "ppid", "path", "processGroup", "session", "startTimeTicks"];
+          const publicLogs = (cases: any[]) =>
+            cases.flatMap((item: any) =>
+              item.probes.map((probe: any) => ({
+                parent: "bash",
+                stdoutType: "pipe",
+                stderrType: "pipe",
+                stdinType: "closed",
+                case: item.name,
+                ...Object.fromEntries(
+                  publicFields.filter((key) => key in probe).map((key) => [key, probe[key]]),
+                ),
+                childBefore: Object.fromEntries(
+                  childFields.map((key) => [key, probe.childBefore[key]]),
+                ),
+                stdout: probe.stdout.slice(0, 1024),
+                stderr: probe.stderr.slice(0, 1024),
+                logTruncated: probe.stdout.length > 1024 || probe.stderr.length > 1024,
+                outcome: item.name === "control" ? "passed" : "uid-map-eperm",
+              })),
+            );
+          expect(partial.loggedProbes).toEqual(publicLogs(expectedCases));
+          const brokenLookups = result.stdout
+            .split("\n")
+            .filter((line) => line.startsWith("UID-CHECK-BROKEN "))
+            .map((line) => JSON.parse(line.slice("UID-CHECK-BROKEN ".length)));
+          expect(brokenLookups.map((row) => row.label)).toEqual([
+            "missing",
+            "different",
+            "malformed",
+          ]);
+          for (const row of brokenLookups) {
+            expect(row.status).toBe(2);
+            expect(row.record.outcome).toBe("unavailable");
+            expect(row.record.error).toContain(
+              row.label === "malformed" ? "JSONDecodeError" : "UID-onlyの名前解決を確認できません",
+            );
+            expect(row.record.measurements.perl).toEqual(baseline);
+            expect(row.record.measurements.bash.cases).toEqual(data.measurements.bash.cases);
+            expect(row.loggedProbes).toEqual(publicLogs(data.measurements.bash.cases));
+          }
         }
         if (variant === "userns-both-eperm") {
           expect(result.stdout).toContain("USERNS-VALID uid-map-eperm");
@@ -543,10 +656,11 @@ test.skipIf(process.platform !== "linux")(
         ].join("\n"),
       );
       let index = 0;
-      for (const [prepare, perl, gate, expectedExit, captures, mode] of [
+      for (const [prepare, perl, gate, expectedExit, captures, mode, uidCheck] of [
         [46, 0, 47, 1, 6],
         [46, 0, 47, 1, 6, "probe-userns"],
         [46, 0, 47, 1, 9, "probe-uid"],
+        [46, 0, 47, 2, 3, "probe-uid", 2],
         [46, 0, 44, 0, 0],
         [46, 0, 2, 2, 0],
         [46, 2, 2, 2, 0],
@@ -554,7 +668,10 @@ test.skipIf(process.platform !== "linux")(
         [1, 0, 47, 2, 0],
       ] as const) {
         fs.writeFileSync(calls, "");
-        fs.writeFileSync(settings, JSON.stringify({ prepare, perl, "baseline-check": gate }));
+        fs.writeFileSync(
+          settings,
+          JSON.stringify({ prepare, perl, "baseline-check": gate, "uid-check": uidCheck ?? 0 }),
+        );
         const output = join(directory, "run-" + index++);
         const result = spawnSync(
           "bash",
@@ -580,34 +697,26 @@ test.skipIf(process.platform !== "linux")(
         expect(rows.at(-1).stage).toBe("finalize");
         if (captures) {
           const observed = rows.filter((row) => row.stage === "observe");
-          expect(
-            observed
-              .slice(0, 3)
-              .every(
-                (row) => row.args.slice(8).join(" ") === "--map-current-user -- /usr/bin/true",
-              ),
-          ).toBe(true);
-          if (mode === "probe-uid")
-            expect(
-              observed
-                .slice(3, 6)
-                .every(
-                  (row) =>
-                    row.args.slice(8).join(" ") ===
-                    "--map-user=" + process.geteuid?.() + " -- /usr/bin/true",
-                ),
-            ).toBe(true);
-          expect(
-            observed
-              .slice(mode === "probe-uid" ? 6 : 3)
-              .every(
-                (row) =>
-                  row.args.slice(8).join(" ") ===
-                  (mode === "probe-userns" || mode === "probe-uid"
-                    ? "--user -- /usr/bin/true"
-                    : "-- /usr/bin/true"),
-              ),
-          ).toBe(true);
+          for (const row of observed.slice(0, 3))
+            expect(row.args.slice(8)).toEqual(["--map-current-user", "--", "/usr/bin/true"]);
+          if (mode === "probe-uid") {
+            expect(rows.filter((row) => row.stage === "uid-check")).toHaveLength(1);
+            expect(rows.findIndex((row) => row.stage === "uid-check")).toBeGreaterThan(
+              rows.indexOf(observed[2]),
+            );
+            for (const row of observed.slice(3, 6))
+              expect(row.args.slice(8)).toEqual([
+                "--map-user=" + process.geteuid?.(),
+                "--",
+                "/usr/bin/true",
+              ]);
+          } else expect(rows.filter((row) => row.stage === "uid-check")).toHaveLength(0);
+          for (const row of observed.slice(mode === "probe-uid" ? 6 : 3))
+            expect(row.args.slice(8)).toEqual(
+              mode === "probe-userns" || mode === "probe-uid"
+                ? ["--user", "--", "/usr/bin/true"]
+                : ["--", "/usr/bin/true"],
+            );
         }
         const previous = fs.readFileSync(calls, "utf8");
         const duplicate = spawnSync(
