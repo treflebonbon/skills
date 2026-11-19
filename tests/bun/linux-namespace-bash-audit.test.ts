@@ -115,6 +115,7 @@ function fixture() {
     [
       'import {mock} from "bun:test";import * as fs from "node:fs";import * as cp from "node:child_process";',
       'const real=cp.spawnSync.bind(cp);const journal=fs.realpathSync("/usr/bin/journalctl");',
+      "if(process.env.FIXTURE_AUDIT_NOW)Date.now=()=>Number(process.env.FIXTURE_AUDIT_NOW);",
       'if(process.env.FIXTURE_AUDIT_ROOT==="1")Object.defineProperty(process,"geteuid",{value:()=>0});',
       'mock.module("node:child_process",()=>({...cp,spawnSync:(file,args,options)=>{',
       ' const observerPaths=["development/probe-linux-namespace-bash-audit.ts","development/run-linux-process-proof.ts"];',
@@ -174,6 +175,7 @@ function fixture() {
         GITHUB_RUN_ID: "123",
         GITHUB_RUN_ATTEMPT: "1",
         FIXTURE_AUDIT_CALLS: calls,
+        FIXTURE_AUDIT_NOW: String(now),
         FIXTURE_AUDIT_MODE: mode,
         FIXTURE_AUDIT_ROOT: rootMock ? "1" : "0",
       },
@@ -184,7 +186,7 @@ function fixture() {
     const saved = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, "utf8")) : undefined;
     return { result, invoked, saved, output };
   };
-  return { directory, calls, preload, record, execute };
+  return { directory, calls, preload, record, execute, now };
 }
 
 test.skipIf(!supported)(
@@ -238,20 +240,30 @@ test.skipIf(!supported)(
         expect(probe.audit.events[0].message).toContain('apparmor="AUDIT"');
         expect(probe.audit.events[0].message).not.toContain("decoy");
         const call = invoked[i * 2 + 1];
-        expect(call.file).toBe(fs.realpathSync("/usr/bin/journalctl"));
-        expect(call.args).toContain(
-          "--grep=(^|[^[:alnum:]_])pid=" + expected[i].pid + "([^[:alnum:]_]|$)",
-        );
-        expect(call.args).toContain("--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE");
-        expect(call.args).toContain("--lines=101");
-        expect(call.args).not.toContain("-n");
-        expect(call.timeout).toBe(5000);
-        expect(call.maxBuffer).toBe(256 * 1024);
-        const duration =
-          Date.parse(call.args[call.args.indexOf("--until") + 1]) -
-          Date.parse(call.args[call.args.indexOf("--since") + 1]);
-        expect(duration).toBeGreaterThanOrEqual(2000);
-        expect(duration).toBeLessThanOrEqual(7000);
+        const reader = fs.realpathSync("/usr/bin/journalctl");
+        expect(invoked[i * 2]).toEqual({
+          file: reader,
+          args: ["--version"],
+          timeout: 5000,
+          maxBuffer: 8 * 1024,
+        });
+        expect(call).toEqual({
+          file: reader,
+          args: [
+            "--dmesg",
+            "--since",
+            new Date(Date.parse(expected[i].startedAt) - 1000).toISOString(),
+            "--until",
+            new Date(Date.parse(expected[i].endedAt) + 1000).toISOString(),
+            "--grep=(^|[^[:alnum:]_])pid=" + expected[i].pid + "([^[:alnum:]_]|$)",
+            "--output=json",
+            "--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE",
+            "--no-pager",
+            "--lines=101",
+          ],
+          timeout: 5000,
+          maxBuffer: 256 * 1024,
+        });
       }
       for (const [mode, status, count] of [
         ["empty", "collected", 3],
@@ -292,6 +304,19 @@ test.skipIf(!supported)(
       expect(noAudit.result.status).toBe(0);
       expect(noAudit.saved.status).toBe("not-requested");
       expect(noAudit.invoked).toEqual([]);
+      for (const kind of ["time", "old"] as const) {
+        const boundary = structuredClone(f.record);
+        const probe = boundary.measurements.bash.cases[0].probes[0];
+        probe.startedAt = new Date(f.now - (kind === "old" ? 120000 : 6000)).toISOString();
+        probe.endedAt = new Date(
+          Date.parse(probe.startedAt) + (kind === "time" ? 5000 : 1),
+        ).toISOString();
+        probe.elapsedMs = 4999;
+        const passed = f.execute(boundary);
+        expect(passed.result.status).toBe(0);
+        expect(passed.saved.status).toBe("collected");
+        expect(passed.saved.probes).toHaveLength(3);
+      }
       for (const [kind, reason] of [
         ["source", "出所"],
         ["hash", "hash"],
@@ -300,6 +325,7 @@ test.skipIf(!supported)(
         ["time", "時刻"],
         ["old", "時刻"],
         ["elapsed", "時刻"],
+        ["elapsed-limit", "時刻"],
         ["root", "非root"],
       ] as const) {
         const data = structuredClone(f.record),
@@ -309,10 +335,13 @@ test.skipIf(!supported)(
         if (kind === "pid") probe.pid = 1;
         if (kind === "duplicate") data.measurements.bash.cases[0].probes[1].pid = probe.pid;
         if (kind === "elapsed") delete probe.elapsedMs;
-        if (kind === "time")
+        if (kind === "elapsed-limit") probe.elapsedMs = 5000;
+        if (kind === "time") {
+          probe.startedAt = new Date(f.now - 6000).toISOString();
           probe.endedAt = new Date(Date.parse(probe.startedAt) + 5001).toISOString();
+        }
         if (kind === "old") {
-          probe.startedAt = new Date(Date.now() - 121000).toISOString();
+          probe.startedAt = new Date(f.now - 120001).toISOString();
           probe.endedAt = probe.startedAt;
         }
         const item = f.execute(data, "matched", kind === "root");
