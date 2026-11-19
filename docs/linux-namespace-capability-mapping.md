@@ -52,6 +52,6 @@ flowchart TD
 
 ## 次の比較と残る制約
 
-既存の共通Bash比較を使う `mode=probe-userns` を準備する。Perl基準測定の最小argv・普通の対照を各3回実行し、正確なEPERMと対照成功を確認した場合だけ、Bash直接側で `--map-current-user -- /usr/bin/true` と `--user -- /usr/bin/true` を各3回比較する。最大12 namespace probe/architecture、計24回と、別に版確認各1回。新しいjournal検索はしない。詳細は [比較の契約](bun-process-linux-feedback-loop.md#mapping関連操作の最小化namespace作成だけを残す) に記す。
+既存の共通Bash比較を使う `mode=probe-userns` を準備する。Perl基準測定の最小argv・普通の対照を各3回実行し、正確なEPERMと対照成功を確認した場合だけ、Bash直接側で `--map-current-user -- /usr/bin/true` と `--user -- /usr/bin/true` を各3回比較する。最大12 namespace probe/architecture、計24回と、別に版確認各1回。新しいjournal検索はしない。詳細は [比較の契約](bun-process-linux-feedback-loop.md#mapping関連操作の最小化-namespace作成だけを残す) に記す。
 
 これは未実行の候補である。新しいSHAで検証・レビュー・公開・通常CIを終えてから、対象と範囲を示して1runの承認を得る。Phase 2全体・#33は未完了、#82は#33待ち、macOS 15と全子孫5秒保証の未解決を維持する。
