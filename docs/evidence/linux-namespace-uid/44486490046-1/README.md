@@ -13,7 +13,7 @@
 | x64          | 3/3同じEPERM / 3/3成功 | 3/3同じEPERM | 3/3同じEPERM  | 3/3成功             |
 | arm64        | 3/3同じEPERM / 3/3成功 | 3/3同じEPERM | 3/3同じEPERM  | 3/3成功             |
 
-Perl最小とBash現行argvは `--map-current-user -- /usr/bin/true`。Perl対照は `-- /usr/bin/true`、Bash UID-onlyは `--map-user=1001 -- /usr/bin/true`、Bash対照は `--user -- /usr/bin/true`。1001は測定時の現在EUIDで、sourceに固定した値ではない。ただし `--map-user` はUIDとユーザー名の両方を受け付ける。数値表記のユーザー名 `1001` の解決先をこのVMでは記録していないため、UID-onlyが同じUIDを指定したかは未確認である。後から追加した名前解決検査はこのrunには含まれず、まだ実VMで実行していない。元の `run.json` と `observations.json` は観測時の内容を保持する。
+Perl最小とBash現行argvは `--map-current-user -- /usr/bin/true`。Perl対照は `-- /usr/bin/true`、Bash UID-onlyは `--map-user=1001 -- /usr/bin/true`、Bash対照は `--user -- /usr/bin/true`。1001は測定時の現在EUIDで、sourceに固定した値ではない。ただし `--map-user` はUIDとユーザー名の両方を受け付ける。数値表記のユーザー名 `1001` の解決先をこのVMでは記録していないため、UID-onlyが同じUIDを指定したかは未確認である。後から追加した名前解決検査の実測は[後続run 44542479679](../44542479679-1/README.md)に分け、このrunには含めない。元の `run.json` と `observations.json` は観測時の内容を保持する。
 
 mappingを指定した計18回はexit 1・空stdoutと次のstderr全文、対照の計12回はexit 0・空stdout/stderrだった。全30回にsignal・spawn error・ログ省略はなかった。
 

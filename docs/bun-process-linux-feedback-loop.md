@@ -1,6 +1,6 @@
 # Linux namespace の再現ループ
 
-状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。stdin比較に続く[Bash直接起動比較](evidence/linux-namespace-bash/44418918065-1/README.md)では、共通Bashと上位祖先・閉鎖stdin・空環境・cwd `/`・両streamの通常pipeを保ち、Perlを含む起動層を外しても同じEPERMを再現した。最新の[Bash監査取得](evidence/linux-namespace-bash-audit/44438396275-1/README.md)では、両構成それぞれ2 PIDに対応する時間窓でAppArmorの `sys_admin` 能力拒否を通常権限で取得した。[namespace作成だけを残す比較](evidence/linux-namespace-userns/44458506354-1/README.md)では両構成とも最小argvが各3回EPERM、namespace作成だけの対照が各3回成功し、mapping関連操作が今回の再現に必要だった。[UID mapping単独の比較](evidence/linux-namespace-uid/44486490046-1/README.md)でも両構成各3回の同じEPERMを確認したが、数値表記のユーザー名の解決先は記録しておらず、同じUIDを指定した前提は未確認。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
+状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。stdin比較に続く[Bash直接起動比較](evidence/linux-namespace-bash/44418918065-1/README.md)では、共通Bashと上位祖先・閉鎖stdin・空環境・cwd `/`・両streamの通常pipeを保ち、Perlを含む起動層を外しても同じEPERMを再現した。最新の[Bash監査取得](evidence/linux-namespace-bash-audit/44438396275-1/README.md)では、両構成それぞれ2 PIDに対応する時間窓でAppArmorの `sys_admin` 能力拒否を通常権限で取得した。[namespace作成だけを残す比較](evidence/linux-namespace-userns/44458506354-1/README.md)では両構成とも最小argvが各3回EPERM、namespace作成だけの対照が各3回成功し、mapping関連操作が今回の再現に必要だった。[数値名検査を加えたUID mapping単独の比較](evidence/linux-namespace-uid/44542479679-1/README.md)では、両構成で数値名が正常な未登録と分類された後、UID-onlyも各3回同じEPERMとなり、namespace-only対照は各3回成功した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
 
 ## 測る対象
 
@@ -441,18 +441,22 @@ EUIDは1001へ固定せず、Bashのreadonly `EUID` と、Bashとのcaller一致
 | `not-reproduced`             | Perl基準の最小argvと普通の対照が各3回成功。Bash側は省略                                                  | 0              |
 | `unavailable`                | 名前解決の不一致・失敗、Bash現行argvの未再現、対照失敗、別エラー、混在、観測不足、方式や出所などの不一致 | 2              |
 
-Bashの現行argvと成功対照から再現を確認し、その同じ対照とUID-onlyを比べる。両比較は全raw結果から再計算する。`uid-mapping-not-reproduced` はUID-onlyのargvで未再現だったという結果で、GID mappingまたはsetgroupsのどちらかが原因と確定するものではない。どちらのexit 1も元の症状の修正成功ではない。今回のrunで再現するか、最小化が完了するかは実測後に判断する。
+Bashの現行argvと成功対照から再現を確認し、その同じ対照とUID-onlyを比べる。両比較は全raw結果から再計算する。`uid-mapping-not-reproduced` はUID-onlyのargvで未再現だったという結果で、GID mappingまたはsetgroupsのどちらかが原因と確定するものではない。どちらのexit 1も元の症状の修正成功ではない。再現と最小化の完了は、各runの実測に基づいて判断する。
 
 空環境・cwd `/`・閉鎖stdin・両streamの通常pipeとflags、非root、共通Bashと上位祖先、PID世代・所有権・pidfd、各5秒/合算32MiB、sourceと実行体hash、checkpointの方式固定を維持する。全15 probeのPID重複も拒否する。UID-only途中のcaptureが壊れても、case / 反復番号 / 例外を保存し、他の正常captureとPerl基準測定を最終結果とログへ残す。
 
 最終出力は `linux-namespace-uid-comparison/v1` の `namespace-uid.json`、公開ログは `[DEBUG-ns-uid]`。途中ファイルは既存の専用OUTPUT内に保存し、既存ファイルは上書きしない。run名は `Linux namespace UID mapping比較: <source SHA>`、artifact名は `namespace-uid-<run>-<attempt>-<arch>`。専用Nix/group準備・正式44件・集約を省略し、既存Bun setupを保持する。journal検索・設定変更・root化・新規install・artifact取得/読取は行わない。
 
-実VM実行は、テスト・独立レビュー・公開・通常CI・CodeRabbit評価を終えた `f2d0e83` に固定し、最大30回の範囲を示した1runの承認後に実行した。承認分は完了し、追加の実行には対象と範囲を示した別の承認を得る。Phase 2全体・#33未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。
+実VM実行は、テスト・独立レビュー・公開・[通常CI全6ジョブの成功](https://github.com/treflebonbon/skills/actions/runs/44539023151)を確認した `915de5f` に固定した。CodeRabbitの同sourceへの追加評価は回数制限で未完了であり、この制約と最大30 namespace probe・版確認2回・数値名検索最大2回を示した1runをユーザーが承認した後に実行した。承認分は完了し、追加実行には対象と範囲を示した別の承認を得る。
 
-確認済み（confirmed）: [run 44486490046 / attempt 1](evidence/linux-namespace-uid/44486490046-1/README.md) をsource / workflow `f2d0e838ffc05f2009b4dc22580c45057c13ce93`、mode `probe-uid` で承認どおり1回実行し、両構成とも `uid-mapping-reproduced` だった。同じBashの現行argvと `--map-user=1001 -- /usr/bin/true` は各3回同じUID-map EPERM、namespace-only対照は各3回成功した。GID mappingとsetgroupsの指定を省いたargvでも今回の症状は再現した。ただし、このsourceには数値表記のユーザー名の検索検査がなく、VM上の `1001` という名前の解決先は記録していない。「同じUIDを指定した比較」という前提は未確認である。上記の検査を追加したsourceは、まだ実VMで実行していない。
+確認済み（confirmed）: [run 44542479679 / attempt 1](evidence/linux-namespace-uid/44542479679-1/README.md) をsource / workflow `915de5f50fa2ff3154b1cb0dd71cdbc596ff87ad`、mode `probe-uid` で承認どおり1回実行し、両構成とも `uid-mapping-reproduced` だった。数値名検査は各1件、`requestedUid=1001`、`resolvedUid=null`、`resolution=numeric-fallback`、`outcome=ready` で、最終結果の検査記録と全値が一致した。固定sourceは `getpwnam_r` の戻り値0かつ結果pointerなしだけを正常な未登録と分類する。
 
-全30 probeにsignal・spawn error・ログ省略はなく、各VMの15 PIDは重複しなかった。Bash側のwait statusはexit statusと一致し、全観測子はexit 0。共通Bashと祖先、caller、測定前後、runtime / unshareのhashを照合し、測定器6ファイルのhashが対象commitのGit blobと一致した。
+同じBashの現行argvと `--map-user=1001 -- /usr/bin/true` は各3回同じUID-map EPERM、namespace-only対照は各3回成功した。GID mappingとsetgroups指定を省いたargvでも、このrun内の条件で症状が再現した。検査後の実unshare内のNSS検索までの変化は直接観測していない。
 
-[実行記録](evidence/linux-namespace-uid/44486490046-1/README.md) に公開JSON各21行・計42行の全値と掲載順、公開run metadata14項目・3jobの全step、exit 1の終了行を保存した。両jobは予定exit 1でfailure。専用準備・正式44件・監査・集約はスキップし、既存Bun setupを保持した。追加dispatch・journal検索・設定変更・新規install・artifact取得/読取は行っていない。
+全30 probeにsignal・spawn error・ログ省略はなく、各VMの15 PIDは重複しなかった。全probeの時刻は各job内に収まり、Bash側のwait statusはexit statusと一致、全観測子はexit 0。共通Bashと祖先、caller、測定前後、runtime / unshareのhashを照合し、測定器6ファイルのhashが対象commitのGit blobと一致した。
 
-これはUID mappingを指定したCLIの再現であり、実unshareのsyscall列やAppArmor拒否との直接因果を観測したものではない。前回runの監査PIDを今回のPIDへ対応させない。完全なpackage版・loaded policy・直接因果と、残る固定条件の要否は未確認。Phase 2全体・#33未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。
+[実行記録](evidence/linux-namespace-uid/44542479679-1/README.md) に公開JSON各22行・計44行の全値と掲載順、公開run metadata14項目・3jobの全step、exit 1の終了行を保存した。両jobは予定exit 1でfailure。専用準備・正式44件・監査・集約はスキップし、既存Bun setupを保持した。追加dispatch・journal検索・設定変更・既存Bun setup以外の追加install・artifact取得/読取は行っていない。
+
+今回のx64は `7.0.0-1014-aws`、arm64は `7.0.0-1017-azure`。x64は [旧run](evidence/linux-namespace-uid/44486490046-1/README.md) とimage・kernel・祖先などが異なるため、run間で検索検査だけを変えた差分実験とは扱わず、今回の各VM内の比較として解釈する。旧runの数値名解決は未記録のままで、今回の検査によって遡って確認したことにはしない。旧runのJSONは変更していない。
+
+これはUID mappingを指定したCLIの再現であり、実unshareのsyscall列やAppArmor拒否との直接因果を観測したものではない。前回runの監査PIDを今回のPIDへ対応させず、Azure kernelの公開sourceを新しいx64 kernelへそのまま対応させない。完全なpackage版・loaded policy・直接因果と、残る固定条件の要否は未確認。Phase 2全体・#33未完了、#82待ち、macOS 15のcontainment方式と全子孫5秒保証の未解決を維持する。
