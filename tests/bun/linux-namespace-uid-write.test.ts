@@ -12,6 +12,9 @@ function childFixture(variant: string, mode = "map") {
     "spec=importlib.util.spec_from_file_location('uid_write',sys.argv[1])",
     "m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)",
     "variant=sys.argv[2];mode=sys.argv[3];calls=[]",
+    "if variant=='api-absent':",
+    " for name in ('unshare','CLONE_NEWUSER'):",
+    "  if hasattr(m.os,name):delattr(m.os,name)",
     "m.os.getuid=lambda:0 if variant=='root' else 1001",
     "m.os.geteuid=lambda:1002 if variant=='caller' else 0 if variant=='root' else 1001",
     "m.os.getcwd=lambda:'/'",
@@ -33,6 +36,7 @@ function childFixture(variant: string, mode = "map") {
     "def closed(fd):",
     " assert fd==0;calls.append(['close',fd])",
     " if variant=='close':raise OSError(m.errno.EIO,'public-close')",
+    "m.os.CLONE_NEWUSER=268435456",
     "m.os.unsetenv=unsetenv;m.os.unshare=unshare;m.os.open=opened;m.os.write=written;m.os.close=closed",
     "record,status=m.child(mode,1001)",
     "print(json.dumps({'record':record,'status':status,'calls':calls}))",
@@ -53,6 +57,7 @@ test.skipIf(process.platform !== "linux")(
   () => {
     const passed = childFixture("passed");
     expect(passed.status).toBe(0);
+    expect(childFixture("api-absent")).toEqual(passed);
     expect(passed.record.outcome).toBe("passed");
     expect(passed.record.uid).toBe(1001);
     expect(passed.record.euid).toBe(1001);
