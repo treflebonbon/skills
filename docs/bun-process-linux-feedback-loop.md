@@ -1,6 +1,6 @@
 # Linux namespace の再現ループ
 
-状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。stdin比較に続く[Bash直接起動比較](evidence/linux-namespace-bash/44418918065-1/README.md)では、共通Bashと上位祖先・閉鎖stdin・空環境・cwd `/`・両streamの通常pipeを保ち、Perlを含む起動層を外しても同じEPERMを再現した。最新の[Bash監査取得](evidence/linux-namespace-bash-audit/44438396275-1/README.md)では、両構成それぞれ2 PIDに対応する時間窓でAppArmorの `sys_admin` 能力拒否を通常権限で取得した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
+状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。stdin比較に続く[Bash直接起動比較](evidence/linux-namespace-bash/44418918065-1/README.md)では、共通Bashと上位祖先・閉鎖stdin・空環境・cwd `/`・両streamの通常pipeを保ち、Perlを含む起動層を外しても同じEPERMを再現した。最新の[Bash監査取得](evidence/linux-namespace-bash-audit/44438396275-1/README.md)では、両構成それぞれ2 PIDに対応する時間窓でAppArmorの `sys_admin` 能力拒否を通常権限で取得した。[namespace作成だけを残す比較](evidence/linux-namespace-userns/44458506354-1/README.md)では両構成とも最小argvが各3回EPERM、namespace作成だけの対照が各3回成功し、mapping関連操作が今回の再現に必要だった。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
 
 ## 測る対象
 
@@ -401,4 +401,19 @@ collectorのUID/EUID/GID/EGIDは両構成とも1001で、sudoを経由してい�
 
 最終結果は `linux-namespace-userns-comparison/v1` の `namespace-userns.json`、公開ログは `[DEBUG-ns-userns]`。共有する途中ファイル名 `namespace-bash-*` は専用OUTPUT内に保持する。run名は `Linux namespace mapping比較: <source SHA>`、artifact名は `namespace-userns-<run>-<attempt>-<arch>`。専用Nix/group準備・正式44件・集約をスキップし、既存Bun setupを維持する。root化・設定変更・追加install・kernel journal検索・artifact取得/読取は行わない。
 
-実子fixtureで新しい対照argv、直接Bash親、fd・環境条件、3反復、対照の別エラー、元の対照への差替え拒否、方式変更拒否、baseline成功時の省略を検証する。実VMでの新しい比較は未実行である。検証・独立レビュー・公開・通常CIを終えたSHAを提示して1runの承認を得る。Phase 2全体・#33は未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。
+実子fixtureで新しい対照argv、直接Bash親、fd・環境条件、3反復、対照の別エラー、元の対照への差替え拒否、方式変更拒否、baseline成功時の省略を検証する。実VMの比較は、検証・独立レビュー・公開・通常CIとCodeRabbit評価を終えた `e25a535` に固定し、1runの承認後に実行した。Phase 2全体・#33は未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。
+
+確認済み（confirmed）: [run 44458506354 / attempt 1](evidence/linux-namespace-userns/44458506354-1/README.md) をsource / workflow `e25a535074c26f2520d1e09b4f9ac6cf26ff354c`、mode `probe-userns` で承認どおり1回実行し、両構成とも `id-mapping-required` だった。
+
+| architecture | Perl最小argv / 普通の対照 | Bash最小argv / namespace作成だけの対照 |
+| ------------ | ------------------------- | -------------------------------------- |
+| x64          | 3/3同じEPERM / 3/3成功    | 3/3同じEPERM / 3/3成功                 |
+| arm64        | 3/3同じEPERM / 3/3成功    | 3/3同じEPERM / 3/3成功                 |
+
+Bashの比較ではnamespace作成を保った対照が成功し、mapping関連操作付きの最小argvで同じEPERMが続いた。今回の指定条件ではmapping関連操作が再現に必要だった。UID/GID mappingとsetgroups指定をまとめて省いており、UID書込みだけの分離や原因確定とは扱わない。
+
+全24回にsignal・spawn error・ログ省略はなく、Bashのwait statusはexit statusと一致し、全観測子はexit 0だった。各VM内の共通Bashと上位祖先、caller、測定前後、runtime / unshareのhashを照合し、測定器6ファイルのhashが対象commitのGit blobと一致した。比較stepは両構成とも予定exit 1でfailure、専用準備・正式44件・監査・集約はスキップした。
+
+[実行記録](evidence/linux-namespace-userns/44458506354-1/README.md) に公開JSON各18行・計36行の全値と掲載順、公開run metadata14項目・3jobのstep結果、exit 1の終了行を保存した。実行対象の独立レビューは各指摘0件、通常CI全6ジョブとCodeRabbitの同じheadに対する4評価項目は成功している。追加dispatch・kernel journal検索・設定変更・新規install・artifactの取得/読取は行っていない。
+
+今回のrunで拒否時LSMを観測したものではなく、前回runの監査PIDを今回のPIDへ対応させない。実VMの完全なpackage版、loaded policy、当該syscallの直接因果と、残る固定条件の要否は未確認。Phase 2全体・#33未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。
