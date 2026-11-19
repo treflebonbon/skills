@@ -1,5 +1,6 @@
 """Bashの別の子で匿名pipeを観測し、PID再利用を避けて対象だけを停止する。"""
 
+import ctypes
 import datetime
 import errno
 import hashlib
@@ -7,7 +8,6 @@ import json
 import math
 import os
 from pathlib import Path
-import pwd
 import re
 import select
 import selectors
@@ -375,6 +375,33 @@ def start_bash(root, output, version):
     save(output / "namespace-bash-before.json", snapshot(version))
 
 
+class LinuxPasswd(ctypes.Structure):
+    """Ubuntu glibcのpasswd ABIを確保し、UID以外の値は参照しない。"""
+
+    _fields_ = [
+        ("pw_name", ctypes.c_void_p), ("pw_passwd", ctypes.c_void_p),
+        ("pw_uid", ctypes.c_uint), ("pw_gid", ctypes.c_uint),
+        ("pw_gecos", ctypes.c_void_p), ("pw_dir", ctypes.c_void_p),
+        ("pw_shell", ctypes.c_void_p),
+    ]
+
+
+def lookup_uid(name):
+    """getpwnam_rを64KiBで1回呼び、正常な未登録と検索障害を区別する。"""
+    entry, result = LinuxPasswd(), ctypes.POINTER(LinuxPasswd)()
+    buffer = ctypes.create_string_buffer(65536)
+    lookup = ctypes.CDLL(None).getpwnam_r
+    lookup.argtypes = [
+        ctypes.c_char_p, ctypes.POINTER(LinuxPasswd), ctypes.c_void_p,
+        ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(LinuxPasswd)),
+    ]
+    lookup.restype = ctypes.c_int
+    status = lookup(name.encode("ascii"), ctypes.pointer(entry), buffer, len(buffer), ctypes.pointer(result))
+    if status != 0:
+        raise OSError(status, errno.errorcode.get(status, "UNKNOWN"))
+    return entry.pw_uid if result else None
+
+
 def uid_check(root, output, version):
     """数値EUIDと同名のアカウントが別UIDを指す場合はUID-onlyを起動しない。"""
     record = {"schema": "linux-namespace-uid-name-check/v1", "outcome": "unavailable",
@@ -385,17 +412,18 @@ def uid_check(root, output, version):
         checkpoint = check_checkpoint(root, output, version)
         record.update(identity=checkpoint["identity"], controllerHashes=checkpoint["controllerHashes"])
         try:
-            record["resolvedUid"] = pwd.getpwnam(str(record["requestedUid"])).pw_uid
-        except KeyError:
-            record["resolution"] = "numeric-fallback"
+            record["resolvedUid"] = lookup_uid(str(record["requestedUid"]))
         except Exception as error:
             record["resolution"] = "lookup-error"
             raise ValueError(type(error).__name__ + ": " + errno.errorcode.get(getattr(error, "errno", None), "UNKNOWN")) from None
         else:
-            if type(record["resolvedUid"]) is not int or record["resolvedUid"] != record["requestedUid"]:
+            if record["resolvedUid"] is None:
+                record["resolution"] = "numeric-fallback"
+            elif type(record["resolvedUid"]) is int and record["resolvedUid"] == record["requestedUid"]:
+                record["resolution"] = "same-uid"
+            else:
                 record["resolution"] = "different-uid"
                 raise ValueError("数値表記のユーザー名が現在EUIDと異なるUIDへ解決されました")
-            record["resolution"] = "same-uid"
         record["outcome"] = "ready"
     except Exception as error:
         record["error"] = type(error).__name__ + ": " + str(error)

@@ -187,14 +187,18 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         "if stage=='uid-check':",
         " import types",
         " mode=Path(" + JSON.stringify(behavior) + ").read_text()",
-        " def lookup(name):",
-        "  assert name==str(m.os.geteuid())",
-        "  print('UID-NAME-LOOKUP '+name)",
-        "  if mode=='uid-name-same':return types.SimpleNamespace(pw_uid=m.os.geteuid())",
-        "  if mode=='uid-name-other':return types.SimpleNamespace(pw_uid=m.os.geteuid()+1)",
-        "  if mode=='uid-name-error':raise OSError(m.errno.EIO,'public-name-lookup')",
-        "  raise KeyError(name)",
-        " m.pwd.getpwnam=lookup",
+        " def lookup(name,entry,buffer,size,result):",
+        "  assert name==str(m.os.geteuid()).encode('ascii')",
+        "  assert size==65536 and m.ctypes.sizeof(buffer)==65536",
+        "  assert m.ctypes.sizeof(m.LinuxPasswd)==48 and m.LinuxPasswd.pw_uid.offset==16 and m.LinuxPasswd.pw_gid.offset==20",
+        "  assert m.ctypes.sizeof(m.ctypes.c_uint)==4 and m.ctypes.sizeof(m.ctypes.c_void_p)==8",
+        "  print('UID-NAME-LOOKUP '+name.decode('ascii'))",
+        "  if mode=='uid-name-error':return m.errno.EIO",
+        "  if mode=='uid-name-range':return m.errno.ERANGE",
+        "  if mode in ['uid-name-same','uid-name-other']:",
+        "   entry.contents.pw_uid=m.os.geteuid()+(mode=='uid-name-other');result[0]=entry",
+        "  return 0",
+        " m.ctypes.CDLL=lambda path:types.SimpleNamespace(getpwnam_r=lookup)",
         " sys.exit(m.uid_check(root,output,version))",
         "if stage=='finalize':",
         " status=m.finalize(root,output,version,*map(int,sys.argv[7:11]))",
@@ -341,6 +345,7 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         ["uid-name-same", "uid-mapping-reproduced"],
         ["uid-name-other", "unavailable"],
         ["uid-name-error", "unavailable"],
+        ["uid-name-range", "unavailable"],
       ]) {
         fs.writeFileSync(observed, "");
         fs.writeFileSync(versions, "");
@@ -383,7 +388,9 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
           .trim()
           .split("\n")
           .map((line) => JSON.parse(line));
-        const lookupBlocked = ["uid-name-other", "uid-name-error"].includes(variant!);
+        const lookupBlocked = ["uid-name-other", "uid-name-error", "uid-name-range"].includes(
+          variant!,
+        );
         expect(rows).toHaveLength(compared ? (uid ? (lookupBlocked ? 9 : 15) : 12) : 6);
         expect(result.stdout.match(/^UID-NAME-LOOKUP /gm) ?? []).toHaveLength(
           uid && compared ? 1 : 0,
@@ -404,14 +411,18 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
               ? "same-uid"
               : variant === "uid-name-other"
                 ? "different-uid"
-                : variant === "uid-name-error"
+                : variant === "uid-name-error" || variant === "uid-name-range"
                   ? "lookup-error"
                   : "numeric-fallback",
           );
           if (lookupBlocked) {
             expect(data.error).toContain("UID-onlyの名前解決を確認できません");
             expect(lookup.error).toContain(
-              variant === "uid-name-other" ? "現在EUIDと異なるUID" : "OSError: EIO",
+              variant === "uid-name-other"
+                ? "現在EUIDと異なるUID"
+                : variant === "uid-name-range"
+                  ? "OSError: ERANGE"
+                  : "OSError: EIO",
             );
             expect(rows.slice(6).map((row: any) => row.argv)).toEqual(
               Array(3).fill(["--map-current-user", "--", "/usr/bin/true"]),
