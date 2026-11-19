@@ -1,6 +1,6 @@
 # Linux namespace の再現ループ
 
-状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。stdin比較に続く最新の[Bash直接起動比較](evidence/linux-namespace-bash/44418918065-1/README.md)では、共通Bashと上位祖先・閉鎖stdin・空環境・cwd `/`・両streamの通常pipeを保ち、Perlを含む起動層を外しても同じEPERMを再現した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
+状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。stdin比較に続く[Bash直接起動比較](evidence/linux-namespace-bash/44418918065-1/README.md)では、共通Bashと上位祖先・閉鎖stdin・空環境・cwd `/`・両streamの通常pipeを保ち、Perlを含む起動層を外しても同じEPERMを再現した。最新の[Bash監査取得](evidence/linux-namespace-bash-audit/44438396275-1/README.md)では、両構成それぞれ2 PIDに対応する時間窓でAppArmorの `sys_admin` 能力拒否を通常権限で取得した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
 
 ## 測る対象
 
@@ -45,7 +45,7 @@ GitHubは手動workflowのdefault branchへの登録を要求するため、既�
 
 ## まだ確認していないこと
 
-正式実証と `probe-loop` では、起動したunshareのPID・測定時刻に一致するAppArmorの `AUDIT` 遷移を保存した。fork後の子PIDとの対応付け、UID-map拒否操作そのものと実際のpolicyは未確認。通常の `probe-bash` は監査を取得せず、追加の `probe-bash-audit` は実VMで未実行である。
+正式実証と `probe-loop` では、起動したunshareのPID・測定時刻に一致するAppArmorの `AUDIT` 遷移を保存した。通常の `probe-bash` は監査を取得しないが、承認済みの `probe-bash-audit` では失敗したBash最小argvの6 PIDを通常権限で検索し、4 PIDに対応する `unprivileged_userns` への遷移と `sys_admin` の `DENIED` を得た。残り2 PIDは一致なしで理由未確定。UID-map書込みまでの具体的な検査・syscallの因果関係とloaded policyの該当規則は未確認である。
 
 実際の症状で赤になる短いループは確認できた。次に再現条件を一つずつ減らし、最小化が済んでから原因仮説や修正の検証へ進む。診断モードで3回成功しても、44ケースの互換性や全子孫5秒保証の成功には数えない。#33は未完了、#82は#33待ち、macOS 15の方式は保留を維持する。
 
@@ -343,7 +343,7 @@ Bashが未使用OUTPUTを排他的に確保する。準備の専用コード46�
 
 保存済みの [正式run](evidence/linux-process-proof/44049468642-1/README.md) と [反復run](evidence/linux-namespace-loop/44078199627-1/README.md) では、実unshareのPIDと測定時刻に一致する `apparmor="AUDIT"`・`operation="userns_create"`・`target="unprivileged_userns"` のイベントを確認した。これはprofile遷移の記録であり、UID-map書込みの拒否イベントと同一とは認定していない。
 
-[Ubuntu 24.04の公式仕様](https://documentation.ubuntu.com/release-notes/24.04/#unprivileged-user-namespace-restrictions)は、unconfinedな非特権processのuser namespace作成を許容し、その後のnamespace内capability利用を制限する既定profileを説明している。保存イベントはこの説明と整合するが、最新のBash最小条件での遷移・拒否操作・loaded policyとの対応は未確認である。sysctlやprofileを変更して原因と認定する検証は行わない。
+[Ubuntu 24.04の公式仕様](https://documentation.ubuntu.com/release-notes/24.04/#unprivileged-user-namespace-restrictions)は、unconfinedな非特権processのuser namespace作成を許容し、その後のnamespace内capability利用を制限する既定profileを説明している。保存イベントはこの説明と整合する。Bash監査取得では4 PIDの時間窓でprofile遷移と能力拒否を追加確認したが、UID-map書込みまでの因果関係とloaded policyの該当規則は未確認である。sysctlやprofileを変更して原因と認定する検証は行わない。
 
 `mode=probe-bash-audit` は既存のBash比較を先にそのまま実行し、比較後に [専用collector](../development/probe-linux-namespace-bash-audit.ts) を別stepで実行する。namespace probeはPerl/Bash各6回・最大12回/architectureで、x64・arm64合計最大24回、unshare版確認は別に各1回。空環境・cwd `/`・閉鎖stdin・通常pipe・非root・5秒/合算32MiBを維持する。
 
@@ -363,4 +363,21 @@ collectorは正式実証で使う `probeAudit` を共有し、sudoを渡さな�
 
 `namespace-bash-audit.json` をwx0600で保存する。`[DEBUG-ns-bash-audit]` はsummary・probe・eventを別JSON行にし、両code hash、collectorのUID/EUID・GID/EGID・補助group・PID namespace、reader実体/hash/版、検索argv・時刻・対象PID・結果を残す。`matched` を `DENIED` と同義にせず、`AUDIT` のprofile遷移も元の内容を保持する。Bash比較がfailureでもcollector stepを実行し、collector自体の未確認・取得不能を比較結果から区別する。
 
-fixtureでは実journalをmockし、正常出力・正確な読取argvと対象3 PID、権限拒否時の停止、出所不一致・不正PID/時刻・root条件・symlink・入力上限と上書き拒否を検証する。実VMでの通常読取権限・新しい監査イベントは未確認である。run/artifact名は `Linux namespace Bash監査` / `namespace-bash-audit-<run>-<attempt>-<arch>` とし、既存の専用準備・正式44件・集約をスキップする。新しい実行は検証・独立レビュー・公開・通常CI後のSHAに固定した1runについて、検索範囲まで明示して承認を得てから行う。artifactの取得・読取は行わない。Phase 2全体・#33は未完了、#82待ちとmacOS 15・全子孫5秒保証を維持する。
+fixtureでは実journalをmockし、正常出力・正確な読取argvと対象3 PID、権限拒否時の停止、出所不一致・不正PID/時刻・root条件・symlink・入力上限と上書き拒否を検証する。実VMの通常権限で一部の該当イベントを読めることは、以下の承認済みrunで確認した。全kernelログの可視性や未一致の原因は未確認である。run/artifact名は `Linux namespace Bash監査` / `namespace-bash-audit-<run>-<attempt>-<arch>` とし、既存の専用準備・正式44件・集約をスキップする。新しい実行は検証・独立レビュー・公開・通常CI後のSHAに固定した1runについて、検索範囲まで明示して承認を得てから行う。artifactの取得・読取は行わない。Phase 2全体・#33は未完了、#82待ちとmacOS 15・全子孫5秒保証を維持する。
+
+確認済み（confirmed）: [run 44438396275 / attempt 1](https://github.com/treflebonbon/skills/actions/runs/44438396275) をsource / workflow `dc16ae17848c68f9ea28e960d226aad4b3e16bec`、mode `probe-bash-audit` で承認どおり1回実行した。両構成とも `perl-layer-not-required` で、Perl/Bashの最小argvは各3/3同じEPERM、対照は各3/3成功した。比較stepは予定exit 1でfailure、監査stepは両構成で成功・`collected`。全24 probeにsignal・spawn error・ログ省略はなかった。
+
+| architecture | Bash最小argvのPID | PID・時間窓に対応する監査                                               |
+| ------------ | ----------------- | ----------------------------------------------------------------------- |
+| x64          | 2524 / 2528       | 各PIDで `AUDIT userns_create` 遷移と `DENIED capable sys_admin` を各1件 |
+| x64          | 2532              | `no-matching-events`                                                    |
+| arm64        | 2632 / 2636       | 各PIDで `AUDIT userns_create` 遷移と `DENIED capable sys_admin` を各1件 |
+| arm64        | 2640              | `no-matching-events`                                                    |
+
+4件の拒否は `profile="unprivileged_userns" operation="capable" capability=21 capname="sys_admin"` で、遷移イベントの `target="unprivileged_userns"`、対象PIDと `comm="unshare"` に対応した。従来のcaller観測から進み、実unshareのPIDに対応するAppArmorの能力拒否を直接取得できた。これをUID-map書込みの特定syscallとの因果関係や、全6 PIDの拒否イベントを得た証明とは扱わない。
+
+collectorのUID/EUID/GID/EGIDは両構成とも1001で、sudoを経由していない。検索は最小argvの3 PID/architectureのみ、合計6回と版確認6回で、再検索・窓拡大は行わなかった。各窓は開始/終了±1秒の約2秒、readerは両構成ともsystemd 255。未一致2 PIDについて、拒否・遷移の不存在や監査抑制・遅延の有無は未確認である。
+
+[実行記録と選択した公開JSON](evidence/linux-namespace-bash-audit/44438396275-1/README.md) に、比較JSON36行・監査JSON16行の計52行と、公開run metadata14項目・3jobのstep結果を保存した。sourceの8ファイルをGit blobと照合し、全て一致した。CodeRabbitは `127b7b0` の4項目成功、その3指摘を直した `dc16ae1` の追加評価は回数制限で未完了という制約を了承した承認後の1runである。修正差分の独立した仕様・規約レビューは各指摘0件、通常CI全6ジョブは成功している。
+
+専用Nix/group準備・正式44ケース・集約はスキップし、既存Bun setupを保持した。新規install・Cビルド・root化・profile/sysctl変更・artifactの取得/読取は行っていない。原因確定とPhase 2全体の完了は未認定。UID-map書込みと能力拒否の対応、loaded policyの根拠、残る固定条件を次の判断対象とし、#33未完了・#82待ち、macOS 15と全子孫5秒保証を維持する。
