@@ -116,9 +116,17 @@ function fixture() {
       'import {mock} from "bun:test";import * as fs from "node:fs";import * as cp from "node:child_process";',
       'const real=cp.spawnSync.bind(cp);const journal=fs.realpathSync("/usr/bin/journalctl");',
       "if(process.env.FIXTURE_AUDIT_NOW)Date.now=()=>Number(process.env.FIXTURE_AUDIT_NOW);",
+      "const realStat=fs.fstatSync.bind(fs);let grew=false;",
+      'mock.module("node:fs",()=>({...fs,fstatSync:(fd,...args)=>{',
+      " const stat=realStat(fd,...args);",
+      ' if(!grew&&process.env.FIXTURE_AUDIT_MODE==="input-growth"&&fs.readlinkSync("/proc/self/fd/"+fd)===process.env.FIXTURE_AUDIT_INPUT){',
+      '  grew=true;fs.appendFileSync(process.env.FIXTURE_AUDIT_INPUT!," ");',
+      '  fs.writeFileSync(process.env.FIXTURE_AUDIT_CALLS!+".growth",JSON.stringify({sizeBefore:stat.size,sizeAfter:stat.size+1}));',
+      " }return stat;",
+      "}}));",
       'if(process.env.FIXTURE_AUDIT_ROOT==="1")Object.defineProperty(process,"geteuid",{value:()=>0});',
       'mock.module("node:child_process",()=>({...cp,spawnSync:(file,args,options)=>{',
-      ' const observerPaths=["development/probe-linux-namespace-bash-audit.ts","development/run-linux-process-proof.ts"];',
+      ' const observerPaths=["development/probe-linux-namespace-bash-audit.ts","development/run-linux-process-proof.ts","development/probe-linux-namespace-bash.py"];',
       ' if(file==="git"&&args[0]==="show"&&observerPaths.some(p=>args[1].endsWith(":"+p))){',
       '  const path=args[1].split(":").slice(1).join(":");',
       '  fs.appendFileSync(process.env.FIXTURE_AUDIT_CALLS!+".sources",JSON.stringify({file,args})+"\\n");',
@@ -157,17 +165,21 @@ function fixture() {
       fs.renameSync(input, regular);
       fs.symlinkSync(regular, input);
     }
-    if (mode === "input-limit" || mode === "input-overflow") {
+    if (["input-limit", "input-overflow", "input-growth"].includes(mode)) {
       fs.appendFileSync(
         input,
         " ".repeat(256 * 1024 - fs.statSync(input).size + (mode === "input-overflow" ? 1 : 0)),
       );
     }
+    if (mode === "fifo") {
+      fs.renameSync(input, join(output, "regular.json"));
+      expect(spawnSync("mkfifo", [input], { encoding: "utf8", timeout: 1000 }).status).toBe(0);
+    }
     fs.writeFileSync(calls, "");
     const result = spawnSync(process.execPath, ["--preload", preload, entry, root, output], {
       cwd: root,
       encoding: "utf8",
-      timeout: 15_000,
+      timeout: mode === "fifo" ? 2000 : 15_000,
       env: {
         ...process.env,
         PROOF_SOURCE_SHA: head,
@@ -175,6 +187,7 @@ function fixture() {
         GITHUB_RUN_ID: "123",
         GITHUB_RUN_ATTEMPT: "1",
         FIXTURE_AUDIT_CALLS: calls,
+        FIXTURE_AUDIT_INPUT: input,
         FIXTURE_AUDIT_NOW: String(now),
         FIXTURE_AUDIT_MODE: mode,
         FIXTURE_AUDIT_ROOT: rootMock ? "1" : "0",
@@ -183,7 +196,8 @@ function fixture() {
     const raw = fs.readFileSync(calls, "utf8").trim();
     const invoked = raw ? raw.split("\n").map((line) => JSON.parse(line)) : [];
     const path = join(output, "namespace-bash-audit.json");
-    const saved = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, "utf8")) : undefined;
+    const savedText = fs.existsSync(path) ? fs.readFileSync(path, "utf8") : "";
+    const saved = savedText ? JSON.parse(savedText) : undefined;
     return { result, invoked, saved, output };
   };
   return { directory, calls, preload, record, execute, now };
@@ -216,7 +230,7 @@ test.skipIf(!supported)(
         .trim()
         .split("\n")
         .map((line) => JSON.parse(line));
-      expect(sourceCalls).toHaveLength(2);
+      expect(sourceCalls).toHaveLength(3);
       expect(sourceCalls.every((item: any) => item.file === "git" && item.args[0] === "show")).toBe(
         true,
       );
@@ -291,6 +305,38 @@ test.skipIf(!supported)(
   },
   30_000,
 );
+
+for (const mode of ["fifo", "input-growth"]) {
+  test.skipIf(!supported)(
+    "Bash監査は不正な入力を検索前に拒否する: " + mode,
+    () => {
+      const f = fixture();
+      try {
+        const regular = f.execute(f.record, "input-limit");
+        expect(regular.result.status).toBe(0);
+        expect(regular.saved.status).toBe("collected");
+        const invalid = f.execute(f.record, mode);
+        if (mode === "input-growth") {
+          expect(JSON.parse(fs.readFileSync(f.calls + ".growth", "utf8"))).toEqual({
+            sizeBefore: 256 * 1024,
+            sizeAfter: 256 * 1024 + 1,
+          });
+          expect(fs.statSync(join(invalid.output, "namespace-bash.json")).size).toBe(
+            256 * 1024 + 1,
+          );
+        }
+        expect(invalid.result.error).toBeUndefined();
+        expect(invalid.result.status).toBe(2);
+        expect(invalid.saved.status).toBe("unavailable");
+        expect(invalid.saved.error).toContain(mode === "fifo" ? "非公開の測定記録" : "上限256KiB");
+        expect(invalid.invoked).toEqual([]);
+      } finally {
+        fs.rmSync(f.directory, { recursive: true, force: true });
+      }
+    },
+    30_000,
+  );
+}
 
 test.skipIf(!supported)(
   "Bash監査は未再現と不正な出所・PID・時刻を検索前に区別し、既存記録を上書きしない",

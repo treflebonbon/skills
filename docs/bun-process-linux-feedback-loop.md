@@ -325,7 +325,7 @@ Bashの `wait` が返す128以上の値は、通常終了とsignalを推測で�
 
 共通BashのPID世代と上位祖先、Bash/Perl/Pythonとunshareの実体hash、source/workflow/run/attempt、非root資格情報・namespace・限定したcaller観測を照合する。Bash自身の限定proc情報と、観測子へ継承された `PATH` / `HOME` / `LANG` / `LC_ALL` / `TMPDIR` の5値を使い、環境全体やcommand lineは読まない。`childBefore` はexec前のBash子の観測であり、失敗したunshare自身の拒否時LSMとは扱わない。
 
-Bashが未使用OUTPUTを排他的に確保する。準備の専用コード46でだけPerlを起動し、baselineの47でだけ直接側へ進む。後処理の43/44だけを最終1/0へ変換し、他は2にする。checkpoint、Perl raw、gate、Bash開始点、各probeのstream記録とwait結果、`namespace-bash.json` を0600で保存する。後続JSONや所有PIDの検査が失敗しても、準備時の出所と取得済みPerl baselineを保持する。stream記録が空・不正でもBashと観測子のwait結果を保存し、終了時snapshot失敗でも取得済みBash probeを最終JSONと公開ログに保持する。
+Bashが未使用OUTPUTを排他的に確保する。準備の専用コード46でだけPerlを起動し、baselineの47でだけ直接側へ進む。後処理の43/44だけを最終1/0へ変換し、他は2にする。checkpoint、Perl raw、gate、Bash開始点、各probeのstream記録とwait結果、`namespace-bash.json` を0600で保存する。後続JSONや所有PIDの検査が失敗しても、準備時の出所と取得済みPerl baselineを保持する。stream記録が空・不正でもBashと観測子のwait結果を保存し、終了時snapshot失敗でも取得済みBash probeを最終JSONと公開ログに保持する。個別captureの読取・解析に失敗した場合も、case・反復番号・例外種別を `captureErrors` へ記録して後続の正常captureを取り込み、判定は `unavailable` にする。
 
 `[DEBUG-ns-bash]` は方式、caller、exec前の所有PID情報、各probeのargv/PID/時刻/終了状態を限定出力する。stdout/stderrは各1024文字までで、省略時は `logTruncated` を示す。実子fixtureでfd 0の閉鎖、直接のBash親、他stdioの種類・flags、環境の公開sentinel除去を確認する。これは設定の検証であり、実unshareのfd・環境全件・拒否時LSMの直接dumpではない。
 
@@ -349,7 +349,7 @@ Bashが未使用OUTPUTを排他的に確保する。準備の専用コード46�
 
 collectorは正式実証で使う `probeAudit` を共有し、sudoを渡さない経路で `/usr/bin/journalctl` の実体を実行する。通常の `proof` / `probe-loop` / `probe-minimize` の既存sudo経路は維持する。新しい読取は呼出しユーザーの権限だけを使い、権限拒否や不完全な結果では後続の検索を省略する。sudoへの自動fallback、追加install、root化、profile/sysctl変更は行わない。
 
-入力は所有する非公開OUTPUT内の `namespace-bash.json` だけとし、通常ファイル・非公開mode・256KiB上限を検査し、symlinkを開かない。source/workflow/run/attemptと両checkoutを照合し、既存6測定器・collector・共有readerの計8ファイルをsource commitのGit blobと両checkoutの内容へ固定する。Bash側の測定前後・非root資格情報・argv・3反復・終了状態・所有PID情報・重複PIDを検査し、全6probeが120秒以内、各probeが5秒以内であることを確認する。検査が全て済むまでjournalを起動しない。
+入力は所有する非公開OUTPUT内の `namespace-bash.json` だけとし、`O_NOFOLLOW | O_NONBLOCK` で開き、FIFOで待機せず通常ファイル・非公開mode・256KiB上限を検査する。同じdescriptorから最大256KiB + 1 byteだけ読み、サイズ検査後の追記も上限超過として拒否してからJSONを解析する。source/workflow/run/attemptと両checkoutを照合し、既存6測定器・collector・共有readerの計8ファイルをsource commitのGit blobと両checkoutの内容へ固定する。Bash側の測定前後・非root資格情報・argv・3反復・終了状態・所有PID情報・重複PIDを検査し、全6probeが120秒以内、各probeが5秒以内であることを確認する。検査が全て済むまでjournalを起動しない。
 
 正確な `perl-layer-not-required` でBash最小argv3回が同じUID-map EPERM、対照3回が成功した場合だけ、最小argv側の3 PIDを検索する。対照・Perl・祖先のPIDへ検索を広げない。各検索は既存readerと同じくprobe開始/終了の前後1秒、最大7秒の範囲で、MESSAGE内の一意な非引用 `pid=` tokenとaudit表記を照合する。journalの `_PID` を対象PIDの代わりに使わず、quotedな偽PID・別PID・範囲外時刻を除外する。これはPIDと時刻の対応であり、kernel監査によるPID世代の証明とは扱わない。
 

@@ -194,13 +194,14 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
         "   if field=='observer':changed['cases'][0]['probes'][0]['observerPid']='public-invalid-pid'",
         "   print('INVALID '+m.bash_outcome(changed,common,checkpoint))",
         "  original_snapshot=m.snapshot",
-        "  for label in ['owner','corrupt','snapshot']:",
+        "  for label in ['owner','corrupt','corrupt-middle','snapshot']:",
         "   target=output.with_name(output.name+'-'+label)",
         "   shutil.copytree(output,target,ignore=shutil.ignore_patterns('namespace-bash.json'))",
-        "   raw=target/'bash-minimal-1.json'",
+        "   raw=target/('bash-minimal-2.json' if label=='corrupt-middle' else 'bash-minimal-1.json')",
         "   if label=='owner':",
         "    data=json.loads(raw.read_text());data['ownerPid']+=1;raw.write_text(json.dumps(data))",
         "   elif label=='corrupt':raw.write_text('{')",
+        "   elif label=='corrupt-middle':raw.write_text('')",
         "   if label=='snapshot':m.snapshot=lambda version: (_ for _ in ()).throw(OSError('public-final-snapshot'))",
         "   try:",
         "    with contextlib.redirect_stdout(io.StringIO()) as captured:answer=m.finalize(root,target,version,*map(int,sys.argv[7:11]))",
@@ -333,7 +334,7 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
             .split("\n")
             .filter((line) => line.startsWith("PARTIAL "))
             .map((line) => JSON.parse(line.slice(8)));
-          expect(partials).toHaveLength(3);
+          expect(partials).toHaveLength(4);
           for (const partial of partials) {
             expect(partial.status).toBe(2);
             expect(partial.outcome).toBe("unavailable");
@@ -351,6 +352,20 @@ test.skipIf(process.platform !== "linux" || process.getuid?.() === 0 || process.
           expect(snapshotFailure.loggedBashProbes.map(publicProbe)).toEqual(
             data.measurements.bash.cases.flatMap((item: any) => item.probes).map(publicProbe),
           );
+          for (const label of ["corrupt", "corrupt-middle"]) {
+            const partial = partials.find((item) => item.label === label);
+            const repetition = label === "corrupt" ? 1 : 2;
+            const expectedCases = structuredClone(data.measurements.bash.cases);
+            expectedCases[0].probes.splice(repetition - 1, 1);
+            expect(partial.bash?.cases).toEqual(expectedCases);
+            expect(partial.bash?.error).toContain("capture");
+            expect(partial.bash?.captureErrors).toEqual([
+              { case: "minimal", repetition, error: "JSONDecodeError" },
+            ]);
+            expect(partial.loggedBashProbes.map(publicProbe)).toEqual(
+              expectedCases.flatMap((item: any) => item.probes).map(publicProbe),
+            );
+          }
         }
       }
     } finally {

@@ -224,19 +224,28 @@ function collectBashAudit(root: string, output: string) {
     );
     const input = fs.openSync(
       join(output, "namespace-bash.json"),
-      fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+      fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK,
     );
     let data;
     try {
+      const inputLimit = 256 * 1024;
       const stat = fs.fstatSync(input);
       if (
         !stat.isFile() ||
         stat.uid !== process.getuid!() ||
         (stat.mode & 0o077) !== 0 ||
-        stat.size > 256 * 1024
+        stat.size > inputLimit
       )
         throw new AuditInputError("非公開の測定記録が必要です（上限256KiB）");
-      data = JSON.parse(fs.readFileSync(input, "utf8"));
+      const bytes = Buffer.alloc(inputLimit + 1);
+      let length = 0;
+      while (length < bytes.length) {
+        const count = fs.readSync(input, bytes, length, bytes.length - length, null);
+        if (!count) break;
+        length += count;
+      }
+      if (length > inputLimit) throw new AuditInputError("測定記録の上限256KiBを超えました");
+      data = JSON.parse(bytes.subarray(0, length).toString("utf8"));
     } finally {
       fs.closeSync(input);
     }

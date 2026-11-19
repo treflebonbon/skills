@@ -412,10 +412,16 @@ def load_bash(output, checkpoint):
         record["cases"].append(case)
         for repetition in range(1, 4):
             path = output / f"bash-{name}-{repetition}.json"
-            if path.exists():
-                probe = json.loads(path.read_text())
-                probe["repetition"] = repetition
-                case["probes"].append(probe)
+            try:
+                if path.exists():
+                    probe = json.loads(path.read_text())
+                    probe["repetition"] = repetition
+                    case["probes"].append(probe)
+            except (OSError, ValueError, TypeError) as error:
+                record.setdefault("captureErrors", []).append({
+                    "case": name, "repetition": repetition, "error": type(error).__name__,
+                })
+                record["error"] = "Bash captureの読取・解析に失敗しました"
     record["forkCount"] = sum(len(case["probes"]) for case in record["cases"])
     return record
 
