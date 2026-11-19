@@ -676,7 +676,9 @@ test.skipIf(process.platform !== "linux")(
           "with open(" +
             JSON.stringify(calls) +
             ",'a') as f:f.write(json.dumps({'stage':'direct-'+stage,'args':sys.argv[2:]})+'\\n')",
-          "if stage=='gate':sys.exit(config['direct-gate'])",
+          "if stage=='gate':",
+          " if config['direct-gate']==2:print('fixture設定により直接UID-map比較を拒否しました')",
+          " sys.exit(config['direct-gate'])",
           "if stage=='settings':print(str(Path(sys.executable).resolve())+'\\t'+'0'*64);sys.exit(0)",
           "baseline,gate,capture=map(int,sys.argv[5:8])",
           "sys.exit(43 if baseline==43 and gate==48 and capture==0 else 44 if baseline==44 and gate==44 and capture==-1 else 2)",
@@ -759,6 +761,10 @@ test.skipIf(process.platform !== "linux")(
         }
         if (mode === "probe-uid-write") {
           expect(rows.filter((row) => row.stage === "direct-gate")).toHaveLength(1);
+          if (directGate === 2)
+            expect(result.stdout).toContain("fixture設定により直接UID-map比較を拒否しました");
+          else
+            expect(result.stdout).not.toContain("fixture設定により直接UID-map比較を拒否しました");
           expect(rows.findIndex((row) => row.stage === "direct-gate")).toBeGreaterThan(
             rows.findIndex((row) => row.stage === "finalize"),
           );
