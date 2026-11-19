@@ -666,11 +666,30 @@ test.skipIf(process.platform !== "linux")(
           "exit $config->{perl};",
         ].join("\n"),
       );
+      fs.writeFileSync(
+        join(directory, "probe-linux-namespace-uid-write.py"),
+        [
+          "import json,sys",
+          "from pathlib import Path",
+          "config=json.loads(Path(" + JSON.stringify(settings) + ").read_text())",
+          "stage=sys.argv[1]",
+          "with open(" +
+            JSON.stringify(calls) +
+            ",'a') as f:f.write(json.dumps({'stage':'direct-'+stage,'args':sys.argv[2:]})+'\\n')",
+          "if stage=='gate':sys.exit(config['direct-gate'])",
+          "if stage=='settings':print(str(Path(sys.executable).resolve())+'\\t'+'0'*64);sys.exit(0)",
+          "baseline,gate,capture=map(int,sys.argv[5:8])",
+          "sys.exit(43 if baseline==43 and gate==48 and capture==0 else 44 if baseline==44 and gate==44 and capture==-1 else 2)",
+        ].join("\n"),
+      );
       let index = 0;
-      for (const [prepare, perl, gate, expectedExit, captures, mode, uidCheck] of [
+      for (const [prepare, perl, gate, expectedExit, captures, mode, uidCheck, directGate] of [
         [46, 0, 47, 1, 6],
         [46, 0, 47, 1, 6, "probe-userns"],
         [46, 0, 47, 1, 9, "probe-uid"],
+        [46, 0, 47, 1, 15, "probe-uid-write", 0, 48],
+        [46, 0, 47, 2, 9, "probe-uid-write", 0, 2],
+        [46, 0, 44, 0, 0, "probe-uid-write", 0, 44],
         [46, 0, 47, 2, 3, "probe-uid", 2],
         [46, 0, 44, 0, 0],
         [46, 0, 2, 2, 0],
@@ -681,7 +700,13 @@ test.skipIf(process.platform !== "linux")(
         fs.writeFileSync(calls, "");
         fs.writeFileSync(
           settings,
-          JSON.stringify({ prepare, perl, "baseline-check": gate, "uid-check": uidCheck ?? 0 }),
+          JSON.stringify({
+            prepare,
+            perl,
+            "baseline-check": gate,
+            "uid-check": uidCheck ?? 0,
+            "direct-gate": directGate ?? 2,
+          }),
         );
         const output = join(directory, "run-" + index++);
         const result = spawnSync(
@@ -705,12 +730,12 @@ test.skipIf(process.platform !== "linux")(
         expect(rows.filter((row) => row.stage === "observe")).toHaveLength(captures!);
         expect(rows.filter((row) => row.stage === "perl")).toHaveLength(prepare === 46 ? 1 : 0);
         expect(rows.filter((row) => row.stage === "start")).toHaveLength(captures ? 1 : 0);
-        expect(rows.at(-1).stage).toBe("finalize");
+        expect(rows.at(-1).stage).toBe(mode === "probe-uid-write" ? "direct-finalize" : "finalize");
         if (captures) {
           const observed = rows.filter((row) => row.stage === "observe");
           for (const row of observed.slice(0, 3))
             expect(row.args.slice(8)).toEqual(["--map-current-user", "--", "/usr/bin/true"]);
-          if (mode === "probe-uid") {
+          if (mode === "probe-uid" || mode === "probe-uid-write") {
             expect(rows.filter((row) => row.stage === "uid-check")).toHaveLength(1);
             expect(rows.findIndex((row) => row.stage === "uid-check")).toBeGreaterThan(
               rows.indexOf(observed[2]),
@@ -722,12 +747,36 @@ test.skipIf(process.platform !== "linux")(
                 "/usr/bin/true",
               ]);
           } else expect(rows.filter((row) => row.stage === "uid-check")).toHaveLength(0);
-          for (const row of observed.slice(mode === "probe-uid" ? 6 : 3))
+          for (const row of observed.slice(
+            mode === "probe-uid" || mode === "probe-uid-write" ? 6 : 3,
+            9,
+          ))
             expect(row.args.slice(8)).toEqual(
-              mode === "probe-userns" || mode === "probe-uid"
+              mode === "probe-userns" || mode === "probe-uid" || mode === "probe-uid-write"
                 ? ["--user", "--", "/usr/bin/true"]
                 : ["--", "/usr/bin/true"],
             );
+        }
+        if (mode === "probe-uid-write") {
+          expect(rows.filter((row) => row.stage === "direct-gate")).toHaveLength(1);
+          expect(rows.findIndex((row) => row.stage === "direct-gate")).toBeGreaterThan(
+            rows.findIndex((row) => row.stage === "finalize"),
+          );
+          const direct = rows.filter((row) => row.stage === "observe").slice(9);
+          expect(direct).toHaveLength(directGate === 48 ? 6 : 0);
+          for (const [offset, row] of direct.entries()) {
+            expect(row.args[6]).toBe(fs.realpathSync(Bun.which("python3")!));
+            expect(row.args.slice(8)).toEqual([
+              "-I",
+              join(directory, "probe-linux-namespace-uid-write.py"),
+              "child",
+              offset < 3 ? "map" : "control",
+              String(process.geteuid?.()),
+            ]);
+          }
+          expect(rows.filter((row) => row.stage === "direct-settings")).toHaveLength(
+            directGate === 48 ? 1 : 0,
+          );
         }
         const previous = fs.readFileSync(calls, "utf8");
         const duplicate = spawnSync(

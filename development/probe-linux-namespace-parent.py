@@ -173,7 +173,7 @@ def validate(root):
     return identity
 
 
-def log_measurement(name, record, prefix="parent"):
+def log_measurement(name, record, prefix="parent", classifier=launch.classify):
     """途中記録も、方式と各probeの上限付き出力を区別して記録する。"""
     if not isinstance(record, dict):
         launch.emit({"parent": name, "error": "測定記録がobjectではありません"}, prefix)
@@ -200,7 +200,7 @@ def log_measurement(name, record, prefix="parent"):
                 **({"childBefore": {key: probe["childBefore"][key] for key in ("pid", "ppid", "path", "processGroup", "session", "startTimeTicks") if key in probe["childBefore"]}} if isinstance(probe.get("childBefore"), dict) else {}),
                 "stdout": stdout[:1024], "stderr": stderr[:1024],
                 "logTruncated": len(stdout) > 1024 or len(stderr) > 1024,
-                "outcome": launch.classify(probe),
+                "outcome": classifier(probe),
             }, prefix)
 
 

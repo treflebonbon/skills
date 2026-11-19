@@ -61,6 +61,40 @@ capture_probe() {
     "$executable" "$expected" "$@"
 }
 
+compare_uid_write() {
+  local source_root=$1 output=$2 baseline_status=$3 gate_status=0 capture_status=-1 final_status=0
+  local settings python_path python_hash case_name repetition
+  local direct_helper="$capture_dir/probe-linux-namespace-uid-write.py"
+  python3 -I "$direct_helper" gate "$source_root" "$output" "$BASH_VERSION" "$baseline_status" || gate_status=$?
+  if [[ $gate_status == 48 ]]; then
+    capture_status=0
+    settings="$(python3 -I "$direct_helper" settings "$source_root" "$output" "$BASH_VERSION")" || capture_status=$?
+    if [[ $capture_status == 0 ]]; then
+      IFS=$'\t' read -r python_path python_hash <<<"$settings"
+      if [[ $python_path != /* || ! $python_hash =~ ^[a-f0-9]{64}$ ]]; then
+        capture_status=2
+      else
+        for case_name in map control; do
+          for repetition in 1 2 3; do
+            capture_probe "$python_path" "$output/bash-direct-$case_name-$repetition" 5 33554432 "$python_hash" \
+              -I "$direct_helper" child "$case_name" "$EUID" || {
+              capture_status=$?
+              break 2
+            }
+          done
+        done
+      fi
+    fi
+  fi
+  python3 -I "$direct_helper" finalize "$source_root" "$output" "$BASH_VERSION" \
+    "$baseline_status" "$gate_status" "$capture_status" || final_status=$?
+  case "$final_status" in
+  44) return 0 ;;
+  43) return 1 ;;
+  *) return 2 ;;
+  esac
+}
+
 compare_bash() {
   if [[ $# != 2 ]]; then
     printf '%s\n' 'SOURCE OUTPUTが必要です' >&2
@@ -69,7 +103,7 @@ compare_bash() {
   local source_root output prepare_status=0 perl_status=-1 gate_status=-1 bash_status=-1 final_status=0
   local executable_hash case_name repetition prefix capture_status
   local -a case_argv case_names=(minimal control)
-  if [[ ${PROOF_MODE:-} == probe-uid ]]; then
+  if [[ ${PROOF_MODE:-} == probe-uid || ${PROOF_MODE:-} == probe-uid-write ]]; then
     case_names=(minimal uid-only control)
   fi
   source_root="$(CDPATH='' cd -- "$1" && pwd -P)" || return 2
@@ -101,7 +135,7 @@ compare_bash() {
                 break
               }
               case_argv=("--map-user=$EUID" -- /usr/bin/true)
-            elif [[ ${PROOF_MODE:-} == probe-userns || ${PROOF_MODE:-} == probe-uid ]]; then
+            elif [[ ${PROOF_MODE:-} == probe-userns || ${PROOF_MODE:-} == probe-uid || ${PROOF_MODE:-} == probe-uid-write ]]; then
               case_argv=(--user -- /usr/bin/true)
             fi
             for repetition in 1 2 3; do
@@ -120,6 +154,10 @@ compare_bash() {
   fi
   python3 -I "$capture_helper" finalize "$source_root" "$output" "$BASH_VERSION" \
     "$prepare_status" "$perl_status" "$gate_status" "$bash_status" || final_status=$?
+  if [[ ${PROOF_MODE:-} == probe-uid-write ]]; then
+    compare_uid_write "$source_root" "$output" "$final_status"
+    return $?
+  fi
   case "$final_status" in
   44) return 0 ;;
   43) return 1 ;;

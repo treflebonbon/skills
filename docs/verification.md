@@ -27,6 +27,8 @@ validator は manifest の受理、mock/fixture は指定分岐の挙動、公�
 
 `linux-namespace-bash-audit.test.ts` のCLI fixtureはLinux・Bun 1.4.4・非root・`/usr/bin/journalctl` がある場合に実行します。kernel journal本体は起動せずmockし、実測JSONからの失敗3 PIDの選択、sudoを使わないargv、読取拒否時の停止、出所8ファイルのhashとPID/時刻の拒否を確認します。symlink拒否、FIFOを待たずに拒否すること、入力256KiBちょうどの成功とサイズ検査後の1 byte追記も含む超過拒否、既存記録の上書き拒否も検証します。Bash比較のfixtureは先頭・中間captureの破損時にも正常な残り5件を最終JSONと公開ログへ保持することを検証します。新mode専用のworkflow接続検査はOSによらず実行し、これらを実VMのjournal読取成功とは数えません。
 
+`linux-namespace-uid-write.test.ts` と `test_linux_namespace_uid_write.py` は、直接UID-map診断の作成・open・write・closeをmockし、実namespaceや実NSS検索を呼ばない。write EPERMと成功対照、作成/openのEPERM・別errno・混在・短いwrite・cleanup失敗の区別、基準と方式の改変拒否、所有PID・hash・時刻の拒否、途中captureと基準の保持を確認する。本番Bash driverのfixtureはobserverにREADYを返さず、基準後の許可コードによる6 probeへの接続とargvだけを確認する。これらを実VMでの直接writeの再現成功とは数えない。
+
 `main` 向け PR では、`CI` workflow が `opened`・`synchronize`・`reopened` でコードを検査します。`PR タイトル` workflow は、この3イベントと `edited` で `conventional-commits` を実行します。タイトル・本文の編集ではコード CI を再実行せず、workflow ごとに concurrency group を分けるため、実行中のコード CI も取り消しません。
 
 PR の base branch だけを変えた場合も `edited` になるため、変更後のコード CI は push または reopen で起動します。

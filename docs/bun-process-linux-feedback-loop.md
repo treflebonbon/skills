@@ -460,3 +460,22 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 今回のx64は `7.0.0-1014-aws`、arm64は `7.0.0-1017-azure`。x64は [旧run](evidence/linux-namespace-uid/44486490046-1/README.md) とimage・kernel・祖先などが異なるため、run間で検索検査だけを変えた差分実験とは扱わず、今回の各VM内の比較として解釈する。旧runの数値名解決は未記録のままで、今回の検査によって遡って確認したことにはしない。旧runのJSONは変更していない。
 
 これはUID mappingを指定したCLIの再現であり、実unshareのsyscall列やAppArmor拒否との直接因果を観測したものではない。前回runの監査PIDを今回のPIDへ対応させず、Azure kernelの公開sourceを新しいx64 kernelへそのまま対応させない。完全なpackage版・loaded policy・直接因果と、残る固定条件の要否は未確認。Phase 2全体・#33未完了、#82待ち、macOS 15のcontainment方式と全子孫5秒保証の未解決を維持する。
+
+## 次の最小化: UID-mapを直接書き込む
+
+`mode=probe-uid-write` は準備済み・実VM未実行の診断である。同じVM・同じBashで既存の `probe-uid` 基準15回を実行し、Perlの最小argvとBashの最小argv・現在EUIDのUID-onlyが各3回同じEPERM、対照が各3回成功した場合だけ直接経路へ進む。数値名検査も既存の1回を再利用し、追加検索は行わない。
+
+直接経路はPython 3.12以降の標準 [`os.unshare()`](https://docs.python.org/3.12/library/os.html#os.unshare) を使う。同じBashからPythonを空環境・cwd `/`・閉鎖stdin・stdout/stderrの通常pipeで起動する。Pythonのlocale coercionが追加し得る既知の `LC_CTYPE` だけを `os.unsetenv()` で消し、環境全体を読み出さない。新しいFFI、Cビルド、依存導入は不要である。
+
+| 直接case  | 各3回の操作                                                                                                                   |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `map`     | `unshare(CLONE_NEWUSER)` → `open("/proc/self/uid_map", O_WRONLY\|O_CLOEXEC)` → 現在EUIDの1行 `UID UID 1\n` を1回write → close |
+| `control` | `unshare(CLONE_NEWUSER)` の成功後、mapを開かず終了                                                                            |
+
+作成・open・writeの結果とerrnoを別々に記録する。stdinが閉じているためmapをfd 0で開く場合も閉じる。短いwrite、close失敗、作成やopenのEPERM、別errno、成功と失敗の混在、対照の失敗は `unavailable` とする。直接writeのEPERM 3回と直接対照の成功3回が揃う場合だけ `direct-write-reproduced`。直接経路が全6回成功なら `direct-write-not-reproduced` とする。どちらも同じVMの元の失敗は残るため、最終終了コードは1である。Perl基準が全成功なら直接経路へ進まず `not-reproduced` / 終了コード0。それ以外は終了コード2。
+
+実行上限は各構成21 probe、x64・arm64合計42 probe。版確認は合計2回、数値名検査は最大2回である。比較stepの上限4分、直接probeごとのtimeout 5秒・合算出力32MiB、所有PID・世代・pidfd・実行体hash、共通Bashと上位祖先・callerの検査を維持する。7ファイルのsourceとPython実行体をcommitへ固定し、基準と直接経路を別のVMの結果から組み合わせない。
+
+結果は `namespace-uid-write.json`、artifact名は `namespace-uid-write-<run>-<attempt>-<arch>`。既存の `[DEBUG-ns-uid]` に続き、直接経路を `[DEBUG-ns-uid-write]` のJSON行で記録する。正常に読めた途中captureも基準全体とともに保存し、後続のcontext・source検査が失敗しても失わない。各streamの公開ログは1024文字までで、省略を明示する。
+
+専用Nix/group準備、root化、sysctl/profile変更、journal検索、正式44ケース・集約は行わない。Pythonの起動と直接操作を含む比較なので、直接経路が成功してもutil-linux固有の原因とは確定しない。新しいVMのkernel/imageが以前と異なる可能性もあるため、そのVM内の再現を比較の前提とする。Phase 2全体・原因確定・ADR 0003の条件は未完了のまま維持する。追加dispatchは公開済みSHAと上限を示し、1回ごとに確認する。
