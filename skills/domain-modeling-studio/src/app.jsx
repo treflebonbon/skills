@@ -857,6 +857,7 @@ const App = ({ seed }) => {
     setPast([]);
     setFuture([]);
     setSelection(null);
+    setVerificationFocus(null);
     setConflict(false);
     setPending(null);
     setMessage(
@@ -906,6 +907,7 @@ const App = ({ seed }) => {
         setPast([]);
         setFuture([]);
         setSelection(null);
+        setVerificationFocus(null);
         setConflict(false);
         setPending(null);
         setMessage("AI更新版を取り込みました。");

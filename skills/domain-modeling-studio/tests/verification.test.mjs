@@ -415,6 +415,32 @@ test("業務ルール・既存テスト・検証候補への指摘と削除記�
     false
   );
 
+  // The commented rule itself retires with its dependents; the comment stays
+  // attributable to the retired record.
+  const retiredRule = update((d) => {
+    d.retired.push(
+      retire("rule", d.rules.pop()),
+      retire("existingTest", d.existingTests.pop()),
+      ...d.verificationCandidates
+        .splice(0)
+        .map((item) => retire("verificationCandidate", item))
+    );
+  });
+  assert.equal(retiredRule, false);
+  const afterRetire = validateDocument({
+    ...structuredClone(before),
+    existingTests: [],
+    retired: [{ entity: "rule", item: rule(), view: "verification" }],
+    rules: [],
+    verificationCandidates: [],
+  });
+  const attributed = afterRetire.retired.filter(
+    (r) =>
+      r.view === comment.target.view && r.item.id === comment.target.id
+  );
+  assert.equal(attributed.length, 1);
+  assert.deepEqual(afterRetire.comments.at(-1), comment);
+
   const legacy = validateDocument(example());
   const legacySaved = {
     document: legacy,
