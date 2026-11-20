@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { validateDocument } from "../src/model.mjs";
+import {
+  reconcile,
+  removeItem,
+  signature,
+  validateDocument,
+} from "../src/model.mjs";
 import { example } from "./fixture.mjs";
 
 const rule = (extra = {}) => ({
@@ -285,4 +290,130 @@ test("保留以外の検証候補は誤り・業務ルール・境界・理由�
       })
     )
   );
+});
+
+test("改善案の要素を削除しても、その要素を指す業務ルールは削除記録で関連を保つ", () => {
+  const doc = validateDocument(
+    v3((d) => {
+      d.rules.push(
+        rule({ id: "accept-proposed", model: "proposed", targets: ["accept"] })
+      );
+    })
+  );
+  const removed = removeItem(doc, "node", "accept");
+  assert.equal(
+    removed.retired.some((r) => r.view === "proposed" && r.item.id === "accept"),
+    true
+  );
+  assert.deepEqual(removed.rules.at(-1).targets, ["accept"]);
+});
+
+test("業務ルール・既存テスト・検証候補への指摘と削除記録を受け付け、AI更新で黙って消えたら競合にする", () => {
+  const comment = {
+    id: "c-rule",
+    target: { id: "accept-once", view: "verification" },
+    text: "取消後の再受諾は許す",
+  };
+  assert.doesNotThrow(() =>
+    validateDocument(
+      v3((d) => {
+        d.comments.push(comment);
+      })
+    )
+  );
+  assert.throws(
+    () =>
+      validateDocument(
+        v3((d) => {
+          d.comments.push({ ...comment, target: { view: "verification" } });
+        })
+      ),
+    /指摘対象が不正/u
+  );
+  assert.throws(
+    () =>
+      validateDocument(
+        v3((d) => {
+          d.retired.push({
+            entity: "rule",
+            item: { ...rule(), statement: "" },
+            view: "verification",
+          });
+        })
+      ),
+    /削除記録が不正/u
+  );
+
+  const before = validateDocument(
+    v3((d) => {
+      d.comments.push(comment);
+    })
+  );
+  const saved = {
+    document: before,
+    lastExport: { id: "export-1", signature: signature(before) },
+    seed: signature(before),
+  };
+  const update = (mutate) => {
+    const next = {
+      ...structuredClone(before),
+      basedOn: { exportId: "export-1", revision: "r1" },
+      revision: "r2",
+    };
+    mutate(next);
+    return reconcile(next, saved).conflict;
+  };
+  assert.equal(update(() => {}), false);
+  assert.equal(
+    update((d) => {
+      d.rules[0].statement = "受諾済みの依頼は取消まで再受諾できない";
+    }),
+    false
+  );
+  const retire = (entity, item) => ({ entity, item, view: "verification" });
+  assert.equal(
+    update((d) => {
+      d.verificationCandidates.shift();
+    }),
+    true
+  );
+  assert.equal(
+    update((d) => {
+      d.retired.push(
+        retire("verificationCandidate", d.verificationCandidates.shift())
+      );
+    }),
+    false
+  );
+  assert.equal(
+    update((d) => {
+      d.existingTests.pop();
+      d.retired.push(
+        retire("verificationCandidate", d.verificationCandidates.pop())
+      );
+    }),
+    true
+  );
+  assert.equal(
+    update((d) => {
+      d.retired.push(
+        retire("existingTest", d.existingTests.pop()),
+        retire("verificationCandidate", d.verificationCandidates.pop())
+      );
+    }),
+    false
+  );
+
+  const legacy = validateDocument(example());
+  const legacySaved = {
+    document: legacy,
+    lastExport: { id: "export-1", signature: signature(legacy) },
+    seed: signature(legacy),
+  };
+  const upgraded = {
+    ...v3(),
+    basedOn: { exportId: "export-1", revision: "r1" },
+    revision: "r2",
+  };
+  assert.equal(reconcile(upgraded, legacySaved).conflict, false);
 });

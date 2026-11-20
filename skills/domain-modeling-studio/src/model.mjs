@@ -58,6 +58,12 @@ export const DECISIONS = {
 };
 const views = ["current", "proposed"];
 const VERIFICATION_KEYS = ["rules", "existingTests", "verificationCandidates"];
+// Retired verification records use these entity names under view "verification".
+const VERIFICATION_ENTITIES = {
+  existingTests: "existingTest",
+  rules: "rule",
+  verificationCandidates: "verificationCandidate",
+};
 // schemaVersion 2 documents carry no verification records; read them as empty.
 export const verificationOf = (doc) =>
   Object.fromEntries(VERIFICATION_KEYS.map((key) => [key, doc[key] ?? []]));
@@ -170,12 +176,25 @@ const validateComment = (comment) => {
   );
   need(
     comment.target.view === "whole" ||
-      (views.includes(comment.target.view) && id(comment.target.id)),
+      ([...views, "verification"].includes(comment.target.view) &&
+        id(comment.target.id)),
     "指摘対象が不正です"
   );
 };
 
 const validateRetired = (entry) => {
+  if (entry?.view === "verification") {
+    // Referential checks no longer apply to a removed record; keep it legible.
+    need(
+      Object.values(VERIFICATION_ENTITIES).includes(entry.entity) &&
+        object(entry.item) &&
+        id(entry.item.id) &&
+        nonempty(entry.item.statement ?? entry.item.title),
+      "削除記録が不正です"
+    );
+    evidence(entry.item.evidence);
+    return;
+  }
   need(
     object(entry) &&
       views.includes(entry.view) &&
@@ -602,6 +621,18 @@ const preservesReview = (incoming, saved) => {
     views.every((view) =>
       ["nodes", "edges"].every((key) =>
         preservesItems(incoming, previous, view, key, seed)
+      )
+    ) &&
+    VERIFICATION_KEYS.every((key) =>
+      verificationOf(previous)[key].every(
+        (item) =>
+          verificationOf(incoming)[key].some((next) => next.id === item.id) ||
+          incoming.retired.some(
+            (entry) =>
+              entry.view === "verification" &&
+              entry.entity === VERIFICATION_ENTITIES[key] &&
+              canonical(entry.item) === canonical(item)
+          )
       )
     )
   );
