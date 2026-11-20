@@ -30,13 +30,35 @@ const existingTest = (extra = {}) => ({
   title: "再受諾を拒否するテスト",
   ...extra,
 });
+const candidate = (extra = {}) => ({
+  boundary: { evidence: [], kind: "ADAPTER_INTEGRATION", origin: "inference" },
+  decision: "ADD",
+  error: "同時に届いた2件の受諾を両方成功させてしまう",
+  evidence: [],
+  id: "accept-race",
+  reason:
+    "既存テストは単一の受諾だけを観測し、同時実行時の保存の制約を確かめていない",
+  rule: "accept-once",
+  tests: [],
+  title: "同時受諾の二重成功を検出する",
+  ...extra,
+});
+const keep = candidate({
+  boundary: { evidence: [testRef], kind: "DOMAIN", origin: "code" },
+  decision: "KEEP",
+  error: "受諾済みの依頼を再受諾できてしまう",
+  id: "keep-accept-once",
+  reason: "再受諾の拒否をドメインの境界で直接観測する唯一のテスト",
+  tests: ["accept-once-test"],
+  title: "再受諾の拒否を維持する",
+});
 const v3 = (mutate = () => {}) => {
   const doc = {
     ...example(),
     existingTests: [existingTest()],
     rules: [rule()],
     schemaVersion: 3,
-    verificationCandidates: [],
+    verificationCandidates: [candidate(), structuredClone(keep)],
   };
   mutate(doc);
   return doc;
@@ -179,4 +201,88 @@ test("既存テストは読んだ位置・現状の業務ルール・検証の�
   ]) {
     assert.throws(() => validateDocument(v3(mutate)), message);
   }
+});
+
+test("保留以外の検証候補は誤り・業務ルール・境界・理由を必須とし、欠けた内容は保留なら受け付ける", () => {
+  const required = /保留以外の検証候補には検出したい誤り・守る業務ルール・検証の境界・理由が必要です/u;
+  for (const field of ["error", "rule", "boundary", "reason"]) {
+    const missing = (d) => {
+      delete d.verificationCandidates[0][field];
+    };
+    assert.throws(() => validateDocument(v3(missing)), required);
+    assert.doesNotThrow(() =>
+      validateDocument(
+        v3((d) => {
+          missing(d);
+          d.verificationCandidates[0].decision = "HOLD";
+        })
+      )
+    );
+  }
+  assert.throws(
+    () =>
+      validateDocument(
+        v3((d) => {
+          d.verificationCandidates[0].reason = " ";
+        })
+      ),
+    required
+  );
+  assert.doesNotThrow(() =>
+    validateDocument(
+      v3((d) => {
+        d.verificationCandidates = [
+          { decision: "HOLD", evidence: [], id: "unknown", title: "根拠不足" },
+        ];
+      })
+    )
+  );
+  for (const [mutate, message] of [
+    [
+      (d) => {
+        d.verificationCandidates[0].decision = "IGNORE";
+      },
+      /検証候補の形式/u,
+    ],
+    [
+      (d) => {
+        d.verificationCandidates[0].rule = "missing";
+      },
+      /検証候補の業務ルールが見つかりません/u,
+    ],
+    [
+      (d) => {
+        d.verificationCandidates[0].boundary.kind = "LAYER";
+      },
+      /検証の境界/u,
+    ],
+    ...["KEEP", "MERGE", "DELETE"].map((decision) => [
+      (d) => {
+        Object.assign(d.verificationCandidates[1], { decision, tests: [] });
+      },
+      /維持・統合・削除の候補には対象の既存テストが必要です/u,
+    ]),
+    [
+      (d) => {
+        d.verificationCandidates[1].tests = ["missing"];
+      },
+      /対象の既存テストが見つかりません/u,
+    ],
+    [
+      (d) => {
+        d.rules.push(rule({ id: "request-valid", targets: ["request"] }));
+        d.verificationCandidates[1].rule = "request-valid";
+      },
+      /対象の既存テストが守る業務ルールと一致しません/u,
+    ],
+  ]) {
+    assert.throws(() => validateDocument(v3(mutate)), message);
+  }
+  assert.doesNotThrow(() =>
+    validateDocument(
+      v3((d) => {
+        d.verificationCandidates[1].decision = "MERGE";
+      })
+    )
+  );
 });

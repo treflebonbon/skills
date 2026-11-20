@@ -49,6 +49,13 @@ export const RESULTS = {
   READ: "読んだのみ",
   SKIPPED: "スキップ",
 };
+export const DECISIONS = {
+  ADD: "追加",
+  DELETE: "削除",
+  HOLD: "保留",
+  KEEP: "維持",
+  MERGE: "統合",
+};
 const views = ["current", "proposed"];
 const VERIFICATION_KEYS = ["rules", "existingTests", "verificationCandidates"];
 // schemaVersion 2 documents carry no verification records; read them as empty.
@@ -308,6 +315,45 @@ const validateExistingTest = (item, rules) => {
   validateBoundary(item.boundary);
   validateResult(item.result);
 };
+const validateCandidate = (item, rules, tests) => {
+  need(
+    object(item) &&
+      nonempty(item.title) &&
+      Object.hasOwn(DECISIONS, item.decision) &&
+      (item.tests === undefined || Array.isArray(item.tests)),
+    "検証候補の形式が不正です"
+  );
+  evidence(item.evidence);
+  need(
+    item.decision === "HOLD" ||
+      (nonempty(item.error) &&
+        item.rule !== undefined &&
+        item.boundary !== undefined &&
+        nonempty(item.reason)),
+    "保留以外の検証候補には検出したい誤り・守る業務ルール・検証の境界・理由が必要です"
+  );
+  need(
+    item.rule === undefined || rules.has(item.rule),
+    "検証候補の業務ルールが見つかりません"
+  );
+  if (item.boundary !== undefined) {
+    validateBoundary(item.boundary);
+  }
+  const targets = item.tests ?? [];
+  need(
+    !["KEEP", "MERGE", "DELETE"].includes(item.decision) || targets.length > 0,
+    "維持・統合・削除の候補には対象の既存テストが必要です"
+  );
+  need(
+    targets.every((testId) => tests.has(testId)),
+    "対象の既存テストが見つかりません"
+  );
+  need(
+    item.rule === undefined ||
+      targets.every((testId) => tests.get(testId).rules.includes(item.rule)),
+    "対象の既存テストが守る業務ルールと一致しません"
+  );
+};
 const validateVerification = (doc) => {
   if (doc.schemaVersion === 2) {
     need(
@@ -330,6 +376,10 @@ const validateVerification = (doc) => {
   const rules = new Map(doc.rules.map((rule) => [rule.id, rule]));
   for (const item of doc.existingTests) {
     validateExistingTest(item, rules);
+  }
+  const tests = new Map(doc.existingTests.map((item) => [item.id, item]));
+  for (const item of doc.verificationCandidates) {
+    validateCandidate(item, rules, tests);
   }
 };
 
