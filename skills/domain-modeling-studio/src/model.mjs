@@ -28,7 +28,16 @@ export const ORIGINS = {
   inference: "AIの推測",
   proposal: "未検証の改善案",
 };
+export const RULE_KINDS = {
+  INVARIANT: "不変条件",
+  RULE: "業務ルール",
+  TRANSITION: "状態遷移",
+};
 const views = ["current", "proposed"];
+const VERIFICATION_KEYS = ["rules", "existingTests", "verificationCandidates"];
+// schemaVersion 2 documents carry no verification records; read them as empty.
+export const verificationOf = (doc) =>
+  Object.fromEntries(VERIFICATION_KEYS.map((key) => [key, doc[key] ?? []]));
 const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const text = (v) => typeof v === "string";
 const nonempty = (v) => text(v) && v.trim().length > 0;
@@ -218,6 +227,51 @@ const validateChange = (change) => {
   evidence(change.evidence);
 };
 
+// A rule may point at a removed element: deleting a proposed node must not
+// invalidate the rule, and the retired record keeps the target attributable.
+const elementIds = (doc, view) =>
+  new Set([
+    ...[...doc.models[view].nodes, ...doc.models[view].edges].map((i) => i.id),
+    ...doc.retired.filter((r) => r.view === view).map((r) => r.item.id),
+  ]);
+const validateRule = (rule, doc) => {
+  need(
+    object(rule) &&
+      Object.hasOwn(RULE_KINDS, rule.kind) &&
+      nonempty(rule.statement) &&
+      views.includes(rule.model),
+    "業務ルールの形式が不正です"
+  );
+  provenance(rule);
+  const known = elementIds(doc, rule.model);
+  need(
+    Array.isArray(rule.targets) &&
+      rule.targets.length > 0 &&
+      rule.targets.every((target) => known.has(target)),
+    "業務ルールの関連先が見つかりません"
+  );
+};
+const validateVerification = (doc) => {
+  if (doc.schemaVersion === 2) {
+    need(
+      VERIFICATION_KEYS.every((key) => doc[key] === undefined),
+      "業務ルール・既存テスト・検証候補にはschemaVersion: 3が必要です"
+    );
+    return;
+  }
+  for (const key of VERIFICATION_KEYS) {
+    need(Array.isArray(doc[key]), `${key}は配列で指定してください`);
+  }
+  const ids = VERIFICATION_KEYS.flatMap((key) => doc[key]).map((i) => i?.id);
+  need(
+    ids.every(id) && new Set(ids).size === ids.length,
+    "業務ルール・既存テスト・検証候補のIDが不正または重複しています"
+  );
+  for (const rule of doc.rules) {
+    validateRule(rule, doc);
+  }
+};
+
 const validateResolutions = (items = []) => {
   need(Array.isArray(items), "解決記録は配列で指定してください");
   for (const item of items) {
@@ -262,8 +316,8 @@ const validateHistory = (history = []) => {
 
 export const validateDocument = (doc) => {
   need(
-    object(doc) && doc.schemaVersion === 2,
-    "未対応のモデル形式です（schemaVersion: 2が必要）"
+    object(doc) && [2, 3].includes(doc.schemaVersion),
+    "未対応のモデル形式です（schemaVersion: 2または3が必要）"
   );
   need(id(doc.sessionId) && id(doc.revision), "sessionId・revisionが不正です");
   need(nonempty(doc.title) && text(doc.scope), "タイトル・対象範囲が必要です");
@@ -318,6 +372,7 @@ export const validateDocument = (doc) => {
     validateChange(item);
   }
   need(doc.unresolved.every(nonempty), "未解決事項は文字列で指定してください");
+  validateVerification(doc);
   validateResolutions(doc.resolutions);
   validateEditResolutions(doc.editResolutions);
   validateHistory(doc.revisionHistory);
