@@ -32,7 +32,7 @@ on:
           - probe-uid
           - probe-uid-write
       uid_write_audit:
-        description: probe-uid-writeのarm64実行後にPIDと時刻を限定した監査を読む
+        description: probe-uid-writeのarm64実行後に直接経路とBash基準の監査を読む
         required: false
         default: false
         type: boolean

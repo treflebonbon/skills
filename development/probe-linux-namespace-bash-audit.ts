@@ -70,30 +70,71 @@ function auditTargets(
     );
 
   const bash = direct ? data.measurements?.direct : data.measurements?.bash;
-  const executablePath = direct ? fs.realpathSync("/usr/bin/python3") : "/usr/bin/unshare";
   const executable = direct ? data.runtime : data.unshare;
-  const uid = process.geteuid!();
-  const cases = direct ? ["direct-map", "direct-control"] : ["minimal", "control"];
+  const baseline = data.baseline;
+  const baselineBash = baseline?.measurements?.bash;
   if (
     direct &&
     (data.controllerHashes?.direct !== committedHash(root, execution.sourceSha, directPath) ||
       data.identity.arch !== "arm64" ||
       !isDeepStrictEqual(data.stages, [43, 48, 0]) ||
-      data.baseline?.outcome !== "uid-mapping-reproduced" ||
-      !isDeepStrictEqual(data.baseline.identity, data.identity) ||
-      data.baseline.runtimeHashes?.python !== executable?.hash ||
-      !isDeepStrictEqual(data.baseline.measurements?.bash?.runtime, bash?.runtime) ||
+      baseline?.schema !== "linux-namespace-uid-comparison/v1" ||
+      baseline.outcome !== "uid-mapping-reproduced" ||
+      !isDeepStrictEqual(baseline.identity, data.identity) ||
+      !Object.keys(controllerPaths).every(
+        (key) => baseline.controllerHashes?.[key] === data.controllerHashes[key],
+      ) ||
+      baseline.runtimeHashes?.python !== executable?.hash ||
+      !isDeepStrictEqual(baselineBash?.runtime, bash?.runtime) ||
+      !isDeepStrictEqual(baselineBash?.ancestry, bash?.ancestry) ||
+      !isDeepStrictEqual(baselineBash?.before, bash?.before) ||
+      !isDeepStrictEqual(baselineBash?.unshare, baseline.unshare) ||
       bash?.before?.namespaces?.pid !== callerPidNamespace ||
       executable?.name !== "python" ||
       !/^3\.12\./.test(executable.version))
   )
     throw new AuditInputError("直接UID-map再現の前提が一致しません");
+
+  const measured = measurementTargets(bash, executable, now, direct ? "direct" : "bash");
+  if (!direct) return measured.targets;
+
+  const prior = measurementTargets(baselineBash, baseline.unshare, now, "bash-baseline");
+  if (prior.probePids.some((pid) => measured.probePids.includes(pid)))
+    throw new AuditInputError("Bash基準と直接UID-mapのPIDが重複しています");
+  if (prior.lastEnd > Date.parse(measured.targets[0].startedAt))
+    throw new AuditInputError("Bash基準と直接UID-mapの測定順序が不正です");
+  return [...measured.targets, ...prior.targets];
+}
+
+type AuditTarget = {
+  pid: number;
+  startedAt: string;
+  endedAt: string;
+  role?: "map" | "control" | "bash-baseline";
+};
+
+/** 読取前に各比較のargv・終了状態・所有PIDを照合する。 */
+function measurementTargets(
+  bash: any,
+  executable: any,
+  now: number,
+  mode: "bash" | "direct" | "bash-baseline",
+) {
+  const direct = mode === "direct";
+  const baseline = mode === "bash-baseline";
+  const executablePath = direct ? fs.realpathSync("/usr/bin/python3") : "/usr/bin/unshare";
+  const uid = process.geteuid!();
+  const cases = direct
+    ? ["direct-map", "direct-control"]
+    : baseline
+      ? ["minimal", "uid-only", "control"]
+      : ["minimal", "control"];
   if (
     !bash ||
     bash.before?.uid !== process.getuid!() ||
     bash.before?.euid !== process.geteuid!() ||
     !isDeepStrictEqual(bash.before, bash.after) ||
-    bash.forkCount !== 6 ||
+    bash.forkCount !== cases.length * 3 ||
     bash.probeEnvironment !== "empty" ||
     bash.cwd !== "/" ||
     bash.stdinType !== "closed" ||
@@ -112,21 +153,24 @@ function auditTargets(
   )
     throw new AuditInputError("Bash測定の条件が一致しません");
   const seen = new Set(bash.ancestry.map((entry: any) => entry.pid));
-  const selected: Array<{
-    pid: number;
-    startedAt: string;
-    endedAt: string;
-    role?: "map" | "control";
-  }> = [];
+  const targets: AuditTarget[] = [];
+  const probePids: number[] = [];
   let previousEnd = -Infinity;
   for (const item of bash.cases) {
     const minimal = item.name === cases[0];
-    const role = minimal ? "map" : "control";
+    const uidOnly = item.name === "uid-only";
+    const mapping = minimal || uidOnly;
+    const role = mapping ? "map" : "control";
+    const mappingArgs = minimal
+      ? ["--map-current-user"]
+      : uidOnly
+        ? [`--map-user=${uid}`]
+        : baseline
+          ? ["--user"]
+          : [];
     const argv = direct
       ? ["-I", join(control, directPath), "child", role, String(uid)]
-      : minimal
-        ? ["--map-current-user", "--", "/usr/bin/true"]
-        : ["--", "/usr/bin/true"];
+      : [...mappingArgs, "--", "/usr/bin/true"];
     if (
       !isDeepStrictEqual(item.argv, argv) ||
       !Array.isArray(item.probes) ||
@@ -153,7 +197,8 @@ function auditTargets(
       )
         throw new AuditInputError("Bash測定のPID対応が不正です");
       seen.add(probe.pid);
-      const expectedStatus = minimal ? 1 : 0;
+      probePids.push(probe.pid);
+      const expectedStatus = mapping ? 1 : 0;
       if (
         probe.repetition !== index + 1 ||
         !isDeepStrictEqual(probe.argv, argv) ||
@@ -164,7 +209,7 @@ function auditTargets(
         probe.error !== undefined ||
         (direct ? !directChildMatches(probe.stdout, uid, role) : probe.stdout !== "") ||
         probe.stderr !==
-          (!direct && minimal
+          (!direct && mapping
             ? "unshare: write failed /proc/self/uid_map: Operation not permitted\n"
             : "") ||
         probe.executableHash !== executable.hash ||
@@ -180,7 +225,7 @@ function auditTargets(
         end - start > 5000 ||
         start < now - 120000 ||
         end > now ||
-        (direct && start < previousEnd) ||
+        (mode !== "bash" && start < previousEnd) ||
         !Number.isFinite(probe.elapsedMs) ||
         probe.elapsedMs < 0 ||
         probe.elapsedMs >= 5000
@@ -188,15 +233,15 @@ function auditTargets(
         throw new AuditInputError("Bash測定の時刻が範囲外です");
       previousEnd = end;
       if (minimal || direct)
-        selected.push({
+        targets.push({
           pid: probe.pid,
           startedAt: probe.startedAt,
           endedAt: probe.endedAt,
-          ...(direct ? { role } : {}),
+          ...(direct ? { role } : baseline ? { role: "bash-baseline" } : {}),
         });
     }
   }
-  return selected;
+  return { targets, probePids, lastEnd: previousEnd };
 }
 
 /** 作成やopenでのEPERMをwrite拒否として扱わない。 */
@@ -294,19 +339,17 @@ function collectAudit(root: string, output: string, direct: boolean) {
     reason?: string;
     error?: string;
     plannedQueries: number;
-    probes: Array<{
-      pid: number;
-      startedAt: string;
-      endedAt: string;
-      role?: "map" | "control";
-      audit:
-        | ReturnType<typeof probeAudit>
-        | (Omit<ReturnType<typeof probeAudit>, "events"> & {
-            events: ReturnType<typeof directAuditEvents>;
-          });
-    }>;
+    probes: Array<
+      AuditTarget & {
+        audit:
+          | ReturnType<typeof probeAudit>
+          | (Omit<ReturnType<typeof probeAudit>, "events"> & {
+              events: ReturnType<typeof directAuditEvents>;
+            });
+      }
+    >;
   } = {
-    schema: `linux-namespace-${comparison}-audit/v1`,
+    schema: `linux-namespace-${comparison}-audit/v${direct ? 2 : 1}`,
     status: "unavailable",
     readerPrivilege: "caller",
     collectorHash: "",
@@ -396,7 +439,12 @@ function collectAudit(root: string, output: string, direct: boolean) {
         const saved = direct
           ? {
               ...audit,
-              events: directAuditEvents(audit, basename(data.runtime.path).slice(0, 15)),
+              events: directAuditEvents(
+                audit,
+                target.role === "bash-baseline"
+                  ? "unshare"
+                  : basename(data.runtime.path).slice(0, 15),
+              ),
             }
           : audit;
         record.probes.push({ ...target, audit: saved });

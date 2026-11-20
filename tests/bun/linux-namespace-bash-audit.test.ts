@@ -127,12 +127,13 @@ function fixture(direct = false) {
   let record = { ...metadata, outcome: "perl-layer-not-required", measurements };
   const python = direct ? fs.realpathSync("/usr/bin/python3") : "";
   if (direct) {
-    const rows = JSON.parse(
+    const logRecords = JSON.parse(
       fs.readFileSync(
         join(root, "docs/evidence/linux-namespace-uid-write/44633267572-1/observations.json"),
         "utf8",
       ),
-    ).jobs[1].records.map((row: any) => row.value);
+    ).jobs[1].records;
+    const rows = logRecords.map((row: any) => row.value);
     const meta = rows.find((row: any) => row.schema === "linux-namespace-uid-write-comparison/v1");
     const header = rows.find((row: any) => row.parent === "direct" && !row.case);
     const uid = process.geteuid!();
@@ -149,7 +150,7 @@ function fixture(direct = false) {
         .map((probe: any, index: number) => {
           const child = JSON.parse(probe.stdout);
           child.uid = child.euid = uid;
-          const started = now - 2000 + (group * 3 + index) * 20;
+          const started = now - 1000 + (group * 3 + index) * 20;
           return {
             ...probe,
             argv,
@@ -162,16 +163,48 @@ function fixture(direct = false) {
         });
       return { name: "direct-" + role, argv, probes };
     });
+    const baselineRows = logRecords
+      .filter((row: any) => row.prefix === "[DEBUG-ns-uid]")
+      .map((row: any) => row.value);
+    const baselineMeta = baselineRows.find(
+      (row: any) => row.schema === "linux-namespace-uid-comparison/v1",
+    );
+    const baselineBash = baselineRows.find((row: any) => row.parent === "bash" && !row.case);
+    baselineBash.runtime = header.runtime;
+    baselineBash.ancestry = header.ancestry;
+    baselineBash.before = header.before;
+    baselineBash.after = header.after;
+    baselineBash.unshare = metadata.unshare;
+    header.unshare = metadata.unshare;
+    baselineBash.cases = ["minimal", "uid-only", "control"].map((name, group) => {
+      const probes = baselineRows
+        .filter((row: any) => row.parent === "bash" && row.case === name)
+        .map((probe: any, index: number) => {
+          const started = now - 2000 + (group * 3 + index) * 20;
+          return {
+            ...probe,
+            argv: name === "uid-only" ? [`--map-user=${uid}`, "--", "/usr/bin/true"] : probe.argv,
+            executableHash: metadata.unshare.hash,
+            executableHashAfter: metadata.unshare.hash,
+            startedAt: new Date(started).toISOString(),
+            endedAt: new Date(started + 1).toISOString(),
+          };
+        });
+      return { name, argv: probes[0].argv, probes };
+    });
     record = {
       ...meta,
       identity,
       controllerHashes: { ...metadata.controllerHashes, direct: digest(join(root, directPath)) },
       runtime: { ...meta.runtime, path: python, hash },
       baseline: {
+        ...baselineMeta,
         outcome: "uid-mapping-reproduced",
         identity,
-        runtimeHashes: { python: hash },
-        measurements: { bash: { runtime: header.runtime } },
+        controllerHashes: metadata.controllerHashes,
+        runtimeHashes: { ...baselineMeta.runtimeHashes, python: hash },
+        unshare: metadata.unshare,
+        measurements: { bash: baselineBash },
       },
       outcome: "direct-write-reproduced",
       measurements: { direct: header },
@@ -218,12 +251,21 @@ function fixture(direct = false) {
       ' const prefix="audit: type=1400 audit("+(stamp/1000).toFixed(3)+":123): ";',
       ' const messages=[row(prefix+\'apparmor="AUDIT" operation="userns_create" pid=\'+pid+\' comm="unshare" target="unprivileged_userns"\'),row(prefix+\'apparmor="AUDIT" info="pid=\'+pid+\'" pid=\'+(pid+1)+\' comm="decoy"\')];',
       ' if(process.env.FIXTURE_AUDIT_DIRECT==="1"){',
-      "  const comm=process.env.FIXTURE_AUDIT_COMM;",
+      "  const baselinePids=" +
+        JSON.stringify(
+          direct
+            ? record.baseline.measurements.bash.cases[0].probes.map((probe: any) => probe.pid)
+            : [],
+        ) +
+        ";",
+      "  const baseline=baselinePids.includes(pid);",
+      '  if(mode==="bash-only"&&!baseline)return answer(1);',
+      '  const comm=baseline?"unshare":process.env.FIXTURE_AUDIT_COMM;',
       "  messages.length=0;",
       `  const transition='apparmor="AUDIT" operation="userns_create" pid='+pid+' comm="'+comm+'" target="unprivileged_userns"';`,
       `  const denial='apparmor="DENIED" operation="capable" profile="unprivileged_userns" pid='+pid+' comm="'+comm+'" capability=21 capname="sys_admin"';`,
       `  messages.push(row(prefix+transition+' info="public-decoy-value"'));`,
-      "  if(" +
+      "  if(baseline||" +
         JSON.stringify(
           direct ? record.measurements.direct.cases[0].probes.map((probe: any) => probe.pid) : [],
         ) +
@@ -542,16 +584,22 @@ test("直接writeの監査は明示指定したarm64かつ比較失敗後だけ�
   );
 });
 
-test.skipIf(!supported)("直接writeと対照の6 PIDだけを検索し、固定の監査項目を記録する", () => {
+test.skipIf(!supported)("直接writeの6 PIDとBash基準の3 PIDを同じreaderで検索する", () => {
   const f = fixture(true);
   try {
     const { result, invoked, saved } = f.execute(f.record);
     expect(result.status).toBe(0);
     expect(saved.status).toBe("collected");
-    expect(saved.plannedQueries).toBe(6);
-    const targets = f.record.measurements.direct.cases.flatMap((c: any) => c.probes);
+    expect(saved.schema).toBe("linux-namespace-uid-write-audit/v2");
+    expect(saved.plannedQueries).toBe(9);
+    const baseline = f.record.baseline.measurements.bash.cases[0].probes;
+    const targets = [
+      ...f.record.measurements.direct.cases.flatMap((c: any) => c.probes),
+      ...baseline,
+    ];
     const queries = invoked.filter((call: any) => call.args[0] === "--dmesg");
-    expect(queries).toHaveLength(6);
+    expect(queries).toHaveLength(9);
+    expect(invoked.filter((call: any) => call.args[0] === "--version")).toHaveLength(9);
     for (const [index, probe] of targets.entries()) {
       expect(queries[index].args).toContain(
         "--grep=(^|[^[:alnum:]_])pid=" + probe.pid + "([^[:alnum:]_]|$)",
@@ -562,16 +610,26 @@ test.skipIf(!supported)("直接writeと対照の6 PIDだけを検索し、固定
       expect(queries[index].args).toContain(
         new Date(Date.parse(probe.endedAt) + 1000).toISOString(),
       );
-      expect(saved.probes[index].role).toBe(index < 3 ? "map" : "control");
+      expect(saved.probes[index].role).toBe(
+        index < 3 ? "map" : index < 6 ? "control" : "bash-baseline",
+      );
       const events = saved.probes[index].audit.events;
       expect(events.map((event: any) => event.kind)).toEqual(
-        index < 3 ? ["userns-transition", "sys-admin-denied"] : ["userns-transition"],
+        index >= 3 && index < 6 ? ["userns-transition"] : ["userns-transition", "sys-admin-denied"],
       );
       expect(events.every((event: any) => event.messagePid === probe.pid)).toBe(true);
     }
     expect(result.stdout).toContain("[DEBUG-ns-uid-write-audit]");
     expect(result.stdout).not.toContain("public-decoy-value");
     expect(JSON.stringify(saved)).not.toContain("public-decoy-value");
+    const onlyBaseline = f.execute(f.record, "bash-only");
+    expect(onlyBaseline.result.status).toBe(0);
+    expect(onlyBaseline.saved.probes.slice(0, 6).map((item: any) => item.audit.status)).toEqual(
+      Array(6).fill("no-matching-events"),
+    );
+    expect(
+      onlyBaseline.saved.probes.slice(6).map((item: any) => item.audit.events[1].kind),
+    ).toEqual(Array(3).fill("sys-admin-denied"));
     const refused = structuredClone(f.record);
     const probe = refused.measurements.direct.cases[0].probes[0];
     const child = JSON.parse(probe.stdout);
@@ -590,6 +648,28 @@ test.skipIf(!supported)("直接writeと対照の6 PIDだけを検索し、固定
     expect(rejected.result.status).toBe(2);
     expect(rejected.saved.error).toContain("直接UID-map再現の前提が一致しません");
     expect(rejected.invoked).toEqual([]);
+    for (const [kind, reason] of [
+      ["stderr", "測定の終了結果が一致しません"],
+      ["pid", "Bash基準と直接UID-mapのPIDが重複しています"],
+      ["time", "Bash基準と直接UID-mapの測定順序が不正です"],
+    ]) {
+      const changed = structuredClone(f.record);
+      const baselineBash = changed.baseline.measurements.bash;
+      const baselineProbe = baselineBash.cases[0].probes[0];
+      const directProbe = changed.measurements.direct.cases[0].probes[0];
+      if (kind === "stderr") baselineProbe.stderr = "";
+      if (kind === "pid") baselineProbe.pid = baselineProbe.childBefore.pid = directProbe.pid;
+      if (kind === "time") {
+        const last = baselineBash.cases.at(-1).probes.at(-1);
+        last.startedAt = last.endedAt = new Date(
+          Date.parse(directProbe.startedAt) + 1,
+        ).toISOString();
+      }
+      const rejected = f.execute(changed);
+      expect(rejected.result.status).toBe(2);
+      expect(rejected.saved.error).toContain(reason);
+      expect(rejected.invoked).toEqual([]);
+    }
   } finally {
     fs.rmSync(f.directory, { recursive: true, force: true });
   }

@@ -493,3 +493,9 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 監査の結果は `namespace-uid-write-audit.json` と `[DEBUG-ns-uid-write-audit]` に記録する。公開するのは対象PID・測定時刻と、対応するAppArmorの遷移・`sys_admin` 拒否の定型項目、検索状態である。一致した拒否が失敗側で得られればAppArmor仮説を支持する。遷移だけ、イベントの不一致、読取不能は判定保留とする。検索の一致だけでwrite syscallの個別の戻り箇所は特定できない。
 
 [run 44657370169 / attempt 1](evidence/linux-namespace-uid-write-audit/44657370169-1/README.md) で承認されたarm64の1回を実行した。直接mapのnamespace作成とopenは3/3成功、writeは3/3 `EPERM`、namespace-only対照は3/3成功した。通常権限で6 PIDの検索は完了し、全件 `no-matching-events`。監査の可視性を確認する同一VM内の陽性対照がなく、AppArmor仮説は判定保留とする。測定器7ファイルは前回から同一で、今回のimage `20261111.182.1` は前回と異なった。
+
+### 同一VMでのBash基準との監査比較
+
+追試では直接測定と既存のarm64・非root条件を固定し、同じVMで先に実行済みのBash最小argvの失敗3 PIDを監査の陽性対照に加える。直接mapとnamespace-onlyの6 PIDに続けて、Bash基準の3 PIDを同じreaderで各1回検索する。BashのUID-only・成功対照は基準の結果と所有PIDの検査に使う。Bash基準の出所、共通Bashとcaller、期待するEPERM、PID重複と測定順序を検索前に照合する。各検索の窓と1回あたりの上限を引き継ぎ、検索と版確認は各最大9回とする。
+
+監査記録のschemaは `linux-namespace-uid-write-audit/v2`、Bash基準のroleは `bash-baseline`。Bash基準にも同じ定型項目を使い、対象実行体 `unshare` の `sys_admin` 拒否が取得できれば、そのVMでの監査の可視性を確認できる。直接map側でも対応する拒否が取れればAppArmor仮説を支持する。Bash側だけで取れれば監査上の経路差を確認できる。両方で対応する拒否を取得できなければ可視性と原因は判定保留とする。
