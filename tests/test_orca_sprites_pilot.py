@@ -3,12 +3,16 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/orca-vm/sprites-wsl.sh"
+# Captured from the real CLI; recapture when the devShell's sprite version changes.
+SPRITE_VERSION = "v0.0.1-rc48"
+SPRITE_INFO = Path(__file__).resolve().parent / f"fixtures/sprite-info-{SPRITE_VERSION}.txt"
 SHA = "0123456789abcdef0123456789abcdef01234567"
 INSTANCE = "fixture-instance"
 FAKE_SPRITE = """#!/usr/bin/env python3
@@ -31,10 +35,7 @@ elif action == "create":
     Path(os.environ["FIXTURE_NAME"]).write_text(args[-1])
 elif action == "info":
     name = Path(os.environ["FIXTURE_NAME"]).read_text()
-    # Real sprite CLI (v0.0.1-rc48) pads values to align columns.
-    print(f"URL:  https://{name}-fixture.sprites.app")
-    print("Auth: sprite")
-    print("Labels: " + name)
+    print(Path(os.environ["FIXTURE_INFO"]).read_text().replace("{name}", name), end="")
 elif action == "config":
     assert args[3:6] == ["update", "--url-auth", "public"]
 elif action == "exec":
@@ -55,6 +56,13 @@ elif action == "destroy":
 else:
     raise AssertionError(args)
 """
+
+
+class SpriteFixtureTest(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("sprite"), "sprite CLI is not on PATH")
+    def test_fixture_matches_installed_sprite_version(self):
+        version = subprocess.run(["sprite", "--version"], capture_output=True, text=True, check=True).stdout
+        self.assertIn(SPRITE_VERSION, version, "recapture tests/fixtures/sprite-info-*.txt from the real CLI")
 
 
 class SpritePilotTest(unittest.TestCase):
@@ -78,6 +86,7 @@ class SpritePilotTest(unittest.TestCase):
             "ORCA_SPRITES_PILOT_CLI": str(mock),
             "FIXTURE_LOG": str(self.log),
             "FIXTURE_NAME": str(self.root / "mock-name"),
+            "FIXTURE_INFO": str(SPRITE_INFO),
         }
 
     def invoke(self, mode, payload=None, env=None):
