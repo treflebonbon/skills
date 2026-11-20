@@ -491,3 +491,5 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 `mode=probe-uid-write` に `uid_write_audit=true` を指定すると、arm64の1ジョブで同じ測定を行う。既存基準15回の後、直接writeが3回ともEPERMで、namespace作成だけの対照が3回とも成功した場合、比較の終了後に6 PIDを各1回、通常権限のkernel journalで検索する。各検索の時間窓は測定の前後1秒を含めて最大7秒。検索と版確認は各最大6回で、読取不能や出力上限超過で打ち切る。
 
 監査の結果は `namespace-uid-write-audit.json` と `[DEBUG-ns-uid-write-audit]` に記録する。公開するのは対象PID・測定時刻と、対応するAppArmorの遷移・`sys_admin` 拒否の定型項目、検索状態である。一致した拒否が失敗側で得られればAppArmor仮説を支持する。遷移だけ、イベントの不一致、読取不能は判定保留とする。検索の一致だけでwrite syscallの個別の戻り箇所は特定できない。
+
+[run 44657370169 / attempt 1](evidence/linux-namespace-uid-write-audit/44657370169-1/README.md) で承認されたarm64の1回を実行した。直接mapのnamespace作成とopenは3/3成功、writeは3/3 `EPERM`、namespace-only対照は3/3成功した。通常権限で6 PIDの検索は完了し、全件 `no-matching-events`。監査の可視性を確認する同一VM内の陽性対照がなく、AppArmor仮説は判定保留とする。測定器7ファイルは前回から同一で、今回のimage `20261111.182.1` は前回と異なった。

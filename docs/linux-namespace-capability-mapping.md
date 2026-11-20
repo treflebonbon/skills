@@ -69,3 +69,7 @@ flowchart TD
 公開JSON各32行・計64行の全値と掲載順、metadata14項目・3jobの全50 step、exit 1の終了行を保存した。全42 probeのPID・時刻・raw結果、共通Bash/祖先・caller・測定前後・実行体、測定器7ファイルのGit blob hashを照合した。最終判定は両構成とも `direct-write-reproduced` で、比較stepのfailureは予定exit 1である。
 
 この再現ではutil-linuxのCLIや `true` のexecを使わず、作成・openとwriteを分離できた。直接子の操作別errno記録であり、独立したsyscall traceや当該PIDの拒否時LSM監査ではない。原症状と直接writeが同じkernel/LSM規則で拒否されたこと、loaded policyの該当規則と因果関係は未確認である。今回も新しいjournal検索・設定変更・artifact取得/読取・追加dispatchは行っていない。Phase 2全体・#33未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。
+
+## 直接writeのarm64監査
+
+[run 44657370169 / attempt 1](evidence/linux-namespace-uid-write-audit/44657370169-1/README.md) でも、直接mapの作成・openの成功とwriteの `EPERM` が3/3、namespace作成だけの対照の成功が3/3だった。6 PIDの時刻窓に対する通常権限の検索は全件 `no-matching-events`。直接子のAppArmor遷移・能力拒否の観測、およびwriteを拒否した検査の特定は保留する。同一VMでの監査の可視性とloaded policyは未確認である。
