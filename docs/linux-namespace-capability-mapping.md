@@ -81,3 +81,7 @@ flowchart TD
 ### 直接子のAppArmorラベル
 
 [run 44670151286 / attempt 1](evidence/linux-namespace-uid-write-label/44670151286-1/README.md) では、従来と同じwrite EPERMを再現した直接mapの3子と、namespace作成だけに成功した対照3子が、各操作の後に同じ `unprivileged_userns (enforce)` を観測した。直接経路へのプロファイル適用を確認した。writeに対する個別の能力検査とその戻り値、loaded policyの該当規則は未確定である。
+
+### 同じ UID-map write での能力拒否を実測
+
+[run 44679764568 / attempt 1](evidence/linux-namespace-uid-write-trace/44679764568-1/README.md) の直接map PID 2744 では、UID-map write内の `file_ns_capable` と AppArmor hook が能力21を検査し、AppArmor hookが `-EPERM`、`file_ns_capable` が false、`proc_uid_map_write` が `-EPERM` を返した。観測した1件の拒否経路は公開kernel sourceと一致した。namespace-onlyの成功対照 PID 2762 のUID-map writeイベントは0件だった。loaded policyの個別規則、残りのPIDと他OSの経路は未観測である。

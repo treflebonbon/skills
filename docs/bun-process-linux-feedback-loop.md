@@ -519,3 +519,5 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 同じwrite内で `file_ns_capable` の `CAP_SYS_ADMIN` 検査に入ったこと、AppArmor hookが `-EPERM` を返したこと、能力検査がfalse、writeが `-EPERM` を返したことを対応付けられれば、直接writeの拒否経路を支持する。先行する能力検査がtrueでwriteがEPERMなら、その後のUID mapping検査を候補とする。観測前提が満たせない場合、対象writeが再現しない場合、hookの列を対応付けられない場合は判定保留とする。
 
 [初回のrun 44677143069](evidence/linux-namespace-uid-write-trace/44677143069-1/README.md) は前提確認と非root基準15回を通過し、最初の直接mapの観測設定が `EINVAL` で停止した。対象子のexecは中止し、解除は成功した。公開sourceを照合し、Python追記ストリームのseekを使わない `O_APPEND` の単一writeへ修正した。管理権限の観測範囲は同じで、失敗時は設定ファイルまたはイベント名を定型の理由に含める。修正後の実VMでの登録可否と直接writeの拒否経路は未確認である。
+
+[修正版の run 44679764568](evidence/linux-namespace-uid-write-trace/44679764568-1/README.md) で2 PIDのトレース設定・採取・解除に成功した。直接mapの PID 2744 では、同じwrite内で AppArmor の `CAP_SYS_ADMIN` 検査が `-EPERM`、`file_ns_capable` が false、`proc_uid_map_write` が `-EPERM` を返した。成功対照 PID 2762 ではUID-map writeのイベントは0件だった。直接mapは3/3 EPERM、対照は3/3成功。拒否経路の確認は観測したarm64の直接map 1件に限る。
