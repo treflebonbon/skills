@@ -56,6 +56,9 @@ class UidMapTraceTests(unittest.TestCase):
             (trace_text([(1235, *self.events[0][1:]), *self.events[1:]]), "PID"),
             (trace_text(self.events[:3] + self.events[4:]), "能力検査の開始と戻り値"),
             (trace_text(self.events[:2] + [(1234, "apparmor_enter", "cap=21 cap=21")] + self.events[3:]), "能力番号"),
+            (trace_text([self.events[0], self.events[-1]]), "CAP_SYS_ADMIN"),
+            (trace_text(self.events[:2] + self.events[4:]), "CAP_SYS_ADMIN"),
+            (trace_text(self.events[:2] + [(1234, "apparmor_enter", "cap=7")] + self.events[3:]), "CAP_SYS_ADMIN"),
         ):
             with self.subTest(reason=reason):
                 with self.assertRaisesRegex(TRACE.TraceError, reason):
@@ -138,6 +141,7 @@ class UidMapTraceTests(unittest.TestCase):
         cleanup = workflow.split("- name: UID-map専用カーネルトレースを解除\n", 1)[1].split("      - name:", 1)[0]
         self.assertIn("if: always() && steps.uid_trace_check.outcome == 'success'", cleanup)
         self.assertIn('cleanup "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"', cleanup)
+        self.assertIn("if: always() && !inputs.uid_write_audit && !inputs.uid_write_trace", workflow)
 
 
 if __name__ == "__main__":

@@ -147,14 +147,23 @@ def parse_trace(raw, pid, role):
     if role == "map" and len(starts) == len(ends) == 1 and starts[0] < ends[0]:
         matched = entries[starts[0]:ends[0] + 1]
         stack = []
+        file_admin_checks = apparmor_admin_checks = 0
         for entry in matched[1:-1]:
             hook, stage = entry["event"].rsplit("_", 1)
             if stage == "enter":
-                stack.append(hook)
-            elif not stack or stack.pop() != hook:
+                stack.append((hook, entry["cap"]))
+                continue
+            if not stack or stack[-1][0] != hook:
                 raise TraceError("能力検査の開始と戻り値を対応付けられません")
+            _, capability = stack.pop()
+            if (hook, capability) == ("file", 21):
+                file_admin_checks += 1
+            if (hook, capability) == ("apparmor", 21) and stack and stack[-1] == ("file", 21):
+                apparmor_admin_checks += 1
         if stack:
             raise TraceError("能力検査の開始と戻り値を対応付けられません")
+        if file_admin_checks != 1 or apparmor_admin_checks != 1:
+            raise TraceError("CAP_SYS_ADMINのfile検査とAppArmorの戻り値を対応付けられません")
         return {"status": "observed", "events": matched}
     raise TraceError("対象writeの開始と終了を一対一に対応付けられません")
 

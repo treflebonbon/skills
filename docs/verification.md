@@ -29,6 +29,8 @@ validator は manifest の受理、mock/fixture は指定分岐の挙動、公�
 
 `linux-namespace-uid-write.test.ts` と `test_linux_namespace_uid_write.py` は、直接UID-map診断の作成・open・write・closeをmockし、実namespaceや実NSS検索を呼ばない。write EPERMと成功対照、作成/openのEPERM・別errno・混在・短いwrite・cleanup失敗の区別、基準と方式の改変拒否、所有PID・hash・時刻の拒否、途中captureと基準の保持を確認する。本番Bash driverのfixtureはobserverにREADYを返さず、基準後の許可コードによる6 probeへの接続とargvだけを確認する。これらを実VMでの直接writeの再現成功とは数えない。
 
+`test_linux_namespace_uid_write_trace.py` はKprobeの登録・解除、PIDフィルタの設定順、traceの対象PID・欠落・能力検査の対応をfixtureで検証する。 `linux-namespace-bash.test.ts` は管理権限の観測処理をmockし、最初の直接map・対照だけの登録と解除、登録失敗時のexec停止を検証する。実VMでのKprobe登録と戻り値採取は別の検証結果として扱う。
+
 `main` 向け PR では、`CI` workflow が `opened`・`synchronize`・`reopened` でコードを検査します。`PR タイトル` workflow は、この3イベントと `edited` で `conventional-commits` を実行します。タイトル・本文の編集ではコード CI を再実行せず、workflow ごとに concurrency group を分けるため、実行中のコード CI も取り消しません。
 
 PR の base branch だけを変えた場合も `edited` になるため、変更後のコード CI は push または reopen で起動します。

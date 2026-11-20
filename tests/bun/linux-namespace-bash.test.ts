@@ -131,14 +131,15 @@ test.skipIf(process.platform !== "linux")(
     const executable = fs.realpathSync(Bun.which("python3")!);
     const hash = createHash("sha256").update(fs.readFileSync(executable)).digest("hex");
     try {
-      for (const [name, trace, role] of [
+      for (const [name, trace, role, denied] of [
         ["bash-direct-map-1", "true", "map"],
         ["bash-direct-control-1", "true", "control"],
         ["bash-direct-map-2", "true", ""],
         ["bash-minimal-1", "true", ""],
         ["bash-direct-map-1", "false", ""],
+        ["bash-direct-map-1", "true", "map", "denied"],
       ]) {
-        const phaseDirectory = join(directory, trace);
+        const phaseDirectory = join(directory, denied ?? trace);
         fs.mkdirSync(phaseDirectory, { recursive: true });
         const prefix = join(phaseDirectory, name);
         const traceLog = prefix + "-trace.log";
@@ -154,7 +155,7 @@ test.skipIf(process.platform !== "linux")(
         const command = [
           'source "$1"',
           'trace_log="$5"',
-          'trace_uid_write() { printf "%s %s %s\\n" "$1" "$2" "$3" >>"$trace_log"; }',
+          'trace_uid_write() { printf "%s %s %s\\n" "$1" "$2" "$3" >>"$trace_log"; [[ "$1" != arm || "$FIXTURE_TRACE_DENIED" != yes ]]; }',
           'capture_probe "$2" "$3" 5 65536 "$4" -I -c "$6" "$trace_log" "$7"',
         ].join("\n");
         const result = spawnSync(
@@ -164,12 +165,24 @@ test.skipIf(process.platform !== "linux")(
             cwd: root,
             encoding: "utf8",
             timeout: 15_000,
-            env: { ...process.env, PROOF_MODE: "probe-uid-write", PROOF_UID_WRITE_TRACE: trace },
+            env: {
+              ...process.env,
+              PROOF_MODE: "probe-uid-write",
+              PROOF_UID_WRITE_TRACE: trace,
+              FIXTURE_TRACE_DENIED: denied ? "yes" : "no",
+            },
           },
         );
         expect(result.error).toBeUndefined();
-        expect(result.status).toBe(0);
+        expect(result.status).toBe(denied ? 2 : 0);
         const saved = JSON.parse(fs.readFileSync(prefix + ".json", "utf8"));
+        if (denied) {
+          expect(saved.error).toBe("ValueError");
+          expect(saved.detail).toBe("probe開始要求が不正です");
+          expect(saved.waitStatus).toBe(97);
+          expect(fs.readFileSync(traceLog, "utf8")).toMatch(/^arm map \d+\n$/);
+          continue;
+        }
         expect(saved.stderr).toBe("");
         expect(saved.waitStatus).toBe(1);
         if (role) {

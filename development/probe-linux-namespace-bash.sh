@@ -21,7 +21,7 @@ capture_probe() {
   local capture_err capture_donor capture_observer capture_cr capture_cw
   local capture_out capture_gate capture_ready capture_reply
   local capture_probe_pid=0 capture_wait=255 capture_status=2 capture_setup=0
-  local trace_role= trace_armed=false
+  local trace_role= trace_armed=false trace_start_failed=false
   if [[ ${PROOF_MODE:-} == probe-uid-write && ${PROOF_UID_WRITE_TRACE:-} == true ]]; then
     case ${prefix##*/} in
       bash-direct-map-1) trace_role=map ;;
@@ -54,10 +54,18 @@ capture_probe() {
         exec -c -- "$executable" "$@" <&-
       ) &
       capture_probe_pid=$!
-      if [[ -n $trace_role ]] && trace_uid_write arm "$trace_role" "$capture_probe_pid"; then
-        trace_armed=true
+      if [[ -n $trace_role ]]; then
+        if trace_uid_write arm "$trace_role" "$capture_probe_pid"; then
+          trace_armed=true
+        else
+          trace_start_failed=true
+        fi
       fi
-      printf 'START %s\n' "$capture_probe_pid" >&"$capture_out" || capture_setup=2
+      if [[ $trace_start_failed == true ]]; then
+        printf 'CANCEL\n' >&"$capture_out" || true
+      else
+        printf 'START %s\n' "$capture_probe_pid" >&"$capture_out" || capture_setup=2
+      fi
       exec {capture_out}>&- {capture_gate}<&-
     fi
   fi
@@ -76,7 +84,10 @@ capture_probe() {
     trace_uid_write finish "$trace_role" "$capture_probe_pid" || true
   fi
   python3 -I "$capture_helper" merge "$prefix" "$capture_wait" "$capture_status" "$$" \
-    "$executable" "$expected" "$@"
+    "$executable" "$expected" "$@" || return $?
+  if [[ $trace_start_failed == true ]]; then
+    return 2
+  fi
 }
 
 compare_uid_write() {

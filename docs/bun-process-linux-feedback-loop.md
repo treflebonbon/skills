@@ -512,7 +512,7 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 
 ### UID-mapのカーネル戻り値トレース
 
-`mode=probe-uid-write` と `uid_write_trace=true` の組合せは、既知の `7.0.0-1017-azure` を使う `ubuntu-24.04-arm` の1ジョブに限定する。チェックアウトとworkflowを同じSHAに固定し、AppArmorの状態、既設のtracefs、必要な関数、使用名の衝突がないことを事前に読み取る。前提が揃った場合に既存の基準15回と直接比較6回を行い、直接map最初の1回とnamespace-only最初の1回の計2子だけを観測する。BashがPIDを得た後、子の元のexec開始を許可する前に、所有PID・非root UIDを照合して観測を有効にする。繰り返しの残りと、既存の監査・ラベル観測の各modeは従来の経路で動く。
+`mode=probe-uid-write` と `uid_write_trace=true` の組合せは、既知の `7.0.0-1017-azure` を使う `ubuntu-24.04-arm` の1ジョブに限定する。チェックアウトとworkflowを同じSHAに固定し、AppArmorの状態、既設のtracefs、必要な関数、使用名の衝突がないことを事前に読み取る。前提が揃った場合に既存の基準15回と直接比較6回を行い、直接map最初の1回とnamespace-only最初の1回の計2子だけを観測する。BashがPIDを得た後、子の元のexec開始を許可する前に、所有PID・非root UIDを照合して観測を有効にする。登録できなければ対象子のexecを止め、比較を未確認として保存する。繰り返しの残りと、既存の監査・ラベル観測の各modeは従来の経路で動く。
 
 管理権限を使うのは観測担当のcheck・arm・finish・cleanup。測定対象は既存の非root条件とargv・空環境・cwd・標準fdを保つ。専用のtracefsインスタンスと今回のrun・attempt・roleで名前を分けたイベントを使い、カーネルのイベントフィルタを対象PIDに設定する。公開ログ `[DEBUG-ns-uid-write-trace]` には対象PID・役割・状態と、UID-map writeおよびその中の能力検査の時刻・能力番号・戻り値だけを載せる。読取は対象ごとに最大256KiB、バッファ欠落や開始／終了の不一致は未確認とする。動的イベント登録と解除には追記を使い、終了時に今回のイベントだけを解除する。カーネル、AppArmor、sysctlは既存設定を使う。[LinuxカーネルのKprobeイベント](https://www.kernel.org/doc/html/latest/trace/kprobetrace.html)
 

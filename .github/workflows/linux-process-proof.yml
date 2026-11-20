@@ -197,7 +197,7 @@ jobs:
     permissions:
       contents: read
     name: 両 architecture と履歴を照合
-    if: always() && !inputs.uid_write_audit && (inputs.mode == 'proof' || !inputs.mode)
+    if: always() && !inputs.uid_write_audit && !inputs.uid_write_trace && (inputs.mode == 'proof' || !inputs.mode)
     needs: proof
     runs-on: ubuntu-24.04
     timeout-minutes: 30
