@@ -31,7 +31,9 @@ elif action == "create":
     Path(os.environ["FIXTURE_NAME"]).write_text(args[-1])
 elif action == "info":
     name = Path(os.environ["FIXTURE_NAME"]).read_text()
-    print(f"URL: https://{name}-fixture.sprites.app")
+    # Real sprite CLI (v0.0.1-rc48) pads values to align columns.
+    print(f"URL:  https://{name}-fixture.sprites.app")
+    print("Auth: sprite")
     print("Labels: " + name)
 elif action == "config":
     assert args[3:6] == ["update", "--url-auth", "public"]

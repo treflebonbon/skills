@@ -28,9 +28,9 @@ list_name() {
 read_info() {
   local info
   info=$(sp info "$name") || return 1
-  [[ $(awk -F ': ' '$1 == "Labels" { print $2 }' <<<"$info") == "$name" ]] ||
+  [[ $(awk -F ':[[:space:]]+' '$1 == "Labels" { print $2 }' <<<"$info") == "$name" ]] ||
     return 1
-  url=$(awk -F ': ' '$1 == "URL" { print $2 }' <<<"$info")
+  url=$(awk -F ':[[:space:]]+' '$1 == "URL" { print $2 }' <<<"$info")
   [[ $url == "https://$name-"* && $url =~ ^https://[a-z0-9-]+\.sprites\.app$ ]]
 }
 
