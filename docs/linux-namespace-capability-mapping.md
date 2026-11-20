@@ -73,3 +73,7 @@ flowchart TD
 ## 直接writeのarm64監査
 
 [run 44657370169 / attempt 1](evidence/linux-namespace-uid-write-audit/44657370169-1/README.md) でも、直接mapの作成・openの成功とwriteの `EPERM` が3/3、namespace作成だけの対照の成功が3/3だった。6 PIDの時刻窓に対する通常権限の検索は全件 `no-matching-events`。直接子のAppArmor遷移・能力拒否の観測、およびwriteを拒否した検査の特定は保留する。同一VMでの監査の可視性とloaded policyは未確認である。
+
+### Bash基準と直接writeを同じVMで監査した結果
+
+[run 44665415403 / attempt 1](evidence/linux-namespace-uid-write-audit/44665415403-1/README.md) では、同じarm64 VM・同じ通常権限のreaderで、Bash基準の失敗3 PID中2件にAppArmorの遷移と `sys_admin` 拒否が対応した。直接mapは3/3でwriteがEPERM、namespace-only対照は3/3成功し、直接比較の6 PIDはすべて監査の一致がなかった。Bash側の能力拒否の可視性は確認済み。直接writeを拒否した検査、直接子のlabel、イベントが一致しなかった理由は未確定である。

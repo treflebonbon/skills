@@ -499,3 +499,5 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 追試では直接測定と既存のarm64・非root条件を固定し、同じVMで先に実行済みのBash最小argvの失敗3 PIDを監査の陽性対照に加える。直接mapとnamespace-onlyの6 PIDに続けて、Bash基準の3 PIDを同じreaderで各1回検索する。BashのUID-only・成功対照は基準の結果と所有PIDの検査に使う。Bash基準の出所、共通Bashとcaller、期待するEPERM、PID重複と測定順序を検索前に照合する。各検索の窓と1回あたりの上限を引き継ぎ、検索と版確認は各最大9回とする。
 
 監査記録のschemaは `linux-namespace-uid-write-audit/v2`、Bash基準のroleは `bash-baseline`。Bash基準にも同じ定型項目を使い、対象実行体 `unshare` の `sys_admin` 拒否が取得できれば、そのVMでの監査の可視性を確認できる。直接map側でも対応する拒否が取れればAppArmor仮説を支持する。Bash側だけで取れれば監査上の経路差を確認できる。両方で対応する拒否を取得できなければ可視性と原因は判定保留とする。
+
+[run 44665415403 / attempt 1](evidence/linux-namespace-uid-write-audit/44665415403-1/README.md) では、直接writeが3/3 EPERM、namespace-only対照が3/3成功。Bash基準の2/3 PIDでAppArmorの遷移と `sys_admin` 拒否を取得し、同じVMのreaderで読めることを確認した。直接比較の6 PIDとBash基準の残り1 PIDは0件だった。直接子のlabelとwriteを拒否した検査は未確定で、直接writeへのAppArmor仮説は判定保留とする。
