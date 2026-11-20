@@ -365,9 +365,15 @@ PY
 mkdir -p /tmp/codex/raw-profile-evidence
 printf 'private isolated evidence\n' >/tmp/codex/raw-profile-evidence/evidence.txt
 test "$(cat /tmp/codex/raw-profile-evidence/evidence.txt)" = 'private isolated evidence'
-mkdir -p "${10}"
-printf 'private namespace write\n' >"${10}/private-write"
-test "$(cat "${10}/private-write")" = 'private namespace write'
+# host_paths ends with $RAW_BASE/state, the host path rewritten privately here.
+private_state="${@: -1}"
+if mkdir_error="$(mkdir -p "$private_state" 2>&1)"; then
+  printf 'private namespace write\n' >"$private_state/private-write"
+  test "$(cat "$private_state/private-write")" = 'private namespace write'
+else
+  # :slash_tmp = deny leaves no writable ancestor when the fixture lives under /tmp.
+  [[ "$private_state" == /tmp/* && "$mkdir_error" == *'Read-only file system'* ]]
+fi
 printf 'updated public fixture\n' >fixture.txt
 if printf 'blocked\n' >.env 2>/dev/null; then
   printf 'UNSAFE_WORKSPACE_ENV_WRITE_SUCCEEDED\n'
