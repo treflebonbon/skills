@@ -33,6 +33,22 @@ export const RULE_KINDS = {
   RULE: "業務ルール",
   TRANSITION: "状態遷移",
 };
+export const BOUNDARIES = {
+  ADAPTER_INTEGRATION: "アダプター結合",
+  DOMAIN: "ドメイン",
+  FUNCTION: "関数",
+  PORT_CONTRACT: "ポート契約",
+  SLICE: "スライス",
+};
+export const RESULTS = {
+  FAILED: "実行・失敗",
+  MODEL_COUNTEREXAMPLE: "形式モデルで反例あり",
+  MODEL_NO_COUNTEREXAMPLE: "形式モデルで反例なし",
+  NOT_RUN: "未実行",
+  PASSED: "実行・合格",
+  READ: "読んだのみ",
+  SKIPPED: "スキップ",
+};
 const views = ["current", "proposed"];
 const VERIFICATION_KEYS = ["rules", "existingTests", "verificationCandidates"];
 // schemaVersion 2 documents carry no verification records; read them as empty.
@@ -251,6 +267,47 @@ const validateRule = (rule, doc) => {
     "業務ルールの関連先が見つかりません"
   );
 };
+const validateBoundary = (boundary) => {
+  need(
+    object(boundary) && Object.hasOwn(BOUNDARIES, boundary.kind),
+    "検証の境界が不正です"
+  );
+  provenance(boundary);
+};
+const validateResult = (result) => {
+  need(
+    object(result) && Object.hasOwn(RESULTS, result.status),
+    "検証結果の区分が不正です"
+  );
+  // Only an actual run is a result; reading a test or not running it is not.
+  need(
+    ["READ", "NOT_RUN"].includes(result.status) ||
+      (nonempty(result.command) &&
+        commitId(result.revision) &&
+        nonempty(result.source)),
+    "実行結果には実行コマンド・対象revision・出所が必要です"
+  );
+};
+const validateExistingTest = (item, rules) => {
+  need(
+    object(item) && nonempty(item.title) && Array.isArray(item.evidence),
+    "既存テストの形式が不正です"
+  );
+  evidence(item.evidence);
+  need(item.evidence.length > 0, "既存テストの形式が不正です（読んだ位置の根拠が必要です）");
+  need(
+    Array.isArray(item.rules) &&
+      item.rules.length > 0 &&
+      item.rules.every((ruleId) => rules.has(ruleId)),
+    "既存テストが守る業務ルールが見つかりません"
+  );
+  need(
+    item.rules.every((ruleId) => rules.get(ruleId).model === "current"),
+    "改善案の業務ルールには既存テストを紐づけられません"
+  );
+  validateBoundary(item.boundary);
+  validateResult(item.result);
+};
 const validateVerification = (doc) => {
   if (doc.schemaVersion === 2) {
     need(
@@ -269,6 +326,10 @@ const validateVerification = (doc) => {
   );
   for (const rule of doc.rules) {
     validateRule(rule, doc);
+  }
+  const rules = new Map(doc.rules.map((rule) => [rule.id, rule]));
+  for (const item of doc.existingTests) {
+    validateExistingTest(item, rules);
   }
 };
 
