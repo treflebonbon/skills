@@ -578,7 +578,7 @@ test("直接writeの監査は明示指定したarm64かつ比較失敗後だけ�
   );
   expect(audit).toContain("timeout-minutes: 3");
   expect(workflow).toContain(
-    `(inputs.uid_write_audit || inputs.uid_write_label) && '[{"runner":"ubuntu-24.04-arm","arch":"arm64"}]'`,
+    `(inputs.uid_write_audit || inputs.uid_write_label || inputs.uid_write_trace) && '[{"runner":"ubuntu-24.04-arm","arch":"arm64"}]'`,
   );
   expect(workflow).toContain(
     '[[ "$UID_WRITE_AUDIT" != true || "$PROOF_MODE" == probe-uid-write ]]',

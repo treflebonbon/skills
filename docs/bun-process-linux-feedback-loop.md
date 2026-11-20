@@ -509,3 +509,11 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 直接mapが同じEPERMで `unprivileged_userns` を確認できれば、直接経路にも当該プロファイルが適用されるという予測を支持する。 `unconfined` を確認できれば、同プロファイルによる拒否の優先度を下げる。いずれもwriteを拒否した個別の検査の確定には至らず、未知のラベル・読取不能・再現の変化は判定保留とする。[LinuxカーネルのLSMインターフェース](https://www.kernel.org/doc/html/latest/userspace-api/lsm.html)
 
 [run 44670151286 / attempt 1](evidence/linux-namespace-uid-write-label/44670151286-1/README.md) では、直接mapのwriteが3/3 EPERM、namespace-only対照が3/3成功。操作後に全6子から `unprivileged_userns (enforce)` を取得した。プロファイル適用の予測は支持され、直接writeを拒否した個別の検査は未確定である。
+
+### UID-mapのカーネル戻り値トレース
+
+`mode=probe-uid-write` と `uid_write_trace=true` の組合せは、既知の `7.0.0-1017-azure` を使う `ubuntu-24.04-arm` の1ジョブに限定する。チェックアウトとworkflowを同じSHAに固定し、AppArmorの状態、既設のtracefs、必要な関数、使用名の衝突がないことを事前に読み取る。前提が揃った場合に既存の基準15回と直接比較6回を行い、直接map最初の1回とnamespace-only最初の1回の計2子だけを観測する。BashがPIDを得た後、子の元のexec開始を許可する前に、所有PID・非root UIDを照合して観測を有効にする。繰り返しの残りと、既存の監査・ラベル観測の各modeは従来の経路で動く。
+
+管理権限を使うのは観測担当のcheck・arm・finish・cleanup。測定対象は既存の非root条件とargv・空環境・cwd・標準fdを保つ。専用のtracefsインスタンスと今回のrun・attempt・roleで名前を分けたイベントを使い、カーネルのイベントフィルタを対象PIDに設定する。公開ログ `[DEBUG-ns-uid-write-trace]` には対象PID・役割・状態と、UID-map writeおよびその中の能力検査の時刻・能力番号・戻り値だけを載せる。読取は対象ごとに最大256KiB、バッファ欠落や開始／終了の不一致は未確認とする。動的イベント登録と解除には追記を使い、終了時に今回のイベントだけを解除する。カーネル、AppArmor、sysctlは既存設定を使う。[LinuxカーネルのKprobeイベント](https://www.kernel.org/doc/html/latest/trace/kprobetrace.html)
+
+同じwrite内で `file_ns_capable` の `CAP_SYS_ADMIN` 検査に入ったこと、AppArmor hookが `-EPERM` を返したこと、能力検査がfalse、writeが `-EPERM` を返したことを対応付けられれば、直接writeの拒否経路を支持する。先行する能力検査がtrueでwriteがEPERMなら、その後のUID mapping検査を候補とする。観測前提が満たせない場合、対象writeが再現しない場合、hookの列を対応付けられない場合は判定保留とする。

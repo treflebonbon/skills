@@ -124,6 +124,68 @@ test.skipIf(process.platform !== "linux")(
   30_000,
 );
 
+test.skipIf(process.platform !== "linux")(
+  "kernelトレースは最初の直接mapと対照だけをexec前に開始し、同じPIDで終了する",
+  () => {
+    const directory = fs.mkdtempSync(join(fs.realpathSync(tmpdir()), "namespace-bash-trace-"));
+    const executable = fs.realpathSync(Bun.which("python3")!);
+    const hash = createHash("sha256").update(fs.readFileSync(executable)).digest("hex");
+    try {
+      for (const [name, trace, role] of [
+        ["bash-direct-map-1", "true", "map"],
+        ["bash-direct-control-1", "true", "control"],
+        ["bash-direct-map-2", "true", ""],
+        ["bash-minimal-1", "true", ""],
+        ["bash-direct-map-1", "false", ""],
+      ]) {
+        const phaseDirectory = join(directory, trace);
+        fs.mkdirSync(phaseDirectory, { recursive: true });
+        const prefix = join(phaseDirectory, name);
+        const traceLog = prefix + "-trace.log";
+        const code = [
+          "import os,pathlib,sys",
+          "log=pathlib.Path(sys.argv[1]); role=sys.argv[2]",
+          "if role:",
+          " assert log.read_text()==f'arm {role} {os.getpid()}\\n'",
+          " with log.open('a') as f:f.write(f'child {role} {os.getpid()}\\n')",
+          "else: assert not log.exists()",
+          "sys.exit(1)",
+        ].join("\n");
+        const command = [
+          'source "$1"',
+          'trace_log="$5"',
+          'trace_uid_write() { printf "%s %s %s\\n" "$1" "$2" "$3" >>"$trace_log"; }',
+          'capture_probe "$2" "$3" 5 65536 "$4" -I -c "$6" "$trace_log" "$7"',
+        ].join("\n");
+        const result = spawnSync(
+          "bash",
+          ["-c", command, "fixture", driver, executable, prefix, hash, traceLog, code, role],
+          {
+            cwd: root,
+            encoding: "utf8",
+            timeout: 15_000,
+            env: { ...process.env, PROOF_MODE: "probe-uid-write", PROOF_UID_WRITE_TRACE: trace },
+          },
+        );
+        expect(result.error).toBeUndefined();
+        expect(result.status).toBe(0);
+        const saved = JSON.parse(fs.readFileSync(prefix + ".json", "utf8"));
+        expect(saved.stderr).toBe("");
+        expect(saved.waitStatus).toBe(1);
+        if (role) {
+          expect(fs.readFileSync(traceLog, "utf8")).toBe(
+            ["arm", "child", "finish"].map((entry) => `${entry} ${role} ${saved.pid}\n`).join(""),
+          );
+        } else {
+          expect(fs.existsSync(traceLog)).toBe(false);
+        }
+      }
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);
+
 /** Bash sourceへ渡すfixtureの引数だけをquoteする。 */
 function quote(value: string) {
   return "'" + value.replaceAll("'", "'\\''") + "'";

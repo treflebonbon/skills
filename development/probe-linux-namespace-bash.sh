@@ -7,6 +7,11 @@ capture_open_error_pipe() {
   exec {capture_err}>&"$pipe_fd"
 }
 
+trace_uid_write() {
+  /usr/bin/timeout 3s /usr/bin/sudo -n /usr/bin/python3 -I \
+    "$capture_dir/probe-linux-namespace-uid-write-trace.py" "$1" "${GITHUB_RUN_ID:-}" "${GITHUB_RUN_ATTEMPT:-}" "$2" "$$" "$3" </dev/null
+}
+
 capture_probe() {
   local executable=$1 prefix=$2 timeout=$3 limit=$4 expected=$5
   shift 5
@@ -16,6 +21,13 @@ capture_probe() {
   local capture_err capture_donor capture_observer capture_cr capture_cw
   local capture_out capture_gate capture_ready capture_reply
   local capture_probe_pid=0 capture_wait=255 capture_status=2 capture_setup=0
+  local trace_role= trace_armed=false
+  if [[ ${PROOF_MODE:-} == probe-uid-write && ${PROOF_UID_WRITE_TRACE:-} == true ]]; then
+    case ${prefix##*/} in
+      bash-direct-map-1) trace_role=map ;;
+      bash-direct-control-1) trace_role=control ;;
+    esac
+  fi
   capture_open_error_pipe >(exec python3 -I "$capture_helper" donor)
   capture_donor=$!
   coproc CAPTURE {
@@ -42,6 +54,9 @@ capture_probe() {
         exec -c -- "$executable" "$@" <&-
       ) &
       capture_probe_pid=$!
+      if [[ -n $trace_role ]] && trace_uid_write arm "$trace_role" "$capture_probe_pid"; then
+        trace_armed=true
+      fi
       printf 'START %s\n' "$capture_probe_pid" >&"$capture_out" || capture_setup=2
       exec {capture_out}>&- {capture_gate}<&-
     fi
@@ -57,6 +72,9 @@ capture_probe() {
   fi
   capture_status=0
   wait "$capture_observer" 2>/dev/null || capture_status=$?
+  if [[ $trace_armed == true ]]; then
+    trace_uid_write finish "$trace_role" "$capture_probe_pid" || true
+  fi
   python3 -I "$capture_helper" merge "$prefix" "$capture_wait" "$capture_status" "$$" \
     "$executable" "$expected" "$@"
 }
