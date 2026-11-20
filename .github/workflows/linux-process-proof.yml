@@ -1,5 +1,5 @@
 name: Linux process proof
-run-name: "${{ inputs.mode == 'probe-uid-write' && 'Linux namespace UID-map直接書込み比較' || inputs.mode == 'probe-uid' && 'Linux namespace UID mapping比較' || inputs.mode == 'probe-userns' && 'Linux namespace mapping比較' || inputs.mode == 'probe-bash-audit' && 'Linux namespace Bash監査' || inputs.mode == 'probe-bash' && 'Linux namespace Bash直接起動比較' || inputs.mode == 'probe-stdin' && 'Linux namespace stdin比較' || inputs.mode == 'probe-parent' && 'Linux namespace Python起動層比較' || inputs.mode == 'probe-stderr' && 'Linux namespace stderr比較' || inputs.mode == 'probe-stdout' && 'Linux namespace stdout比較' || inputs.mode == 'probe-cwd' && 'Linux namespace cwd比較' || inputs.mode == 'probe-launch' && 'Linux namespace 起動経路比較' || inputs.mode == 'probe-environment' && 'Linux namespace 環境比較' || inputs.mode == 'probe-caller' && 'Linux namespace caller比較' || inputs.mode == 'probe-isolate' && 'Linux namespace 独立測定' || inputs.mode == 'probe-minimize' && 'Linux namespace オプション削減' || inputs.mode == 'probe-loop' && 'Linux namespace 再現ループ' || 'Linux process proof' }}: ${{ inputs.source_sha }}"
+run-name: "${{ inputs.uid_write_audit && 'Linux namespace UID-map直接書込み監査' || inputs.mode == 'probe-uid-write' && 'Linux namespace UID-map直接書込み比較' || inputs.mode == 'probe-uid' && 'Linux namespace UID mapping比較' || inputs.mode == 'probe-userns' && 'Linux namespace mapping比較' || inputs.mode == 'probe-bash-audit' && 'Linux namespace Bash監査' || inputs.mode == 'probe-bash' && 'Linux namespace Bash直接起動比較' || inputs.mode == 'probe-stdin' && 'Linux namespace stdin比較' || inputs.mode == 'probe-parent' && 'Linux namespace Python起動層比較' || inputs.mode == 'probe-stderr' && 'Linux namespace stderr比較' || inputs.mode == 'probe-stdout' && 'Linux namespace stdout比較' || inputs.mode == 'probe-cwd' && 'Linux namespace cwd比較' || inputs.mode == 'probe-launch' && 'Linux namespace 起動経路比較' || inputs.mode == 'probe-environment' && 'Linux namespace 環境比較' || inputs.mode == 'probe-caller' && 'Linux namespace caller比較' || inputs.mode == 'probe-isolate' && 'Linux namespace 独立測定' || inputs.mode == 'probe-minimize' && 'Linux namespace オプション削減' || inputs.mode == 'probe-loop' && 'Linux namespace 再現ループ' || 'Linux process proof' }}: ${{ inputs.source_sha }}"
 
 on:
   workflow_dispatch:
@@ -31,6 +31,11 @@ on:
           - probe-userns
           - probe-uid
           - probe-uid-write
+      uid_write_audit:
+        description: probe-uid-writeのarm64実行後にPIDと時刻を限定した監査を読む
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: linux-process-proof-${{ inputs.mode || 'proof' }}-${{ inputs.source_sha }}
@@ -50,19 +55,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: ubuntu-24.04
-            arch: x64
-          - runner: ubuntu-24.04-arm
-            arch: arm64
+        include: ${{ fromJSON(inputs.uid_write_audit && '[{"runner":"ubuntu-24.04-arm","arch":"arm64"}]' || '[{"runner":"ubuntu-24.04","arch":"x64"},{"runner":"ubuntu-24.04-arm","arch":"arm64"}]') }}
     env:
       PROOF_SOURCE_SHA: ${{ inputs.source_sha }}
       PROOF_ARCH: ${{ matrix.arch }}
       PROOF_MODE: ${{ inputs.mode || 'proof' }}
     steps:
       - name: 入力 SHA と方式を検査
+        env:
+          UID_WRITE_AUDIT: ${{ inputs.uid_write_audit }}
         run: |
           [[ "$PROOF_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$UID_WRITE_AUDIT" != true || "$PROOF_MODE" == probe-uid-write ]]
           [[ "$PROOF_MODE" == proof || "$PROOF_MODE" == probe-loop || "$PROOF_MODE" == probe-minimize || "$PROOF_MODE" == probe-isolate || "$PROOF_MODE" == probe-caller || "$PROOF_MODE" == probe-environment || "$PROOF_MODE" == probe-launch || "$PROOF_MODE" == probe-cwd || "$PROOF_MODE" == probe-stdout || "$PROOF_MODE" == probe-stderr || "$PROOF_MODE" == probe-parent || "$PROOF_MODE" == probe-stdin || "$PROOF_MODE" == probe-bash || "$PROOF_MODE" == probe-bash-audit || "$PROOF_MODE" == probe-userns || "$PROOF_MODE" == probe-uid || "$PROOF_MODE" == probe-uid-write ]]
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -130,6 +134,7 @@ jobs:
         timeout-minutes: 2
         run: bash control/development/probe-linux-namespace-parent.sh "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof" stdin
       - name: 共通BashからPerlを経由せず直接起動して比較
+        id: bash_comparison
         if: inputs.mode == 'probe-bash' || inputs.mode == 'probe-bash-audit' || inputs.mode == 'probe-userns' || inputs.mode == 'probe-uid' || inputs.mode == 'probe-uid-write'
         timeout-minutes: ${{ inputs.mode == 'probe-uid-write' && 4 || 2 }}
         run: bash control/development/probe-linux-namespace-bash.sh "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof"
@@ -137,11 +142,15 @@ jobs:
         if: always() && inputs.mode == 'probe-bash-audit'
         timeout-minutes: 2
         run: bun control/development/probe-linux-namespace-bash-audit.ts "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof"
+      - name: 直接UID-map書込みと成功対照のkernel監査を非rootで取得
+        if: always() && inputs.uid_write_audit && inputs.mode == 'probe-uid-write' && matrix.arch == 'arm64' && steps.bash_comparison.outcome == 'failure'
+        timeout-minutes: 2
+        run: bun control/development/probe-linux-namespace-bash-audit.ts "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof" --uid-write
       - name: 成功・失敗の生証跡を保存
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ inputs.mode == 'probe-uid-write' && 'namespace-uid-write' || inputs.mode == 'probe-uid' && 'namespace-uid' || inputs.mode == 'probe-userns' && 'namespace-userns' || inputs.mode == 'probe-bash-audit' && 'namespace-bash-audit' || inputs.mode == 'probe-bash' && 'namespace-bash' || inputs.mode == 'probe-stdin' && 'namespace-stdin' || inputs.mode == 'probe-parent' && 'namespace-parent' || inputs.mode == 'probe-stderr' && 'namespace-stderr' || inputs.mode == 'probe-stdout' && 'namespace-stdout' || inputs.mode == 'probe-cwd' && 'namespace-cwd' || inputs.mode == 'probe-launch' && 'namespace-launch' || inputs.mode == 'probe-environment' && 'namespace-environment' || inputs.mode == 'probe-caller' && 'namespace-caller' || inputs.mode == 'probe-isolate' && 'namespace-isolate' || inputs.mode == 'probe-minimize' && 'namespace-minimize' || inputs.mode == 'probe-loop' && 'namespace-loop' || 'linux-proof' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
+          name: ${{ inputs.uid_write_audit && 'namespace-uid-write-audit' || inputs.mode == 'probe-uid-write' && 'namespace-uid-write' || inputs.mode == 'probe-uid' && 'namespace-uid' || inputs.mode == 'probe-userns' && 'namespace-userns' || inputs.mode == 'probe-bash-audit' && 'namespace-bash-audit' || inputs.mode == 'probe-bash' && 'namespace-bash' || inputs.mode == 'probe-stdin' && 'namespace-stdin' || inputs.mode == 'probe-parent' && 'namespace-parent' || inputs.mode == 'probe-stderr' && 'namespace-stderr' || inputs.mode == 'probe-stdout' && 'namespace-stdout' || inputs.mode == 'probe-cwd' && 'namespace-cwd' || inputs.mode == 'probe-launch' && 'namespace-launch' || inputs.mode == 'probe-environment' && 'namespace-environment' || inputs.mode == 'probe-caller' && 'namespace-caller' || inputs.mode == 'probe-isolate' && 'namespace-isolate' || inputs.mode == 'probe-minimize' && 'namespace-minimize' || inputs.mode == 'probe-loop' && 'namespace-loop' || 'linux-proof' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
           path: ${{ runner.temp }}/linux-proof/
           if-no-files-found: error
           retention-days: 90
@@ -151,7 +160,7 @@ jobs:
     permissions:
       contents: read
     name: 両 architecture と履歴を照合
-    if: always() && (inputs.mode == 'proof' || !inputs.mode)
+    if: always() && !inputs.uid_write_audit && (inputs.mode == 'proof' || !inputs.mode)
     needs: proof
     runs-on: ubuntu-24.04
     timeout-minutes: 30

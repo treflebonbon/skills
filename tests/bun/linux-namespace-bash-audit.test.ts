@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 const root = resolve(import.meta.dir, "../..");
 const entry = join(root, "development/probe-linux-namespace-bash-audit.ts");
@@ -15,6 +15,7 @@ const sourcePaths: Record<string, string> = {
   bash: "development/probe-linux-namespace-bash.sh",
   observer: "development/probe-linux-namespace-bash.py",
 };
+const directPath = "development/probe-linux-namespace-uid-write.py";
 const digest = (path: string) => createHash("sha256").update(fs.readFileSync(path)).digest("hex");
 
 test("Bash監査modeだけが比較後の読取を要求し、専用準備と正式実証を増やさない", () => {
@@ -63,7 +64,7 @@ const supported =
   process.geteuid?.() !== 0 &&
   fs.existsSync("/usr/bin/journalctl");
 
-function fixture() {
+function fixture(direct = false) {
   const directory = fs.mkdtempSync(join(fs.realpathSync(tmpdir()), "bash-audit-$fixture-"));
   const calls = join(directory, "calls.jsonl");
   const preload = join(directory, "preload.ts");
@@ -123,7 +124,59 @@ function fixture() {
       probe.executableHashAfter = metadata.unshare.hash;
     }
   });
-  const record = { ...metadata, outcome: "perl-layer-not-required", measurements };
+  let record = { ...metadata, outcome: "perl-layer-not-required", measurements };
+  const python = direct ? fs.realpathSync("/usr/bin/python3") : "";
+  if (direct) {
+    const rows = JSON.parse(
+      fs.readFileSync(
+        join(root, "docs/evidence/linux-namespace-uid-write/44633267572-1/observations.json"),
+        "utf8",
+      ),
+    ).jobs[1].records.map((row: any) => row.value);
+    const meta = rows.find((row: any) => row.schema === "linux-namespace-uid-write-comparison/v1");
+    const header = rows.find((row: any) => row.parent === "direct" && !row.case);
+    const uid = process.geteuid!();
+    const hash = digest(python);
+    const identity = { ...meta.identity, ...metadata.identity, arch: "arm64" };
+    header.before.uid = process.getuid!();
+    header.before.euid = uid;
+    header.before.namespaces.pid = fs.readlinkSync("/proc/self/ns/pid");
+    header.after = structuredClone(header.before);
+    header.cases = ["map", "control"].map((role, group) => {
+      const argv = ["-I", join(root, directPath), "child", role, String(uid)];
+      const probes = rows
+        .filter((row: any) => row.case === "direct-" + role)
+        .map((probe: any, index: number) => {
+          const child = JSON.parse(probe.stdout);
+          child.uid = child.euid = uid;
+          const started = now - 2000 + (group * 3 + index) * 20;
+          return {
+            ...probe,
+            argv,
+            stdout: JSON.stringify(child),
+            executableHash: hash,
+            executableHashAfter: hash,
+            startedAt: new Date(started).toISOString(),
+            endedAt: new Date(started + 1).toISOString(),
+          };
+        });
+      return { name: "direct-" + role, argv, probes };
+    });
+    record = {
+      ...meta,
+      identity,
+      controllerHashes: { ...metadata.controllerHashes, direct: digest(join(root, directPath)) },
+      runtime: { ...meta.runtime, path: python, hash },
+      baseline: {
+        outcome: "uid-mapping-reproduced",
+        identity,
+        runtimeHashes: { python: hash },
+        measurements: { bash: { runtime: header.runtime } },
+      },
+      outcome: "direct-write-reproduced",
+      measurements: { direct: header },
+    };
+  }
   fs.writeFileSync(
     preload,
     [
@@ -139,8 +192,9 @@ function fixture() {
       " }return stat;",
       "}}));",
       'if(process.env.FIXTURE_AUDIT_ROOT==="1")Object.defineProperty(process,"geteuid",{value:()=>0});',
+      'if(process.env.FIXTURE_AUDIT_DIRECT==="1")Object.defineProperty(process,"arch",{value:"arm64"});',
       'mock.module("node:child_process",()=>({...cp,spawnSync:(file,args,options)=>{',
-      ' const observerPaths=["development/probe-linux-namespace-bash-audit.ts","development/run-linux-process-proof.ts","development/probe-linux-namespace-bash.py","development/probe-linux-namespace-launch.py","development/probe-linux-namespace-bash.sh"];',
+      ' const observerPaths=["development/probe-linux-namespace-bash-audit.ts","development/run-linux-process-proof.ts","development/probe-linux-namespace-bash.py","development/probe-linux-namespace-launch.py","development/probe-linux-namespace-bash.sh","development/probe-linux-namespace-uid-write.py"];',
       ' if(file==="git"&&args[0]==="show"&&observerPaths.some(p=>args[1].endsWith(":"+p))){',
       '  const path=args[1].split(":").slice(1).join(":");',
       '  fs.appendFileSync(process.env.FIXTURE_AUDIT_CALLS!+".sources",JSON.stringify({file,args})+"\\n");',
@@ -163,6 +217,19 @@ function fixture() {
       ' const row=(message)=>JSON.stringify({_PID:"0",__REALTIME_TIMESTAMP:String(stamp*1000),MESSAGE:message});',
       ' const prefix="audit: type=1400 audit("+(stamp/1000).toFixed(3)+":123): ";',
       ' const messages=[row(prefix+\'apparmor="AUDIT" operation="userns_create" pid=\'+pid+\' comm="unshare" target="unprivileged_userns"\'),row(prefix+\'apparmor="AUDIT" info="pid=\'+pid+\'" pid=\'+(pid+1)+\' comm="decoy"\')];',
+      ' if(process.env.FIXTURE_AUDIT_DIRECT==="1"){',
+      "  const comm=process.env.FIXTURE_AUDIT_COMM;",
+      "  messages.length=0;",
+      `  const transition='apparmor="AUDIT" operation="userns_create" pid='+pid+' comm="'+comm+'" target="unprivileged_userns"';`,
+      `  const denial='apparmor="DENIED" operation="capable" profile="unprivileged_userns" pid='+pid+' comm="'+comm+'" capability=21 capname="sys_admin"';`,
+      `  messages.push(row(prefix+transition+' info="public-decoy-value"'));`,
+      "  if(" +
+        JSON.stringify(
+          direct ? record.measurements.direct.cases[0].probes.map((probe: any) => probe.pid) : [],
+        ) +
+        ".includes(pid))messages.push(row(prefix+denial));",
+      `  messages.push(row(prefix+denial.replace('comm="'+comm+'"','comm="wrong-runtime"')));`,
+      " }",
       ' if(mode==="truncated")while(messages.length<101)messages.push(messages[0]);',
       ' return answer(0,messages.join("\\n")+"\\n");',
       "}}));",
@@ -172,8 +239,9 @@ function fixture() {
   const execute = (value: any, mode = "matched", rootMock = false, symlink = false) => {
     const output = join(directory, "run-" + sequence++);
     fs.mkdirSync(output, { mode: 0o700 });
-    fs.writeFileSync(join(output, "namespace-bash.json"), JSON.stringify(value), { mode: 0o600 });
-    const input = join(output, "namespace-bash.json");
+    const comparison = direct ? "uid-write" : "bash";
+    const input = join(output, `namespace-${comparison}.json`);
+    fs.writeFileSync(input, JSON.stringify(value), { mode: 0o600 });
     if (symlink) {
       const regular = join(output, "regular.json");
       fs.renameSync(input, regular);
@@ -190,26 +258,33 @@ function fixture() {
       expect(spawnSync("mkfifo", [input], { encoding: "utf8", timeout: 1000 }).status).toBe(0);
     }
     fs.writeFileSync(calls, "");
-    const result = spawnSync(process.execPath, ["--preload", preload, entry, root, output], {
-      cwd: root,
-      encoding: "utf8",
-      timeout: mode === "fifo" ? 2000 : 15_000,
-      env: {
-        ...process.env,
-        PROOF_SOURCE_SHA: head,
-        GITHUB_SHA: head,
-        GITHUB_RUN_ID: "123",
-        GITHUB_RUN_ATTEMPT: "1",
-        FIXTURE_AUDIT_CALLS: calls,
-        FIXTURE_AUDIT_INPUT: input,
-        FIXTURE_AUDIT_NOW: String(now),
-        FIXTURE_AUDIT_MODE: mode,
-        FIXTURE_AUDIT_ROOT: rootMock ? "1" : "0",
+    const result = spawnSync(
+      process.execPath,
+      ["--preload", preload, entry, root, output, ...(direct ? ["--uid-write"] : [])],
+      {
+        cwd: root,
+        encoding: "utf8",
+        timeout: mode === "fifo" ? 2000 : 15_000,
+        env: {
+          ...process.env,
+          PROOF_SOURCE_SHA: head,
+          GITHUB_SHA: head,
+          GITHUB_RUN_ID: "123",
+          GITHUB_RUN_ATTEMPT: "1",
+          FIXTURE_AUDIT_CALLS: calls,
+          FIXTURE_AUDIT_INPUT: input,
+          FIXTURE_AUDIT_NOW: String(now),
+          FIXTURE_AUDIT_MODE: mode,
+          FIXTURE_AUDIT_ROOT: rootMock ? "1" : "0",
+          FIXTURE_AUDIT_DIRECT: direct ? "1" : "0",
+          FIXTURE_AUDIT_COMM: basename(python).slice(0, 15),
+          ...(direct ? { PROOF_MODE: "probe-uid-write", PROOF_ARCH: "arm64" } : {}),
+        },
       },
-    });
+    );
     const raw = fs.readFileSync(calls, "utf8").trim();
     const invoked = raw ? raw.split("\n").map((line) => JSON.parse(line)) : [];
-    const path = join(output, "namespace-bash-audit.json");
+    const path = join(output, `namespace-${comparison}-audit.json`);
     const savedText = fs.existsSync(path) ? fs.readFileSync(path, "utf8") : "";
     const saved = savedText ? JSON.parse(savedText) : undefined;
     return { result, invoked, saved, output };
@@ -450,3 +525,72 @@ test.skipIf(!supported)(
   },
   30_000,
 );
+
+test("直接writeの監査は明示指定したarm64かつ比較失敗後だけ実行する", () => {
+  const workflow = fs.readFileSync(join(root, ".github/workflows/linux-process-proof.yml"), "utf8");
+  const audit = workflow
+    .split("- name: 直接UID-map書込みと成功対照のkernel監査を非rootで取得\n")[1]!
+    .split("      - name: ")[0]!;
+  expect(audit.match(/^\s+if:\s*(.+)$/m)?.[1]).toBe(
+    "always() && inputs.uid_write_audit && inputs.mode == 'probe-uid-write' && matrix.arch == 'arm64' && steps.bash_comparison.outcome == 'failure'",
+  );
+  expect(workflow).toContain(
+    `inputs.uid_write_audit && '[{"runner":"ubuntu-24.04-arm","arch":"arm64"}]'`,
+  );
+  expect(workflow).toContain(
+    '[[ "$UID_WRITE_AUDIT" != true || "$PROOF_MODE" == probe-uid-write ]]',
+  );
+});
+
+test.skipIf(!supported)("直接writeと対照の6 PIDだけを検索し、固定の監査項目を記録する", () => {
+  const f = fixture(true);
+  try {
+    const { result, invoked, saved } = f.execute(f.record);
+    expect(result.status).toBe(0);
+    expect(saved.status).toBe("collected");
+    expect(saved.plannedQueries).toBe(6);
+    const targets = f.record.measurements.direct.cases.flatMap((c: any) => c.probes);
+    const queries = invoked.filter((call: any) => call.args[0] === "--dmesg");
+    expect(queries).toHaveLength(6);
+    for (const [index, probe] of targets.entries()) {
+      expect(queries[index].args).toContain(
+        "--grep=(^|[^[:alnum:]_])pid=" + probe.pid + "([^[:alnum:]_]|$)",
+      );
+      expect(queries[index].args).toContain(
+        new Date(Date.parse(probe.startedAt) - 1000).toISOString(),
+      );
+      expect(queries[index].args).toContain(
+        new Date(Date.parse(probe.endedAt) + 1000).toISOString(),
+      );
+      expect(saved.probes[index].role).toBe(index < 3 ? "map" : "control");
+      const events = saved.probes[index].audit.events;
+      expect(events.map((event: any) => event.kind)).toEqual(
+        index < 3 ? ["userns-transition", "sys-admin-denied"] : ["userns-transition"],
+      );
+      expect(events.every((event: any) => event.messagePid === probe.pid)).toBe(true);
+    }
+    expect(result.stdout).toContain("[DEBUG-ns-uid-write-audit]");
+    expect(result.stdout).not.toContain("public-decoy-value");
+    expect(JSON.stringify(saved)).not.toContain("public-decoy-value");
+    const refused = structuredClone(f.record);
+    const probe = refused.measurements.direct.cases[0].probes[0];
+    const child = JSON.parse(probe.stdout);
+    child.steps.pop();
+    Object.assign(child.steps[1], { outcome: "failed", errno: 1, error: "EPERM" });
+    probe.stdout = JSON.stringify(child);
+    const invalid = f.execute(refused);
+    expect(invalid.result.status).toBe(2);
+    expect(invalid.saved.error).toContain("測定の終了結果が一致しません");
+    expect(invalid.invoked).toEqual([]);
+
+    const wrongNamespace = structuredClone(f.record);
+    const { before, after } = wrongNamespace.measurements.direct;
+    before.namespaces.pid = after.namespaces.pid = "pid:[1]";
+    const rejected = f.execute(wrongNamespace);
+    expect(rejected.result.status).toBe(2);
+    expect(rejected.saved.error).toContain("直接UID-map再現の前提が一致しません");
+    expect(rejected.invoked).toEqual([]);
+  } finally {
+    fs.rmSync(f.directory, { recursive: true, force: true });
+  }
+});

@@ -485,3 +485,9 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 [run 44633267572 / attempt 1](evidence/linux-namespace-uid-write/44633267572-1/README.md) では、両構成で新しいVM内のPerl/Bash/UID-only基準を再現した後、直接mapのnamespace作成・openが各3回成功し、writeだけが各3回 `errno=1 / EPERM` になった。直接のnamespace-only対照は各3回成功した。両構成とも `direct-write-reproduced` / 予定exit 1である。各21・計42 probeと公開JSON64行を照合した。
 
 この条件ではutil-linuxを起動せずUID-mapのwrite失敗を再現できた。拒否段階を作成・openから分離できたが、どのkernel/LSM規則が返したEPERMかや、以前のCLIの拒否と同じ規則かは未確認。Pythonの初期化・共通Bashと上位祖先・OS/LSM条件も残る。Phase 2全体・原因確定・#33未完了、#82待ち、macOS 15と全子孫5秒保証の未解決を維持する。
+
+### Phase 4の監査観測
+
+`mode=probe-uid-write` に `uid_write_audit=true` を指定すると、arm64の1ジョブで同じ測定を行う。既存基準15回の後、直接writeが3回ともEPERMで、namespace作成だけの対照が3回とも成功した場合、比較の終了後に6 PIDを各1回、通常権限のkernel journalで検索する。各検索の時間窓は測定の前後1秒を含めて最大7秒。検索と版確認は各最大6回で、読取不能や出力上限超過で打ち切る。
+
+監査の結果は `namespace-uid-write-audit.json` と `[DEBUG-ns-uid-write-audit]` に記録する。公開するのは対象PID・測定時刻と、対応するAppArmorの遷移・`sys_admin` 拒否の定型項目、検索状態である。一致した拒否が失敗側で得られればAppArmor仮説を支持する。遷移だけ、イベントの不一致、読取不能は判定保留とする。検索の一致だけでwrite syscallの個別の戻り箇所は特定できない。

@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { probeAudit, proofIdentity } from "./run-linux-process-proof.ts";
@@ -16,6 +16,7 @@ const controllerPaths: Record<string, string> = {
   bash: "development/probe-linux-namespace-bash.sh",
   observer: "development/probe-linux-namespace-bash.py",
 };
+const directPath = "development/probe-linux-namespace-uid-write.py";
 const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 class AuditInputError extends Error {}
 
@@ -37,18 +38,21 @@ function committedHash(root: string, sha: string, path: string) {
   return expected;
 }
 
-/** 検査済みBash測定から、3つの最小argv probeだけを読取対象にする。 */
-function bashAuditTargets(
+/** 確定した再現の所有PIDと時刻だけを読取対象にする。 */
+function auditTargets(
   data: any,
   execution: ReturnType<typeof proofIdentity>,
   root: string,
   now: number,
+  direct: boolean,
+  callerPidNamespace: string,
 ) {
+  const comparison = direct ? "uid-write" : "bash";
   if (
     typeof data !== "object" ||
     data === null ||
     Array.isArray(data) ||
-    data.schema !== "linux-namespace-bash-comparison/v1" ||
+    data.schema !== `linux-namespace-${comparison}-comparison/v1` ||
     execution.sourceSha !== execution.workflowSha ||
     !Object.entries(execution).every(([key, value]) => data.identity?.[key] === value)
   )
@@ -57,10 +61,33 @@ function bashAuditTargets(
     if (data.controllerHashes?.[key] !== committedHash(root, execution.sourceSha, path))
       throw new AuditInputError("測定器のhashが一致しません");
   }
-  if (["not-reproduced", "perl-layer-dependent", "unavailable"].includes(data.outcome)) return [];
-  if (data.outcome !== "perl-layer-not-required")
-    throw new AuditInputError("Bash比較の結果が不正です");
-  const bash = data.measurements?.bash;
+  const clear = direct ? "direct-write-not-reproduced" : "perl-layer-dependent";
+  if (["not-reproduced", clear, "unavailable"].includes(data.outcome)) return [];
+  const reproduced = direct ? "direct-write-reproduced" : "perl-layer-not-required";
+  if (data.outcome !== reproduced)
+    throw new AuditInputError(
+      direct ? "直接UID-map比較の結果が不正です" : "Bash比較の結果が不正です",
+    );
+
+  const bash = direct ? data.measurements?.direct : data.measurements?.bash;
+  const executablePath = direct ? fs.realpathSync("/usr/bin/python3") : "/usr/bin/unshare";
+  const executable = direct ? data.runtime : data.unshare;
+  const uid = process.geteuid!();
+  const cases = direct ? ["direct-map", "direct-control"] : ["minimal", "control"];
+  if (
+    direct &&
+    (data.controllerHashes?.direct !== committedHash(root, execution.sourceSha, directPath) ||
+      data.identity.arch !== "arm64" ||
+      !isDeepStrictEqual(data.stages, [43, 48, 0]) ||
+      data.baseline?.outcome !== "uid-mapping-reproduced" ||
+      !isDeepStrictEqual(data.baseline.identity, data.identity) ||
+      data.baseline.runtimeHashes?.python !== executable?.hash ||
+      !isDeepStrictEqual(data.baseline.measurements?.bash?.runtime, bash?.runtime) ||
+      bash?.before?.namespaces?.pid !== callerPidNamespace ||
+      executable?.name !== "python" ||
+      !/^3\.12\./.test(executable.version))
+  )
+    throw new AuditInputError("直接UID-map再現の前提が一致しません");
   if (
     !bash ||
     bash.before?.uid !== process.getuid!() ||
@@ -78,17 +105,28 @@ function bashAuditTargets(
     bash.ancestry[0]?.pid !== bash.runtime.pid ||
     !isDeepStrictEqual(
       bash.cases?.map((item: any) => item.name),
-      ["minimal", "control"],
+      cases,
     ) ||
-    data.unshare?.path !== "/usr/bin/unshare" ||
-    data.unshare.hash !== digest(fs.readFileSync("/usr/bin/unshare"))
+    executable?.path !== executablePath ||
+    executable.hash !== digest(fs.readFileSync(executablePath))
   )
     throw new AuditInputError("Bash測定の条件が一致しません");
   const seen = new Set(bash.ancestry.map((entry: any) => entry.pid));
-  const selected: Array<{ pid: number; startedAt: string; endedAt: string }> = [];
+  const selected: Array<{
+    pid: number;
+    startedAt: string;
+    endedAt: string;
+    role?: "map" | "control";
+  }> = [];
+  let previousEnd = -Infinity;
   for (const item of bash.cases) {
-    const minimal = item.name === "minimal";
-    const argv = minimal ? ["--map-current-user", "--", "/usr/bin/true"] : ["--", "/usr/bin/true"];
+    const minimal = item.name === cases[0];
+    const role = minimal ? "map" : "control";
+    const argv = direct
+      ? ["-I", join(control, directPath), "child", role, String(uid)]
+      : minimal
+        ? ["--map-current-user", "--", "/usr/bin/true"]
+        : ["--", "/usr/bin/true"];
     if (
       !isDeepStrictEqual(item.argv, argv) ||
       !Array.isArray(item.probes) ||
@@ -124,11 +162,13 @@ function bashAuditTargets(
         probe.observerStatus !== 0 ||
         probe.signal !== null ||
         probe.error !== undefined ||
-        probe.stdout !== "" ||
+        (direct ? !directChildMatches(probe.stdout, uid, role) : probe.stdout !== "") ||
         probe.stderr !==
-          (minimal ? "unshare: write failed /proc/self/uid_map: Operation not permitted\n" : "") ||
-        probe.executableHash !== data.unshare.hash ||
-        probe.executableHashAfter !== data.unshare.hash
+          (!direct && minimal
+            ? "unshare: write failed /proc/self/uid_map: Operation not permitted\n"
+            : "") ||
+        probe.executableHash !== executable.hash ||
+        probe.executableHashAfter !== executable.hash
       )
         throw new AuditInputError("Bash測定の終了結果が一致しません");
       const start = Date.parse(probe.startedAt),
@@ -140,20 +180,93 @@ function bashAuditTargets(
         end - start > 5000 ||
         start < now - 120000 ||
         end > now ||
+        (direct && start < previousEnd) ||
         !Number.isFinite(probe.elapsedMs) ||
         probe.elapsedMs < 0 ||
         probe.elapsedMs >= 5000
       )
         throw new AuditInputError("Bash測定の時刻が範囲外です");
-      if (minimal)
-        selected.push({ pid: probe.pid, startedAt: probe.startedAt, endedAt: probe.endedAt });
+      previousEnd = end;
+      if (minimal || direct)
+        selected.push({
+          pid: probe.pid,
+          startedAt: probe.startedAt,
+          endedAt: probe.endedAt,
+          ...(direct ? { role } : {}),
+        });
     }
   }
   return selected;
 }
 
+/** 作成やopenでのEPERMをwrite拒否として扱わない。 */
+function directChildMatches(stdout: unknown, uid: number, role: "map" | "control") {
+  if (typeof stdout !== "string" || stdout.length > 1024) return false;
+  const steps: object[] = [{ operation: "unshare", outcome: "passed" }];
+  if (role === "map")
+    steps.push(
+      { operation: "open", outcome: "passed" },
+      { operation: "write", outcome: "failed", errno: 1, error: "EPERM" },
+    );
+  try {
+    return isDeepStrictEqual(JSON.parse(stdout), {
+      schema: "linux-namespace-uid-write-child/v1",
+      mode: role,
+      uid,
+      euid: uid,
+      steps,
+      outcome: role === "map" ? "failed" : "passed",
+    });
+  } catch {
+    return false;
+  }
+}
+
+/** 固定のAppArmorイベントと時刻だけを公開記録へ移す。 */
+function directAuditEvents(audit: ReturnType<typeof probeAudit>, executableName: string) {
+  return audit.events.flatMap((event) => {
+    if (
+      event.messageTruncated ||
+      typeof event.message !== "string" ||
+      typeof event.timestamp !== "string" ||
+      typeof event.messagePid !== "number"
+    )
+      return [];
+    const auditID = /^audit: type=1400 audit\((\d+\.\d+):(\d+)\): /.exec(event.message);
+    if (!auditID) return [];
+    const fields = [
+      ...event.message
+        .slice(auditID[0].length)
+        .matchAll(/(?:^|\s)(\w+)=("(?:[^"\\]|\\.)*"|[^\s"]+)/g),
+    ];
+    const entries = new Map(fields.map(([, key, value]) => [key, value]));
+    if (entries.size !== fields.length || entries.get("comm") !== JSON.stringify(executableName))
+      return [];
+    const transition =
+      entries.get("apparmor") === '"AUDIT"' &&
+      entries.get("operation") === '"userns_create"' &&
+      entries.get("target") === '"unprivileged_userns"';
+    const denial =
+      entries.get("apparmor") === '"DENIED"' &&
+      entries.get("operation") === '"capable"' &&
+      entries.get("profile") === '"unprivileged_userns"' &&
+      entries.get("capability") === "21" &&
+      entries.get("capname") === '"sys_admin"';
+    if (!transition && !denial) return [];
+    return [
+      {
+        timestamp: event.timestamp,
+        messagePid: event.messagePid,
+        auditTimestamp: auditID[1],
+        auditSerial: auditID[2],
+        kind: transition ? "userns-transition" : "sys-admin-denied",
+      },
+    ];
+  });
+}
+
 /** 比較終了後にだけ、呼出しユーザーの権限でPID・時刻を限定したkernel journalを読む。 */
-function collectBashAudit(root: string, output: string) {
+function collectAudit(root: string, output: string, direct: boolean) {
   const directory = fs.lstatSync(output);
   if (
     !directory.isDirectory() ||
@@ -161,7 +274,8 @@ function collectBashAudit(root: string, output: string) {
     (directory.mode & 0o077) !== 0
   )
     throw new AuditInputError("所有する非公開OUTPUT directoryが必要です");
-  const descriptor = fs.openSync(join(output, "namespace-bash-audit.json"), "wx", 0o600);
+  const comparison = direct ? "uid-write" : "bash";
+  const descriptor = fs.openSync(join(output, `namespace-${comparison}-audit.json`), "wx", 0o600);
   const record: {
     schema: string;
     status: string;
@@ -184,10 +298,15 @@ function collectBashAudit(root: string, output: string) {
       pid: number;
       startedAt: string;
       endedAt: string;
-      audit: ReturnType<typeof probeAudit>;
+      role?: "map" | "control";
+      audit:
+        | ReturnType<typeof probeAudit>
+        | (Omit<ReturnType<typeof probeAudit>, "events"> & {
+            events: ReturnType<typeof directAuditEvents>;
+          });
     }>;
   } = {
-    schema: "linux-namespace-bash-audit/v1",
+    schema: `linux-namespace-${comparison}-audit/v1`,
     status: "unavailable",
     readerPrivilege: "caller",
     collectorHash: "",
@@ -203,6 +322,13 @@ function collectBashAudit(root: string, output: string) {
       process.geteuid!() === 0
     )
       throw new AuditInputError("Linux・Bun 1.4.4・非root条件が必要です");
+    if (
+      direct &&
+      (process.arch !== "arm64" ||
+        process.env.PROOF_ARCH !== "arm64" ||
+        process.env.PROOF_MODE !== "probe-uid-write")
+    )
+      throw new AuditInputError("直接UID-map監査にはarm64のprobe-uid-writeが必要です");
     record.caller = {
       uid: process.getuid!(),
       euid: process.geteuid!(),
@@ -223,7 +349,7 @@ function collectBashAudit(root: string, output: string) {
       "development/run-linux-process-proof.ts",
     );
     const input = fs.openSync(
-      join(output, "namespace-bash.json"),
+      join(output, `namespace-${comparison}.json`),
       fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK,
     );
     let data;
@@ -249,16 +375,31 @@ function collectBashAudit(root: string, output: string) {
     } finally {
       fs.closeSync(input);
     }
-    const selected = bashAuditTargets(data, record.identity, root, Date.now());
+    const selected = auditTargets(
+      data,
+      record.identity,
+      root,
+      Date.now(),
+      direct,
+      record.caller.pidNamespace,
+    );
     record.plannedQueries = selected.length;
     if (!selected.length) {
       record.status = "not-requested";
-      record.reason = "Bash側の正確なEPERM再現がありません";
+      record.reason = direct
+        ? "直接writeの正確なEPERM再現がありません"
+        : "Bash側の正確なEPERM再現がありません";
     } else {
       record.status = "collected";
       for (const target of selected) {
         const audit = probeAudit(target, undefined, root);
-        record.probes.push({ ...target, audit });
+        const saved = direct
+          ? {
+              ...audit,
+              events: directAuditEvents(audit, basename(data.runtime.path).slice(0, 15)),
+            }
+          : audit;
+        record.probes.push({ ...target, audit: saved });
         if (!["matched", "no-matching-events", "empty"].includes(audit.status)) {
           record.status = "unavailable";
           record.reason = "監査記録が不完全なため後続の検索を省略しました";
@@ -284,7 +425,8 @@ function collectBashAudit(root: string, output: string) {
     } finally {
       fs.closeSync(descriptor);
     }
-    const emit = (value: unknown) => console.log("[DEBUG-ns-bash-audit] " + JSON.stringify(value));
+    const emit = (value: unknown) =>
+      console.log(`[DEBUG-ns-${comparison}-audit] ` + JSON.stringify(value));
     const { probes, ...summary } = record;
     emit({ recordType: "summary", ...summary });
     for (const probe of probes) {
@@ -299,8 +441,10 @@ function collectBashAudit(root: string, output: string) {
 if (import.meta.main) {
   try {
     const [source, output, ...extra] = process.argv.slice(2);
-    if (!source || !output || extra.length) throw new AuditInputError("SOURCE OUTPUTが必要です");
-    process.exitCode = collectBashAudit(resolve(source), resolve(output));
+    const direct = extra.length === 1 && extra[0] === "--uid-write";
+    if (!source || !output || (extra.length && !direct))
+      throw new AuditInputError("SOURCE OUTPUT [--uid-write] が必要です");
+    process.exitCode = collectAudit(resolve(source), resolve(output), direct);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     console.error(
