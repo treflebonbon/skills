@@ -65,6 +65,10 @@ compare_uid_write() {
   local source_root=$1 output=$2 baseline_status=$3 gate_status=0 capture_status=-1 final_status=0
   local settings python_path python_hash case_name repetition
   local direct_helper="$capture_dir/probe-linux-namespace-uid-write.py"
+  local -a label_option=()
+  if [[ ${PROOF_UID_WRITE_LABEL:-} == true ]]; then
+    label_option=(--apparmor-label)
+  fi
   python3 -I "$direct_helper" gate "$source_root" "$output" "$BASH_VERSION" "$baseline_status" || gate_status=$?
   if [[ $gate_status == 48 ]]; then
     capture_status=0
@@ -77,7 +81,7 @@ compare_uid_write() {
         for case_name in map control; do
           for repetition in 1 2 3; do
             capture_probe "$python_path" "$output/bash-direct-$case_name-$repetition" 5 33554432 "$python_hash" \
-              -I "$direct_helper" child "$case_name" "$EUID" || {
+              -I "$direct_helper" child "$case_name" "$EUID" "${label_option[@]}" || {
               capture_status=$?
               break 2
             }

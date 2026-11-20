@@ -10,7 +10,23 @@ import sys
 CHILD_SCHEMA = "linux-namespace-uid-write-child/v1"
 
 
-def child(mode, uid):
+def read_apparmor_label():
+    """許可したAppArmorラベルだけを後続の比較へ渡す。"""
+    try:
+        with open("/proc/self/attr/apparmor/current", "rb", buffering=0) as attribute:
+            raw = attribute.read(256)
+    except OSError as error:
+        return {"status": "unavailable", "error": errno.errorcode.get(error.errno, "UNKNOWN")}
+    if len(raw) == 256:
+        return {"status": "truncated"}
+    label = raw.rstrip(b"\n\0")
+    if label in (b"unconfined", b"unprivileged_userns", b"unprivileged_userns (enforce)",
+                 b"unprivileged_userns (complain)", b"unprivileged_userns (kill)"):
+        return {"status": "observed", "label": label.decode("ascii")}
+    return {"status": "other" if label else "empty"}
+
+
+def child(mode, uid, observe_label=False):
     record = {"schema": CHILD_SCHEMA, "mode": mode, "uid": os.getuid(),
               "euid": os.geteuid(), "steps": [], "outcome": "unavailable"}
     if (mode not in ("map", "control") or sys.platform != "linux"
@@ -56,6 +72,9 @@ def child(mode, uid):
                 record["cleanupError"] = errno.errorcode.get(error.errno, "UNKNOWN")
                 record["outcome"] = "unavailable"
                 status = 2
+    if observe_label and (status == 0 or
+            (status == 1 and operation == "write" and record["steps"][-1]["errno"] == errno.EPERM)):
+        record["apparmor"] = read_apparmor_label()
     return record, status
 
 
@@ -144,22 +163,23 @@ def prepare_direct(root, output, version, baseline_status):
     return 48 if record["outcome"] == "ready" else parent.FINAL_CLEAR if record["outcome"] == "not-reproduced" else 2
 
 
-def direct_scenarios(uid):
+def direct_scenarios(uid, observe_label=False):
     from pathlib import Path
-    return [("direct-" + mode, ["-I", str(Path(__file__).resolve()), "child", mode, str(uid)])
+    options = ["--apparmor-label"] if observe_label else []
+    return [("direct-" + mode, ["-I", str(Path(__file__).resolve()), "child", mode, str(uid), *options])
             for mode in ("map", "control")]
 
 
-def classify_direct(probe, uid, mode=None):
+def classify_direct(probe, uid, mode=None, observe_label=False):
     try:
         if mode is None:
             argv = probe.get("argv", [])
-            if not isinstance(argv, list) or len(argv) != 5:
+            if not isinstance(argv, list) or len(argv) != (6 if observe_label else 5):
                 return "unavailable"
             mode = argv[3]
         if (probe.get("error") or probe.get("cleanupError") or probe.get("logTruncated")
                 or probe.get("signal") is not None or probe["stderr"] != ""
-                or type(probe["status"]) is not int or probe["argv"] != dict(direct_scenarios(uid))["direct-" + mode]):
+                or type(probe["status"]) is not int or probe["argv"] != dict(direct_scenarios(uid, observe_label))["direct-" + mode]):
             return "unavailable"
         result = json.loads(probe["stdout"])
         if (not isinstance(result, dict) or result.get("schema") != CHILD_SCHEMA
@@ -186,10 +206,10 @@ def classify_direct(probe, uid, mode=None):
     return "unavailable"
 
 
-def direct_outcome(measurement, checkpoint, baseline):
+def direct_outcome(measurement, checkpoint, baseline, observe_label):
     try:
         uid = checkpoint["context"]["euid"]
-        scenarios = direct_scenarios(uid)
+        scenarios = direct_scenarios(uid, observe_label)
         if not base.bash_capture_valid(measurement, parent.ancestry()[1:], checkpoint, scenarios, native_runtime()["hash"]):
             raise ValueError("直接UID-mapのcapture・caller・所有PIDが一致しません")
         baseline_probes = [probe for item in baseline["measurements"].values()
@@ -210,7 +230,7 @@ def direct_outcome(measurement, checkpoint, baseline):
                 if (probe.get("repetition") != repetition or start < latest or end < start
                         or type(elapsed) not in (int, float) or not base.math.isfinite(elapsed) or not 0 <= elapsed <= 5000):
                     raise ValueError("直接UID-mapの測定順序・時刻が不正です")
-                modes.append(classify_direct(probe, uid, name.removeprefix("direct-")))
+                modes.append(classify_direct(probe, uid, name.removeprefix("direct-"), observe_label))
             outcomes.append(modes)
         if outcomes[1] == ["passed"] * 3:
             if outcomes[0] == ["uid-map-write-eperm"] * 3:
@@ -225,11 +245,14 @@ def direct_outcome(measurement, checkpoint, baseline):
 def finalize_direct(root, output, version, baseline_status, gate_status, capture_status):
     record = {"schema": "linux-namespace-uid-write-comparison/v1", "outcome": "unavailable", "measurements": {},
               "stages": [baseline_status, gate_status, capture_status]}
+    observe_label = os.environ.get("PROOF_UID_WRITE_LABEL") == "true"
+    if observe_label:
+        record["apparmorLabelRequested"] = True
     try:
         # rawを先に保持し、checkpointやsourceの後続検査に失敗しても失わない。
         record["baseline"] = json.loads((output / "namespace-uid.json").read_text())
         checkpoint = json.loads((output / "namespace-bash-checkpoint.json").read_text())
-        direct = base.load_bash(output, checkpoint, direct_scenarios(checkpoint["context"]["euid"]))
+        direct = base.load_bash(output, checkpoint, direct_scenarios(checkpoint["context"]["euid"], observe_label))
         if direct is not None:
             record["measurements"]["direct"] = direct
         saved = json.loads((output / "namespace-uid-write-checkpoint.json").read_text())
@@ -247,7 +270,7 @@ def finalize_direct(root, output, version, baseline_status, gate_status, capture
             record["outcome"] = "not-reproduced"
         elif (baseline_outcome == "uid-mapping-reproduced" and saved.get("outcome") == "ready"
               and gate_status == 48 and capture_status == 0 and direct is not None):
-            record["outcome"] = direct_outcome(direct, verified, record["baseline"])
+            record["outcome"] = direct_outcome(direct, verified, record["baseline"], observe_label)
         else:
             raise ValueError("直接UID-mapの比較段階が成立しません")
         if validate_source(root, verified) != record["controllerHashes"] or native_runtime() != record["runtime"]:
@@ -261,14 +284,16 @@ def finalize_direct(root, output, version, baseline_status, gate_status, capture
         for name, measurement in record["measurements"].items():
             uid = record.get("baseline", {}).get("uidMappingLookup", {}).get("requestedUid", -1)
             parent.log_measurement(name, measurement, prefix="uid-write",
-                                   classifier=lambda probe: classify_direct(probe, uid))
+                                   classifier=lambda probe: classify_direct(probe, uid, observe_label=observe_label))
         launch.emit({"outcome": record["outcome"], "error": record.get("error")}, "uid-write")
     return parent.FINAL_REPRODUCED if record["outcome"] in ("direct-write-reproduced", "direct-write-not-reproduced") else parent.FINAL_CLEAR if record["outcome"] == "not-reproduced" else 2
 
 
 def main(args):
-    if len(args) == 3 and args[0] == "child":
-        result, status = child(args[1], int(args[2]))
+    if args and args[0] == "child":
+        if len(args) not in (3, 4) or (len(args) == 4 and args[3] != "--apparmor-label"):
+            raise ValueError("直接UID-map probeの引数が不正です")
+        result, status = child(args[1], int(args[2]), len(args) == 4)
         print(json.dumps(result, ensure_ascii=False))
         return status
     from pathlib import Path

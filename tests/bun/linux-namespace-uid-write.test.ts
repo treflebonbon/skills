@@ -6,12 +6,12 @@ import { join, resolve } from "node:path";
 const root = resolve(import.meta.dir, "../..");
 const helper = join(root, "development/probe-linux-namespace-uid-write.py");
 
-function childFixture(variant: string, mode = "map") {
+function childFixture(variant: string, mode = "map", label = "off") {
   const code = [
-    "import importlib.util,json,os,sys",
+    "import contextlib,importlib.util,io,json,os,sys",
     "spec=importlib.util.spec_from_file_location('uid_write',sys.argv[1])",
     "m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)",
-    "variant=sys.argv[2];mode=sys.argv[3];calls=[]",
+    "variant=sys.argv[2];mode=sys.argv[3];label=sys.argv[4];calls=[]",
     "if variant=='api-absent':",
     " for name in ('unshare','CLONE_NEWUSER'):",
     "  if hasattr(m.os,name):delattr(m.os,name)",
@@ -38,10 +38,25 @@ function childFixture(variant: string, mode = "map") {
     " if variant=='close':raise OSError(m.errno.EIO,'public-close')",
     "m.os.CLONE_NEWUSER=268435456",
     "m.os.unsetenv=unsetenv;m.os.unshare=unshare;m.os.open=opened;m.os.write=written;m.os.close=closed",
-    "record,status=m.child(mode,1001)",
-    "print(json.dumps({'record':record,'status':status,'calls':calls}))",
+    "class Attribute(io.BytesIO):",
+    " def read(self,size):",
+    "  assert size==256;calls.append(['label-read',size]);return super().read(size)",
+    "def open_label(path,flags,*,buffering):",
+    " assert path=='/proc/self/attr/apparmor/current' and flags=='rb' and buffering==0",
+    " calls.append(['label-open',path]);assert label!='off'",
+    " if label=='denied':raise OSError(m.errno.EACCES,'public-label-denied')",
+    " variants={'restricted':b'unprivileged_userns (enforce)\\n\\0','unconfined':b'unconfined\\n','other':b'private-label-name','limit':b'x'*256}",
+    " return Attribute(variants[label])",
+    "m.open=open_label",
+    "args=['child',mode,'1001']+([] if label=='off' else ['--apparmor-label'])",
+    "stdout=io.StringIO()",
+    "with contextlib.redirect_stdout(stdout):status=m.main(args)",
+    "record=json.loads(stdout.getvalue())",
+    "probe={'argv':['-I',sys.argv[1],*args],'status':status,'stdout':stdout.getvalue(),'stderr':'','signal':None}",
+    "classified=m.classify_direct(probe,1001,observe_label=label!='off')",
+    "print(json.dumps({'record':record,'status':status,'calls':calls,'classified':classified}))",
   ].join("\n");
-  const result = spawnSync("python3", ["-I", "-B", "-c", code, helper, variant, mode], {
+  const result = spawnSync("python3", ["-I", "-B", "-c", code, helper, variant, mode, label], {
     cwd: root,
     encoding: "utf8",
     timeout: 10_000,
@@ -124,12 +139,61 @@ test.skipIf(process.platform !== "linux")(
   },
 );
 
+test.skipIf(process.platform !== "linux")(
+  "AppArmorラベルは試行の結果確定後に1回読み、write EPERMと読取結果を別に保持する",
+  () => {
+    const plain = childFixture("write");
+    expect(plain.record.apparmor).toBeUndefined();
+    for (const [label, observation] of [
+      ["restricted", { status: "observed", label: "unprivileged_userns (enforce)" }],
+      ["unconfined", { status: "observed", label: "unconfined" }],
+      ["other", { status: "other" }],
+      ["limit", { status: "truncated" }],
+      ["denied", { status: "unavailable", error: "EACCES" }],
+    ] as const) {
+      const observed = childFixture("write", "map", label);
+      expect(observed.status).toBe(plain.status);
+      expect(observed.classified).toBe("uid-map-write-eperm");
+      expect(observed.record).toEqual({ ...plain.record, apparmor: observation });
+      const reads = label === "denied" ? [] : [["label-read", 256]];
+      expect(observed.calls).toEqual([
+        ...plain.calls,
+        ["label-open", "/proc/self/attr/apparmor/current"],
+        ...reads,
+      ]);
+    }
+    const control = childFixture("passed", "control", "restricted");
+    expect(control.status).toBe(0);
+    expect(control.classified).toBe("passed");
+    expect(control.calls).toEqual([
+      ["unsetenv", "LC_CTYPE"],
+      ["unshare", 268435456],
+      ["label-open", "/proc/self/attr/apparmor/current"],
+      ["label-read", 256],
+    ]);
+    for (const variant of ["root", "unshare", "open", "other", "short", "close"]) {
+      const probe = childFixture(variant, "map", "restricted");
+      expect(probe.record.apparmor).toBeUndefined();
+      expect(probe.calls).toEqual(childFixture(variant).calls);
+    }
+  },
+);
+
 test("直接UID-map modeだけが既存UID基準の後に接続され、監査を要求しない", () => {
   const workflow = fs.readFileSync(join(root, ".github/workflows/linux-process-proof.yml"), "utf8");
   expect(workflow).toContain("          - probe-uid-write");
   expect(workflow).toContain("inputs.mode == 'probe-uid-write' && 'namespace-uid-write'");
   expect(workflow).toContain("&& inputs.mode != 'probe-uid-write'");
   expect(workflow).toContain("|| inputs.mode == 'probe-uid-write'");
+  const labelInput = workflow.split("      uid_write_label:\n")[1]!.split("\n\n")[0]!;
+  expect(labelInput).toContain("        default: false");
+  expect(workflow).toContain(
+    '[[ "$UID_WRITE_LABEL" != true || ( "$PROOF_MODE" == probe-uid-write && "$UID_WRITE_AUDIT" != true ) ]]',
+  );
+  expect(workflow).toContain("PROOF_UID_WRITE_LABEL: ${{ inputs.uid_write_label }}");
+  const launcher = fs.readFileSync(join(root, "development/probe-linux-namespace-bash.sh"), "utf8");
+  expect(launcher).toContain("label_option=(--apparmor-label)");
+  expect(launcher).toContain('child "$case_name" "$EUID" "${label_option[@]}"');
   const audit = workflow
     .split("- name: Bash直接の失敗PIDに対応するkernel監査を非rootで取得\n")[1]!
     .split("      - name: ")[0]!;

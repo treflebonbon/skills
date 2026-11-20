@@ -501,3 +501,9 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 監査記録のschemaは `linux-namespace-uid-write-audit/v2`、Bash基準のroleは `bash-baseline`。Bash基準にも同じ定型項目を使い、対象実行体 `unshare` の `sys_admin` 拒否が取得できれば、そのVMでの監査の可視性を確認できる。直接map側でも対応する拒否が取れればAppArmor仮説を支持する。Bash側だけで取れれば監査上の経路差を確認できる。両方で対応する拒否を取得できなければ可視性と原因は判定保留とする。
 
 [run 44665415403 / attempt 1](evidence/linux-namespace-uid-write-audit/44665415403-1/README.md) では、直接writeが3/3 EPERM、namespace-only対照が3/3成功。Bash基準の2/3 PIDでAppArmorの遷移と `sys_admin` 拒否を取得し、同じVMのreaderで読めることを確認した。直接比較の6 PIDとBash基準の残り1 PIDは0件だった。直接子のlabelとwriteを拒否した検査は未確定で、直接writeへのAppArmor仮説は判定保留とする。
+
+### 直接子のAppArmorラベル観測
+
+`mode=probe-uid-write` に `uid_write_label=true` を指定すると、同じarm64 VMで既存の基準15回と直接比較6回を実行する。直接子のmap側はwriteと既存のfd cleanupの後、成功対照はnamespace作成後に、AppArmorの現在ラベルを `/proc/self/attr/apparmor/current` から読み取る。読み取るのは1子につき1回、最大256バイトで、公開記録には既知のラベルまたは読取状態とerrnoだけを載せる。観測値は直接子の従来の操作・errno記録に追加し、ラベル読取の結果で操作結果や終了コードを変えない。観測指定はjournal監査と排他的で、比較の起動条件と基準判定を引き継ぐ。
+
+直接mapが同じEPERMで `unprivileged_userns` を確認できれば、直接経路にも当該プロファイルが適用されるという予測を支持する。 `unconfined` を確認できれば、同プロファイルによる拒否の優先度を下げる。いずれもwriteを拒否した個別の検査の確定には至らず、未知のラベル・読取不能・再現の変化は判定保留とする。[LinuxカーネルのLSMインターフェース](https://www.kernel.org/doc/html/latest/userspace-api/lsm.html)
