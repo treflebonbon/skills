@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  artifacts,
   reconcile,
   removeItem,
   signature,
@@ -416,4 +417,95 @@ test("業務ルール・既存テスト・検証候補への指摘と削除記�
     revision: "r2",
   };
   assert.equal(reconcile(upgraded, legacySaved).conflict, false);
+});
+
+test("verification.mdは業務ルールから既存テストと検証候補を辿れ、根拠と検証結果を別に示す", () => {
+  const doc = validateDocument(
+    v3((d) => {
+      d.existingTests.push(
+        existingTest({
+          boundary: { evidence: [], kind: "PORT_CONTRACT", origin: "inference" },
+          id: "accept-port-test",
+          result: {
+            command: "npm test -- accept-port",
+            revision: REVISION,
+            source: "CI",
+            status: "FAILED",
+          },
+          title: "受諾ポートの契約テスト",
+        })
+      );
+      d.verificationCandidates.push({
+        decision: "HOLD",
+        evidence: [],
+        id: "hold-expiry",
+        title: "満了の扱いを確かめる",
+      });
+    })
+  );
+  const file = artifacts(doc)["verification.md"];
+  const section = (heading) => {
+    const start = file.indexOf(heading);
+    assert.notEqual(start, -1, heading);
+    const next = file.indexOf("\n#", start + heading.length);
+    return file.slice(start, next === -1 ? undefined : next);
+  };
+  assert.match(file, /根拠と検証結果は別の区分です/u);
+  const ruleSection = section("## 業務ルール: 受諾済みの依頼は再受諾できない");
+  assert.match(ruleSection, /不変条件 \/ 現状 \/ AIの推測/u);
+  assert.match(ruleSection, /関連要素: 受諾する（accept）/u);
+  const read = section("### 既存テスト: 再受諾を拒否するテスト");
+  assert.match(read, /検証の境界: ドメイン（コードで確認）/u);
+  assert.match(read, /検証結果: 読んだのみ/u);
+  assert.ok(read.includes("tests/accept\\.test\\.ts:12"));
+  const failed = section("### 既存テスト: 受諾ポートの契約テスト");
+  assert.match(failed, /検証の境界: ポート契約（AIの推測・構造は未確認）/u);
+  assert.match(failed, /検証結果: 実行・失敗/u);
+  assert.match(failed, /実行コマンド: ` npm test -- accept-port `/u);
+  assert.match(failed, /出所: CI/u);
+  const add = section("### 検証候補: 同時受諾の二重成功を検出する");
+  assert.match(add, /判断: 追加/u);
+  assert.match(add, /検出したい誤り: 同時に届いた2件の受諾/u);
+  assert.match(add, /検証の境界: アダプター結合（AIの推測・構造は未確認）/u);
+  assert.match(add, /理由: 既存テストは単一の受諾だけ/u);
+  const kept = section("### 検証候補: 再受諾の拒否を維持する");
+  assert.match(kept, /判断: 維持/u);
+  assert.match(kept, /対象の既存テスト: 再受諾を拒否するテスト（accept\\-once\\-test）/u);
+  assert.ok(
+    file.indexOf("## 業務ルールが未定の検証候補") <
+      file.indexOf("### 検証候補: 満了の扱いを確かめる")
+  );
+  assert.match(section("### 検証候補: 満了の扱いを確かめる"), /判断: 保留/u);
+  const unknowns = section("## 未確認事項");
+  assert.match(unknowns, /保留: 満了の扱いを確かめる/u);
+  assert.match(unknowns, /実行結果なし: 再受諾を拒否するテスト（読んだのみ）/u);
+  assert.match(
+    unknowns,
+    /境界の構造が未確認: 受諾ポートの契約テスト（ポート契約）/u
+  );
+
+  const model = artifacts(doc)["model.md"];
+  assert.match(model, /## 業務ルールと図の要素/u);
+  assert.match(
+    model,
+    /accept\\-once（現状 \/ 不変条件）: 受諾済みの依頼は再受諾できない → 受諾する（accept）/u
+  );
+
+  const retired = validateDocument(
+    v3((d) => {
+      d.retired.push({
+        entity: "verificationCandidate",
+        item: d.verificationCandidates.shift(),
+        view: "verification",
+      });
+    })
+  );
+  assert.match(
+    artifacts(retired)["model.md"],
+    /verification \/ accept\\-race: 同時受諾の二重成功を検出する/u
+  );
+  assert.match(
+    artifacts(validateDocument(example()))["verification.md"],
+    /業務ルールは未登録です/u
+  );
 });

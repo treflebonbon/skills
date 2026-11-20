@@ -780,7 +780,95 @@ const refs = (items) =>
     )
     .join("\n");
 const clean = (s) => String(s).replaceAll(/[\r\n]/gu, " ");
+const codeSpan = (s) => {
+  const value = clean(s);
+  const fence = "`".repeat(
+    Math.max(0, ...[...value.matchAll(/`+/gu)].map((m) => m[0].length)) + 1
+  );
+  return `${fence} ${value} ${fence}`;
+};
+const elementLabel = (doc, view, elementId) => {
+  const item =
+    [...doc.models[view].nodes, ...doc.models[view].edges].find(
+      (i) => i.id === elementId
+    ) ??
+    doc.retired.find((r) => r.view === view && r.item.id === elementId)?.item;
+  return `${md(item.data.label ?? item.label)}（${md(elementId)}）`;
+};
+const boundaryText = (boundary) =>
+  `${BOUNDARIES[boundary.kind]}（${ORIGINS[boundary.origin]}${boundary.origin === "code" ? "" : "・構造は未確認"}）`;
+const resultText = (result) =>
+  [
+    `検証結果: ${RESULTS[result.status]}`,
+    ...(result.command
+      ? [
+          `実行コマンド: ${codeSpan(result.command)}`,
+          `対象版: ${md(result.revision)}`,
+          `出所: ${md(result.source)}`,
+        ]
+      : []),
+  ].join("\n");
+const verificationMarkdown = (doc) => {
+  const { existingTests, rules, verificationCandidates } = verificationOf(doc);
+  const testById = new Map(existingTests.map((t) => [t.id, t]));
+  const testSection = (t) =>
+    [
+      `\n### 既存テスト: ${md(t.title)}`,
+      `ID: ${md(t.id)}`,
+      `検証の境界: ${boundaryText(t.boundary)}`,
+      resultText(t.result),
+      refs(t.evidence),
+    ].join("\n");
+  const candidateSection = (c) =>
+    [
+      `\n### 検証候補: ${md(c.title)}`,
+      `ID: ${md(c.id)} / 判断: ${DECISIONS[c.decision]}`,
+      ...(c.error ? [`検出したい誤り: ${md(c.error)}`] : []),
+      ...(c.boundary ? [`検証の境界: ${boundaryText(c.boundary)}`] : []),
+      ...(c.reason ? [`理由: ${md(c.reason)}`] : []),
+      ...(c.tests ?? []).map(
+        (testId) =>
+          `対象の既存テスト: ${md(testById.get(testId).title)}（${md(testId)}）`
+      ),
+      refs(c.evidence),
+    ].join("\n");
+  const unassigned = verificationCandidates.filter((c) => !c.rule);
+  return [
+    "# 検証方針",
+    "根拠と検証結果は別の区分です。根拠はコードで確認・業務上の合意・AIの推測・未検証の改善案を、検証結果はテストや形式モデルを実際にどう扱ったかを示します。テストを読んだことは、実行や合格を意味しません。",
+    ...(rules.length ? [] : ["\n業務ルールは未登録です。"]),
+    ...rules.flatMap((r) => [
+      `\n## 業務ルール: ${md(r.statement)}`,
+      `ID: ${md(r.id)} / ${RULE_KINDS[r.kind]} / ${names[r.model]} / ${ORIGINS[r.origin]}`,
+      `関連要素: ${r.targets.map((t) => elementLabel(doc, r.model, t)).join("、")}`,
+      refs(r.evidence),
+      ...existingTests.filter((t) => t.rules.includes(r.id)).map(testSection),
+      ...verificationCandidates
+        .filter((c) => c.rule === r.id)
+        .map(candidateSection),
+    ]),
+    ...(unassigned.length
+      ? ["\n## 業務ルールが未定の検証候補", ...unassigned.map(candidateSection)]
+      : []),
+    "\n## 未確認事項",
+    ...verificationCandidates
+      .filter((c) => c.decision === "HOLD")
+      .map((c) => `- 保留: ${md(c.title)}`),
+    ...existingTests
+      .filter((t) => ["READ", "NOT_RUN"].includes(t.result.status))
+      .map(
+        (t) => `- 実行結果なし: ${md(t.title)}（${RESULTS[t.result.status]}）`
+      ),
+    ...[...existingTests, ...verificationCandidates]
+      .filter((item) => item.boundary && item.boundary.origin !== "code")
+      .map(
+        (item) =>
+          `- 境界の構造が未確認: ${md(item.title)}（${BOUNDARIES[item.boundary.kind]}）`
+      ),
+  ].join("\n");
+};
 // A node's kind alone names its layer (see model.md).
+const names = { current: "現状", proposed: "改善案" };
 const LAYER_ORDER = ["business", "architecture", "function-flow"];
 const LAYER_LABELS = {
   architecture: "アーキテクチャ層",
@@ -834,7 +922,7 @@ export const artifacts = (doc) => {
     md(doc.scope),
   ];
   for (const view of views) {
-    model.push(`\n## ${view === "current" ? "現状" : "改善案"}`);
+    model.push(`\n## ${names[view]}`);
     const { cross, layers } = byLayer(doc.models[view]);
     for (const layer of LAYER_ORDER) {
       const graph = layers.get(layer);
@@ -864,7 +952,13 @@ export const artifacts = (doc) => {
       );
     }
   }
+  const { rules } = verificationOf(doc);
   model.push(
+    "\n## 業務ルールと図の要素",
+    ...rules.map(
+      (r) =>
+        `- ${md(r.id)}（${names[r.model]} / ${RULE_KINDS[r.kind]}）: ${md(r.statement)} → ${r.targets.map((t) => elementLabel(doc, r.model, t)).join("、")}`
+    ),
     "\n## 指摘",
     ...doc.comments.map(
       (c) =>
@@ -873,7 +967,7 @@ export const artifacts = (doc) => {
     "\n## 削除記録",
     ...doc.retired.map(
       (r) =>
-        `- ${md(r.view)} / ${md(r.item.id)}: ${md(r.item.data.label ?? r.item.label)}`
+        `- ${md(r.view)} / ${md(r.item.id)}: ${md(r.item.data?.label ?? r.item.label ?? r.item.statement ?? r.item.title)}`
     ),
     "\n## 未解決",
     ...doc.unresolved.map((s) => `- ${md(s)}`),
@@ -919,6 +1013,7 @@ export const artifacts = (doc) => {
     "glossary.md": warning + glossary,
     "model.md": model.join("\n"),
     "scenarios.feature": bdd,
+    "verification.md": warning + verificationMarkdown(doc),
   };
 };
 
