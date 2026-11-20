@@ -77,3 +77,7 @@ flowchart TD
 ### Bash基準と直接writeを同じVMで監査した結果
 
 [run 44665415403 / attempt 1](evidence/linux-namespace-uid-write-audit/44665415403-1/README.md) では、同じarm64 VM・同じ通常権限のreaderで、Bash基準の失敗3 PID中2件にAppArmorの遷移と `sys_admin` 拒否が対応した。直接mapは3/3でwriteがEPERM、namespace-only対照は3/3成功し、直接比較の6 PIDはすべて監査の一致がなかった。Bash側の能力拒否の可視性は確認済み。直接writeを拒否した検査、直接子のlabel、イベントが一致しなかった理由は未確定である。
+
+### 直接子のAppArmorラベル
+
+[run 44670151286 / attempt 1](evidence/linux-namespace-uid-write-label/44670151286-1/README.md) では、従来と同じwrite EPERMを再現した直接mapの3子と、namespace作成だけに成功した対照3子が、各操作の後に同じ `unprivileged_userns (enforce)` を観測した。直接経路へのプロファイル適用を確認した。writeに対する個別の能力検査とその戻り値、loaded policyの該当規則は未確定である。
