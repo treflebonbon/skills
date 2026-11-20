@@ -30,7 +30,7 @@ export const ORIGINS = {
 };
 export const RULE_KINDS = {
   INVARIANT: "不変条件",
-  RULE: "業務ルール",
+  RULE: "業務ルール（一般）",
   TRANSITION: "状態遷移",
 };
 export const BOUNDARIES = {
@@ -57,6 +57,7 @@ export const DECISIONS = {
   MERGE: "統合",
 };
 const views = ["current", "proposed"];
+const VIEW_LABELS = { current: "現状", proposed: "改善案" };
 const VERIFICATION_KEYS = ["rules", "existingTests", "verificationCandidates"];
 // Retired verification records use these entity names under view "verification".
 const VERIFICATION_ENTITIES = {
@@ -350,6 +351,10 @@ const validateCandidate = (item, rules, tests) => {
         item.boundary !== undefined &&
         nonempty(item.reason)),
     "保留以外の検証候補には検出したい誤り・守る業務ルール・検証の境界・理由が必要です"
+  );
+  need(
+    item.decision === "HOLD" || item.evidence.length > 0,
+    "保留以外の検証候補には理由の根拠が必要です"
   );
   need(
     item.rule === undefined || rules.has(item.rule),
@@ -787,14 +792,18 @@ const codeSpan = (s) => {
   );
   return `${fence} ${value} ${fence}`;
 };
-const elementLabel = (doc, view, elementId) => {
-  const item =
+export const retiredLabel = (item) =>
+  item.data?.label ?? item.label ?? item.statement ?? item.title ?? item.id;
+// Rule targets may name retired elements (see elementIds).
+export const elementName = (doc, view, elementId) =>
+  retiredLabel(
     [...doc.models[view].nodes, ...doc.models[view].edges].find(
       (i) => i.id === elementId
     ) ??
-    doc.retired.find((r) => r.view === view && r.item.id === elementId)?.item;
-  return `${md(item.data.label ?? item.label)}（${md(elementId)}）`;
-};
+      doc.retired.find((r) => r.view === view && r.item.id === elementId).item
+  );
+const elementLabel = (doc, view, elementId) =>
+  `${md(elementName(doc, view, elementId))}（${md(elementId)}）`;
 export const boundaryText = (boundary) =>
   `${BOUNDARIES[boundary.kind]}（${ORIGINS[boundary.origin]}${boundary.origin === "code" ? "" : "・構造は未確認"}）`;
 const resultText = (result) =>
@@ -839,7 +848,7 @@ const verificationMarkdown = (doc) => {
     ...(rules.length ? [] : ["\n業務ルールは未登録です。"]),
     ...rules.flatMap((r) => [
       `\n## 業務ルール: ${md(r.statement)}`,
-      `ID: ${md(r.id)} / ${RULE_KINDS[r.kind]} / ${names[r.model]} / ${ORIGINS[r.origin]}`,
+      `ID: ${md(r.id)} / ${RULE_KINDS[r.kind]} / ${VIEW_LABELS[r.model]} / ${ORIGINS[r.origin]}`,
       `関連要素: ${r.targets.map((t) => elementLabel(doc, r.model, t)).join("、")}`,
       refs(r.evidence),
       ...existingTests.filter((t) => t.rules.includes(r.id)).map(testSection),
@@ -868,7 +877,6 @@ const verificationMarkdown = (doc) => {
   ].join("\n");
 };
 // A node's kind alone names its layer (see model.md).
-const names = { current: "現状", proposed: "改善案" };
 const LAYER_ORDER = ["business", "architecture", "function-flow"];
 const LAYER_LABELS = {
   architecture: "アーキテクチャ層",
@@ -922,7 +930,7 @@ export const artifacts = (doc) => {
     md(doc.scope),
   ];
   for (const view of views) {
-    model.push(`\n## ${names[view]}`);
+    model.push(`\n## ${VIEW_LABELS[view]}`);
     const { cross, layers } = byLayer(doc.models[view]);
     for (const layer of LAYER_ORDER) {
       const graph = layers.get(layer);
@@ -957,7 +965,7 @@ export const artifacts = (doc) => {
     "\n## 業務ルールと図の要素",
     ...rules.map(
       (r) =>
-        `- ${md(r.id)}（${names[r.model]} / ${RULE_KINDS[r.kind]}）: ${md(r.statement)} → ${r.targets.map((t) => elementLabel(doc, r.model, t)).join("、")}`
+        `- ${md(r.id)}（${VIEW_LABELS[r.model]} / ${RULE_KINDS[r.kind]}）: ${md(r.statement)} → ${r.targets.map((t) => elementLabel(doc, r.model, t)).join("、")}`
     ),
     "\n## 指摘",
     ...doc.comments.map(
@@ -967,7 +975,7 @@ export const artifacts = (doc) => {
     "\n## 削除記録",
     ...doc.retired.map(
       (r) =>
-        `- ${md(r.view)} / ${md(r.item.id)}: ${md(r.item.data?.label ?? r.item.label ?? r.item.statement ?? r.item.title)}`
+        `- ${md(r.view)} / ${md(r.item.id)}: ${md(retiredLabel(r.item))}`
     ),
     "\n## 未解決",
     ...doc.unresolved.map((s) => `- ${md(s)}`),

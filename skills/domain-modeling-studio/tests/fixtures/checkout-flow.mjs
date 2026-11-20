@@ -265,7 +265,7 @@ export const checkoutVerification = () => {
         boundary: { evidence: [recoveryTest], kind: "FUNCTION", origin: "code" },
         decision: "KEEP",
         error: "在庫切れを失敗として返してしまう",
-        evidence: [],
+        evidence: [recoveryTest],
         id: "keep-backorder",
         reason:
           "OutOfStockだけを回復する条件を関数の境界で直接観測する唯一のテストのため、同じ役割のテストは追加しない",

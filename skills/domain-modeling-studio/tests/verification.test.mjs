@@ -40,7 +40,7 @@ const candidate = (extra = {}) => ({
   boundary: { evidence: [], kind: "ADAPTER_INTEGRATION", origin: "inference" },
   decision: "ADD",
   error: "同時に届いた2件の受諾を両方成功させてしまう",
-  evidence: [],
+  evidence: [testRef],
   id: "accept-race",
   reason:
     "既存テストは単一の受諾だけを観測し、同時実行時の保存の制約を確かめていない",
@@ -53,6 +53,7 @@ const keep = candidate({
   boundary: { evidence: [testRef], kind: "DOMAIN", origin: "code" },
   decision: "KEEP",
   error: "受諾済みの依頼を再受諾できてしまう",
+  evidence: [testRef],
   id: "keep-accept-once",
   reason: "再受諾の拒否をドメインの境界で直接観測する唯一のテスト",
   tests: ["accept-once-test"],
@@ -211,6 +212,15 @@ test("既存テストは読んだ位置・現状の業務ルール・検証の�
 
 test("保留以外の検証候補は誤り・業務ルール・境界・理由を必須とし、欠けた内容は保留なら受け付ける", () => {
   const required = /保留以外の検証候補には検出したい誤り・守る業務ルール・検証の境界・理由が必要です/u;
+  assert.throws(
+    () =>
+      validateDocument(
+        v3((d) => {
+          d.verificationCandidates[0].evidence = [];
+        })
+      ),
+    /保留以外の検証候補には理由の根拠が必要です/u
+  );
   for (const field of ["error", "rule", "boundary", "reason"]) {
     const missing = (d) => {
       delete d.verificationCandidates[0][field];

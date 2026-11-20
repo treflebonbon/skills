@@ -21,6 +21,8 @@ import {
   RESULTS,
   DECISIONS,
   boundaryText,
+  elementName,
+  retiredLabel,
   verificationOf,
   validateDocument,
   signature,
@@ -209,13 +211,6 @@ const candidateLines = (c, testById) => [
     (id) => `対象の既存テスト: ${testById.get(id)?.title ?? id}`
   ),
 ];
-const elementName = (doc, view, id) => {
-  const item =
-    [...doc.models[view].nodes, ...doc.models[view].edges].find(
-      (i) => i.id === id
-    ) ?? doc.retired.find((r) => r.view === view && r.item.id === id)?.item;
-  return item?.data?.label ?? item?.label ?? id;
-};
 // Read-only: corrections arrive as comments and the agent regenerates records.
 const VerificationPanel = ({ doc, focus, setFocus, children }) => {
   const { existingTests, rules, verificationCandidates } = verificationOf(doc);
@@ -492,13 +487,7 @@ const Inspector = ({
       <summary>削除した対象と指摘（{doc.retired.length}）</summary>
       {doc.retired.map((r, i) => (
         <div key={`${r.item.id}-${i}`}>
-          <strong>
-            {r.item.data?.label ??
-              r.item.label ??
-              r.item.statement ??
-              r.item.title ??
-              r.item.id}
-          </strong>
+          <strong>{retiredLabel(r.item)}</strong>
           <small>{r.item.id}</small>
           {doc.comments
             .filter(
