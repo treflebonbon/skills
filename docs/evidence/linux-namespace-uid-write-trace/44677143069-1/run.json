@@ -1,0 +1,262 @@
+{
+  "attempt": 1,
+  "conclusion": "failure",
+  "createdAt": "2026-11-20T04:51:14Z",
+  "databaseId": 44677143069,
+  "displayTitle": "Linux namespace UID-map kernelトレース: 9ed9ce0646985e00405ef0317a9202505e74eea9",
+  "event": "workflow_dispatch",
+  "headBranch": "integration/python-to-bun",
+  "headSha": "9ed9ce0646985e00405ef0317a9202505e74eea9",
+  "jobs": [
+    {
+      "completedAt": "2026-11-20T04:51:30Z",
+      "conclusion": "failure",
+      "databaseId": 136091563393,
+      "name": "namespace UID-map直接書込み比較 (arm64)",
+      "startedAt": "2026-11-20T04:51:19Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-20T04:51:21Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-20T04:51:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:21Z",
+          "conclusion": "success",
+          "name": "入力 SHA と方式を検査",
+          "number": 2,
+          "startedAt": "2026-11-20T04:51:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:22Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 3,
+          "startedAt": "2026-11-20T04:51:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:23Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 4,
+          "startedAt": "2026-11-20T04:51:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "success",
+          "name": "Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 5,
+          "startedAt": "2026-11-20T04:51:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "CI 専用依存と補助 group を準備",
+          "number": 6,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "非root で全44件を3反復",
+          "number": 7,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "同じ条件のnamespace probeを3回測定",
+          "number": 8,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "namespaceオプションを一つずつ削減",
+          "number": 9,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "専用準備なしで元argv・最小候補・対照を各3回測定",
+          "number": 10,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "同じ測定コードでBunとNodeのcallerを比較",
+          "number": 11,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "Nodeを固定してunshareの継承環境と空環境を比較",
+          "number": 12,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "共通Python親からNode経由と直接起動を空環境で比較",
+          "number": 13,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "同じPython親の直接起動でcheckoutとrootのcwdを比較",
+          "number": 14,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "cwdと空環境を固定してstdoutだけsocketからpipeへ変更",
+          "number": 15,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "stdoutをpipeに固定してstderrだけsocketからpipeへ変更",
+          "number": 16,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "共通Bash親でPythonとPerlの起動層を比較",
+          "number": 17,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:24Z",
+          "conclusion": "skipped",
+          "name": "同じPerl親でstdinだけを閉じて比較",
+          "number": 18,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:25Z",
+          "conclusion": "success",
+          "name": "UID-mapカーネルトレースの前提を読取で確認",
+          "number": 19,
+          "startedAt": "2026-11-20T04:51:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:27Z",
+          "conclusion": "failure",
+          "name": "共通BashからPerlを経由せず直接起動して比較",
+          "number": 20,
+          "startedAt": "2026-11-20T04:51:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:27Z",
+          "conclusion": "skipped",
+          "name": "Bash直接の失敗PIDに対応するkernel監査を非rootで取得",
+          "number": 21,
+          "startedAt": "2026-11-20T04:51:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:27Z",
+          "conclusion": "skipped",
+          "name": "直接UID-map書込みと成功対照のkernel監査を非rootで取得",
+          "number": 22,
+          "startedAt": "2026-11-20T04:51:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:27Z",
+          "conclusion": "success",
+          "name": "UID-map専用カーネルトレースを解除",
+          "number": 23,
+          "startedAt": "2026-11-20T04:51:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:28Z",
+          "conclusion": "success",
+          "name": "成功・失敗の生証跡を保存",
+          "number": 24,
+          "startedAt": "2026-11-20T04:51:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:28Z",
+          "conclusion": "skipped",
+          "name": "Post Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 46,
+          "startedAt": "2026-11-20T04:51:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:28Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 47,
+          "startedAt": "2026-11-20T04:51:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:28Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 48,
+          "startedAt": "2026-11-20T04:51:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T04:51:28Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 49,
+          "startedAt": "2026-11-20T04:51:28Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44677143069/job/136091563393"
+    },
+    {
+      "completedAt": "2026-11-20T04:51:30Z",
+      "conclusion": "skipped",
+      "databaseId": 136091649475,
+      "name": "両 architecture と履歴を照合",
+      "startedAt": "2026-11-20T04:51:30Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44677143069/job/136091649475"
+    }
+  ],
+  "name": "Linux namespace UID-map kernelトレース: 9ed9ce0646985e00405ef0317a9202505e74eea9",
+  "startedAt": "2026-11-20T04:51:14Z",
+  "status": "completed",
+  "updatedAt": "2026-11-20T04:51:31Z",
+  "url": "https://github.com/treflebonbon/skills/actions/runs/44677143069"
+}

@@ -517,3 +517,5 @@ Bashの現行argvと成功対照から再現を確認し、その同じ対照と
 管理権限を使うのは観測担当のcheck・arm・finish・cleanup。測定対象は既存の非root条件とargv・空環境・cwd・標準fdを保つ。専用のtracefsインスタンスと今回のrun・attempt・roleで名前を分けたイベントを使い、カーネルのイベントフィルタを対象PIDに設定する。公開ログ `[DEBUG-ns-uid-write-trace]` には対象PID・役割・状態と、UID-map writeおよびその中の能力検査の時刻・能力番号・戻り値だけを載せる。読取は対象ごとに最大256KiB、バッファ欠落や開始／終了の不一致は未確認とする。動的イベント登録と解除には追記を使い、終了時に今回のイベントだけを解除する。カーネル、AppArmor、sysctlは既存設定を使う。[LinuxカーネルのKprobeイベント](https://www.kernel.org/doc/html/latest/trace/kprobetrace.html)
 
 同じwrite内で `file_ns_capable` の `CAP_SYS_ADMIN` 検査に入ったこと、AppArmor hookが `-EPERM` を返したこと、能力検査がfalse、writeが `-EPERM` を返したことを対応付けられれば、直接writeの拒否経路を支持する。先行する能力検査がtrueでwriteがEPERMなら、その後のUID mapping検査を候補とする。観測前提が満たせない場合、対象writeが再現しない場合、hookの列を対応付けられない場合は判定保留とする。
+
+[初回のrun 44677143069](evidence/linux-namespace-uid-write-trace/44677143069-1/README.md) は前提確認と非root基準15回を通過し、最初の直接mapの観測設定が `EINVAL` で停止した。対象子のexecは中止し、解除は成功した。公開sourceを照合し、Python追記ストリームのseekを使わない `O_APPEND` の単一writeへ修正した。管理権限の観測範囲は同じで、失敗時は設定ファイルまたはイベント名を定型の理由に含める。修正後の実VMでの登録可否と直接writeの拒否経路は未確認である。
