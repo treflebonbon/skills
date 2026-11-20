@@ -1,6 +1,6 @@
 ---
 name: domain-modeling-studio
-description: Collaboratively model an existing codebase with a human using an editable offline HTML diagram spanning business-flow, architecture (module-dependency neighborhood), and ROP function-flow layers, with drill-down between them. Use for code-grounded domain modeling, reviewing current versus proposed business flows, mapping the module neighborhood a flow touches, tracing a function's success/failure/recovery control flow, or incorporating diagram feedback into a glossary, BDD drafts, and implementation candidates. Not a whole-repository architecture overview or an implementation workflow.
+description: Collaboratively model an existing codebase with a human using an editable offline HTML diagram spanning business-flow, architecture (module-dependency neighborhood), and ROP function-flow layers, with drill-down between them. Use for code-grounded domain modeling, reviewing current versus proposed business flows, mapping the module neighborhood a flow touches, tracing a function's success/failure/recovery control flow, mapping business rules to existing tests and verification candidates, or incorporating diagram feedback into a glossary, BDD drafts, and implementation candidates. Not a whole-repository architecture overview or an implementation workflow.
 ---
 
 # Domain Modeling Studio
@@ -17,7 +17,7 @@ Pin the source commit with its complete 40- or 64-character hexadecimal Git ID. 
 
 Read [the model contract](references/model.md), then create a session-owned JSON file in the target repository's task scratch directory. Build the current flow with file/symbol/revision evidence on nodes and relationships. Mark deductions `inference`; use `code` only where implementation was inspected. Tests read are evidence about intended checks, not proof that those checks ran. Missing events or aggregate boundaries remain explicit hypotheses rather than invented implementation facts.
 
-Initialize `proposed` from `current`. Incorporate requested changes there, with stable IDs, change reasons and unresolved questions. A human's desired rule is `agreement` or `proposal`, never proof of current code. Populate all four deliverables: model/evidence, glossary, Gherkin drafts, and implementation candidates. Gherkin must follow the actual conditions and paths investigated, including known exceptions; never pair arbitrary first nodes into a scenario. Once architecture or function-flow nodes exist in the model, revisit all four deliverables so they reflect those layers too, not only the business flow.
+Initialize `proposed` from `current`. Incorporate requested changes there, with stable IDs, change reasons and unresolved questions. A human's desired rule is `agreement` or `proposal`, never proof of current code. Populate all five deliverables: model/evidence, glossary, Gherkin drafts, implementation candidates, and the verification policy. Gherkin must follow the actual conditions and paths investigated, including known exceptions; never pair arbitrary first nodes into a scenario. Once architecture or function-flow nodes exist in the model, revisit all five deliverables so they reflect those layers too, not only the business flow.
 
 ## Generate the architecture layer
 
@@ -35,7 +35,13 @@ For TypeScript Effect code, first collect [TypeScript syntax evidence](reference
 
 For Rust and other languages without an extraction helper, build the function-flow layer from source reading only, using [Rust Result semantics](references/rust.md) (or the closest source-reading discipline for that language).
 
-Fold what these layers establish into the four deliverables: add glossary terms confirmed while naming a module or a function's control flow; ground Gherkin scenarios only in conditions and branches actually confirmed in the function-flow layer, including known exceptions such as a bypass or a scoped recovery, and never synthesize an untested combination; cite the affected module and function as evidence on any implementation change candidate an architecture or function-flow finding motivates; and keep the model page's evidence, change reasons and unresolved questions naming architecture and function-flow findings alongside business-flow ones.
+Fold what these layers establish into the five deliverables: add glossary terms confirmed while naming a module or a function's control flow; ground Gherkin scenarios only in conditions and branches actually confirmed in the function-flow layer, including known exceptions such as a bypass or a scoped recovery, and never synthesize an untested combination; cite the affected module and function as evidence on any implementation change candidate an architecture or function-flow finding motivates; and keep the model page's evidence, change reasons and unresolved questions naming architecture and function-flow findings alongside business-flow ones.
+
+## Map rules to verification
+
+Record the business rules, invariants and state transitions the flow must keep as `rules`, each tied to the nodes or edges it governs. For each current rule, read its relevant tests and record them as `existingTests`: where they live, which rules they keep, the verification boundary they observe, and the verification result. A test read is `READ`, a test not run is `NOT_RUN`; a pass, failure, skip or model-check outcome is recorded only for a run that actually happened, with its command, revision and source. This skill runs no tests. A port, adapter or slice boundary carries its own `origin`: label it `code` only after inspecting that structure in source.
+
+Then propose `verificationCandidates` to add, keep, merge, delete or hold. Every candidate other than hold names the error it should catch, the rule it keeps, the boundary, and a sourced reason: for add, why existing tests fall short; for keep, merge or delete, the test's own role or why it has none. Check the contract, past defects, boundaries and runtime differences before proposing a merge or delete; overlapping coverage, similar surviving mutants or exclusion from test-impact selection alone are holds, not reasons. A rule an existing test already keeps gets a keep candidate rather than a second test with the same role. Hold whatever evidence cannot settle. Candidates are review material: the `tdd` skill and the target project add, change or run tests, and nothing here deletes or disables a test. Schema and examples are in [the model contract](references/model.md#verification-schemaversion-3).
 
 ## Generate and review
 
@@ -49,7 +55,7 @@ The generator validates the input and uses the committed, self-contained templat
 
 For interactive review, follow the browser opening, private serving, and ownership steps in [Open the sheet for the human](../ui-grill-with-docs/SKILL.md#open-the-sheet-for-the-human), using this session's generated HTML as the sheet. Replace its session/round check with the model's `sessionId` and `revision`, verified in the visible browser before reporting success. Keep the page available for feedback; the delivered HTML remains self-contained.
 
-Link the HTML. Ask the human to review, directly edit the proposed model, add comments, and paste **指摘・モデルをコピー** into chat. The current model accepts layout adjustments; corrections to its business content are comments for code re-investigation. The diagram's handles and inspector support edits; the inspector offers keyboard alternatives. Diagram and comment edits are undoable. Dictionary/BDD/change-candidate corrections go through feedback, then the agent regenerates them from the reviewed model.
+Link the HTML. Ask the human to review, directly edit the proposed model, add comments, and paste **指摘・モデルをコピー** into chat. The current model accepts layout adjustments; corrections to its business content are comments for code re-investigation. The diagram's handles and inspector support edits; the inspector offers keyboard alternatives. Diagram and comment edits are undoable. Dictionary/BDD/change-candidate/verification corrections go through feedback (the **検証** tab comments on a rule, existing test or candidate by ID), then the agent regenerates them from the reviewed model.
 
 ## Incorporate submitted feedback
 
@@ -63,7 +69,7 @@ The **JSONを保存** backup preserves the current document, including a comment
 
 ## Finish the modeling session
 
-Confirm the agreed model and remaining unknowns. Use `domain-modeling` to integrate only agreed vocabulary into the target repository's existing `GLOSSARY.md` (or context-specific glossary); follow its ADR criteria. Create the four artifacts in a session-owned directory with the generator. Present scenarios as drafts with current/proposed and confirmed/draft status, and separate code-reading evidence from test execution results.
+Confirm the agreed model and remaining unknowns. Use `domain-modeling` to integrate only agreed vocabulary into the target repository's existing `GLOSSARY.md` (or context-specific glossary); follow its ADR criteria. Create the five artifacts in a session-owned directory with the generator. Present scenarios as drafts with current/proposed and confirmed/draft status, and separate code-reading evidence from test execution results.
 
 Report the source revision, resulting files, unresolved questions, and checks actually performed. Implementation candidates remain a separate implementation task. Retain the agreed records; clean up only session-owned temporary files with the user's authorization. No automatic code changes, issue creation, or deployment follow from a modeling review.
 
