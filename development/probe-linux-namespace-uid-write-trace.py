@@ -39,8 +39,14 @@ def group_name(run, attempt, role):
 
 def kprobe_command(command):
     """appendで対象のイベントだけを登録・解除する。"""
-    with (TRACEFS / "kprobe_events").open("a", encoding="ascii") as stream:
-        stream.write(command + "\n")
+    payload = (command + "\n").encode("ascii")
+    # seq_lseek rejects the SEEK_END that Python append streams perform on open.
+    descriptor = os.open(TRACEFS / "kprobe_events", os.O_WRONLY | os.O_APPEND | os.O_CLOEXEC)
+    try:
+        if os.write(descriptor, payload) != len(payload):
+            raise OSError(errno.EIO, "Kprobe command write was incomplete")
+    finally:
+        os.close(descriptor)
 
 
 def remove_trace(group):
@@ -100,20 +106,32 @@ def arm_trace(group, owner, pid, uid):
     instance = TRACEFS / "instances" / group
     if instance.exists() or (TRACEFS / "events" / group).exists():
         raise TraceError("今回のトレース名は既に使われています")
-    instance.mkdir()
+    operation = "instances"
+    created = False
     try:
-        (instance / "tracing_on").write_text("0\n", encoding="ascii")
-        (instance / "buffer_size_kb").write_text("16\n", encoding="ascii")
-        (instance / "trace_clock").write_text("mono\n", encoding="ascii")
+        instance.mkdir()
+        created = True
+        for setting, value in (("tracing_on", "0"), ("buffer_size_kb", "16"), ("trace_clock", "mono")):
+            operation = setting
+            (instance / setting).write_text(value + "\n", encoding="ascii")
         for event, (kind, symbol, fields) in EVENTS.items():
+            operation = f"kprobe_events ({event})"
             kprobe_command(f"{kind}:{group}/{event} {symbol} {fields}".rstrip())
             event_dir = instance / "events" / group / event
+            operation = f"{event}/filter"
             (event_dir / "filter").write_text(f"common_pid == {pid}\n", encoding="ascii")
+            operation = f"{event}/enable"
             (event_dir / "enable").write_text("1\n", encoding="ascii")
+        operation = "tracing_on"
         (instance / "tracing_on").write_text("1\n", encoding="ascii")
-    except OSError:
-        remove_trace(group)
-        raise
+    except OSError as error:
+        detail = f"{operation} が {errno.errorcode.get(error.errno, 'UNKNOWN')} を返しました"
+        if created:
+            try:
+                remove_trace(group)
+            except TraceError as cleanup_error:
+                detail += f"。{cleanup_error}"
+        raise TraceError(detail) from None
 
 
 def parse_trace(raw, pid, role):

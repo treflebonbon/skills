@@ -1,5 +1,6 @@
 """Kprobeの選択、トレースの照合と後片付けをfixtureで検査する。"""
 
+import errno
 import importlib.util
 import json
 import subprocess
@@ -68,8 +69,11 @@ class UidMapTraceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(TRACE, "TRACEFS", Path(tmp)):
             registry = Path(tmp) / "kprobe_events"
             registry.write_text("p:existing/event existing_func\n")
-            TRACE.kprobe_command("p:uidmap_123_1_map/write_enter proc_uid_map_write")
-            TRACE.kprobe_command("-:uidmap_123_1_map/write_enter")
+            with mock.patch.object(TRACE.os, "open", wraps=TRACE.os.open) as opened:
+                TRACE.kprobe_command("p:uidmap_123_1_map/write_enter proc_uid_map_write")
+                TRACE.kprobe_command("-:uidmap_123_1_map/write_enter")
+            flags = TRACE.os.O_WRONLY | TRACE.os.O_APPEND | TRACE.os.O_CLOEXEC
+            self.assertEqual(opened.call_args_list, [mock.call(registry, flags)] * 2)
             self.assertEqual(registry.read_text().splitlines(), [
                 "p:existing/event existing_func",
                 "p:uidmap_123_1_map/write_enter proc_uid_map_write",
@@ -104,13 +108,13 @@ class UidMapTraceTests(unittest.TestCase):
 
     def test_arm_rolls_back_partial_registration(self):
         with (mock.patch.object(TRACE, "require_probe_child"),
-              mock.patch.object(TRACE, "kprobe_command", side_effect=[None, OSError("fixture")]),
+              mock.patch.object(TRACE, "kprobe_command", side_effect=[None, OSError(errno.EINVAL, "fixture")]),
               mock.patch.object(Path, "exists", return_value=False),
               mock.patch.object(Path, "mkdir"),
               mock.patch.object(Path, "write_text"),
               mock.patch.object(TRACE, "remove_trace") as cleanup):
             group = TRACE.group_name("123", "1", "control")
-            with self.assertRaisesRegex(OSError, "fixture"):
+            with self.assertRaisesRegex(TRACE.TraceError, r"kprobe_events \(write_exit\) が EINVAL"):
                 TRACE.arm_trace(group, 1000, 1234, 1001)
             cleanup.assert_called_once_with(group)
 
