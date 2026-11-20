@@ -187,9 +187,6 @@ test("直接UID-map modeだけが既存UID基準の後に接続され、監査�
   expect(workflow).toContain("|| inputs.mode == 'probe-uid-write'");
   const labelInput = workflow.split("      uid_write_label:\n")[1]!.split("\n\n")[0]!;
   expect(labelInput).toContain("        default: false");
-  expect(workflow).toContain(
-    '[[ "$UID_WRITE_LABEL" != true || ( "$PROOF_MODE" == probe-uid-write && "$UID_WRITE_AUDIT" != true ) ]]',
-  );
   expect(workflow).toContain("PROOF_UID_WRITE_LABEL: ${{ inputs.uid_write_label }}");
   const launcher = fs.readFileSync(join(root, "development/probe-linux-namespace-bash.sh"), "utf8");
   expect(launcher).toContain("label_option=(--apparmor-label)");
@@ -200,4 +197,37 @@ test("直接UID-map modeだけが既存UID基準の後に接続され、監査�
   expect(audit.match(/^\s+if:\s*(.+)$/m)?.[1]).toBe(
     "always() && inputs.mode == 'probe-bash-audit'",
   );
+});
+
+test("AppArmorラベル観測の入力検査は許可された組合せだけを通す", () => {
+  const workflow = fs.readFileSync(join(root, ".github/workflows/linux-process-proof.yml"), "utf8");
+  const guard = workflow
+    .split("- name: 入力 SHA と方式を検査\n")[1]!
+    .split("        run: |\n")[1]!
+    .split("      - uses:")[0]!;
+  for (const [mode, audit, label, allowed] of [
+    ["probe-uid-write", "false", "true", true],
+    ["probe-uid-write", "true", "false", true],
+    ["proof", "false", "false", true],
+    ["proof", "false", "true", false],
+    ["probe-uid-write", "true", "true", false],
+  ] as const) {
+    const result = spawnSync("bash", ["-e", "-c", guard], {
+      cwd: root,
+      env: {
+        ...process.env,
+        PROOF_SOURCE_SHA: "a".repeat(40),
+        PROOF_MODE: mode,
+        UID_WRITE_AUDIT: audit,
+        UID_WRITE_LABEL: label,
+      },
+      encoding: "utf8",
+      timeout: 1000,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(allowed ? 0 : 2);
+    expect(result.stderr).toBe(
+      allowed ? "" : "AppArmorラベル観測にはprobe-uid-writeとuid_write_audit=falseが必要です\n",
+    );
+  }
 });
