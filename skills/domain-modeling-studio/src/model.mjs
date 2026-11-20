@@ -795,7 +795,7 @@ const elementLabel = (doc, view, elementId) => {
     doc.retired.find((r) => r.view === view && r.item.id === elementId)?.item;
   return `${md(item.data.label ?? item.label)}（${md(elementId)}）`;
 };
-const boundaryText = (boundary) =>
+export const boundaryText = (boundary) =>
   `${BOUNDARIES[boundary.kind]}（${ORIGINS[boundary.origin]}${boundary.origin === "code" ? "" : "・構造は未確認"}）`;
 const resultText = (result) =>
   [
@@ -1027,5 +1027,5 @@ export const feedback = (doc, exportId) => {
   const fence = "`".repeat(
     Math.max(3, ...[...json.matchAll(/`+/gu)].map((m) => m[0].length + 1))
   );
-  return `# ドメインモデルのレビュー\nセッション: ${md(doc.sessionId)} / 版: ${md(doc.revision)}\n回答ID: ${exportId}\n\n指摘と改善案を再調査してください。現状はコードから再確認し、用語・BDD・変更候補も整合させてください。更新版のbasedOnには、この版と回答IDを設定し、未解決事項と削除対象への指摘を保持してください。\n\n${doc.comments.map((c) => `- ${md(c.target.view)}/${md(c.target.id ?? "全体")}: ${md(c.text)}`).join("\n")}\n\n${fence}json\n${json}\n${fence}\n`;
+  return `# ドメインモデルのレビュー\nセッション: ${md(doc.sessionId)} / 版: ${md(doc.revision)}\n回答ID: ${exportId}\n\n指摘と改善案を再調査してください。現状はコードから再確認し、用語・BDD・変更候補・検証方針も整合させてください。更新版のbasedOnには、この版と回答IDを設定し、未解決事項と削除対象への指摘を保持してください。\n\n${doc.comments.map((c) => `- ${md(c.target.view)}/${md(c.target.id ?? "全体")}: ${md(c.text)}`).join("\n")}\n\n${fence}json\n${json}\n${fence}\n`;
 };
