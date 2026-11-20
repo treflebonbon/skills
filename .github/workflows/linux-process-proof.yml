@@ -144,7 +144,7 @@ jobs:
         run: bun control/development/probe-linux-namespace-bash-audit.ts "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof"
       - name: 直接UID-map書込みと成功対照のkernel監査を非rootで取得
         if: always() && inputs.uid_write_audit && inputs.mode == 'probe-uid-write' && matrix.arch == 'arm64' && steps.bash_comparison.outcome == 'failure'
-        timeout-minutes: 2
+        timeout-minutes: 3
         run: bun control/development/probe-linux-namespace-bash-audit.ts "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof" --uid-write
       - name: 成功・失敗の生証跡を保存
         if: always()
