@@ -434,6 +434,7 @@ test("名称変更・削除後もID・根拠・指摘を保持し、コピー後
     "glossary.md",
     "model.md",
     "scenarios.feature",
+    "verification.md",
   ]);
   assert.ok(artifacts(deleted)["scenarios.feature"].includes("再確認待ち"));
 });

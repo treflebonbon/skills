@@ -201,3 +201,95 @@ export const checkoutFunctionFlow = () => {
   ];
   return { businessNode, edges, nodes };
 };
+
+// Fictional verification records for the checkout flow (#58). The test paths
+// below are illustrative only: no checkout test suite exists in this repo.
+const CHECKOUT_TEST = "tests/checkout.test.ts";
+export const checkoutVerification = () => {
+  const recoveryTest = ref(CHECKOUT_TEST, "OutOfStockを代替入荷で確定する", 20);
+  return {
+    existingTests: [
+      {
+        boundary: { evidence: [recoveryTest], kind: "FUNCTION", origin: "code" },
+        evidence: [recoveryTest],
+        id: "test-backorder",
+        result: { status: "READ" },
+        rules: ["rule-backorder"],
+        title: "在庫切れを代替入荷で確定するテスト",
+      },
+      {
+        boundary: { evidence: [], kind: "PORT_CONTRACT", origin: "inference" },
+        evidence: [ref(CHECKOUT_TEST, "PaymentDeclinedをCheckoutFailedで返す", 34)],
+        id: "test-declined",
+        result: {
+          command: "npm test -- checkout",
+          revision: FIXTURE_REVISION,
+          source: "架空の実行記録（説明用）",
+          status: "PASSED",
+        },
+        rules: ["rule-declined"],
+        title: "支払い拒否を確定しないテスト",
+      },
+    ],
+    rules: [
+      {
+        evidence: [ref(TS_PATH, "catchTag", 15)],
+        id: "rule-backorder",
+        kind: "RULE",
+        model: "current",
+        origin: "code",
+        statement: "在庫切れの注文は代替入荷で確定する",
+        targets: ["ts-recovery", "e-ts-recovery-end"],
+      },
+      {
+        evidence: [ref(TS_PATH, "mapError", 16)],
+        id: "rule-declined",
+        kind: "INVARIANT",
+        model: "current",
+        origin: "code",
+        statement: "支払いが拒否された注文は確定しない",
+        targets: ["ts-bypass", "ts-map-error", "ts-failure-end"],
+      },
+      {
+        evidence: [ref(TS_PATH, "charge", 13)],
+        id: "rule-confirmed",
+        kind: "TRANSITION",
+        model: "current",
+        origin: "code",
+        statement: "注文は請求が成功したときだけ確定済みになる",
+        targets: ["e-ts-charge-success", "ts-success-end"],
+      },
+    ],
+    verificationCandidates: [
+      {
+        boundary: { evidence: [recoveryTest], kind: "FUNCTION", origin: "code" },
+        decision: "KEEP",
+        error: "在庫切れを失敗として返してしまう",
+        evidence: [recoveryTest],
+        id: "keep-backorder",
+        reason:
+          "OutOfStockだけを回復する条件を関数の境界で直接観測する唯一のテストのため、同じ役割のテストは追加しない",
+        rule: "rule-backorder",
+        tests: ["test-backorder"],
+        title: "代替入荷の確定テストを維持する",
+      },
+      {
+        boundary: { evidence: [], kind: "SLICE", origin: "inference" },
+        decision: "ADD",
+        error: "請求が失敗しても確定応答を返してしまう",
+        evidence: [ref(TS_PATH, "charge", 13)],
+        id: "add-confirmed",
+        reason: "この状態遷移を観測する既存テストがない",
+        rule: "rule-confirmed",
+        tests: [],
+        title: "請求成功時だけ確定することを検証する",
+      },
+      {
+        decision: "HOLD",
+        evidence: [ref(RS_PATH, "tax_rate", 24)],
+        id: "hold-tax-recovery",
+        title: "税率照会の0円回復を検証対象にするか決める",
+      },
+    ],
+  };
+};

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { validateDocument } from "../src/model.mjs";
+import { artifacts, validateDocument } from "../src/model.mjs";
 import { example } from "./fixture.mjs";
 import { buildRealContentDocument } from "./fixtures/real-content.mjs";
 
@@ -65,4 +65,36 @@ test("手作りフィクスチャと実生成物のあいだでノード・関�
   const [realEdge] = architecture.edges;
   assert.deepEqual(shapeOf(realEdge), shapeOf(fixtureEdge));
   assert.deepEqual(shapeOf(realEdge.data), shapeOf(fixtureEdge.data));
+});
+
+test("架空のcheckoutで、業務ルールから関連要素・既存テスト・検証候補を辿り、守れているルールには追加でなく維持を示す", async () => {
+  const { document } = await buildRealContentDocument();
+  const doc = validateDocument(document);
+  assert.deepEqual(doc.rules.map((r) => r.kind).toSorted(), [
+    "INVARIANT",
+    "RULE",
+    "TRANSITION",
+  ]);
+  const file = artifacts(doc)["verification.md"];
+  const ruleBlock = (statement) => {
+    const start = file.indexOf(`## 業務ルール: ${statement}`);
+    assert.notEqual(start, -1, statement);
+    const next = file.indexOf("\n## ", start + 1);
+    return file.slice(start, next === -1 ? undefined : next);
+  };
+
+  const recovered = ruleBlock("在庫切れの注文は代替入荷で確定する");
+  assert.match(recovered, /関連要素: 在庫切れを代替入荷へ回復する/u);
+  assert.match(recovered, /### 既存テスト: 在庫切れを代替入荷で確定するテスト/u);
+  assert.match(recovered, /判断: 維持/u);
+  assert.match(
+    recovered,
+    /理由: OutOfStockだけを回復する条件を関数の境界で直接観測する唯一のテストのため、同じ役割のテストは追加しない/u
+  );
+  assert.doesNotMatch(recovered, /判断: 追加/u);
+
+  const confirmed = ruleBlock("注文は請求が成功したときだけ確定済みになる");
+  assert.doesNotMatch(confirmed, /### 既存テスト/u);
+  assert.match(confirmed, /判断: 追加/u);
+  assert.match(confirmed, /理由: この状態遷移を観測する既存テストがない/u);
 });

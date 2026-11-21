@@ -28,7 +28,46 @@ export const ORIGINS = {
   inference: "AIの推測",
   proposal: "未検証の改善案",
 };
+export const RULE_KINDS = {
+  INVARIANT: "不変条件",
+  RULE: "業務ルール（一般）",
+  TRANSITION: "状態遷移",
+};
+export const BOUNDARIES = {
+  ADAPTER_INTEGRATION: "アダプター結合",
+  DOMAIN: "ドメイン",
+  FUNCTION: "関数",
+  PORT_CONTRACT: "ポート契約",
+  SLICE: "スライス",
+};
+export const RESULTS = {
+  FAILED: "実行・失敗",
+  MODEL_COUNTEREXAMPLE: "形式モデルで反例あり",
+  MODEL_NO_COUNTEREXAMPLE: "形式モデルで反例なし",
+  NOT_RUN: "未実行",
+  PASSED: "実行・合格",
+  READ: "読んだのみ",
+  SKIPPED: "スキップ",
+};
+export const DECISIONS = {
+  ADD: "追加",
+  DELETE: "削除",
+  HOLD: "保留",
+  KEEP: "維持",
+  MERGE: "統合",
+};
 const views = ["current", "proposed"];
+const VIEW_LABELS = { current: "現状", proposed: "改善案" };
+const VERIFICATION_KEYS = ["rules", "existingTests", "verificationCandidates"];
+// Retired verification records use these entity names under view "verification".
+const VERIFICATION_ENTITIES = {
+  existingTests: "existingTest",
+  rules: "rule",
+  verificationCandidates: "verificationCandidate",
+};
+// schemaVersion 2 documents carry no verification records; read them as empty.
+export const verificationOf = (doc) =>
+  Object.fromEntries(VERIFICATION_KEYS.map((key) => [key, doc[key] ?? []]));
 const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const text = (v) => typeof v === "string";
 const nonempty = (v) => text(v) && v.trim().length > 0;
@@ -138,12 +177,25 @@ const validateComment = (comment) => {
   );
   need(
     comment.target.view === "whole" ||
-      (views.includes(comment.target.view) && id(comment.target.id)),
+      ([...views, "verification"].includes(comment.target.view) &&
+        id(comment.target.id)),
     "指摘対象が不正です"
   );
 };
 
 const validateRetired = (entry) => {
+  if (entry?.view === "verification") {
+    // Referential checks no longer apply to a removed record; keep it legible.
+    need(
+      Object.values(VERIFICATION_ENTITIES).includes(entry.entity) &&
+        object(entry.item) &&
+        id(entry.item.id) &&
+        nonempty(entry.item.statement ?? entry.item.title),
+      "削除記録が不正です"
+    );
+    evidence(entry.item.evidence);
+    return;
+  }
   need(
     object(entry) &&
       views.includes(entry.view) &&
@@ -218,6 +270,143 @@ const validateChange = (change) => {
   evidence(change.evidence);
 };
 
+// A rule may point at a removed element: deleting a proposed node must not
+// invalidate the rule, and the retired record keeps the target attributable.
+const elementIds = (doc, view) =>
+  new Set([
+    ...[...doc.models[view].nodes, ...doc.models[view].edges].map((i) => i.id),
+    ...doc.retired.filter((r) => r.view === view).map((r) => r.item.id),
+  ]);
+const validateRule = (rule, doc) => {
+  need(
+    object(rule) &&
+      Object.hasOwn(RULE_KINDS, rule.kind) &&
+      nonempty(rule.statement) &&
+      views.includes(rule.model),
+    "業務ルールの形式が不正です"
+  );
+  provenance(rule);
+  const known = elementIds(doc, rule.model);
+  need(
+    Array.isArray(rule.targets) &&
+      rule.targets.length > 0 &&
+      rule.targets.every((target) => known.has(target)),
+    "業務ルールの関連先が見つかりません"
+  );
+};
+const validateBoundary = (boundary) => {
+  need(
+    object(boundary) && Object.hasOwn(BOUNDARIES, boundary.kind),
+    "検証の境界が不正です"
+  );
+  provenance(boundary);
+};
+const validateResult = (result) => {
+  need(
+    object(result) && Object.hasOwn(RESULTS, result.status),
+    "検証結果の区分が不正です"
+  );
+  // Only an actual run is a result; reading a test or not running it is not.
+  need(
+    ["READ", "NOT_RUN"].includes(result.status) ||
+      (nonempty(result.command) &&
+        commitId(result.revision) &&
+        nonempty(result.source)),
+    "実行結果には実行コマンド・対象revision・出所が必要です"
+  );
+};
+const validateExistingTest = (item, rules) => {
+  need(
+    object(item) && nonempty(item.title) && Array.isArray(item.evidence),
+    "既存テストの形式が不正です"
+  );
+  evidence(item.evidence);
+  need(item.evidence.length > 0, "既存テストの形式が不正です（読んだ位置の根拠が必要です）");
+  need(
+    Array.isArray(item.rules) &&
+      item.rules.length > 0 &&
+      item.rules.every((ruleId) => rules.has(ruleId)),
+    "既存テストが守る業務ルールが見つかりません"
+  );
+  need(
+    item.rules.every((ruleId) => rules.get(ruleId).model === "current"),
+    "改善案の業務ルールには既存テストを紐づけられません"
+  );
+  validateBoundary(item.boundary);
+  validateResult(item.result);
+};
+const validateCandidate = (item, rules, tests) => {
+  need(
+    object(item) &&
+      nonempty(item.title) &&
+      Object.hasOwn(DECISIONS, item.decision) &&
+      (item.tests === undefined || Array.isArray(item.tests)),
+    "検証候補の形式が不正です"
+  );
+  evidence(item.evidence);
+  need(
+    item.decision === "HOLD" ||
+      (nonempty(item.error) &&
+        item.rule !== undefined &&
+        item.boundary !== undefined &&
+        nonempty(item.reason)),
+    "保留以外の検証候補には検出したい誤り・守る業務ルール・検証の境界・理由が必要です"
+  );
+  need(
+    item.decision === "HOLD" || item.evidence.length > 0,
+    "保留以外の検証候補には理由の根拠が必要です"
+  );
+  need(
+    item.rule === undefined || rules.has(item.rule),
+    "検証候補の業務ルールが見つかりません"
+  );
+  if (item.boundary !== undefined) {
+    validateBoundary(item.boundary);
+  }
+  const targets = item.tests ?? [];
+  need(
+    !["KEEP", "MERGE", "DELETE"].includes(item.decision) || targets.length > 0,
+    "維持・統合・削除の候補には対象の既存テストが必要です"
+  );
+  need(
+    targets.every((testId) => tests.has(testId)),
+    "対象の既存テストが見つかりません"
+  );
+  need(
+    item.rule === undefined ||
+      targets.every((testId) => tests.get(testId).rules.includes(item.rule)),
+    "対象の既存テストが守る業務ルールと一致しません"
+  );
+};
+const validateVerification = (doc) => {
+  if (doc.schemaVersion === 2) {
+    need(
+      VERIFICATION_KEYS.every((key) => doc[key] === undefined),
+      "業務ルール・既存テスト・検証候補にはschemaVersion: 3が必要です"
+    );
+    return;
+  }
+  for (const key of VERIFICATION_KEYS) {
+    need(Array.isArray(doc[key]), `${key}は配列で指定してください`);
+  }
+  const ids = VERIFICATION_KEYS.flatMap((key) => doc[key]).map((i) => i?.id);
+  need(
+    ids.every(id) && new Set(ids).size === ids.length,
+    "業務ルール・既存テスト・検証候補のIDが不正または重複しています"
+  );
+  for (const rule of doc.rules) {
+    validateRule(rule, doc);
+  }
+  const rules = new Map(doc.rules.map((rule) => [rule.id, rule]));
+  for (const item of doc.existingTests) {
+    validateExistingTest(item, rules);
+  }
+  const tests = new Map(doc.existingTests.map((item) => [item.id, item]));
+  for (const item of doc.verificationCandidates) {
+    validateCandidate(item, rules, tests);
+  }
+};
+
 const validateResolutions = (items = []) => {
   need(Array.isArray(items), "解決記録は配列で指定してください");
   for (const item of items) {
@@ -262,8 +451,8 @@ const validateHistory = (history = []) => {
 
 export const validateDocument = (doc) => {
   need(
-    object(doc) && doc.schemaVersion === 2,
-    "未対応のモデル形式です（schemaVersion: 2が必要）"
+    object(doc) && [2, 3].includes(doc.schemaVersion),
+    "未対応のモデル形式です（schemaVersion: 2または3が必要）"
   );
   need(id(doc.sessionId) && id(doc.revision), "sessionId・revisionが不正です");
   need(nonempty(doc.title) && text(doc.scope), "タイトル・対象範囲が必要です");
@@ -318,6 +507,7 @@ export const validateDocument = (doc) => {
     validateChange(item);
   }
   need(doc.unresolved.every(nonempty), "未解決事項は文字列で指定してください");
+  validateVerification(doc);
   validateResolutions(doc.resolutions);
   validateEditResolutions(doc.editResolutions);
   validateHistory(doc.revisionHistory);
@@ -436,6 +626,18 @@ const preservesReview = (incoming, saved) => {
     views.every((view) =>
       ["nodes", "edges"].every((key) =>
         preservesItems(incoming, previous, view, key, seed)
+      )
+    ) &&
+    VERIFICATION_KEYS.every((key) =>
+      verificationOf(previous)[key].every(
+        (item) =>
+          verificationOf(incoming)[key].some((next) => next.id === item.id) ||
+          incoming.retired.some(
+            (entry) =>
+              entry.view === "verification" &&
+              entry.entity === VERIFICATION_ENTITIES[key] &&
+              canonical(entry.item) === canonical(item)
+          )
       )
     )
   );
@@ -583,6 +785,97 @@ const refs = (items) =>
     )
     .join("\n");
 const clean = (s) => String(s).replaceAll(/[\r\n]/gu, " ");
+const codeSpan = (s) => {
+  const value = clean(s);
+  const fence = "`".repeat(
+    Math.max(0, ...[...value.matchAll(/`+/gu)].map((m) => m[0].length)) + 1
+  );
+  return `${fence} ${value} ${fence}`;
+};
+export const retiredLabel = (item) =>
+  item.data?.label ?? item.label ?? item.statement ?? item.title ?? item.id;
+// Rule targets may name retired elements (see elementIds).
+export const elementName = (doc, view, elementId) =>
+  retiredLabel(
+    [...doc.models[view].nodes, ...doc.models[view].edges].find(
+      (i) => i.id === elementId
+    ) ??
+      doc.retired.find((r) => r.view === view && r.item.id === elementId).item
+  );
+const elementLabel = (doc, view, elementId) =>
+  `${md(elementName(doc, view, elementId))}（${md(elementId)}）`;
+export const boundaryText = (boundary) =>
+  `${BOUNDARIES[boundary.kind]}（${ORIGINS[boundary.origin]}${boundary.origin === "code" ? "" : "・構造は未確認"}）`;
+const resultText = (result) =>
+  [
+    `検証結果: ${RESULTS[result.status]}`,
+    ...(result.command
+      ? [
+          `実行コマンド: ${codeSpan(result.command)}`,
+          `対象版: ${md(result.revision)}`,
+          `出所: ${md(result.source)}`,
+        ]
+      : []),
+  ].join("\n");
+const verificationMarkdown = (doc) => {
+  const { existingTests, rules, verificationCandidates } = verificationOf(doc);
+  const testById = new Map(existingTests.map((t) => [t.id, t]));
+  const testSection = (t) =>
+    [
+      `\n### 既存テスト: ${md(t.title)}`,
+      `ID: ${md(t.id)}`,
+      `検証の境界: ${boundaryText(t.boundary)}`,
+      resultText(t.result),
+      refs(t.evidence),
+    ].join("\n");
+  const candidateSection = (c) =>
+    [
+      `\n### 検証候補: ${md(c.title)}`,
+      `ID: ${md(c.id)} / 判断: ${DECISIONS[c.decision]}`,
+      ...(c.error ? [`検出したい誤り: ${md(c.error)}`] : []),
+      ...(c.boundary ? [`検証の境界: ${boundaryText(c.boundary)}`] : []),
+      ...(c.reason ? [`理由: ${md(c.reason)}`] : []),
+      ...(c.tests ?? []).map(
+        (testId) =>
+          `対象の既存テスト: ${md(testById.get(testId).title)}（${md(testId)}）`
+      ),
+      refs(c.evidence),
+    ].join("\n");
+  const unassigned = verificationCandidates.filter((c) => !c.rule);
+  return [
+    "# 検証方針",
+    "根拠と検証結果は別の区分です。根拠はコードで確認・業務上の合意・AIの推測・未検証の改善案を、検証結果はテストや形式モデルを実際にどう扱ったかを示します。テストを読んだことは、実行や合格を意味しません。",
+    ...(rules.length ? [] : ["\n業務ルールは未登録です。"]),
+    ...rules.flatMap((r) => [
+      `\n## 業務ルール: ${md(r.statement)}`,
+      `ID: ${md(r.id)} / ${RULE_KINDS[r.kind]} / ${VIEW_LABELS[r.model]} / ${ORIGINS[r.origin]}`,
+      `関連要素: ${r.targets.map((t) => elementLabel(doc, r.model, t)).join("、")}`,
+      refs(r.evidence),
+      ...existingTests.filter((t) => t.rules.includes(r.id)).map(testSection),
+      ...verificationCandidates
+        .filter((c) => c.rule === r.id)
+        .map(candidateSection),
+    ]),
+    ...(unassigned.length
+      ? ["\n## 業務ルールが未定の検証候補", ...unassigned.map(candidateSection)]
+      : []),
+    "\n## 未確認事項",
+    ...verificationCandidates
+      .filter((c) => c.decision === "HOLD")
+      .map((c) => `- 保留: ${md(c.title)}`),
+    ...existingTests
+      .filter((t) => ["READ", "NOT_RUN"].includes(t.result.status))
+      .map(
+        (t) => `- 実行結果なし: ${md(t.title)}（${RESULTS[t.result.status]}）`
+      ),
+    ...[...existingTests, ...verificationCandidates]
+      .filter((item) => item.boundary && item.boundary.origin !== "code")
+      .map(
+        (item) =>
+          `- 境界の構造が未確認: ${md(item.title)}（${BOUNDARIES[item.boundary.kind]}）`
+      ),
+  ].join("\n");
+};
 // A node's kind alone names its layer (see model.md).
 const LAYER_ORDER = ["business", "architecture", "function-flow"];
 const LAYER_LABELS = {
@@ -637,7 +930,7 @@ export const artifacts = (doc) => {
     md(doc.scope),
   ];
   for (const view of views) {
-    model.push(`\n## ${view === "current" ? "現状" : "改善案"}`);
+    model.push(`\n## ${VIEW_LABELS[view]}`);
     const { cross, layers } = byLayer(doc.models[view]);
     for (const layer of LAYER_ORDER) {
       const graph = layers.get(layer);
@@ -667,7 +960,13 @@ export const artifacts = (doc) => {
       );
     }
   }
+  const { rules } = verificationOf(doc);
   model.push(
+    "\n## 業務ルールと図の要素",
+    ...rules.map(
+      (r) =>
+        `- ${md(r.id)}（${VIEW_LABELS[r.model]} / ${RULE_KINDS[r.kind]}）: ${md(r.statement)} → ${r.targets.map((t) => elementLabel(doc, r.model, t)).join("、")}`
+    ),
     "\n## 指摘",
     ...doc.comments.map(
       (c) =>
@@ -676,7 +975,7 @@ export const artifacts = (doc) => {
     "\n## 削除記録",
     ...doc.retired.map(
       (r) =>
-        `- ${md(r.view)} / ${md(r.item.id)}: ${md(r.item.data.label ?? r.item.label)}`
+        `- ${md(r.view)} / ${md(r.item.id)}: ${md(retiredLabel(r.item))}`
     ),
     "\n## 未解決",
     ...doc.unresolved.map((s) => `- ${md(s)}`),
@@ -722,6 +1021,7 @@ export const artifacts = (doc) => {
     "glossary.md": warning + glossary,
     "model.md": model.join("\n"),
     "scenarios.feature": bdd,
+    "verification.md": warning + verificationMarkdown(doc),
   };
 };
 
@@ -735,5 +1035,5 @@ export const feedback = (doc, exportId) => {
   const fence = "`".repeat(
     Math.max(3, ...[...json.matchAll(/`+/gu)].map((m) => m[0].length + 1))
   );
-  return `# ドメインモデルのレビュー\nセッション: ${md(doc.sessionId)} / 版: ${md(doc.revision)}\n回答ID: ${exportId}\n\n指摘と改善案を再調査してください。現状はコードから再確認し、用語・BDD・変更候補も整合させてください。更新版のbasedOnには、この版と回答IDを設定し、未解決事項と削除対象への指摘を保持してください。\n\n${doc.comments.map((c) => `- ${md(c.target.view)}/${md(c.target.id ?? "全体")}: ${md(c.text)}`).join("\n")}\n\n${fence}json\n${json}\n${fence}\n`;
+  return `# ドメインモデルのレビュー\nセッション: ${md(doc.sessionId)} / 版: ${md(doc.revision)}\n回答ID: ${exportId}\n\n指摘と改善案を再調査してください。現状はコードから再確認し、用語・BDD・変更候補・検証方針も整合させてください。更新版のbasedOnには、この版と回答IDを設定し、未解決事項と削除対象への指摘を保持してください。\n\n${doc.comments.map((c) => `- ${md(c.target.view)}/${md(c.target.id ?? "全体")}: ${md(c.text)}`).join("\n")}\n\n${fence}json\n${json}\n${fence}\n`;
 };
