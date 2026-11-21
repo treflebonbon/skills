@@ -1,5 +1,19 @@
 # Linux namespace の再現ループ
 
+## 結論（2026-11-21、診断終了）
+
+GitHub-hosted Ubuntu 24.04 で非 root の `unshare --user --map-current-user` が EPERM になる原因は、Ubuntu の既定設定 `apparmor_restrict_unprivileged_userns=1` である。この設定により、非特権の user namespace に AppArmor の `unprivileged_userns` プロファイルが適用され、namespace 内での `CAP_SYS_ADMIN` が拒否されて UID-map の write が失敗する。根拠は次の 3 つが同じ経路を示したこと。
+
+- 直接子のラベル観測（[run 44670151286](evidence/linux-namespace-uid-write-label/44670151286-1/README.md)）
+- 同じ write 内のカーネル戻り値（[run 44679764568](evidence/linux-namespace-uid-write-trace/44679764568-1/README.md)）
+- 版を固定した公開カーネルソース
+
+Bun・Node・Python・Perl を経由した起動、継承環境、cwd、stdio の種類は、いずれも再現に必須でないことを比較で確認した。
+
+x64 の trace、各構成の残り PID、読み込まれている policy の該当行は観測していない。これらを追加で観測しても方式の判断は変わらないため、ここで診断を終える。方式の判断は [ADR 0005](adr/0005-linux-host-adaptive-preparation-containment.md) に記す。各 run で使った測定器は main に残していない。各記録が固定している commit の blob（最終版は [`6091aa9`](https://github.com/treflebonbon/skills/tree/6091aa911140b256e2871a07d38b9acd1c89e9e8/development)）から参照する。
+
+## 経過
+
 状態: [run 44078199627 / attempt 1](evidence/linux-namespace-loop/44078199627-1/README.md) でx64 / arm64各3回、同じEPERMを再現した。前提検査は1回約0.22〜0.49秒で、Phase 1は確認済み。stdin比較に続く[Bash直接起動比較](evidence/linux-namespace-bash/44418918065-1/README.md)では、共通Bashと上位祖先・閉鎖stdin・空環境・cwd `/`・両streamの通常pipeを保ち、Perlを含む起動層を外しても同じEPERMを再現した。最新の[Bash監査取得](evidence/linux-namespace-bash-audit/44438396275-1/README.md)では、両構成それぞれ2 PIDに対応する時間窓でAppArmorの `sys_admin` 能力拒否を通常権限で取得した。[namespace作成だけを残す比較](evidence/linux-namespace-userns/44458506354-1/README.md)では両構成とも最小argvが各3回EPERM、namespace作成だけの対照が各3回成功し、mapping関連操作が今回の再現に必要だった。[数値名検査を加えたUID mapping単独の比較](evidence/linux-namespace-uid/44542479679-1/README.md)では、両構成で数値名が正常な未登録と分類された後、UID-onlyも各3回同じEPERMとなり、namespace-only対照は各3回成功した。[直接UID-map書込み比較](evidence/linux-namespace-uid-write/44633267572-1/README.md)では、両構成でnamespace作成・openは各3回成功し、writeだけが各3回EPERM、直接namespace-only対照は各3回成功した。Phase 2の最小化と原因の確定は未完了。[run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) の失敗記録と [ADR 0003](adr/0003-os-specific-preparation-containment.md) の条件を引き継ぐ。
 
 ## 測る対象
@@ -345,7 +359,7 @@ Bashが未使用OUTPUTを排他的に確保する。準備の専用コード46�
 
 [Ubuntu 24.04の公式仕様](https://documentation.ubuntu.com/release-notes/24.04/#unprivileged-user-namespace-restrictions)は、unconfinedな非特権processのuser namespace作成を許容し、その後のnamespace内capability利用を制限する既定profileを説明している。保存イベントはこの説明と整合する。Bash監査取得では4 PIDの時間窓でprofile遷移と能力拒否を追加確認したが、UID-map書込みまでの因果関係とloaded policyの該当規則は未確認である。sysctlやprofileを変更して原因と認定する検証は行わない。
 
-`mode=probe-bash-audit` は既存のBash比較を先にそのまま実行し、比較後に [専用collector](../development/probe-linux-namespace-bash-audit.ts) を別stepで実行する。namespace probeはPerl/Bash各6回・最大12回/architectureで、x64・arm64合計最大24回、unshare版確認は別に各1回。空環境・cwd `/`・閉鎖stdin・通常pipe・非root・5秒/合算32MiBを維持する。
+`mode=probe-bash-audit` は既存のBash比較を先にそのまま実行し、比較後に [専用collector](https://github.com/treflebonbon/skills/blob/6091aa911140b256e2871a07d38b9acd1c89e9e8/development/probe-linux-namespace-bash-audit.ts) を別stepで実行する。namespace probeはPerl/Bash各6回・最大12回/architectureで、x64・arm64合計最大24回、unshare版確認は別に各1回。空環境・cwd `/`・閉鎖stdin・通常pipe・非root・5秒/合算32MiBを維持する。
 
 collectorは正式実証で使う `probeAudit` を共有し、sudoを渡さない経路で `/usr/bin/journalctl` の実体を実行する。通常の `proof` / `probe-loop` / `probe-minimize` の既存sudo経路は維持する。新しい読取は呼出しユーザーの権限だけを使い、権限拒否や不完全な結果では後続の検索を省略する。sudoへの自動fallback、追加install、root化、profile/sysctl変更は行わない。
 

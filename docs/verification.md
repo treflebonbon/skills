@@ -23,13 +23,7 @@ validator は manifest の受理、mock/fixture は指定分岐の挙動、公�
 ## 再実行する品質入口
 
 開発依存として Node.js 20.19+、npm、Python 3、Bun 1.4.4+、Bats Core 1.x、`jq` を用意します。TypeScript evidence の Bats は `npm test` と pre-push で実行され、Bun 1.4.4 以上を必要とします。旧版の拒否も確認する場合は、`TYPESCRIPT_EVIDENCE_OLD_BUN` に Bun 1.2.14 の実行ファイルの絶対パスを指定します。`npm run lint:sh` には `shfmt` と `shellcheck` も要ります。
-`linux-process-proof.test.ts` の通常 `run` 監査fixtureとnamespace診断fixtureは、Linuxかつ `/usr/bin/journalctl` が存在する環境で実行します。通常 `run` 監査fixtureは、Bun 1.4.4以降の検査に残します。`probe-loop` / `probe-minimize` / `probe-isolate` の診断fixtureだけは、実CLIの前提に合わせてBun 1.4.4・非rootのLinuxで実行し、それ以外は独立したテストとしてスキップします。このスキップは診断の確認済み結果に数えません。 `linux-namespace-bash.test.ts` の実子fixtureには、Linux・Bash 5以上・Python/Linuxのpidfdが必要です。Bash直接比較の非root条件は別途維持します。
-
-`linux-namespace-bash-audit.test.ts` のCLI fixtureはLinux・Bun 1.4.4・非root・`/usr/bin/journalctl` がある場合に実行します。kernel journal本体は起動せずmockし、実測JSONからの失敗3 PIDの選択、sudoを使わないargv、読取拒否時の停止、出所8ファイルのhashとPID/時刻の拒否を確認します。symlink拒否、FIFOを待たずに拒否すること、入力256KiBちょうどの成功とサイズ検査後の1 byte追記も含む超過拒否、既存記録の上書き拒否も検証します。Bash比較のfixtureは先頭・中間captureの破損時にも正常な残り5件を最終JSONと公開ログへ保持することを検証します。新mode専用のworkflow接続検査はOSによらず実行し、これらを実VMのjournal読取成功とは数えません。
-
-`linux-namespace-uid-write.test.ts` と `test_linux_namespace_uid_write.py` は、直接UID-map診断の作成・open・write・closeをmockし、実namespaceや実NSS検索を呼ばない。write EPERMと成功対照、作成/openのEPERM・別errno・混在・短いwrite・cleanup失敗の区別、基準と方式の改変拒否、所有PID・hash・時刻の拒否、途中captureと基準の保持を確認する。本番Bash driverのfixtureはobserverにREADYを返さず、基準後の許可コードによる6 probeへの接続とargvだけを確認する。これらを実VMでの直接writeの再現成功とは数えない。
-
-`test_linux_namespace_uid_write_trace.py` はKprobeの登録・解除、PIDフィルタの設定順、traceの対象PID・欠落・能力検査の対応をfixtureで検証する。 `linux-namespace-bash.test.ts` は管理権限の観測処理をmockし、最初の直接map・対照だけの登録と解除、登録失敗時のexec停止を検証する。実VMでのKprobe登録と戻り値採取は別の検証結果として扱う。
+`linux-process-proof.test.ts` の通常 `run` 監査fixtureは、Linuxかつ `/usr/bin/journalctl` が存在する環境で実行します。
 
 `main` 向け PR では、`CI` workflow が `opened`・`synchronize`・`reopened` でコードを検査します。`PR タイトル` workflow は、この3イベントと `edited` で `conventional-commits` を実行します。タイトル・本文の編集ではコード CI を再実行せず、workflow ごとに concurrency group を分けるため、実行中のコード CI も取り消しません。
 
