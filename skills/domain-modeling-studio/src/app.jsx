@@ -17,6 +17,22 @@ import {
   ARCHITECTURE_KINDS,
   FLOW_KINDS,
   ORIGINS,
+  RULE_KINDS,
+  RESULTS,
+  DECISIONS,
+  EXAMPLES_AND_PROPERTIES_NOTE,
+  SCENARIO_STATUS,
+  boundaryText,
+  candidateGroups,
+  LIMITS_LABEL,
+  methodLabel,
+  methodLines,
+  planLines,
+  propertyLines,
+  RESULT_SCOPE_LABEL,
+  elementName,
+  retiredLabel,
+  verificationOf,
   validateDocument,
   signature,
   reconcile,
@@ -138,6 +154,219 @@ const Evidence = ({ evidence }) =>
   ) : (
     <p className="muted">コードの根拠は未登録です。</p>
   );
+const CommentBox = ({
+  doc,
+  target,
+  comment,
+  setComment,
+  draftTarget,
+  commitDraft,
+}) => (
+  <>
+    <h3>指摘・例外・訂正</h3>
+    {doc.comments
+      .filter((c) => c.target.view === target.view && c.target.id === target.id)
+      .map((c) => (
+        <p className="comment" key={c.id}>
+          {c.text}
+        </p>
+      ))}
+    <label>
+      指摘を入力
+      {comment && <small>入力先: {draftTarget.current?.id ?? "全体"}</small>}
+      <textarea
+        value={comment}
+        onChange={(e) => {
+          const { value } = e.target;
+          // Clearing the draft (not just submitting it) must also drop the
+          // captured target, or a fresh draft started after reselecting gets
+          // silently attributed to whatever was selected when typing began.
+          draftTarget.current = value ? (draftTarget.current ?? target) : null;
+          setComment(value);
+        }}
+        rows={4}
+        placeholder="認識の違い、例外条件、境界の疑問を記入"
+      />
+    </label>
+    <button onClick={commitDraft}>指摘を追加</button>
+  </>
+);
+const resultLines = (result) => [
+  `検証結果: ${RESULTS[result.status]}`,
+  ...(result.command
+    ? [
+        `実行コマンド: ${result.command}`,
+        `対象版: ${result.revision}`,
+        `出所: ${result.source}`,
+      ]
+    : []),
+  ...(result.scope ? [`${RESULT_SCOPE_LABEL}: ${result.scope}`] : []),
+  ...(result.seed ? [`seed: ${result.seed}`] : []),
+  ...(result.counterexample ? [`反例: ${result.counterexample}`] : []),
+];
+const Record = ({ heading, lines, evidence, label, onComment, children }) => (
+  <div className="record">
+    <h4>{heading}</h4>
+    {lines.map((line) => (
+      <p key={line}>{line}</p>
+    ))}
+    <Evidence evidence={evidence} />
+    {children}
+    <button onClick={onComment}>{label}</button>
+  </div>
+);
+const candidateLines = (c, testById) => [
+  `判断: ${DECISIONS[c.decision]}`,
+  ...methodLines(c),
+  ...(c.property ? propertyLines(c.property) : []),
+  ...(c.plan ? planLines(c.plan) : []),
+  ...(c.error ? [`検出したい誤り: ${c.error}`] : []),
+  ...(c.boundary ? [`検証の境界: ${boundaryText(c.boundary)}`] : []),
+  ...(c.reason ? [`理由: ${c.reason}`] : []),
+  ...(c.tests ?? []).map(
+    (id) => `対象の既存テスト: ${testById.get(id)?.title ?? id}`
+  ),
+];
+// Read-only: corrections arrive as comments and the agent regenerates records.
+const VerificationPanel = ({ doc, focus, setFocus, children }) => {
+  const { existingTests, rules, verificationCandidates } = verificationOf(doc);
+  const testById = new Map(existingTests.map((t) => [t.id, t]));
+  const candidate = (c) => (
+    <Record
+      key={c.id}
+      heading={`検証候補: ${c.title}`}
+      lines={candidateLines(c, testById)}
+      evidence={c.evidence}
+      label="この検証候補に指摘"
+      onComment={() => setFocus(c.id)}
+    >
+      {c.plan && (
+        <>
+          <p className="limits">
+            <strong>{LIMITS_LABEL}</strong>: {c.plan.limits}
+          </p>
+          {c.plan.evidence.length > 0 && (
+            <section aria-label="計画の根拠">
+              <p>計画の根拠:</p>
+              <Evidence evidence={c.plan.evidence} />
+            </section>
+          )}
+        </>
+      )}
+      {c.property && (
+        <section aria-label="性質の根拠">
+          <p>性質の根拠:</p>
+          <Evidence evidence={c.property.evidence} />
+        </section>
+      )}
+    </Record>
+  );
+  const candidateBlock = (items) => {
+    const { declined, groups } = candidateGroups(items);
+    return (
+      <>
+        {groups.map(([method, group]) => {
+          const label = `検証手法: ${methodLabel(method)}`;
+          return (
+            <section key={label} aria-label={label} className="method-group">
+              <p className="method-label">
+                {label}（{group.length}）
+              </p>
+              {group.map(candidate)}
+            </section>
+          );
+        })}
+        {declined.length > 0 && (
+          <section aria-label="不採用の検証手法" className="method-group">
+            <p className="method-label">不採用の検証手法（{declined.length}）</p>
+            {declined.map(candidate)}
+          </section>
+        )}
+      </>
+    );
+  };
+  const unassigned = verificationCandidates.filter((c) => !c.rule);
+  return (
+    <div className="workspace">
+      <section className="verification" aria-label="業務ルールと検証">
+        <p>
+          根拠（コードで確認・合意・推測・改善案）と検証結果（読んだのみ・未実行・実行結果・形式モデルの結果）は別の区分です。テストを読んだことは実行や合格を意味しません。
+          {EXAMPLES_AND_PROPERTIES_NOTE}
+        </p>
+        {rules.length === 0 && (
+          <p className="muted">業務ルールは未登録です。</p>
+        )}
+        {rules.map((rule) => {
+          const tests = existingTests.filter((t) => t.rules.includes(rule.id));
+          const candidates = verificationCandidates.filter(
+            (c) => c.rule === rule.id
+          );
+          const examples = doc.scenarios.filter((s) =>
+            s.rules?.includes(rule.id)
+          );
+          const related = [rule, ...tests, ...candidates].some(
+            (item) => item.id === focus
+          );
+          return (
+            <details key={rule.id} data-rule={rule.id} open={related}>
+              <summary>
+                {RULE_KINDS[rule.kind]}: {rule.statement}
+              </summary>
+              <p className="provenance">
+                {names[rule.model]} · {ORIGINS[rule.origin]}{" "}
+                <small>{rule.id}</small>
+              </p>
+              <p>
+                関連要素:{" "}
+                {rule.targets
+                  .map((id) => elementName(doc, rule.model, id))
+                  .join("、")}
+              </p>
+              <Evidence evidence={rule.evidence} />
+              <button onClick={() => setFocus(rule.id)}>
+                この業務ルールに指摘
+              </button>
+              <h3>代表例（{examples.length}）</h3>
+              <ul>
+                {examples.map((s) => (
+                  <li key={s.id}>
+                    {s.title}（{names[s.model]} · {SCENARIO_STATUS[s.status]}）
+                  </li>
+                ))}
+              </ul>
+              <h3>既存テスト（{tests.length}）</h3>
+              {tests.map((t) => (
+                <Record
+                  key={t.id}
+                  heading={`既存テスト: ${t.title}`}
+                  lines={[
+                    ...methodLines(t),
+                    `検証の境界: ${boundaryText(t.boundary)}`,
+                    ...resultLines(t.result),
+                  ]}
+                  evidence={t.evidence}
+                  label="この既存テストに指摘"
+                  onComment={() => setFocus(t.id)}
+                />
+              ))}
+              <h3>検証候補（{candidates.length}）</h3>
+              {candidateBlock(candidates)}
+            </details>
+          );
+        })}
+        {unassigned.length > 0 && (
+          <details open>
+            <summary>業務ルールが未定の検証候補（{unassigned.length}）</summary>
+            {candidateBlock(unassigned)}
+          </details>
+        )}
+      </section>
+      <aside className="inspector" aria-label="検証への指摘">
+        {children}
+      </aside>
+    </div>
+  );
+};
 const Inspector = ({
   doc,
   graph,
@@ -158,6 +387,8 @@ const Inspector = ({
   commitDraft,
   drillTarget,
   onDrillInto,
+  relatedRules,
+  onOpenRule,
 }) => (
   <aside className="inspector" aria-label="根拠と指摘">
     <label>
@@ -292,6 +523,11 @@ const Inspector = ({
             ドリルダウン: {drillTarget.data.label}
           </button>
         )}
+        {relatedRules.map((rule) => (
+          <button key={rule.id} onClick={() => onOpenRule(rule.id)}>
+            検証を見る: {rule.statement}
+          </button>
+        ))}
         {editable && (
           <button
             className="danger"
@@ -312,37 +548,19 @@ const Inspector = ({
         <Evidence evidence={selected.data.evidence} />
       </div>
     )}
-    <h3>指摘・例外・訂正</h3>
-    {doc.comments
-      .filter((c) => c.target.view === target.view && c.target.id === target.id)
-      .map((c) => (
-        <p className="comment" key={c.id}>
-          {c.text}
-        </p>
-      ))}
-    <label>
-      指摘を入力
-      {comment && <small>入力先: {draftTarget.current?.id ?? "全体"}</small>}
-      <textarea
-        value={comment}
-        onChange={(e) => {
-          const { value } = e.target;
-          // Clearing the draft (not just submitting it) must also drop the
-          // captured target, or a fresh draft started after reselecting gets
-          // silently attributed to whatever was selected when typing began.
-          draftTarget.current = value ? (draftTarget.current ?? target) : null;
-          setComment(value);
-        }}
-        rows={4}
-        placeholder="認識の違い、例外条件、境界の疑問を記入"
-      />
-    </label>
-    <button onClick={commitDraft}>指摘を追加</button>
+    <CommentBox
+      doc={doc}
+      target={target}
+      comment={comment}
+      setComment={setComment}
+      draftTarget={draftTarget}
+      commitDraft={commitDraft}
+    />
     <details>
       <summary>削除した対象と指摘（{doc.retired.length}）</summary>
       {doc.retired.map((r, i) => (
         <div key={`${r.item.id}-${i}`}>
-          <strong>{r.item.data.label ?? r.item.label ?? r.item.id}</strong>
+          <strong>{retiredLabel(r.item)}</strong>
           <small>{r.item.id}</small>
           {doc.comments
             .filter(
@@ -434,7 +652,7 @@ const Status = ({
     )}
     {doc.needsReview && (
       <p className="notice">
-        モデルを編集しました。用語・BDD・実装変更候補はAIの再確認待ちです。
+        モデルを編集しました。用語・BDD・実装変更候補・検証方針はAIの再確認待ちです。
       </p>
     )}
     <p className="message" role="status">
@@ -451,6 +669,7 @@ const App = ({ seed }) => {
   const [selection, setSelection] = useState(null);
   const [filter, setFilter] = useState("ALL");
   const [tab, setTab] = useState("model");
+  const [verificationFocus, setVerificationFocus] = useState(null);
   const [past, setPast] = useState([]);
   const [future, setFuture] = useState([]);
   const [lastExport, setLastExport] = useState(initial.lastExport);
@@ -475,7 +694,21 @@ const App = ({ seed }) => {
     graph[selection.entity === "node" ? "nodes" : "edges"].find(
       (n) => n.id === selection.id
     );
-  const target = selected ? { id: selected.id, view } : { view: "whole" };
+  let target = selected ? { id: selected.id, view } : { view: "whole" };
+  if (tab === "verification") {
+    target = verificationFocus
+      ? { id: verificationFocus, view: "verification" }
+      : { view: "whole" };
+  }
+  const relatedRules = selected
+    ? verificationOf(doc).rules.filter(
+        (rule) => rule.model === view && rule.targets.includes(selected.id)
+      )
+    : [];
+  const openRule = (ruleId) => {
+    setVerificationFocus(ruleId);
+    setTab("verification");
+  };
   const { crossLayerEdges, drillTarget, layerEdges, layerKinds, layerNodes } =
     deriveLayerView(graph, layer, selected);
   const crossLayerEdgeIds = new Set(crossLayerEdges.map((e) => e.id));
@@ -697,6 +930,7 @@ const App = ({ seed }) => {
     setPast([]);
     setFuture([]);
     setSelection(null);
+    setVerificationFocus(null);
     setConflict(false);
     setPending(null);
     setMessage(
@@ -746,6 +980,7 @@ const App = ({ seed }) => {
         setPast([]);
         setFuture([]);
         setSelection(null);
+        setVerificationFocus(null);
         setConflict(false);
         setPending(null);
         setMessage("AI更新版を取り込みました。");
@@ -769,6 +1004,7 @@ const App = ({ seed }) => {
     changes: "changes.md",
     glossary: "glossary.md",
     model: "model.md",
+    verification: "verification.md",
   }[tab];
   const visibleNodes = layerNodes.filter(
     (n) => filter === "ALL" || n.data.kind === filter
@@ -854,6 +1090,7 @@ const App = ({ seed }) => {
           ["glossary", "用語辞書"],
           ["bdd", "BDD草案"],
           ["changes", "実装変更候補"],
+          ["verification", "検証"],
         ].map(([id, label]) => (
           <button key={id} aria-pressed={tab === id} onClick={() => setTab(id)}>
             {label}
@@ -1013,10 +1250,34 @@ const App = ({ seed }) => {
               commitDraft={commitDraft}
               drillTarget={drillTarget}
               onDrillInto={goToDrillTarget}
+              relatedRules={relatedRules}
+              onOpenRule={openRule}
             />
           </div>
         </>
-      ) : (
+      ) : null}
+      {tab === "verification" && (
+        <VerificationPanel
+          doc={doc}
+          focus={verificationFocus}
+          setFocus={setVerificationFocus}
+        >
+          <h2>
+            {verificationFocus
+              ? `指摘の対象: ${verificationFocus}`
+              : "全体への指摘"}
+          </h2>
+          <CommentBox
+            doc={doc}
+            target={target}
+            comment={comment}
+            setComment={setComment}
+            draftTarget={draftTarget}
+            commitDraft={commitDraft}
+          />
+        </VerificationPanel>
+      )}
+      {["glossary", "bdd", "changes"].includes(tab) && (
         <section className="artifacts">
           <h2>
             {

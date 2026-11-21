@@ -28,9 +28,58 @@ export const ORIGINS = {
   inference: "AIの推測",
   proposal: "未検証の改善案",
 };
+export const RULE_KINDS = {
+  INVARIANT: "不変条件",
+  RULE: "業務ルール（一般）",
+  TRANSITION: "状態遷移",
+};
+export const BOUNDARIES = {
+  ADAPTER_INTEGRATION: "アダプター結合",
+  DOMAIN: "ドメイン",
+  FUNCTION: "関数",
+  PORT_CONTRACT: "ポート契約",
+  SLICE: "スライス",
+};
+export const RESULTS = {
+  FAILED: "実行・失敗",
+  MODEL_COUNTEREXAMPLE: "形式モデルで反例あり",
+  MODEL_NO_COUNTEREXAMPLE: "形式モデルで反例なし",
+  NOT_RUN: "未実行",
+  PASSED: "実行・合格",
+  READ: "読んだのみ",
+  SKIPPED: "スキップ",
+};
+export const DECISIONS = {
+  ADD: "追加",
+  DECLINE: "不採用",
+  DELETE: "削除",
+  HOLD: "保留",
+  KEEP: "維持",
+  MERGE: "統合",
+};
+export const METHODS = {
+  PROPERTY: "プロパティベーステスト",
+  MBT: "モデルベーステスト",
+  QUINT: "Quint",
+  ALLOY: "Alloy",
+  MUTATION: "ミューテーションテスト",
+};
 const views = ["current", "proposed"];
+const VIEW_LABELS = { current: "現状", proposed: "改善案" };
+const VERIFICATION_KEYS = ["rules", "existingTests", "verificationCandidates"];
+// Retired verification records use these entity names under view "verification".
+const VERIFICATION_ENTITIES = {
+  existingTests: "existingTest",
+  rules: "rule",
+  verificationCandidates: "verificationCandidate",
+};
+// schemaVersion 2 documents carry no verification records; read them as empty.
+export const verificationOf = (doc) =>
+  Object.fromEntries(VERIFICATION_KEYS.map((key) => [key, doc[key] ?? []]));
 const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const text = (v) => typeof v === "string";
+// Object.hasOwn stringifies its key, so ["PROPERTY"] would otherwise pass.
+const oneOf = (labels, v) => text(v) && Object.hasOwn(labels, v);
 const nonempty = (v) => text(v) && v.trim().length > 0;
 const commitId = (v) => text(v) && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/iu.test(v);
 const id = (v) => text(v) && /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/u.test(v);
@@ -60,7 +109,7 @@ const evidence = (items) => {
   }
 };
 const provenance = (data) => {
-  need(object(data) && Object.hasOwn(ORIGINS, data.origin), "確度が不正です");
+  need(object(data) && oneOf(ORIGINS, data.origin), "確度が不正です");
   evidence(data.evidence);
   need(
     data.origin !== "code" || data.evidence.length > 0,
@@ -138,12 +187,25 @@ const validateComment = (comment) => {
   );
   need(
     comment.target.view === "whole" ||
-      (views.includes(comment.target.view) && id(comment.target.id)),
+      ([...views, "verification"].includes(comment.target.view) &&
+        id(comment.target.id)),
     "指摘対象が不正です"
   );
 };
 
 const validateRetired = (entry) => {
+  if (entry?.view === "verification") {
+    // Referential checks no longer apply to a removed record; keep it legible.
+    need(
+      Object.values(VERIFICATION_ENTITIES).includes(entry.entity) &&
+        object(entry.item) &&
+        id(entry.item.id) &&
+        nonempty(entry.item.statement ?? entry.item.title),
+      "削除記録が不正です"
+    );
+    evidence(entry.item.evidence);
+    return;
+  }
   need(
     object(entry) &&
       views.includes(entry.view) &&
@@ -218,6 +280,280 @@ const validateChange = (change) => {
   evidence(change.evidence);
 };
 
+// A rule may point at a removed element: deleting a proposed node must not
+// invalidate the rule, and the retired record keeps the target attributable.
+const elementIds = (doc, view) =>
+  new Set([
+    ...[...doc.models[view].nodes, ...doc.models[view].edges].map((i) => i.id),
+    ...doc.retired.filter((r) => r.view === view).map((r) => r.item.id),
+  ]);
+const validateRule = (rule, doc) => {
+  need(
+    object(rule) &&
+      oneOf(RULE_KINDS, rule.kind) &&
+      nonempty(rule.statement) &&
+      views.includes(rule.model),
+    "業務ルールの形式が不正です"
+  );
+  provenance(rule);
+  const known = elementIds(doc, rule.model);
+  need(
+    Array.isArray(rule.targets) &&
+      rule.targets.length > 0 &&
+      rule.targets.every((target) => known.has(target)),
+    "業務ルールの関連先が見つかりません"
+  );
+};
+const validateBoundary = (boundary) => {
+  need(
+    object(boundary) && oneOf(BOUNDARIES, boundary.kind),
+    "検証の境界が不正です"
+  );
+  provenance(boundary);
+};
+const validateResult = (result) => {
+  need(
+    object(result) && oneOf(RESULTS, result.status),
+    "検証結果の区分が不正です"
+  );
+  // Only an actual run is a result; reading a test or not running it is not.
+  need(
+    ["READ", "NOT_RUN"].includes(result.status) ||
+      (nonempty(result.command) &&
+        commitId(result.revision) &&
+        nonempty(result.source)),
+    "実行結果には実行コマンド・対象revision・出所が必要です"
+  );
+  const replay = ["seed", "counterexample"].filter(
+    (key) => result[key] !== undefined
+  );
+  need(
+    replay.every((key) => nonempty(result[key])),
+    "seed・反例は空でない文字列で指定してください"
+  );
+  need(
+    replay.length === 0 || !["READ", "NOT_RUN"].includes(result.status),
+    "seed・反例は実際の実行結果にだけ記録できます"
+  );
+  need(
+    result.scope === undefined || nonempty(result.scope),
+    "探索した範囲は空でない文字列で指定してください"
+  );
+  need(
+    result.scope === undefined || !["READ", "NOT_RUN"].includes(result.status),
+    "探索した範囲は実際の実行結果にだけ記録できます"
+  );
+};
+const validateExistingTest = (item, rules) => {
+  need(
+    object(item) && nonempty(item.title) && Array.isArray(item.evidence),
+    "既存テストの形式が不正です"
+  );
+  evidence(item.evidence);
+  need(item.evidence.length > 0, "既存テストの形式が不正です（読んだ位置の根拠が必要です）");
+  need(
+    Array.isArray(item.rules) &&
+      item.rules.length > 0 &&
+      item.rules.every((ruleId) => rules.has(ruleId)),
+    "既存テストが守る業務ルールが見つかりません"
+  );
+  need(
+    item.rules.every((ruleId) => rules.get(ruleId).model === "current"),
+    "改善案の業務ルールには既存テストを紐づけられません"
+  );
+  validateBoundary(item.boundary);
+  validateResult(item.result);
+  validateMethod(item.method);
+  need(
+    item.method !== "PROPERTY" ||
+      item.result.status !== "FAILED" ||
+      item.result.counterexample !== undefined,
+    "失敗したプロパティベーステストには縮小された反例が必要です"
+  );
+  // Only an explicit formal-model method tightens MODEL_*; older documents stay valid.
+  need(
+    !["QUINT", "ALLOY"].includes(item.method) ||
+      item.result.status !== "MODEL_COUNTEREXAMPLE" ||
+      item.result.counterexample !== undefined,
+    "形式モデルで反例ありの結果には反例が必要です"
+  );
+  need(
+    item.method !== "ALLOY" ||
+      item.result.status !== "MODEL_NO_COUNTEREXAMPLE" ||
+      item.result.scope !== undefined,
+    "Alloyで反例なしの結果には実際に探索した範囲が必要です"
+  );
+};
+// Unknown methods are rejected so a newer method never round-trips undisplayed.
+const validateMethod = (method) =>
+  need(
+    method === undefined || oneOf(METHODS, method),
+    "検証手法が不正です"
+  );
+const nonemptyLines = (v) => Array.isArray(v) && v.length > 0 && v.every(nonempty);
+const validateProperty = (item) => {
+  need(
+    item.method === "PROPERTY" || item.property === undefined,
+    "性質にはmethod: PROPERTYが必要です"
+  );
+  if (
+    item.method !== "PROPERTY" ||
+    (item.decision === "DECLINE" && item.property === undefined)
+  ) {
+    return;
+  }
+  const p = item.property;
+  need(
+    object(p) &&
+      nonempty(p.statement) &&
+      nonemptyLines(p.preconditions) &&
+      nonemptyLines(p.inputs) &&
+      nonempty(p.observation),
+    "性質には成り立つ性質・事前条件・生成範囲・観測する結果が必要です"
+  );
+  provenance(p);
+};
+// A hold cannot be settled yet and a decline only says why a method is unneeded,
+// so neither names the error, boundary or tests a justified decision needs.
+const unjustified = (item) => ["HOLD", "DECLINE"].includes(item.decision);
+const PLAN_METHODS = ["MBT", "QUINT", "ALLOY", "MUTATION"];
+const validatePlan = (item) => {
+  need(
+    PLAN_METHODS.includes(item.method) || item.plan === undefined,
+    "計画にはMBT・QUINT・ALLOY・MUTATIONのいずれかの検証手法が必要です"
+  );
+  if (item.plan === undefined && item.decision === "DECLINE") {
+    return;
+  }
+  if (!PLAN_METHODS.includes(item.method)) {
+    return;
+  }
+  const p = item.plan;
+  need(
+    object(p) &&
+      nonempty(p.target) &&
+      nonempty(p.expectedEvidence) &&
+      nonempty(p.limits),
+    "計画には対象・確かめたことになる観測・保証しないことが必要です"
+  );
+  provenance(p);
+  need(
+    item.method !== "MBT" || (nonempty(p.mapping) && nonempty(p.coverage)),
+    "モデルベーステストの計画には対応と被覆目標が必要です"
+  );
+  need(
+    item.method !== "ALLOY" || nonempty(p.scope),
+    "Alloyの計画には探索上限と制約が必要です"
+  );
+  // Optional fields are displayed, so a present one must be readable text.
+  need(
+    ["mapping", "coverage", "scope"].every(
+      (key) => p[key] === undefined || nonempty(p[key])
+    ),
+    "計画の項目は空でない文字列で指定してください"
+  );
+  need(
+    item.method !== "MUTATION" ||
+      unjustified(item) ||
+      (item.tests ?? []).length > 0,
+    "ミューテーションテストの候補には検出を確かめる既存テストが必要です"
+  );
+};
+const validateCandidate = (item, rules, tests) => {
+  need(
+    object(item) &&
+      nonempty(item.title) &&
+      oneOf(DECISIONS, item.decision) &&
+      (item.tests === undefined || Array.isArray(item.tests)),
+    "検証候補の形式が不正です"
+  );
+  evidence(item.evidence);
+  validateMethod(item.method);
+  validateProperty(item);
+  validatePlan(item);
+  need(
+    item.decision !== "DECLINE" ||
+      (item.method !== undefined && item.rule !== undefined && nonempty(item.reason)),
+    "不採用の検証候補には検証手法・業務ルール・理由が必要です"
+  );
+  need(
+    unjustified(item) ||
+      (nonempty(item.error) &&
+        item.rule !== undefined &&
+        item.boundary !== undefined &&
+        nonempty(item.reason)),
+    "保留以外の検証候補には検出したい誤り・守る業務ルール・検証の境界・理由が必要です"
+  );
+  need(
+    unjustified(item) || item.evidence.length > 0,
+    "保留以外の検証候補には理由の根拠が必要です"
+  );
+  need(
+    item.rule === undefined || rules.has(item.rule),
+    "検証候補の業務ルールが見つかりません"
+  );
+  if (item.boundary !== undefined) {
+    validateBoundary(item.boundary);
+  }
+  const targets = item.tests ?? [];
+  need(
+    !["KEEP", "MERGE", "DELETE"].includes(item.decision) || targets.length > 0,
+    "維持・統合・削除の候補には対象の既存テストが必要です"
+  );
+  need(
+    targets.every((testId) => tests.has(testId)),
+    "対象の既存テストが見つかりません"
+  );
+  need(
+    item.rule === undefined ||
+      targets.every((testId) => tests.get(testId).rules.includes(item.rule)),
+    "対象の既存テストが守る業務ルールと一致しません"
+  );
+};
+const validateScenarioRules = (scenario, rules) => {
+  const refs = scenario.rules ?? [];
+  need(
+    Array.isArray(refs) && refs.every((ruleId) => rules.has(ruleId)),
+    "代表例の業務ルールが見つかりません"
+  );
+  need(
+    scenario.model === "proposed" ||
+      refs.every((ruleId) => rules.get(ruleId).model === "current"),
+    "現状の代表例は改善案の業務ルールを参照できません"
+  );
+};
+const validateVerification = (doc) => {
+  if (doc.schemaVersion === 2) {
+    need(
+      VERIFICATION_KEYS.every((key) => doc[key] === undefined),
+      "業務ルール・既存テスト・検証候補にはschemaVersion: 3が必要です"
+    );
+    return;
+  }
+  for (const key of VERIFICATION_KEYS) {
+    need(Array.isArray(doc[key]), `${key}は配列で指定してください`);
+  }
+  const ids = VERIFICATION_KEYS.flatMap((key) => doc[key]).map((i) => i?.id);
+  need(
+    ids.every(id) && new Set(ids).size === ids.length,
+    "業務ルール・既存テスト・検証候補のIDが不正または重複しています"
+  );
+  for (const rule of doc.rules) {
+    validateRule(rule, doc);
+  }
+  const rules = new Map(doc.rules.map((rule) => [rule.id, rule]));
+  for (const item of doc.existingTests) {
+    validateExistingTest(item, rules);
+  }
+  const tests = new Map(doc.existingTests.map((item) => [item.id, item]));
+  for (const item of doc.verificationCandidates) {
+    validateCandidate(item, rules, tests);
+  }
+  for (const item of doc.scenarios) {
+    validateScenarioRules(item, rules);
+  }
+};
+
 const validateResolutions = (items = []) => {
   need(Array.isArray(items), "解決記録は配列で指定してください");
   for (const item of items) {
@@ -260,10 +596,31 @@ const validateHistory = (history = []) => {
   );
 };
 
+// Fields added in schemaVersion 4; an older template would round-trip them undisplayed.
+const asArray = (v) => (Array.isArray(v) ? v : []);
+const hasV4Fields = (doc) =>
+  asArray(doc.scenarios).some((s) => s?.rules !== undefined) ||
+  asArray(doc.verificationCandidates).some(
+    (c) =>
+      c?.method !== undefined ||
+      c?.property !== undefined ||
+      c?.plan !== undefined
+  ) ||
+  asArray(doc.existingTests).some(
+    (t) =>
+      t?.method !== undefined ||
+      t?.result?.seed !== undefined ||
+      t?.result?.counterexample !== undefined ||
+      t?.result?.scope !== undefined
+  );
 export const validateDocument = (doc) => {
   need(
-    object(doc) && doc.schemaVersion === 2,
-    "未対応のモデル形式です（schemaVersion: 2が必要）"
+    object(doc) && [2, 3, 4].includes(doc.schemaVersion),
+    "未対応のモデル形式です（schemaVersion: 2・3・4のいずれかが必要）"
+  );
+  need(
+    doc.schemaVersion === 4 || !hasV4Fields(doc),
+    "代表例の業務ルール・検証手法・性質・計画・seed・反例・探索した範囲にはschemaVersion: 4が必要です"
   );
   need(id(doc.sessionId) && id(doc.revision), "sessionId・revisionが不正です");
   need(nonempty(doc.title) && text(doc.scope), "タイトル・対象範囲が必要です");
@@ -318,6 +675,7 @@ export const validateDocument = (doc) => {
     validateChange(item);
   }
   need(doc.unresolved.every(nonempty), "未解決事項は文字列で指定してください");
+  validateVerification(doc);
   validateResolutions(doc.resolutions);
   validateEditResolutions(doc.editResolutions);
   validateHistory(doc.revisionHistory);
@@ -436,6 +794,18 @@ const preservesReview = (incoming, saved) => {
     views.every((view) =>
       ["nodes", "edges"].every((key) =>
         preservesItems(incoming, previous, view, key, seed)
+      )
+    ) &&
+    VERIFICATION_KEYS.every((key) =>
+      verificationOf(previous)[key].every(
+        (item) =>
+          verificationOf(incoming)[key].some((next) => next.id === item.id) ||
+          incoming.retired.some(
+            (entry) =>
+              entry.view === "verification" &&
+              entry.entity === VERIFICATION_ENTITIES[key] &&
+              canonical(entry.item) === canonical(item)
+          )
       )
     )
   );
@@ -583,6 +953,184 @@ const refs = (items) =>
     )
     .join("\n");
 const clean = (s) => String(s).replaceAll(/[\r\n]/gu, " ");
+const codeSpan = (s) => {
+  const value = clean(s);
+  const fence = "`".repeat(
+    Math.max(0, ...[...value.matchAll(/`+/gu)].map((m) => m[0].length)) + 1
+  );
+  return `${fence} ${value} ${fence}`;
+};
+export const retiredLabel = (item) =>
+  item.data?.label ?? item.label ?? item.statement ?? item.title ?? item.id;
+// Rule targets may name retired elements (see elementIds).
+export const elementName = (doc, view, elementId) =>
+  retiredLabel(
+    [...doc.models[view].nodes, ...doc.models[view].edges].find(
+      (i) => i.id === elementId
+    ) ??
+      doc.retired.find((r) => r.view === view && r.item.id === elementId).item
+  );
+const elementLabel = (doc, view, elementId) =>
+  `${md(elementName(doc, view, elementId))}（${md(elementId)}）`;
+export const boundaryText = (boundary) =>
+  `${BOUNDARIES[boundary.kind]}（${ORIGINS[boundary.origin]}${boundary.origin === "code" ? "" : "・構造は未確認"}）`;
+const resultText = (result) =>
+  [
+    `検証結果: ${RESULTS[result.status]}`,
+    ...(result.command
+      ? [
+          `実行コマンド: ${codeSpan(result.command)}`,
+          `対象版: ${md(result.revision)}`,
+          `出所: ${md(result.source)}`,
+        ]
+      : []),
+    ...(result.scope ? [`${RESULT_SCOPE_LABEL}: ${md(result.scope)}`] : []),
+    ...(result.seed ? [`seed: ${codeSpan(result.seed)}`] : []),
+    ...(result.counterexample
+      ? [`反例: ${codeSpan(result.counterexample)}`]
+      : []),
+  ].join("\n");
+export const EXAMPLES_AND_PROPERTIES_NOTE =
+  "代表例は人と合意するための例で、性質はプロパティベーステストで確かめる業務ルールの言い換えです。どちらも実行や合格を意味せず、業務上の合意がない性質は未合意として示します。";
+export const SCENARIO_STATUS = { confirmed: "確認済み", draft: "草案" };
+export const methodLines = (item) =>
+  item.method ? [`検証手法: ${METHODS[item.method]}`] : [];
+// Only a business agreement makes a property agreed; a property read from code is not.
+const propertyAgreement = (p) =>
+  p.origin === "agreement" ? "合意済みの性質" : "未合意の性質";
+export const propertyLines = (p, escape = String) => [
+  `${propertyAgreement(p)}（${ORIGINS[p.origin]}）: ${escape(p.statement)}`,
+  `事前条件: ${p.preconditions.map(escape).join("、")}`,
+  `生成範囲: ${p.inputs.map(escape).join("、")}`,
+  `観測する結果: ${escape(p.observation)}`,
+];
+// What a run actually explored, kept apart from the scope a plan intends.
+export const RESULT_SCOPE_LABEL = "実際に探索した範囲";
+export const LIMITS_LABEL = "保証しないこと";
+export const planLines = (p, escape = String) => [
+  `計画の対象（${ORIGINS[p.origin]}）: ${escape(p.target)}`,
+  `確かめたことになる観測: ${escape(p.expectedEvidence)}`,
+  ...(p.mapping ? [`モデルと実装の対応: ${escape(p.mapping)}`] : []),
+  ...(p.coverage ? [`被覆目標: ${escape(p.coverage)}`] : []),
+  ...(p.scope ? [`計画時の探索範囲: ${escape(p.scope)}`] : []),
+];
+export const methodLabel = (method) => (method ? METHODS[method] : "未定");
+// Active candidates grouped by method in METHODS order (undecided last);
+// declined methods are listed apart so they never read as a plan.
+export const candidateGroups = (candidates) => ({
+  declined: candidates.filter((c) => c.decision === "DECLINE"),
+  groups: [...Object.keys(METHODS), undefined]
+    .map((method) => [
+      method,
+      candidates.filter((c) => c.decision !== "DECLINE" && c.method === method),
+    ])
+    .filter(([, items]) => items.length > 0),
+});
+const TIA_NOTE =
+  "TIA（変更時に先に実行するテストの選択）の選外は、統合・削除の理由になりません。";
+const verificationMarkdown = (doc) => {
+  const { existingTests, rules, verificationCandidates } = verificationOf(doc);
+  const testById = new Map(existingTests.map((t) => [t.id, t]));
+  const testSection = (t) =>
+    [
+      `\n### 既存テスト: ${md(t.title)}`,
+      `ID: ${md(t.id)}`,
+      ...methodLines(t),
+      `検証の境界: ${boundaryText(t.boundary)}`,
+      resultText(t.result),
+      refs(t.evidence),
+    ].join("\n");
+  const candidateSection = (c) =>
+    [
+      `\n#### 検証候補: ${md(c.title)}`,
+      `ID: ${md(c.id)} / 判断: ${DECISIONS[c.decision]}`,
+      ...methodLines(c),
+      ...(c.property
+        ? [
+            ...propertyLines(c.property, md),
+            ...(c.property.evidence.length
+              ? ["性質の根拠:", refs(c.property.evidence)]
+              : []),
+          ]
+        : []),
+      ...(c.plan
+        ? [
+            ...planLines(c.plan, md),
+            `**${LIMITS_LABEL}**: ${md(c.plan.limits)}`,
+            ...(c.plan.evidence.length
+              ? ["計画の根拠:", refs(c.plan.evidence)]
+              : []),
+          ]
+        : []),
+      ...(c.error ? [`検出したい誤り: ${md(c.error)}`] : []),
+      ...(c.boundary ? [`検証の境界: ${boundaryText(c.boundary)}`] : []),
+      ...(c.reason ? [`理由: ${md(c.reason)}`] : []),
+      ...(c.tests ?? []).map(
+        (testId) =>
+          `対象の既存テスト: ${md(testById.get(testId).title)}（${md(testId)}）`
+      ),
+      refs(c.evidence),
+    ].join("\n");
+  const candidateBlock = (items) => {
+    const { declined, groups } = candidateGroups(items);
+    return [
+      ...groups.flatMap(([method, group]) => [
+        `\n### 検証手法: ${methodLabel(method)}`,
+        ...group.map(candidateSection),
+      ]),
+      ...(declined.length
+        ? ["\n### 不採用の検証手法", ...declined.map(candidateSection)]
+        : []),
+    ];
+  };
+  const unassigned = verificationCandidates.filter((c) => !c.rule);
+  return [
+    "# 検証方針",
+    "根拠と検証結果は別の区分です。根拠はコードで確認・業務上の合意・AIの推測・未検証の改善案を、検証結果はテストや形式モデルを実際にどう扱ったかを示します。テストを読んだことは、実行や合格を意味しません。" + EXAMPLES_AND_PROPERTIES_NOTE,
+    ...(verificationCandidates.some((c) => ["MERGE", "DELETE"].includes(c.decision))
+      ? [TIA_NOTE]
+      : []),
+    ...(rules.length ? [] : ["\n業務ルールは未登録です。"]),
+    ...rules.flatMap((r) => [
+      `\n## 業務ルール: ${md(r.statement)}`,
+      `ID: ${md(r.id)} / ${RULE_KINDS[r.kind]} / ${VIEW_LABELS[r.model]} / ${ORIGINS[r.origin]}`,
+      `関連要素: ${r.targets.map((t) => elementLabel(doc, r.model, t)).join("、")}`,
+      refs(r.evidence),
+      ...doc.scenarios
+        .filter((s) => s.rules?.includes(r.id))
+        .map(
+          (s) =>
+            `代表例: ${md(s.title)}（${VIEW_LABELS[s.model]} / ${SCENARIO_STATUS[s.status]}）`
+        ),
+      ...existingTests.filter((t) => t.rules.includes(r.id)).map(testSection),
+      ...candidateBlock(verificationCandidates.filter((c) => c.rule === r.id)),
+    ]),
+    ...(unassigned.length
+      ? ["\n## 業務ルールが未定の検証候補", ...candidateBlock(unassigned)]
+      : []),
+    "\n## 未確認事項",
+    ...verificationCandidates
+      .filter((c) => c.decision === "HOLD")
+      .map((c) => `- 保留: ${md(c.title)}`),
+    ...verificationCandidates
+      .filter((c) => c.property && c.property.origin !== "agreement")
+      .map(
+        (c) =>
+          `- 未合意の性質: ${md(c.title)}（${ORIGINS[c.property.origin]}）`
+      ),
+    ...existingTests
+      .filter((t) => ["READ", "NOT_RUN"].includes(t.result.status))
+      .map(
+        (t) => `- 実行結果なし: ${md(t.title)}（${RESULTS[t.result.status]}）`
+      ),
+    ...[...existingTests, ...verificationCandidates]
+      .filter((item) => item.boundary && item.boundary.origin !== "code")
+      .map(
+        (item) =>
+          `- 境界の構造が未確認: ${md(item.title)}（${BOUNDARIES[item.boundary.kind]}）`
+      ),
+  ].join("\n");
+};
 // A node's kind alone names its layer (see model.md).
 const LAYER_ORDER = ["business", "architecture", "function-flow"];
 const LAYER_LABELS = {
@@ -637,7 +1185,7 @@ export const artifacts = (doc) => {
     md(doc.scope),
   ];
   for (const view of views) {
-    model.push(`\n## ${view === "current" ? "現状" : "改善案"}`);
+    model.push(`\n## ${VIEW_LABELS[view]}`);
     const { cross, layers } = byLayer(doc.models[view]);
     for (const layer of LAYER_ORDER) {
       const graph = layers.get(layer);
@@ -667,7 +1215,13 @@ export const artifacts = (doc) => {
       );
     }
   }
+  const { rules } = verificationOf(doc);
   model.push(
+    "\n## 業務ルールと図の要素",
+    ...rules.map(
+      (r) =>
+        `- ${md(r.id)}（${VIEW_LABELS[r.model]} / ${RULE_KINDS[r.kind]}）: ${md(r.statement)} → ${r.targets.map((t) => elementLabel(doc, r.model, t)).join("、")}`
+    ),
     "\n## 指摘",
     ...doc.comments.map(
       (c) =>
@@ -676,7 +1230,7 @@ export const artifacts = (doc) => {
     "\n## 削除記録",
     ...doc.retired.map(
       (r) =>
-        `- ${md(r.view)} / ${md(r.item.id)}: ${md(r.item.data.label ?? r.item.label)}`
+        `- ${md(r.view)} / ${md(r.item.id)}: ${md(retiredLabel(r.item))}`
     ),
     "\n## 未解決",
     ...doc.unresolved.map((s) => `- ${md(s)}`),
@@ -704,7 +1258,7 @@ export const artifacts = (doc) => {
     `Feature: ${clean(doc.title)}`,
     ...doc.scenarios.map(
       (s) =>
-        `\n  # ${s.model} / ${s.status}\n${s.evidence.map((r) => `  # ${clean(r.path)}:${r.line ?? ""} @ ${clean(r.revision)}`).join("\n")}\n  Scenario: ${clean(s.title)}\n${s.given.map((g, i) => `    ${i ? "And" : "Given"} ${clean(g)}`).join("\n")}\n    When ${clean(s.when)}\n${s.then.map((t, i) => `    ${i ? "And" : "Then"} ${clean(t)}`).join("\n")}`
+        `\n  # ${s.model} / ${s.status}\n${[...s.evidence.map((r) => `  # ${clean(r.path)}:${r.line ?? ""} @ ${clean(r.revision)}`), ...(s.rules ?? []).map((ruleId) => `  # 業務ルール: ${clean(ruleId)}`)].join("\n")}\n  Scenario: ${clean(s.title)}\n${s.given.map((g, i) => `    ${i ? "And" : "Given"} ${clean(g)}`).join("\n")}\n    When ${clean(s.when)}\n${s.then.map((t, i) => `    ${i ? "And" : "Then"} ${clean(t)}`).join("\n")}`
     ),
   ].join("\n");
   const changes = [
@@ -722,6 +1276,7 @@ export const artifacts = (doc) => {
     "glossary.md": warning + glossary,
     "model.md": model.join("\n"),
     "scenarios.feature": bdd,
+    "verification.md": warning + verificationMarkdown(doc),
   };
 };
 
@@ -735,5 +1290,5 @@ export const feedback = (doc, exportId) => {
   const fence = "`".repeat(
     Math.max(3, ...[...json.matchAll(/`+/gu)].map((m) => m[0].length + 1))
   );
-  return `# ドメインモデルのレビュー\nセッション: ${md(doc.sessionId)} / 版: ${md(doc.revision)}\n回答ID: ${exportId}\n\n指摘と改善案を再調査してください。現状はコードから再確認し、用語・BDD・変更候補も整合させてください。更新版のbasedOnには、この版と回答IDを設定し、未解決事項と削除対象への指摘を保持してください。\n\n${doc.comments.map((c) => `- ${md(c.target.view)}/${md(c.target.id ?? "全体")}: ${md(c.text)}`).join("\n")}\n\n${fence}json\n${json}\n${fence}\n`;
+  return `# ドメインモデルのレビュー\nセッション: ${md(doc.sessionId)} / 版: ${md(doc.revision)}\n回答ID: ${exportId}\n\n指摘と改善案を再調査してください。現状はコードから再確認し、用語・BDD・変更候補・検証方針も整合させてください。更新版のbasedOnには、この版と回答IDを設定し、未解決事項と削除対象への指摘を保持してください。\n\n${doc.comments.map((c) => `- ${md(c.target.view)}/${md(c.target.id ?? "全体")}: ${md(c.text)}`).join("\n")}\n\n${fence}json\n${json}\n${fence}\n`;
 };

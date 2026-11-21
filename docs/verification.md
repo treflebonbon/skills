@@ -53,6 +53,8 @@ Nix store の Bun・closure・生成 wrapper と書込み先の実証は [Bun Ni
 
 CI の `typescript-evidence` は Bun 1.4.4 と `ast-grep 0.42.1` で `tests/helpers/rop-typescript-evidence.test.ts` を実行し、別の Bun 1.2.14 ジョブで `unavailable` による拒否を確認します。旧版 job のドライバーだけは明示的な設定無効化付きで旧 Bun から直接実行し、共用 runner の最低版チェックとは区別します。対応版では実物の `ast-grep` の版を先に確認するため、ツール不足で native テストがスキップされた結果を成功扱いしません。旧版の拒否テストは専用ジョブで必ず実行します。
 
+CI の `domain-modeling-studio` は、`scripts/build.mjs` で再生成したテンプレートが commit 済みの `dist/` と一致することを確かめ、Node suite と browser workflow（`npm --prefix skills/domain-modeling-studio run test:browser`）を実行します。browser workflow は lock に固定した Playwright とその Chromium を一時ディレクトリへ導入して使います。
+
 ```sh
 npm ci --prefix development
 npm run format:check
@@ -75,11 +77,7 @@ package／一般 skill の契約、TypeScript evidence ドライバーと dogfoo
 
 他のシェルファイルは対象外です。そのうち次の Bats 4 ファイルは、`.editorconfig` の `indent_size = 2` で `shfmt -l` に差分が出ることを確認しました。対象へ足すときは、先に整形を揃えます。`devshell-env`、`isolated-github`、`raw-codex-integration`、`secret-isolation-worktree`。他の対象外のファイルは、差分の有無を確認していません。
 
-`npm test` は Bun CLI の型検査・`tests/bun/` の Bun suite、Python の unittest discovery、dogfood / domain-modeling-studio / WSL2 browser package の Node suite、dogfood / WSL2 browser package / raw Codex fixture、および公開 `tests/*.bats` と `tests/cli/*.bats` を実行します。通常 suite は実 browser suite を起動しません。`npm run test:plugin-cli` は3 CLI すべてを要求する install smoke test で、モデルを呼ぶ実 session の証拠にはなりません。
-
-`tests/raw-codex/raw-managed-profile.bats` の「managed host grants and ancestor path rules stay scoped in raw namespace」は、Claude Code の worktree 隔離 session（Bats の一時 directory が `/tmp/nix-shell.*/` 配下）で失敗し、単独実行でも再現することを確認しました。sandbox 内の task が `mkdir: cannot create directory …/raw/home: Read-only file system` で終了します（confirmed）。原因の特定と、この環境の外で成功するかは未確認です。`npm test` の失敗にこのテスト 1 件だけが現れる場合は、環境依存の可能性が高い（推定）ので、通常の端末で単独実行して切り分けます。
-
-同じ失敗が Nix shell 配下の一時 directory で起きた場合は、`TMPDIR` だけを Nix shell 外の書込み可能な directory に変えて、この1件を再実行します。WSL2 の通常セッションではこの変更で成功したことを確認しました（confirmed）。fixture の保管先を変える切り分けであり、権限と host 非公開の検査は同じものを実行します。単独実行が通ったら、その `TMPDIR` と同じ HEAD で全 `npm test` を実行します。
+`npm test` は Bun CLI の型検査・`tests/bun/` の Bun suite、Python の unittest discovery、dogfood / domain-modeling-studio / WSL2 browser package の Node suite、`pr-screenshots` のコメント添付・Dogfood・WSL2 browser package・raw Codex の Bats fixture、および公開 `tests/*.bats` と `tests/cli/*.bats` を実行します。通常 suite は実 browser suite を起動しません。`npm run test:plugin-cli` は3 CLI すべてを要求する install smoke test で、モデルを呼ぶ実 session の証拠にはなりません。
 
 ## product-guide のブラウザ受入（人手）
 

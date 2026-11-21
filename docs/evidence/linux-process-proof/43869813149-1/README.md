@@ -35,7 +35,7 @@ arm64 の追加エラーについては、収集側の `preflight` と集約側�
 ## 証跡と判定の読み方
 
 - [run.json](run.json): `gh run view` で取得した run、各 job、step の終了状態。
-- [preflight.json](preflight.json): 各 raw `job.json` から source / workflow / run / attempt、controller hash、空の `trials`、前提検査、エラーを抽出。元の `job.json` の artifact 名、サイズ、SHA-256 も併記した。元ファイルの完全な source hash 一覧は raw artifact に残る。
+- [preflight.json](preflight.json): 各 raw `job.json` から source / workflow / run / attempt、controller hash、空の `trials`、前提検査、エラーを抽出。Nix store path のハッシュ部分までは architecture ごとのプレースホルダーで表す。元の `job.json` の artifact 名、サイズ、SHA-256 も併記した。元の store path と完全な source hash 一覧は raw artifact に残る。
 - [cohort.json](cohort.json)、[verdict.json](verdict.json)、[workflow-summary.md](workflow-summary.md): 集約 artifact のファイルを内容を変えず保存した。
 
 両 raw artifact に `job.json` は存在する。集約では `preflight.verified: false` の記録を有効な試験 job として受理しないため、`cohort.jobs` は空になり、「job が1件必要」「反復1・2・3が必要」と報告された。「source・前提検査・controller の証跡が不正」という包括的なエラーだけをもって、source の不一致や artifact の消失が起きたとは解釈しない。

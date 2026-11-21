@@ -26,38 +26,15 @@ test("WSL Playwright guidance preserves browser ownership and authentication rul
     "relocate",
     "headed",
     "headless",
-    "認証情報をコピーせず",
+    "credential import、通常の Chrome profile の再利用",
   ]) {
     assert.ok(guidance.includes(contract), `Missing WSL contract: ${contract}`);
   }
 
-  const closeBeforeAuth = guidance.indexOf('"$BROWSER_BIN/browser-attachments" close');
-  const auth = guidance.indexOf('"$BROWSER_BIN/browser-attachments" auth');
-  const manualLogin = guidance.indexOf("手動ログイン", auth);
-  const closeAfterAuth = guidance.indexOf(
-    '"$BROWSER_BIN/browser-attachments" close',
-    closeBeforeAuth + 1,
-  );
-  assert.ok(closeBeforeAuth >= 0 && auth > closeBeforeAuth);
-  assert.ok(manualLogin > auth && closeAfterAuth > manualLogin);
-  const usageClose = usage.indexOf('"$BROWSER_BIN/browser-attachments" close');
-  const usageAuth = usage.indexOf('"$BROWSER_BIN/browser-attachments" auth');
-  const usageCloseAfterAuth = usage.indexOf(
-    '"$BROWSER_BIN/browser-attachments" close',
-    usageClose + 1,
-  );
-  assert.ok(usageClose >= 0 && usageAuth > usageClose);
-  assert.ok(usageCloseAfterAuth > usageAuth);
   assert.match(guidance, /"\$BROWSER_BIN\/playwright-cli"/u);
   assert.match(guidance, /"\$BROWSER_BIN\/managed-chrome-owner"/u);
-  assert.match(guidance, /"\$BROWSER_BIN\/browser-attachments"/u);
   assert.match(guidance, /"\$BROWSER_BIN\/playwright-cli" attach --cdp/u);
-  assert.doesNotMatch(
-    guidance,
-    /```(?:bash|sh)\n(?:playwright-cli|managed-chrome-owner|browser-attachments)\b/mu,
-  );
-  assert.ok(usage.includes("コメントは GitHub CLI で投稿します"));
-  assert.ok(usage.includes("通常の Markdown 画像参照"));
-  assert.ok(guidance.includes("gh pr comment --attach"));
-  assert.ok(guidance.includes("placeholder や専用 browser 認証は不要"));
+  assert.doesNotMatch(guidance, /```(?:bash|sh)\n(?:playwright-cli|managed-chrome-owner)\b/mu);
+  assert.doesNotMatch(guidance, /browser-attachments/u);
+  assert.match(usage, /\.\.\/\.\.\/docs\/pr-attachments\.md/u);
 });

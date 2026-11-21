@@ -14,7 +14,7 @@ WSL2 では通常の `"$BROWSER_BIN/playwright-cli" open <URL>` が物理 Git wo
 
 - WSL mirrored networking が必要です。WSL 内の browser へ fallback しません。
 - 既定は headless です。`PLAYWRIGHT_MCP_HEADLESS=true|1` は headless、`"$BROWSER_BIN/playwright-cli" open --headed` または `PLAYWRIGHT_MCP_HEADLESS=false|0` は headed を指定します。バックグラウンド処理では headless を使い、OS 入力、foreground 化、自動 login、Dashboard 表示を行いません。可視 browser は人が明示的に起動します。
-- 各 worktree browser は一つの CLI session が所有します。同じ identity で headed と headless を同時に使えません。所有競合があれば既存 consumer を保持します。別 worktree、共有添付、Dogfood は別 consumer です。
+- 各 worktree browser は一つの CLI session が所有します。同じ identity で headed と headless を同時に使えません。所有競合があれば既存 consumer を保持します。別 worktree と Dogfood は別 consumer です。
 - `open` は新しい tab を作ります。別 consumer の tab を移動しません。
 - `"$BROWSER_BIN/playwright-cli" show` と `"$BROWSER_BIN/playwright-cli" show --annotate` は headed mode とその worktree の Dashboard port を必要とし、annotation は lease を持つ session からだけ実行できます。`"$BROWSER_BIN/playwright-cli" show --kill` はその Dashboard を起動した session だけが使えます。background task のために browser mode を自動変更しません。
 
@@ -42,31 +42,6 @@ BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
 relocation は profile を保持したまま CDP と Dashboard port だけを変更します。残っている owner、Dashboard runtime record、使用中の wrapper runtime、起動中または不明な browser があると拒否します。runtime lock は ownership lock を保持したまま待機せず取得します。現在の wrapper 処理が終わってから再試行してください。CDP が使える間は通常の close を使います。CDP も終了可能な window もない場合、対象 process の終了には明示的な承認を得てください。browser を自動終了しません。
 
 旧 package の consumer をすべて閉じてから package と Dogfood skill を一緒に更新してください。旧 global owner record と runtime lease は移行を止めます。
-
-## 共有添付と手動認証
-
-共有添付 browser は旧 PR 本文の `upload` に使います。コメント添付は GitHub CLI の認証を使い、共有 browser や専用 Playwright runtime を起動しません。旧本文添付の認証を準備するときは、最初に残った headless browser を閉じ、専用 window で手動 login/MFA を完了してからもう一度閉じます。添付時は同じ profile を headless で再起動します。認証情報をコピーせず、通常の閲覧用 Chrome profile は使いません。
-
-```sh
-"$BROWSER_BIN/browser-attachments" close
-"$BROWSER_BIN/browser-attachments" auth
-# 専用 Chrome で手動ログイン/MFA を完了
-"$BROWSER_BIN/browser-attachments" close
-```
-
-最初の `close` 自体が所有権や起動状態の不一致で失敗した場合は、[共有添付ブラウザの復旧](../USAGE.md#共有添付ブラウザの復旧)に従い、エラーに表示される対象 identity の `status` / `recover` を使います。明示的な復旧に成功してから、同じ認証 profile で上の手順を再開します。
-
-PR 本文への旧画像添付は明示依頼の後で `"$BROWSER_BIN/browser-attachments" upload` を使います。これは専用 browser を使い、placeholder 一つを置き換えます。
-
-コメント添付は GitHub CLI の `gh pr comment --attach` を使い、通常の Markdown 画像参照から代替テキスト、位置、掲載順を読み取ります。原稿内の各ローカル画像参照に対応する `--image` を同じ順序で渡してください。`<!-- screenshot-N -->` placeholder や専用 browser 認証は不要です。同じ依頼を照会するときは同じ request ID を使います。コメント経路は PR 本文を変更しません。
-
-```sh
-BROWSER_BIN=/absolute/path/to/treflebonbon-skills/packages/wsl2-browser/bin
-"$BROWSER_BIN/browser-attachments" upload --repo OWNER/REPO --pr NUMBER --image PATH --placeholder '<placeholder>' --request-id REQUEST_ID
-"$BROWSER_BIN/browser-attachments" comment --repo OWNER/REPO --pr NUMBER --image /absolute/path/BEFORE.png --image /absolute/path/AFTER.png --body-file COMMENT.md --request-id REQUEST_ID
-```
-
-コメント経路は repository、PR、本文、画像を request ID に結び付け、異なる対象や入力への再利用を拒否します。コメントは全画像成功、部分成功、全画像失敗、送信結果不明を区別します。部分投稿や結果不明では receipt を保持し、自動再送や不足分の補完を行いません。GitHub 上で前回の request を確認できるまで、新しい ID で同じ作業を作り直さないでください。
 
 ## 対応範囲と認証
 

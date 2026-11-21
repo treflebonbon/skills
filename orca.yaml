@@ -1,0 +1,25 @@
+environmentRecipes:
+  - id: sprites-wsl-pilot
+    name: Fly.io Sprites pilot via WSL
+    passEnv: [WSLENV, ORCA_SPRITES_PILOT_CLI]
+    timeoutSeconds:
+      create: 720
+      suspend: 60
+      resume: 90
+      destroy: 90
+    create: >-
+      set "WSLENV=ORCA_VM_MODE/u:ORCA_VM_INSTANCE_ID/u:ORCA_RECIPE_ID/u:ORCA_REPO_PATH/up:ORCA_REPO_REF_HEAD/u:ORCA_SPRITES_PILOT_CLI/u:%WSLENV%"
+      && wsl.exe --distribution Ubuntu-24.04 --cd "%ORCA_REPO_PATH%"
+      --exec /bin/bash -ilc "exec /bin/bash ./scripts/orca-vm/sprites-wsl.sh create"
+    suspend: >-
+      set "WSLENV=ORCA_VM_MODE/u:ORCA_VM_INSTANCE_ID/u:ORCA_RECIPE_ID/u:ORCA_REPO_PATH/up:ORCA_REPO_REF_HEAD/u:ORCA_SPRITES_PILOT_CLI/u:%WSLENV%"
+      && wsl.exe --distribution Ubuntu-24.04 --cd "%ORCA_REPO_PATH%"
+      --exec /bin/bash -ilc "exec /bin/bash ./scripts/orca-vm/sprites-wsl.sh suspend"
+    resume: >-
+      set "WSLENV=ORCA_VM_MODE/u:ORCA_VM_INSTANCE_ID/u:ORCA_RECIPE_ID/u:ORCA_REPO_PATH/up:ORCA_REPO_REF_HEAD/u:ORCA_SPRITES_PILOT_CLI/u:%WSLENV%"
+      && wsl.exe --distribution Ubuntu-24.04 --cd "%ORCA_REPO_PATH%"
+      --exec /bin/bash -ilc "exec /bin/bash ./scripts/orca-vm/sprites-wsl.sh resume"
+    destroy: >-
+      set "WSLENV=ORCA_VM_MODE/u:ORCA_VM_INSTANCE_ID/u:ORCA_RECIPE_ID/u:ORCA_REPO_PATH/up:ORCA_REPO_REF_HEAD/u:ORCA_SPRITES_PILOT_CLI/u:%WSLENV%"
+      && wsl.exe --distribution Ubuntu-24.04 --cd "%ORCA_REPO_PATH%"
+      --exec /bin/bash -ilc "exec /bin/bash ./scripts/orca-vm/sprites-wsl.sh destroy"

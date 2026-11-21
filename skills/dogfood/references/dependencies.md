@@ -27,4 +27,4 @@ dogfood の依存は必要な処理の直前にだけ準備します。skill 本
 - open-ended の browser exploration: 同じ公式 Playwright CLI skill を別途導入してから使います。dogfood runner は対象 page の初期状態だけを検査します。
 - Issue 作成後の別工程として triage をユーザーが求めた場合: [Matt Pocock の公式 skills](https://github.com/mattpocock/skills) から `triage` を別途導入し、その runtime が表示する名前付き呼出しで起動します。この公開 plugin は `triage` の版を固定せず、Issue 作成や要約だけのためには読み込みません。未導入の場合は handoff で止めます。
 
-`packages/wsl2-browser/USAGE.md` は WSL2 browser runtime、ownership、共有添付の条件と license を説明します。lock 内の tarball URL、integrity、license は変更時に一緒に検証してください。
+`packages/wsl2-browser/USAGE.md` は WSL2 browser runtime、ownership と利用条件 を説明します。lock 内の tarball URL、integrity、license は変更時に一緒に検証してください。

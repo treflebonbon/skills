@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { generateArchitecture } from "../../scripts/generate-architecture.mjs";
 import {
   checkoutFunctionFlow,
+  checkoutVerification,
   FIXTURE_REVISION,
   TS_PATH,
   RS_PATH,
@@ -53,7 +54,8 @@ export const buildRealContentDocument = async () => {
       retired: [],
       revision: "r1",
       scenarios: [],
-      schemaVersion: 2,
+      schemaVersion: 4,
+      ...checkoutVerification(),
       scope:
         "実際の生成器・手順が出した3層(アーキテクチャ/関数フロー/業務フロー)モデル",
       sessionId: "real-content-session",

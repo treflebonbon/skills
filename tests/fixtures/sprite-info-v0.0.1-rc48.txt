@@ -1,0 +1,3 @@
+URL:  https://{name}-eq3u.sprites.app
+Auth: sprite
+Labels: {name}

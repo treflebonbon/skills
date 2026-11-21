@@ -186,3 +186,22 @@ jobs:
           bin/orca-send --help > "$RUNNER_TEMP/bun-startup.txt" 2>&1 || status=$?
           test "$status" = 2
           grep -F 'Bun 1.4.4 以上が必要です' "$RUNNER_TEMP/bun-startup.txt"
+
+  domain-modeling-studio:
+    name: domain-modeling-studio のテンプレート・Node・browser 検査
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: 同梱テンプレートが src から再生成した内容と一致することを確認
+        run: |
+          node skills/domain-modeling-studio/scripts/build.mjs
+          git diff --exit-code -- skills/domain-modeling-studio/dist
+      - name: Node suite
+        run: npm --prefix skills/domain-modeling-studio test
+      - name: browser workflow
+        run: npm --prefix skills/domain-modeling-studio run test:browser

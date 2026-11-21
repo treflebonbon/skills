@@ -1,5 +1,6 @@
-// Run with Node. Set STUDIO_PLAYWRIGHT_MODULE to an installed Playwright index.mjs
-// and optionally STUDIO_CHROMIUM to an existing Chromium executable. No download.
+// Run via `npm run test:browser` (scripts/test-browser.mjs), which supplies
+// STUDIO_PLAYWRIGHT_MODULE. Optionally set STUDIO_CHROMIUM to an existing
+// Chromium executable. This file itself downloads nothing.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";

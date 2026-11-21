@@ -54,11 +54,6 @@ const writeFakeNpm = async (temporary) => {
     "  await fs.writeFile(path.join(cli, 'package.json'), JSON.stringify({version:'0.1.22'}));",
     "  await fs.writeFile(path.join(cli, 'playwright-cli.js'), \"process.stdout.write('pinned-cli:' + process.argv.slice(2).join(' '));\\n\");",
     "  await fs.writeFile(path.join(core, '../package.json'), JSON.stringify({version:'1.64.0-alpha-1790635538000'}));",
-    "  await fs.writeFile(" +
-      "path.join(core, \"../index.mjs\"), " +
-      "\"import playwright from './index.js';\\nexport const chromium = playwright.chromium;\\n\");",
-    "  await fs.writeFile(path.join(core, '../index.js'), \"require('./lib/bootstrap'); module.exports = { chromium: {} };\\n\");",
-    "  await fs.writeFile(path.join(core, 'bootstrap.js'), 'module.exports = {};\\n');",
     "  await fs.writeFile(path.join(core, 'coreBundle.js'), 'throw new Error(`Socket directory path is too long (${Buffer.byteLength(dir)} bytes); set PWTEST_SOCKETS_DIR to a shorter location.`);\\n');",
     "  await fs.writeFile(path.join(program, 'program.js'), 'const toolText = await runInSessionOrStop(newEntry, clientInfo, { _: [\\\"goto\\\", ...params.length ? params : [\\\"about:blank\\\"]] }, output);\\n');",
     "  await fs.writeFile(process.env.NPM_CALLS, JSON.stringify({args, skip:process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD, prefix}));",
@@ -259,19 +254,9 @@ test("prepare check reports readiness without installing or changing a runtime",
         "unpatched\n", /patches do not match this package/u,
       ],
       [
-        "missing attachment entrypoint",
-        "node_modules/playwright-core/index.mjs",
-        null, /Cannot find module.*index\.mjs/u,
-      ],
-      [
-        "missing attachment CommonJS entrypoint",
-        "node_modules/playwright-core/index.js",
-        null, /Cannot find module.*index\.js/u,
-      ],
-      [
-        "missing attachment transitive dependency",
-        "node_modules/playwright-core/lib/bootstrap.js",
-        null, /Cannot find module.*bootstrap/u,
+        "missing upstream CLI entrypoint",
+        "node_modules/@playwright/cli/playwright-cli.js",
+        null, /ENOENT.*playwright-cli\.js/u,
       ],
     ];
     for (const [name, relative, value, message] of failures) {
