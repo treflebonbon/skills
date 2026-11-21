@@ -20,6 +20,7 @@ import {
   RULE_KINDS,
   RESULTS,
   DECISIONS,
+  EXAMPLES_AND_PROPERTIES_NOTE,
   SCENARIO_STATUS,
   boundaryText,
   methodLines,
@@ -237,7 +238,8 @@ const VerificationPanel = ({ doc, focus, setFocus, children }) => {
     <div className="workspace">
       <section className="verification" aria-label="業務ルールと検証">
         <p>
-          根拠（コードで確認・合意・推測・改善案）と検証結果（読んだのみ・未実行・実行結果・形式モデルの結果）は別の区分です。テストを読んだことは実行や合格を意味しません。代表例は人と合意するための例で、性質はプロパティベーステストで確かめる業務ルールの言い換えです。どちらも実行や合格を意味せず、業務上の合意がない性質は未合意として示します。
+          根拠（コードで確認・合意・推測・改善案）と検証結果（読んだのみ・未実行・実行結果・形式モデルの結果）は別の区分です。テストを読んだことは実行や合格を意味しません。
+          {EXAMPLES_AND_PROPERTIES_NOTE}
         </p>
         {rules.length === 0 && (
           <p className="muted">業務ルールは未登録です。</p>

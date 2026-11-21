@@ -362,7 +362,7 @@ const validateMethod = (method) =>
     method === undefined || Object.hasOwn(METHODS, method),
     "検証手法が不正です"
   );
-const lines = (v) => Array.isArray(v) && v.length > 0 && v.every(nonempty);
+const nonemptyLines = (v) => Array.isArray(v) && v.length > 0 && v.every(nonempty);
 const validateProperty = (item) => {
   need(
     item.method === "PROPERTY" || item.property === undefined,
@@ -375,8 +375,8 @@ const validateProperty = (item) => {
   need(
     object(p) &&
       nonempty(p.statement) &&
-      lines(p.preconditions) &&
-      lines(p.inputs) &&
+      nonemptyLines(p.preconditions) &&
+      nonemptyLines(p.inputs) &&
       nonempty(p.observation),
     "性質には成り立つ性質・事前条件・生成範囲・観測する結果が必要です"
   );
@@ -514,13 +514,13 @@ const validateHistory = (history = []) => {
 };
 
 // Fields added in schemaVersion 4; an older template would round-trip them undisplayed.
-const list = (v) => (Array.isArray(v) ? v : []);
+const asArray = (v) => (Array.isArray(v) ? v : []);
 const hasV4Fields = (doc) =>
-  list(doc.scenarios).some((s) => s?.rules !== undefined) ||
-  list(doc.verificationCandidates).some(
+  asArray(doc.scenarios).some((s) => s?.rules !== undefined) ||
+  asArray(doc.verificationCandidates).some(
     (c) => c?.method !== undefined || c?.property !== undefined
   ) ||
-  list(doc.existingTests).some(
+  asArray(doc.existingTests).some(
     (t) =>
       t?.method !== undefined ||
       t?.result?.seed !== undefined ||
@@ -902,6 +902,8 @@ const resultText = (result) =>
       ? [`反例: ${codeSpan(result.counterexample)}`]
       : []),
   ].join("\n");
+export const EXAMPLES_AND_PROPERTIES_NOTE =
+  "代表例は人と合意するための例で、性質はプロパティベーステストで確かめる業務ルールの言い換えです。どちらも実行や合格を意味せず、業務上の合意がない性質は未合意として示します。";
 export const SCENARIO_STATUS = { confirmed: "確認済み", draft: "草案" };
 export const methodLines = (item) =>
   item.method ? [`検証手法: ${METHODS[item.method]}`] : [];
@@ -951,7 +953,7 @@ const verificationMarkdown = (doc) => {
   const unassigned = verificationCandidates.filter((c) => !c.rule);
   return [
     "# 検証方針",
-    "根拠と検証結果は別の区分です。根拠はコードで確認・業務上の合意・AIの推測・未検証の改善案を、検証結果はテストや形式モデルを実際にどう扱ったかを示します。テストを読んだことは、実行や合格を意味しません。代表例は人と合意するための例で、性質はプロパティベーステストで確かめる業務ルールの言い換えです。どちらも実行や合格を意味せず、業務上の合意がない性質は未合意として示します。",
+    "根拠と検証結果は別の区分です。根拠はコードで確認・業務上の合意・AIの推測・未検証の改善案を、検証結果はテストや形式モデルを実際にどう扱ったかを示します。テストを読んだことは、実行や合格を意味しません。" + EXAMPLES_AND_PROPERTIES_NOTE,
     ...(rules.length ? [] : ["\n業務ルールは未登録です。"]),
     ...rules.flatMap((r) => [
       `\n## 業務ルール: ${md(r.statement)}`,
