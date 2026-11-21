@@ -1,5 +1,5 @@
 name: Linux process proof
-run-name: "${{ inputs.mode == 'probe-cgroup' && 'Linux cgroup v2 可否確認' || 'Linux process proof' }}: ${{ inputs.source_sha }}"
+run-name: "Linux process proof: ${{ inputs.source_sha }}"
 
 on:
   workflow_dispatch:
@@ -8,17 +8,9 @@ on:
         description: 検査対象の完全な commit SHA（40桁）
         required: true
         type: string
-      mode:
-        description: 実行範囲（probe-cgroup は正式実証と別に記録する可否確認）
-        required: false
-        default: proof
-        type: choice
-        options:
-          - proof
-          - probe-cgroup
 
 concurrency:
-  group: linux-process-proof-${{ inputs.mode || 'proof' }}-${{ inputs.source_sha }}
+  group: linux-process-proof-${{ inputs.source_sha }}
   cancel-in-progress: false
 
 defaults:
@@ -29,7 +21,7 @@ jobs:
   proof:
     permissions:
       contents: read
-    name: "${{ inputs.mode == 'probe-cgroup' && 'cgroup v2 可否確認' || 'Linux 追加実証' }} (${{ matrix.arch }})"
+    name: Linux 追加実証 (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -43,98 +35,34 @@ jobs:
     env:
       PROOF_SOURCE_SHA: ${{ inputs.source_sha }}
       PROOF_ARCH: ${{ matrix.arch }}
-      PROOF_MODE: ${{ inputs.mode || 'proof' }}
     steps:
-      - name: 入力 SHA と方式を検査
-        run: |
-          [[ "$PROOF_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$PROOF_MODE" == proof || ( "$PROOF_MODE" == probe-cgroup && "$PROOF_SOURCE_SHA" == "$GITHUB_SHA" ) ]]
+      - name: 入力 SHA を検査
+        run: '[[ "$PROOF_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]'
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.sha }}
           path: control
           persist-credentials: false
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        if: inputs.mode != 'probe-cgroup'
         with:
           ref: ${{ inputs.source_sha }}
           path: subject
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        if: inputs.mode != 'probe-cgroup'
         with:
           bun-version: "1.4.4"
       - name: CI 専用依存と補助 group を準備
-        if: inputs.mode != 'probe-cgroup'
         run: |
           mkdir -p "$RUNNER_TEMP/linux-proof"
           bash control/development/setup-linux-process-proof.sh "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof" \
             2>&1 | tee "$RUNNER_TEMP/linux-proof/setup.log"
       - name: 非root で全44件を3反復
-        if: inputs.mode != 'probe-cgroup'
         run: bun control/development/run-linux-process-proof.ts run "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/linux-proof"
-      - name: cgroup 可否確認の前提を記録
-        if: inputs.mode == 'probe-cgroup'
-        run: |
-          mkdir -p "$RUNNER_TEMP/linux-proof"
-          uid="$(id -u)"
-          {
-            printf 'user=%s uid=%s kernel=%s image=%s\n' "$(id -un)" "$uid" "$(uname -r)" "${ImageVersion:-}"
-            printf 'job_cgroup=%s\n' "$(cat /proc/self/cgroup)"
-            printf 'systemd=%s\n' "$(systemctl --version | head -n 1)"
-            printf 'linger_before=%s\n' "$(loginctl show-user "$(id -un)" --property=Linger --value 2>&1 || true)"
-            printf 'user_manager_before=%s\n' "$(systemctl is-active "user@$uid.service" 2>&1 || true)"
-            printf 'bus_before=%s\n' "$([[ -S "/run/user/$uid/bus" ]] && echo present || echo absent)"
-          } | tee "$RUNNER_TEMP/linux-proof/cgroup-preconditions.log"
-      - name: 委譲の無い cgroup で準備を始めず拒否することを確認
-        if: always() && inputs.mode == 'probe-cgroup'
-        run: |
-          [[ -z "${PROBE_UNSHARE:-}${PROBE_CGROUP_ROOT:-}" ]]
-          marker="$RUNNER_TEMP/linux-proof/cgroup-preparation-marker"
-          status=0
-          /usr/bin/python3 control/development/probe-linux-cgroup.py select "$marker" \
-            2>&1 | tee "$RUNNER_TEMP/linux-proof/cgroup-select.log" || status=$?
-          printf 'select_exit=%s marker=%s\n' "$status" "$([[ -e "$marker" ]] && echo present || echo absent)"
-          [[ "$status" == 3 && ! -e "$marker" ]]
-      # ログインホストが既定で持つユーザーセッション状態だけを再現する。AppArmor・sysctl・sudoers は変えない。
-      - name: ログインホスト既定の linger を再現
-        if: always() && inputs.mode == 'probe-cgroup'
-        run: |
-          uid="$(id -u)"
-          sudo loginctl enable-linger "$(id -un)"
-          for _ in $(seq 1 60); do
-            [[ -S "/run/user/$uid/bus" ]] && break
-            sleep 0.5
-          done
-          {
-            printf 'linger_after=%s\n' "$(loginctl show-user "$(id -un)" --property=Linger --value 2>&1 || true)"
-            printf 'user_manager_after=%s\n' "$(systemctl is-active "user@$uid.service" 2>&1 || true)"
-            printf 'bus_after=%s\n' "$([[ -S "/run/user/$uid/bus" ]] && echo present || echo absent)"
-          } | tee -a "$RUNNER_TEMP/linux-proof/cgroup-preconditions.log"
-          [[ -S "/run/user/$uid/bus" ]]
-      - name: 委譲 scope で cgroup.kill と watchdog を測定
-        if: always() && inputs.mode == 'probe-cgroup'
-        run: |
-          [[ -z "${PROBE_UNSHARE:-}${PROBE_CGROUP_ROOT:-}" ]]
-          export XDG_RUNTIME_DIR="/run/user/$UID"
-          export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
-          systemd-run --user --scope --quiet -p Delegate=yes \
-            /usr/bin/python3 "$GITHUB_WORKSPACE/control/development/probe-linux-cgroup.py" run scope \
-            2>&1 | tee "$RUNNER_TEMP/linux-proof/cgroup-scope.log"
-      - name: 委譲 service で同じ測定
-        if: always() && inputs.mode == 'probe-cgroup'
-        run: |
-          [[ -z "${PROBE_UNSHARE:-}${PROBE_CGROUP_ROOT:-}" ]]
-          export XDG_RUNTIME_DIR="/run/user/$UID"
-          export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
-          systemd-run --user --wait --pipe --collect --quiet -p Delegate=yes \
-            /usr/bin/python3 "$GITHUB_WORKSPACE/control/development/probe-linux-cgroup.py" run service \
-            2>&1 | tee "$RUNNER_TEMP/linux-proof/cgroup-service.log"
       - name: 成功・失敗の生証跡を保存
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ inputs.mode == 'probe-cgroup' && 'cgroup-probe' || 'linux-proof' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
+          name: linux-proof-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
           path: ${{ runner.temp }}/linux-proof/
           if-no-files-found: error
           retention-days: 90
@@ -144,7 +72,7 @@ jobs:
     permissions:
       contents: read
     name: 両 architecture と履歴を照合
-    if: always() && inputs.mode != 'probe-cgroup'
+    if: always()
     needs: proof
     runs-on: ubuntu-24.04
     timeout-minutes: 30
