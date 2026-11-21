@@ -665,11 +665,13 @@ async function preflight(
     errors.push("手元実行は WSL2 kernel だけを対象にします");
   if (observed.containment === "refused")
     errors.push("namespace も委譲 scope も使えないため準備を始められません");
-  // 手元の WSL2 は既存の Nix をそのまま使い、runner で導入した版と remote 設定は求めない。
+  // 手元の WSL2 は既存の Nix をそのまま使い、runner で導入した版・remote・build user 設定は求めない。
   if (
-    (!local && (tools.nix!.version !== "nix (Nix) 2.34.6" || nix.remote !== "daemon")) ||
+    (!local &&
+      (tools.nix!.version !== "nix (Nix) 2.34.6" ||
+        nix.remote !== "daemon" ||
+        nix.buildUsersGroup !== "nixbld")) ||
     nix.sandbox !== true ||
-    nix.buildUsersGroup !== "nixbld" ||
     nix.daemon.status !== 0 ||
     !nix.bash?.startsWith("/nix/store/") ||
     !nix.stdenv?.startsWith("/nix/store/")
