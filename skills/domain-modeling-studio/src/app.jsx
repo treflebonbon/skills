@@ -198,13 +198,14 @@ const resultLines = (result) => [
   ...(result.seed ? [`seed: ${result.seed}`] : []),
   ...(result.counterexample ? [`反例: ${result.counterexample}`] : []),
 ];
-const Record = ({ heading, lines, evidence, label, onComment }) => (
+const Record = ({ heading, lines, evidence, label, onComment, children }) => (
   <div className="record">
     <h4>{heading}</h4>
     {lines.map((line) => (
       <p key={line}>{line}</p>
     ))}
     <Evidence evidence={evidence} />
+    {children}
     <button onClick={onComment}>{label}</button>
   </div>
 );
@@ -231,7 +232,14 @@ const VerificationPanel = ({ doc, focus, setFocus, children }) => {
       evidence={c.evidence}
       label="この検証候補に指摘"
       onComment={() => setFocus(c.id)}
-    />
+    >
+      {c.property && (
+        <section aria-label="性質の根拠">
+          <p>性質の根拠:</p>
+          <Evidence evidence={c.property.evidence} />
+        </section>
+      )}
+    </Record>
   );
   const unassigned = verificationCandidates.filter((c) => !c.rule);
   return (

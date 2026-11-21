@@ -161,6 +161,14 @@ try {
   assert.ok(
     recoveredText.includes("未合意の性質（コードで確認）: 在庫切れの注文の確定応答は")
   );
+  // A property's own evidence shows beside it, apart from the candidate's.
+  const formula = recovered.locator(".record", {
+    hasText: "実装の式を写した代替入荷の性質を保留する",
+  });
+  assert.equal(
+    await formula.getByLabel("性質の根拠", { exact: true }).locator("li").count(),
+    1
+  );
   const verificationText = await page
     .getByLabel("業務ルールと検証", { exact: true })
     .innerText();
