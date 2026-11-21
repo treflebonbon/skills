@@ -22,6 +22,15 @@ Orca 1.4.265 では、設定の「実験的機能 → クラウド VM」を有�
 
 ローカル検証では `python3 -B -m unittest discover -s tests -p test_orca_sprites_pilot.py` を実行します。試験では `ORCA_SPRITES_PILOT_CLI` に偽の CLI を指定します。偽の CLI は `tests/fixtures/sprite-info-<版>.txt` に記録した実機の `sprite info` 出力を返します。devShell の `sprite` の版が変わると版照合の試験が失敗するので、実機の出力を取り直してファイル名と `SPRITE_VERSION` を更新します。`vm recipe doctor` は、Windows 側で `WSLENV` を設定する4コマンドに対してリポジトリ相対コマンドの静的警告を出します。
 
+## Orca の版を変えるとき
+
+`origin/HEAD` の扱いは Orca 1.4.265 の次の処理に依存します。版を変えるときは、新しい版のタグで同じファイルを読み直します。
+
+- 既定の起点の選び方（`origin/HEAD`、`origin/main`、`origin/master` の順）: [`src/shared/git/refs/git-default-base-ref.ts`](https://github.com/stablyai/orca/blob/v1.4.265/src/shared/git/refs/git-default-base-ref.ts)
+- リモート追跡ブランチの起点を作成前に取得し直す処理: [`src/main/runtime/repositories/runtime-remote-tracking-base-fetch.ts`](https://github.com/stablyai/orca/blob/v1.4.265/src/main/runtime/repositories/runtime-remote-tracking-base-fetch.ts)
+
+GitHub を読めない場合は、インストール済みの Orca の `resources/orcad-template/orcad-server.js` を `could not resolve a default base ref` で検索します。
+
 ## 削除を確認できなかった場合
 
 記録が残る間、次の作成は拒否されます。失敗したワークスペースを Orca で「閉じる」を押しても削除処理は実行されないため、WSL で次の順に片付けます。
