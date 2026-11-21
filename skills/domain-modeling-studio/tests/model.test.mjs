@@ -35,6 +35,105 @@ test("モデルを受け取り、壊れた接続・重複ID・根拠のない確
   assert.throws(() => validateDocument(unsupported), /根拠/u);
 });
 
+test("文書の各項目の形式を検査し、境界の1つ手前は受け付ける", () => {
+  const retiredEdge = (extra) => ({
+    entity: "edge",
+    item: {
+      data: { evidence: [], origin: "inference" },
+      id: "old-edge",
+      label: "旧関係",
+      source: "request",
+      target: "accept",
+      ...extra,
+    },
+    view: "proposed",
+  });
+  const scenario = (extra) => ({
+    evidence: [],
+    given: ["依頼がある"],
+    id: "s1",
+    model: "current",
+    status: "draft",
+    then: ["受諾される"],
+    title: "依頼を受諾する",
+    when: "受諾する",
+    ...extra,
+  });
+  const change = (status) => ({ evidence: [], id: "c1", reason: "", status, title: "案内を改善する" });
+  const term = (status) => ({ definition: "", evidence: [], status, term: "依頼" });
+  // [rejected change, accepted change one step before the boundary, message]
+  for (const [reject, accept, message] of [
+    [
+      (d) => (d.models.proposed.nodes[0].width = 99),
+      (d) => Object.assign(d.models.proposed.nodes[0], { height: 60, width: 100 }),
+      /要素のサイズが不正です/u,
+    ],
+    [
+      (d) => (d.models.proposed.edges[0].label = undefined),
+      (d) => (d.models.proposed.edges[0].label = ""),
+      /関係の条件ラベルが必要です/u,
+    ],
+    [
+      (d) => d.comments.push({ id: "c1", target: { view: "whole" }, text: 1 }),
+      (d) => d.comments.push({ id: "c1", target: { view: "whole" }, text: "" }),
+      /指摘の形式が不正です/u,
+    ],
+    [
+      (d) => d.retired.push(retiredEdge({ source: "" })),
+      (d) => d.retired.push(retiredEdge({})),
+      /削除した関係の端点が不正です/u,
+    ],
+    [
+      (d) => d.retired.push(retiredEdge({ label: 3 })),
+      (d) => d.retired.push(retiredEdge({ label: "" })),
+      /削除対象の名称が不正です/u,
+    ],
+    [
+      (d) => d.glossary.push(term("agreed")),
+      (d) => d.glossary.push(term("confirmed")),
+      /用語辞書の形式が不正です/u,
+    ],
+    [
+      (d) => d.scenarios.push(scenario({ model: "both" })),
+      (d) => d.scenarios.push(scenario({ model: "proposed" })),
+      /シナリオの形式が不正です/u,
+    ],
+    [
+      (d) => d.scenarios.push(scenario({ given: [] })),
+      (d) => d.scenarios.push(scenario({ given: ["依頼が届いた"] })),
+      /シナリオの前提・操作・結果が必要です/u,
+    ],
+    [
+      (d) => d.changes.push(change("done")),
+      (d) => d.changes.push(change("agreed")),
+      /実装変更候補の形式が不正です/u,
+    ],
+    [(d) => (d.title = " "), (d) => (d.scope = ""), /タイトル・対象範囲が必要です/u],
+    [
+      (d) => (d.basedOn = { revision: "r0" }),
+      (d) => (d.basedOn = { exportId: "e1", revision: "r0" }),
+      /basedOnが不正です/u,
+    ],
+    [
+      (d) => (d.needsReview = "yes"),
+      (d) => (d.needsReview = false),
+      /needsReviewは真偽値で指定してください/u,
+    ],
+  ]) {
+    const rejected = example();
+    reject(rejected);
+    assert.throws(() => validateDocument(rejected), message);
+    const accepted = example();
+    accept(accepted);
+    assert.doesNotThrow(() => validateDocument(accepted), String(message));
+  }
+  const doc = validateDocument(example());
+  const move = { position: { x: 0, y: 0 } };
+  assert.throws(() => editItem(doc, "whole", "node", "request", move), /編集対象が不正です/u);
+  assert.throws(() => editItem(doc, "proposed", "node", "missing", move), /編集対象が見つかりません/u);
+  assert.doesNotThrow(() => editItem(doc, "current", "node", "request", move));
+});
+
 const withLayers = () => {
   const doc = example();
   doc.models.proposed.nodes.push(
