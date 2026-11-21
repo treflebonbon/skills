@@ -8,9 +8,31 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import corpus from "../fixtures/bun-exec-python.json";
-import { groupsInNamespace } from "../../development/linux-process-proof.ts";
+import manifest from "../../development/linux-process-proof-cases.json";
+import { groupsInNamespace, selectContainment } from "../../development/linux-process-proof.ts";
 
 const linux = process.platform === "linux" && process.env.PROCESS_PROOF_PID_NAMESPACE === "1";
+// 正式実証ではホストで実際に選ばれる方式を読込み時に確かめ、「共通＋その方式専用」だけを登録する。
+const containment = linux ? selectContainment() : undefined;
+if (containment === "refused")
+  throw new Error("namespace も委譲 scope も使えないため正式実証を開始しません（未実証）");
+type Group = "common" | "namespace" | "cgroup";
+// 無効時は manifest との照合のため全区分を skip として登録する。
+function proof(
+  group: Group,
+  name: string,
+  body: () => void | Promise<unknown>,
+  timeout?: number,
+  skip = false,
+) {
+  if (
+    !(manifest.cases[group] as string[]).includes(name) &&
+    !(manifest.observations[group as "cgroup"] ?? []).includes(name)
+  )
+    throw new Error(`manifest にないケースです: ${name}`);
+  if (linux && group !== "common" && group !== containment) return;
+  test.skipIf(!linux || skip)(name, body, timeout);
+}
 const root = fs.mkdtempSync(join(tmpdir(), "bun-process-namespace-"));
 const fixture = (name: string) => fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url));
 const entry = fixture("bun-exec-entry.sh");
@@ -22,6 +44,7 @@ const baseline = join(root, "baseline");
 const withoutProc = join(root, "without-proc");
 const watcher = join(root, "pidfds");
 const delay = join(root, "delay.so");
+const systemdRun = Bun.which("systemd-run");
 const records: object[] = [];
 let buildRecord: object;
 const nixStdenv = process.env.PROCESS_PROOF_NIX_STDENV;
@@ -52,6 +75,8 @@ beforeAll(() => {
         "-Wextra",
         "-Werror",
         `-DPROCESS_PROOF_UNSHARE=${JSON.stringify(fs.realpathSync(unshare))}`,
+        `-DPROCESS_PROOF_SYSTEMD_RUN=${JSON.stringify(systemdRun ? fs.realpathSync(systemdRun) : "/nonexistent/systemd-run")}`,
+        `-DPROCESS_PROOF_LAUNCHER=${JSON.stringify(launcher)}`,
         ...(binary === delay ? ["-shared", "-fPIC"] : []),
         ...(binary === withoutProc ? ["-DPROCESS_PROOF_NO_PROC"] : []),
         fixture(source!),
@@ -83,9 +108,13 @@ beforeAll(() => {
     entrySourceHash: hash(entry),
     preparationSourceHash: hash(prepare),
     runnerSourceHash: hash(runner),
+    systemdRun: systemdRun && fs.realpathSync(systemdRun),
     corpusRevision: corpus.sourceRevision,
     builds,
   };
+  const observed = launch().containment;
+  if (observed !== containment)
+    throw new Error(`launcher の方式 ${observed} が読込み時の選択 ${containment} と一致しません`);
 }, 190_000);
 
 afterAll(() => {
@@ -97,6 +126,7 @@ afterAll(() => {
       arch: process.arch,
       bun: Bun.version,
       build: buildRecord,
+      containment,
       records,
       verification: linux ? "see-test-results" : "not-run",
       realCallerRequested: Boolean(nixStdenv && nixBash),
@@ -191,20 +221,65 @@ async function pin(pids: number[]) {
   };
 }
 
+let observationCount = 0;
+/** launcher が PROCESS_PROOF_OBSERVE へ書いた観測。後の行が前の値を上書きする。 */
+type Observation = { containment?: string; cgroup?: string; watchdog?: string };
+function observation(path: string): Observation {
+  const values: Record<string, string> = {};
+  if (!fs.existsSync(path)) return values;
+  for (const field of fs.readFileSync(path, "utf8").split(/\s+/)) {
+    const separator = field.indexOf("=");
+    if (separator > 0) values[field.slice(0, separator)] = field.slice(separator + 1);
+  }
+  return values;
+}
+const observationPath = () => join(root, `observe-${++observationCount}`);
+
+function launch(mode = "reviewer", env: NodeJS.ProcessEnv = {}) {
+  const path = observationPath();
+  const result = execute(launcher, mode, observer, [], { ...env, PROCESS_PROOF_OBSERVE: path });
+  return { result, ...observation(path) };
+}
+
+function killCgroup(path: string | undefined) {
+  try {
+    if (path) fs.writeFileSync(`/sys/fs/cgroup${path}/cgroup.kill`, "1");
+  } catch (error) {
+    if (!["ENOENT", "ENODEV"].includes((error as NodeJS.ErrnoException).code!)) throw error;
+  }
+}
+
+type Interruption = {
+  stage?: string;
+  hiddenParentDeath?: boolean;
+  hiddenLauncherDeath?: boolean;
+  /** launcher だけ・launcher の process group 全体・監視役だけ、のどれへ signal を送るか。 */
+  target?: "launcher" | "group" | "helper";
+};
+
 async function interruption(
   mode: string,
   signal: "SIGTERM" | "SIGKILL",
-  stage?: string,
-  hiddenParentDeath = false,
+  {
+    stage,
+    hiddenParentDeath = false,
+    hiddenLauncherDeath = false,
+    target = "launcher",
+  }: Interruption = {},
 ) {
+  const observed = observationPath();
   const child = spawn(entry, [runner, prepare, launcher, mode, observer], {
     stdio: ["pipe", "pipe", "pipe", "pipe"],
+    // process group 全体へ送るときだけ、試験 runner と別の group にする。
+    detached: target === "group",
     env: {
       ...process.env,
       LD_PRELOAD: delay,
       PROCESS_PROOF_DETACH_INIT: "1",
+      PROCESS_PROOF_OBSERVE: observed,
       ...(stage ? { PROCESS_PROOF_GATE: stage } : {}),
       ...(hiddenParentDeath ? { PROCESS_PROOF_HIDE_PARENT_DEATH: "1" } : {}),
+      ...(hiddenLauncherDeath ? { PROCESS_PROOF_HIDE_LAUNCHER_DEATH: "1" } : {}),
     },
   });
   const ended = once(child, "exit");
@@ -244,11 +319,43 @@ async function interruption(
         .readFileSync(`/proc/${pid}/status`, "utf8")
         .split("\n")
         .filter((line) => /^(NSpid|NSpgid|NSsid|Uid|Gid|Groups):/.test(line)),
+      cgroup: fs.readFileSync(`/proc/${pid}/cgroup`, "utf8").trim(),
     }));
+    const selected = observation(observed);
+    expect(selected.containment).toBe(containment!);
     owned = await pin(pids);
+    let helper: number | undefined;
+    if (target === "helper") {
+      // cgroup では scope 外の watchdog、namespace では準備 group の監視役を対照として止める。
+      helper =
+        containment === "cgroup"
+          ? Number(selected.watchdog)
+          : pids.find(
+              (pid) =>
+                fs.readlinkSync(`/proc/${pid}/exe`) === launcher &&
+                Number(
+                  fs.readFileSync(`/proc/${pid}/stat`, "utf8").split(") ")[1]!.split(" ")[2],
+                ) === pid,
+            );
+      expect(pids).toContain(helper!);
+    }
     const started = performance.now();
-    child.kill(signal);
-    await within(ended);
+    if (target === "group") process.kill(-child.pid!, "SIGKILL");
+    else if (helper) process.kill(helper, "SIGKILL");
+    else child.kill(signal);
+    let launcherOutcome: unknown;
+    if (helper && containment === "namespace") {
+      // namespace では監視役の死亡を検知しない。launcher は準備を続け、中断で準備子孫を終了する。
+      // launcher と監視役の両方が kill される場合は保証の外（ADR 0005 の追記）なので SIGKILL は送らない。
+      await Bun.sleep(200);
+      expect(child.exitCode).toBeNull();
+      child.kill("SIGTERM");
+    }
+    const [status, exitSignal] = await within(ended);
+    if (helper && containment === "cgroup") {
+      expect([status, exitSignal]).toEqual([1, null]);
+      launcherOutcome = { status, signal: exitSignal };
+    }
     if (hiddenParentDeath) {
       const namespaceInit = identities.filter((identity) =>
         identity.status.some((line) => /^NSpid:\s+(?:\d+\s+)*1$/.test(line)),
@@ -277,24 +384,38 @@ async function interruption(
       // 対照の後始末が本判定へ入り込まないよう、launcher 終了後にも5秒待つ。
       await Bun.sleep(5_100);
       expect((await owned.terminated()).length).toBeLessThan(pids.length);
+    } else if (hiddenLauncherDeath) {
+      await Bun.sleep(5_100);
+      const terminated = await owned.terminated();
+      // watchdog が cgroup.kill を書かなければ、離脱した子孫と watchdog 自身が残る。
+      expect(terminated).not.toContain(Number(selected.watchdog));
+      expect(terminated.length).toBeLessThan(pids.length);
+      controlParentsTerminatedBeforeRelease = terminated;
     } else {
       await until(async () => (await owned!.terminated()).length === pids.length, 4_500);
       expect(performance.now() - started).toBeLessThan(5_000);
     }
     const durationMs = performance.now() - started;
-    if (!hiddenParentDeath) {
+    if (!hiddenParentDeath && !hiddenLauncherDeath) {
       await within(drained);
       if (stage) expect(stderr).not.toContain("prep-ready:");
     }
+    if (helper && containment === "cgroup")
+      expect(stderr).toContain("launcher: preparation failed");
     expect(stdout).toBe("");
     expect(unrelated.exitCode).toBeNull();
     expect(unrelated.signalCode).toBeNull();
     records.push({
+      containment,
       mode,
       signal,
       stage,
+      target,
       hiddenParentDeath,
+      hiddenLauncherDeath,
       controlParentsTerminatedBeforeRelease,
+      launcherOutcome,
+      observation: selected,
       identities,
       durationMs,
       targetStarted: false,
@@ -304,6 +425,13 @@ async function interruption(
     if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
     await within(ended);
     gate.end("R");
+    // 対照で残した子孫と watchdog を後始末する。
+    killCgroup(observation(observed).cgroup);
+    const watchdog = Number(observation(observed).watchdog);
+    if (watchdog > 1)
+      try {
+        process.kill(watchdog, "SIGKILL");
+      } catch {}
     await owned?.close();
     unrelated.kill("SIGKILL");
     await within(unrelatedEnded);
@@ -320,13 +448,28 @@ for (const mode of [
   "prep-complete-hang-blocked",
 ]) {
   for (const signal of ["SIGTERM", "SIGKILL"] as const) {
-    test.skipIf(!linux)(
-      `PID namespace は ${mode} の ${signal} 後に全所有子孫を5秒以内に終了する`,
+    proof(
+      "common",
+      `選ばれた方式は ${mode} の ${signal} 後に全所有子孫を5秒以内に終了する`,
       () => interruption(mode, signal),
       15_000,
     );
   }
 }
+
+proof(
+  "common",
+  "launcher の process group 全体への SIGKILL でも全所有子孫を5秒以内に終了する",
+  () => interruption("prep-detached-session", "SIGKILL", { target: "group" }),
+  15_000,
+);
+
+proof(
+  "common",
+  "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない",
+  () => interruption("prep-detached-session", "SIGKILL", { target: "helper" }),
+  15_000,
+);
 
 for (const stage of [
   "namespace-before",
@@ -338,18 +481,126 @@ for (const stage of [
   "exec-before",
 ]) {
   for (const signal of ["SIGTERM", "SIGKILL"] as const) {
-    test.skipIf(!linux)(
+    proof(
+      "namespace",
       `unshare の ${stage} で ${signal} を受けても準備子を残さない`,
-      () => interruption("prep-hang", signal, stage),
+      () => interruption("prep-hang", signal, { stage }),
       15_000,
     );
   }
 }
 
-test.skipIf(!linux)(
+proof(
+  "namespace",
   "親死亡の pidfd 検査を無効にした対照では登録前 race の残存を検出する",
-  () => interruption("prep-hang", "SIGKILL", "fork-child", true),
+  () => interruption("prep-hang", "SIGKILL", { stage: "fork-child", hiddenParentDeath: true }),
   15_000,
+);
+
+for (const stage of [
+  "systemd-run-before",
+  "scope-before",
+  "scope-after",
+  "watchdog-before",
+  "watchdog-after",
+  "prepare-exec-before",
+]) {
+  for (const signal of ["SIGTERM", "SIGKILL"] as const) {
+    proof(
+      "cgroup",
+      `cgroup 経路の ${stage} で ${signal} を受けても準備子を残さない`,
+      () => interruption("prep-hang", signal, { stage }),
+      15_000,
+    );
+  }
+}
+
+proof(
+  "cgroup",
+  "watchdog を無効にした対照では launcher の SIGKILL 後に離脱子孫の残存を検出する",
+  () => interruption("prep-detached-session", "SIGKILL", { hiddenLauncherDeath: true }),
+  15_000,
+);
+
+proof(
+  "cgroup",
+  "子孫が cgroup の移動で準備用 cgroup から抜け出せるかを観測する",
+  async () => {
+    // shellHook から呼ばれたツールが自分で scope を作る場合を再現する。合否には数えず観測だけを残す。
+    const escapePrepare = join(root, "escape.ts");
+    fs.writeFileSync(
+      escapePrepare,
+      `
+      import { readFileSync } from "node:fs";
+      const own = readFileSync("/proc/self/cgroup", "utf8");
+      const child = Bun.spawn([${JSON.stringify(systemdRun)}, "--user", "--scope", "--quiet", "--collect", "--", "sleep", "30"], { stdout: "ignore", stderr: "inherit" });
+      const start = performance.now();
+      let moved = own;
+      while (performance.now() - start < 3000) {
+        try { moved = readFileSync("/proc/" + child.pid + "/cgroup", "utf8"); } catch {}
+        if (moved !== own && moved.trim()) break;
+        await Bun.sleep(10);
+      }
+      console.error("escape:" + JSON.stringify({ pid: child.pid, own: own.trim(), moved: moved.trim() }));
+      console.error("prep-ready:" + process.pid);
+      setInterval(() => {}, 1000);
+    `,
+    );
+    const observed = observationPath();
+    const child = spawn(entry, [runner, escapePrepare, launcher, "reviewer", observer], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, PROCESS_PROOF_OBSERVE: observed },
+    });
+    const ended = once(child, "exit");
+    let stderr = "";
+    child.stderr!.on("data", (data) => {
+      stderr += data;
+    });
+    let escapee: { pid: number; own: string; moved: string } | undefined;
+    try {
+      await until(() => stderr.includes("prep-ready:"), 8_000).catch((error) => {
+        throw new Error(`${error}\n${stderr}`);
+      });
+      const reported: { pid: number; own: string; moved: string } = JSON.parse(
+        /^escape:(.*)$/m.exec(stderr)![1]!,
+      );
+      escapee = reported;
+      const scope = observation(observed).cgroup!;
+      const pids = descendants(child.pid!).filter((pid) => pid !== reported.pid);
+      const owned = await pin(pids);
+      try {
+        child.kill("SIGKILL");
+        await within(ended);
+        await until(async () => (await owned.terminated()).length === pids.length, 4_500);
+        await Bun.sleep(5_100);
+        const survived =
+          fs.existsSync(`/proc/${reported.pid}`) &&
+          !/^\S+ \S+ Z /.test(
+            fs.readFileSync(`/proc/${reported.pid}/stat`, "utf8").replace(/\(.*\)/, "x"),
+          );
+        records.push({
+          cgroupEscape: {
+            scope,
+            escapee: reported,
+            leftScope: reported.moved !== reported.own,
+            survivedLauncherKill: survived,
+            countedInVerdict: false,
+          },
+        });
+      } finally {
+        await owned.close();
+      }
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+      await within(ended);
+      killCgroup(observation(observed).cgroup);
+      if (escapee)
+        try {
+          process.kill(escapee.pid, "SIGKILL");
+        } catch {}
+    }
+  },
+  30_000,
 );
 
 function execute(
@@ -374,85 +625,121 @@ function contexts(stderr: string) {
     .map((line) => JSON.parse(line.slice("namespace-context:".length)));
 }
 
-test.skipIf(!linux)(
-  "unshare の namespace 拒否では target を実行せず、同じ実行体の正常対照は動く",
+proof(
+  "namespace",
+  "probe 成功後に本番の unshare が拒否されたら cgroup へ移らず target を実行せず、同じ実行体の正常対照は動く",
   () => {
-    const denied = execute(launcher, "reviewer", observer, [], {
-      LD_PRELOAD: delay,
-      PROCESS_PROOF_DENY_NAMESPACE: "1",
-    });
-    expect(denied.status).toBe(1);
-    expect(denied.stdout).toBe("");
-    expect(denied.stderr).toContain("namespace-denied");
-    expect(denied.stderr).toContain("Operation not permitted");
+    const denied = launch("reviewer", { LD_PRELOAD: delay, PROCESS_PROOF_DENY_NAMESPACE: "1" });
+    expect(denied.containment).toBe("namespace");
+    expect(denied.cgroup).toBeUndefined();
+    expect(denied.result.status).toBe(1);
+    expect(denied.result.stdout).toBe("");
+    expect(denied.result.stderr).toContain("namespace-denied");
+    expect(denied.result.stderr).toContain("Operation not permitted");
+    expect(denied.result.stderr).toContain("launcher: preparation failed");
     expect(execute(launcher).status).toBe(37);
   },
 );
 
-test.skipIf(!linux)(
-  "旧 Python corpus の PID・FD・signal・argv・env 契約を namespace 候補でも満たす",
+proof(
+  "cgroup",
+  "user manager に届かない環境では準備を始めずに拒否し、環境を戻した同じ実行体は動く",
   () => {
-    for (const item of corpus.cases) {
-      const result = spawnSync(
-        observer,
-        [
-          "seed",
-          join(root, "corpus-fd"),
-          item.flags,
-          item.mask,
-          entry,
-          runner,
-          prepare,
-          launcher,
-          "reviewer",
-          observer,
-          "--",
-          "report",
-          "37",
-          "literal ; $() 🙂",
-          "",
-        ],
-        {
-          encoding: "utf8",
-          timeout: 5_000,
-          env: { ...process.env, PROCESS_PROOF_MARKER: "literal🙂", GIT_PROOF_MARKER: "remove" },
-        },
-      );
-      expect(result.error).toBeUndefined();
-      expect(result.status).toBe(item.expected.exitCode);
-      expect(result.signal).toBe(item.expected.signal);
-      const [seed, target] = result.stdout
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line));
-      for (const key of ["pid", "ppid", "pgid", "sid"] as const)
-        expect(target[key]).toBe(seed[key]);
-      expect(target.fds).toEqual(item.expected.fds);
-      expect(target.usr1Blocked).toBe(item.expected.usr1Blocked);
-      expect(target.ignored).toEqual(item.expected.ignored);
-      expect(target.fd9 !== null).toBe(item.expected.fdInherited);
-      expect(target.fd9?.cloexec ?? null).toBe(item.expected.fdCloexec);
-      expect(target.gitMarker).toBe(item.expected.gitMarker);
-      expect(target.marker).toBe(item.expected.marker);
-      expect(target.argv).toEqual(["codex", ...item.expected.literalTail]);
-      const [before, after] = contexts(result.stderr);
-      expect(after.fds).toEqual(
-        item.flags === "cloexec" ? [] : seed.fds.map((fd: number) => ({ fd, ...seed.fd9 })),
-      );
-      expect(after.groups).toEqual(before.groups);
-      expect(after.uid).toBe(before.uid);
-      expect(after.gid).toBe(before.gid);
-      records.push({
-        corpus: item.flags + "/" + item.mask,
-        seed,
-        target,
-        contexts: [before, after],
-      });
-    }
+    const marker = join(root, "refusal-marker");
+    const markerPrepare = join(root, "marker.ts");
+    fs.writeFileSync(
+      markerPrepare,
+      `await Bun.write(${JSON.stringify(marker)}, "started"); await import(${JSON.stringify(prepare)});`,
+    );
+    const observed = observationPath();
+    // テスト専用の上書きではなく、ログインセッションの無いホストと同じく user bus の場所を渡さない。
+    const denied = spawnSync(entry, [runner, markerPrepare, launcher, "reviewer", observer], {
+      encoding: "utf8",
+      timeout: 10_000,
+      env: {
+        ...process.env,
+        XDG_RUNTIME_DIR: undefined,
+        DBUS_SESSION_BUS_ADDRESS: undefined,
+        PROCESS_PROOF_OBSERVE: observed,
+      },
+    });
+    expect(denied.status).toBe(69);
+    expect(denied.stdout).toBe("");
+    expect(denied.stderr).toContain("launcher: containment unavailable");
+    expect(fs.existsSync(marker)).toBe(false);
+    expect(observation(observed).containment).toBe("refused");
+    const allowed = spawnSync(entry, [runner, markerPrepare, launcher, "reviewer", observer], {
+      encoding: "utf8",
+      timeout: 10_000,
+    });
+    expect(allowed.status).toBe(37);
+    expect(fs.readFileSync(marker, "utf8")).toBe("started");
+    records.push({
+      refusal: { status: denied.status, stderr: denied.stderr, allowed: allowed.status },
+    });
   },
 );
 
-test.skipIf(!linux)("旧 corpus の exec 拒否を namespace 候補でも維持する", () => {
+proof("common", "旧 Python corpus の PID・FD・signal・argv・env 契約を候補でも満たす", () => {
+  for (const item of corpus.cases) {
+    const result = spawnSync(
+      observer,
+      [
+        "seed",
+        join(root, "corpus-fd"),
+        item.flags,
+        item.mask,
+        entry,
+        runner,
+        prepare,
+        launcher,
+        "reviewer",
+        observer,
+        "--",
+        "report",
+        "37",
+        "literal ; $() 🙂",
+        "",
+      ],
+      {
+        encoding: "utf8",
+        timeout: 5_000,
+        env: { ...process.env, PROCESS_PROOF_MARKER: "literal🙂", GIT_PROOF_MARKER: "remove" },
+      },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(item.expected.exitCode);
+    expect(result.signal).toBe(item.expected.signal);
+    const [seed, target] = result.stdout
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    for (const key of ["pid", "ppid", "pgid", "sid"] as const) expect(target[key]).toBe(seed[key]);
+    expect(target.fds).toEqual(item.expected.fds);
+    expect(target.usr1Blocked).toBe(item.expected.usr1Blocked);
+    expect(target.ignored).toEqual(item.expected.ignored);
+    expect(target.fd9 !== null).toBe(item.expected.fdInherited);
+    expect(target.fd9?.cloexec ?? null).toBe(item.expected.fdCloexec);
+    expect(target.gitMarker).toBe(item.expected.gitMarker);
+    expect(target.marker).toBe(item.expected.marker);
+    expect(target.argv).toEqual(["codex", ...item.expected.literalTail]);
+    const [before, after] = contexts(result.stderr);
+    expect(after.fds).toEqual(
+      item.flags === "cloexec" ? [] : seed.fds.map((fd: number) => ({ fd, ...seed.fd9 })),
+    );
+    expect(after.groups).toEqual(before.groups);
+    expect(after.uid).toBe(before.uid);
+    expect(after.gid).toBe(before.gid);
+    records.push({
+      corpus: item.flags + "/" + item.mask,
+      seed,
+      target,
+      contexts: [before, after],
+    });
+  }
+});
+
+proof("common", "旧 corpus の exec 拒否を候補でも維持する", () => {
   for (const item of corpus.errors) {
     const path = join(root, `error-${item.name}`);
     if (item.name === "directory") fs.mkdirSync(path);
@@ -465,7 +752,8 @@ test.skipIf(!linux)("旧 corpus の exec 拒否を namespace 候補でも維持�
   expect(execute(launcher).status).toBe(37);
 });
 
-test.skipIf(!linux)(
+proof(
+  "common",
   "正常な準備には5秒上限を設けず、5.2秒後に同じ launcher PID で target を実行する",
   () => {
     const slow = join(root, "slow.ts");
@@ -498,20 +786,18 @@ test.skipIf(!linux)(
   12_000,
 );
 
-test.skipIf(!linux)(
-  "準備失敗・不正 frame・完了 frame 後の非ゼロ終了では target を実行しない",
-  () => {
-    for (const mode of ["prep-fail", "prep-partial", "prep-trailing", "prep-complete-fail"]) {
-      const result = execute(launcher, mode);
-      expect(result.status).toBe(1);
-      expect(result.stdout).toBe("");
-      expect(result.stderr).toContain("launcher: preparation failed");
-    }
-    expect(execute(launcher).status).toBe(37);
-  },
-);
+proof("common", "準備失敗・不正 frame・完了 frame 後の非ゼロ終了では target を実行しない", () => {
+  for (const mode of ["prep-fail", "prep-partial", "prep-trailing", "prep-complete-fail"]) {
+    const result = execute(launcher, mode);
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("launcher: preparation failed");
+  }
+  expect(execute(launcher).status).toBe(37);
+});
 
-test.skipIf(!linux)(
+proof(
+  "common",
   "wrapper 入力の ARG_MAX で旧方式の受理範囲を独立対照と比較する",
   () => {
     const run = (binary: string, count: number, tail = 0) => {
@@ -564,7 +850,8 @@ test.skipIf(!linux)(
   60_000,
 );
 
-test.skipIf(!linux)(
+proof(
+  "common",
   "元 launcher の frame 上限の直前は通り、上限では候補も同じ診断で拒否する",
   () => {
     const driver = join(root, "frame-limit.ts");
@@ -601,47 +888,64 @@ test.skipIf(!linux)(
   45_000,
 );
 
-test.skipIf(!linux)(
-  "準備子の UID/GID/groups と proc PID は対照に一致し、mount-proc なしの不整合を検出する",
-  () => {
-    const contextPrepare = join(root, "context.ts");
-    const ownedFile = join(root, "owner-only");
-    fs.writeFileSync(ownedFile, "proof-access", { mode: 0o600 });
-    fs.writeFileSync(
-      contextPrepare,
-      `
+function contextPrepare() {
+  const path = join(root, "context.ts");
+  const ownedFile = join(root, "owner-only");
+  fs.writeFileSync(ownedFile, "proof-access", { mode: 0o600 });
+  fs.writeFileSync(
+    path,
+    `
     const child = Bun.spawnSync([process.argv[3]!, "context"]);
     if (child.exitCode !== 0) throw new Error(child.stderr.toString());
     process.stderr.write(child.stderr);
     if (await Bun.file(${JSON.stringify(ownedFile)}).text() !== "proof-access") throw new Error("owner file を読めません");
     await import(${JSON.stringify(prepare)});
   `,
-    );
-    const results = [baseline, withoutProc, launcher].map((binary) =>
-      spawnSync(entry, [runner, contextPrepare, binary, "reviewer", observer], {
-        encoding: "utf8",
-        timeout: 5_000,
-      }),
-    );
-    for (const result of results) expect(result.status).toBe(37);
-    const [before, mismatched, after] = results.map((result) => contexts(result.stderr)[0]);
-    for (const key of ["uid", "euid", "gid", "egid", "groups"])
-      expect(after[key]).toEqual(before[key]);
+  );
+  return (binary: string) => {
+    const result = spawnSync(entry, [runner, path, binary, "reviewer", observer], {
+      encoding: "utf8",
+      timeout: 5_000,
+    });
+    expect(result.status).toBe(37);
+    return contexts(result.stderr)[0];
+  };
+}
+
+proof("common", "準備子の UID/GID/groups と proc PID は対照に一致する", () => {
+  const context = contextPrepare();
+  const [before, after] = [baseline, launcher].map(context);
+  for (const key of ["uid", "euid", "gid", "egid"]) expect(after[key]).toEqual(before[key]);
+  if (containment === "namespace") {
     expect(after.uid_map).toEqual([[before.uid, before.uid, 1]]);
     expect(after.gid_map).toEqual([[before.gid, before.gid, 1]]);
-    expect(before.procSelf).toBe(String(before.pid));
-    expect(mismatched.procSelf).not.toBe(String(mismatched.pid));
-    expect(after.procSelf).toBe(String(after.pid));
-    records.push({
-      preparationContext: { before, withoutProc: mismatched, after, procPidCompatible: true },
-    });
-  },
-);
+    const overflowGid = Number(fs.readFileSync("/proc/sys/kernel/overflowgid", "utf8").trim());
+    // 写像外の補助 group は namespace 内で overflow GID に見える。
+    expect([...after.groups].sort((a: number, b: number) => a - b)).toEqual(
+      groupsInNamespace(before.groups, after.gid_map, overflowGid).sort((a, b) => a - b),
+    );
+  } else {
+    // cgroup 経路は user namespace を作らないため、写像も groups も対照と同じになる。
+    expect(after.uid_map).toEqual(before.uid_map);
+    expect(after.gid_map).toEqual(before.gid_map);
+    expect(after.groups).toEqual(before.groups);
+  }
+  expect(before.procSelf).toBe(String(before.pid));
+  expect(after.procSelf).toBe(String(after.pid));
+  records.push({ preparationContext: { containment, before, after, procPidCompatible: true } });
+});
+
+proof("namespace", "mount-proc なしの launcher では準備子の proc PID の不整合を検出する", () => {
+  const mismatched = contextPrepare()(withoutProc);
+  expect(mismatched.procSelf).not.toBe(String(mismatched.pid));
+  records.push({ preparationContext: { withoutProc: mismatched } });
+});
 
 for (const member of [true, false]) {
-  test.skipIf(!linux || !groupFile || !groupGid)(
+  proof(
+    "common",
     member
-      ? "補助 group だけで許可される読み書きを namespace 候補でも維持する"
+      ? "補助 group だけで許可される読み書きを候補でも維持する"
       : "補助 group 非所属時の読み書き拒否を候補でも維持する",
     () => {
       const uid = process.getuid!(),
@@ -697,6 +1001,10 @@ for (const member of [true, false]) {
             "-i",
             `PATH=${process.env.PATH}`,
             `HOME=${process.env.HOME}`,
+            // 資格情報を切り替えた準備子からも user manager に届くよう、user bus の場所だけを渡す。
+            ...["XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"].flatMap((name) =>
+              process.env[name] ? [`${name}=${process.env[name]}`] : [],
+            ),
             entry,
             runner,
             groupPrepare,
@@ -738,12 +1046,14 @@ for (const member of [true, false]) {
         const context = contexts(result.stderr)[0];
         expect(context).toBeDefined();
         const expectedGroups =
-          binary === baseline ? groups : groupsInNamespace(groups, context.gid_map, overflowGid);
+          binary === baseline || containment === "cgroup"
+            ? groups
+            : groupsInNamespace(groups, context.gid_map, overflowGid);
         expect([...context.groups].sort((a: number, b: number) => a - b)).toEqual(
           [...expectedGroups].sort((a, b) => a - b),
         );
         return {
-          binary: binary === baseline ? "baseline" : "namespace",
+          binary: binary === baseline ? "baseline" : "candidate",
           report,
           environment,
           context,
@@ -762,6 +1072,7 @@ for (const member of [true, false]) {
       });
     },
     30_000,
+    !groupFile || !groupGid,
   );
 }
 
@@ -771,7 +1082,8 @@ for (const [action, signal, status] of [
   ["terminate", "SIGTERM", 143],
   ["timeout", "SIGTERM", 143],
 ] as const) {
-  test.skipIf(!linux)(
+  proof(
+    "common",
     `実 PTY の ${action} で target の PID・TTY・foreground group と終了状態を維持する`,
     async () => {
       let output = "";
@@ -849,7 +1161,8 @@ for (const [action, signal, status] of [
 }
 
 for (const signal of ["SIGTERM", "SIGKILL"] as const) {
-  test.skipIf(!linux)(
+  proof(
+    "common",
     `実 PTY の準備中の ${signal} でも離脱子孫を終了し target を起動しない`,
     async () => {
       let output = "";
@@ -897,8 +1210,9 @@ for (const signal of ["SIGTERM", "SIGKILL"] as const) {
   );
 }
 
-test.skipIf(!linux || !nixStdenv || !nixBash)(
-  "実 Nix・shellHook を現行 prepare_environment caller から実行し namespace 候補と比較する",
+proof(
+  "common",
+  "実 Nix・shellHook を現行 prepare_environment caller から実行し候補と比較する",
   () => {
     const project = join(root, "nix-project");
     fs.mkdirSync(project);
@@ -949,7 +1263,7 @@ test.skipIf(!linux || !nixStdenv || !nixBash)(
         timeout: 70_000,
       });
       return {
-        binary: binary === baseline ? "baseline" : "namespace",
+        binary: binary === baseline ? "baseline" : "candidate",
         status: result.status,
         stderr: result.stderr,
       };
@@ -974,4 +1288,5 @@ test.skipIf(!linux || !nixStdenv || !nixBash)(
     }
   },
   150_000,
+  !nixStdenv || !nixBash,
 );

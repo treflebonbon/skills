@@ -12,6 +12,14 @@
 #include <unistd.h>
 
 /* 実証用。製品の入口・配布物としては採用していない。 */
+/* 方式を選ぶ候補だけが差し替える。旧方式の対照では何もしない。 */
+#ifndef PROOF_HOOKS
+#define PROOF_INTERRUPT()
+#define PROOF_FINISH()
+#define PROOF_BEFORE_PREPARATION()
+#define PROOF_AFTER_PREPARATION() 0
+#define PROOF_READ read
+#endif
 static pid_t preparation;
 static volatile sig_atomic_t guardian;
 static volatile sig_atomic_t interrupted;
@@ -21,10 +29,12 @@ static void interrupt(int number) {
   int saved_errno = errno;
   interrupted = number;
   if (guardian > 1) kill(-guardian, SIGKILL);
+  PROOF_INTERRUPT();
   errno = saved_errno;
 }
 
 static void finish_preparation(void) {
+  PROOF_FINISH();
   if (guardian <= 1) return;
   pid_t owned_guardian = guardian;
   guardian = 0;
@@ -151,6 +161,7 @@ int main(int argc, char **argv) {
   command[1] = "run";
   for (int i = 2; i < argc; i++) command[i] = argv[i];
   pid_t launcher = getpid();
+  PROOF_BEFORE_PREPARATION();
   preparation = fork();
   if (preparation < 0) invalid();
   if (!preparation) {
@@ -176,7 +187,7 @@ int main(int argc, char **argv) {
   size_t capacity = 4096, size = 0;
   char *buffer = malloc(capacity);
   if (!buffer) invalid();
-  int failed = 0;
+  int failed = PROOF_AFTER_PREPARATION();
   while (!interrupted) {
     if (size == capacity) {
       /* fixture の入力を有限にする。製品の ARG_MAX 契約は別途判断する。 */
@@ -186,7 +197,7 @@ int main(int argc, char **argv) {
       if (!grown) { failed = 1; break; }
       buffer = grown;
     }
-    ssize_t length = read(descriptor, buffer + size, capacity - size);
+    ssize_t length = PROOF_READ(descriptor, buffer + size, capacity - size);
     if (length == 0) break;
     if (length < 0) {
       if (errno == EINTR) continue;
@@ -196,7 +207,10 @@ int main(int argc, char **argv) {
     size += (size_t)length;
   }
   close(descriptor);
-  if (failed || interrupted) kill(-guardian, SIGKILL);
+  if (failed || interrupted) {
+    kill(-guardian, SIGKILL);
+    PROOF_INTERRUPT();
+  }
   int status;
   while (waitpid(preparation, &status, 0) < 0) {
     if (errno != EINTR) invalid();
