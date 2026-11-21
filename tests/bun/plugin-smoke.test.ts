@@ -26,6 +26,18 @@ function fixture(action: (directory: string) => void) {
     fs.rmSync(directory, { recursive: true });
   }
 }
+// The checkout may hold an ignored .env, which the real install refuses; test a clean copy.
+function payload(directory: string) {
+  const source = resolve(directory, "payload");
+  fs.cpSync(root, source, {
+    recursive: true,
+    filter: (path) => {
+      const name = path.split("/").at(-1)!;
+      return ![".git", "node_modules", ".env"].includes(name) && !name.startsWith(".env.");
+    },
+  });
+  return source;
+}
 function run(directory: string, source = root, mode = "success") {
   const commands = resolve(directory, "bin"),
     tape = resolve(directory, "legacy.json"),
@@ -81,7 +93,7 @@ process.stdout.write(output);
 
 test("導入 smoke は Python なしで旧4検査・公式 CLI argv・隔離 HOME・導入物の検査を維持する", () => {
   fixture((directory) => {
-    const checked = run(directory);
+    const checked = run(directory, payload(directory));
     expect(
       checked.result.status,
       checked.result.stdout.toString() + checked.result.stderr.toString(),
@@ -110,11 +122,7 @@ test(
   "導入 smoke は配布元の改変を検出し、成功扱いしない",
   () =>
     fixture((directory) => {
-      const source = resolve(directory, "payload");
-      fs.cpSync(root, source, {
-        recursive: true,
-        filter: (path) => ![".git", "node_modules"].includes(path.split("/").at(-1)!),
-      });
+      const source = payload(directory);
       const checked = run(directory, source, "tamper");
       expect(checked.result.status).toBe(1);
       expect(checked.result.stderr.toString()).toContain("公式 CLI が配布元を書き換えました");
