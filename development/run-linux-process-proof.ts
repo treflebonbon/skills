@@ -530,10 +530,10 @@ function validRunnerImage(architecture: string, imageOS: unknown) {
  * cgroup 経路は user manager に届く必要がある。runner の job 環境には user bus の場所が無いため、
  * linger で起動済みの user bus があれば、その場所を試行と前提検査へ明示的に渡す。
  */
-function userSession() {
+function exportUserSession() {
   const uid = process.getuid!();
   const runtime = process.env.XDG_RUNTIME_DIR ?? `/run/user/${uid}`;
-  if (!process.env.XDG_RUNTIME_DIR && fs.existsSync(`${runtime}/bus`)) {
+  if (fs.existsSync(`${runtime}/bus`)) {
     process.env.XDG_RUNTIME_DIR = runtime;
     process.env.DBUS_SESSION_BUS_ADDRESS ??= `unix:path=${runtime}/bus`;
   }
@@ -552,7 +552,7 @@ async function preflight(
   onProgress?: (state: Record<string, unknown>) => void,
   local = false,
 ) {
-  const session = userSession();
+  const session = exportUserSession();
   const tools = Object.fromEntries(
     proofTools.map((name) => {
       const selected = name === "bash" ? "/bin/bash" : Bun.which(name);

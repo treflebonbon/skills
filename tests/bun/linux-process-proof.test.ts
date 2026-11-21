@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   parseTrial,
+  selectContainment,
   verifyCohort,
   verifyLocal,
   groupsInNamespace,
@@ -190,6 +191,12 @@ test("抜け出しの観測ケースは失敗しても合否に数えず、必�
     trial.exitCode = 1;
   }
   expect(verifyCohort(observed, manifest)).toEqual({ verified: true, reasons: [] });
+  const hidden = cohort();
+  hidden.jobs[0]!.trials[0]!.cases[3]!.status = "fail";
+  hidden.jobs[0]!.trials[0]!.counts = { pass: 3, fail: 1, skip: 0, todo: 0 };
+  expect(verifyCohort(hidden, manifest).reasons).toEqual([
+    "x64/1: 終了状態・試験集計が成功条件を満たしません",
+  ]);
   const required = cohort();
   const trial = required.jobs[0]!.trials[0]!;
   trial.cases[2]!.status = "fail";
@@ -252,6 +259,26 @@ test("WSL2 では namespace 以外の方式・SHA の不一致・反復の欠落
     verified: false,
     reasons: ["手元実行の記録が不正です"],
   });
+});
+
+test("方式は unshare probe・systemd-run の順に実際に試し、どちらも失敗すれば拒否する", () => {
+  const bin = fs.mkdtempSync(join(tmpdir(), "containment-select-"));
+  const tool = (name: string, status: number) => {
+    fs.writeFileSync(join(bin, name), `#!/bin/sh\nexit ${status}\n`);
+    fs.chmodSync(join(bin, name), 0o755);
+  };
+  try {
+    const env = { PATH: bin };
+    tool("unshare", 0);
+    tool("systemd-run", 0);
+    expect(selectContainment(env)).toBe("namespace");
+    tool("unshare", 1);
+    expect(selectContainment(env)).toBe("cgroup");
+    tool("systemd-run", 1);
+    expect(selectContainment(env)).toBe("refused");
+  } finally {
+    fs.rmSync(bin, { recursive: true, force: true });
+  }
 });
 
 test("primary GID・補助 group・fixture の必須証跡が欠けた一組を拒否する", () => {
