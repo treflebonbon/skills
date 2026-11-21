@@ -1,0 +1,957 @@
+{
+  "schema": "linux-cgroup-v2-public-logs/v1",
+  "runId": 44875717894,
+  "attempt": 1,
+  "sourceSha": "068eb511065586e7c5d6a9f336089c9e4082bff5",
+  "prefixes": [
+    "[DEBUG-cgroup]"
+  ],
+  "jobs": [
+    {
+      "arch": "x64",
+      "jobId": 136759866213,
+      "preconditions": [
+        "user=runner uid=1001 kernel=7.0.0-1017-azure image=20261116.376.1",
+        "job_cgroup=0::/system.slice/hosted-compute-agent.service",
+        "systemd=systemd 255 (255.4-1ubuntu8.18)",
+        "linger_before=yes",
+        "user_manager_before=active",
+        "bus_before=present",
+        "select_exit=3 marker=absent",
+        "linger_after=yes",
+        "user_manager_after=active",
+        "bus_after=present"
+      ],
+      "records": [
+        {
+          "step": "select",
+          "value": {
+            "apparmor_restrict_unprivileged_userns": "1",
+            "cgroup": {
+              "cgroup.controllers": [
+                "cpuset",
+                "cpu",
+                "io",
+                "memory",
+                "pids"
+              ],
+              "cgroup.subtree_control": [],
+              "kill_file": true,
+              "owner_uid": 0,
+              "path": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service"
+            },
+            "euid": 1001,
+            "event": "environment",
+            "image": "20261116.376.1",
+            "kernel": "7.0.0-1017-azure",
+            "machine": "x86_64",
+            "overrides": {},
+            "python": "3.12.3",
+            "uid": 1001
+          }
+        },
+        {
+          "step": "select",
+          "value": {
+            "argv": [
+              "--user",
+              "--map-current-user",
+              "--pid",
+              "--fork",
+              "--kill-child=SIGKILL",
+              "--mount-proc",
+              "--",
+              "/usr/bin/true"
+            ],
+            "event": "select-userns",
+            "exit": 1,
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "unshare": "/usr/bin/unshare"
+          }
+        },
+        {
+          "step": "select",
+          "value": {
+            "error": "EACCES",
+            "event": "select-cgroup",
+            "operation": "mkdir",
+            "outcome": "failed"
+          }
+        },
+        {
+          "step": "select",
+          "value": {
+            "event": "select",
+            "preparation_started": false,
+            "selected": "refused"
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "apparmor_restrict_unprivileged_userns": "1",
+            "cgroup": {
+              "cgroup.controllers": [
+                "cpu",
+                "memory",
+                "pids"
+              ],
+              "cgroup.subtree_control": [],
+              "kill_file": true,
+              "owner_uid": 1001,
+              "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/run-r61c727781cc546d8a687991b37d77939.scope"
+            },
+            "euid": 1001,
+            "event": "environment",
+            "image": "20261116.376.1",
+            "kernel": "7.0.0-1017-azure",
+            "machine": "x86_64",
+            "overrides": {},
+            "python": "3.12.3",
+            "uid": 1001
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "argv": [
+              "--user",
+              "--map-current-user",
+              "--pid",
+              "--fork",
+              "--kill-child=SIGKILL",
+              "--mount-proc",
+              "--",
+              "/usr/bin/true"
+            ],
+            "event": "select-userns",
+            "exit": 1,
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "unshare": "/usr/bin/unshare"
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2345,
+            "detached_sid": 2344,
+            "elapsed_ms": 1.122837,
+            "empty_ns": 665928558531,
+            "event": "select-cgroup",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2343,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 665927435694
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2348,
+            "detached_sid": 2347,
+            "elapsed_ms": 1.116518,
+            "empty_ns": 665931933895,
+            "event": "direct-kill",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2346,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 665930817377
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2351,
+            "detached_sid": 2350,
+            "elapsed_ms": 1.113914,
+            "empty_ns": 665935225201,
+            "event": "direct-kill",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2349,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 665934111287
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2354,
+            "detached_sid": 2353,
+            "elapsed_ms": 1.113834,
+            "empty_ns": 665938515696,
+            "event": "direct-kill",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2352,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 665937401862
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2359,
+            "elapsed_ms": 1.522492,
+            "empty_ns": 665970954239,
+            "event": "watchdog-kill",
+            "launcher": 2355,
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2357,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 665969431747,
+            "watchdog": 2356,
+            "watchdog_caused": true,
+            "watchdog_exited": true,
+            "watchdog_report": {
+              "error": null,
+              "kill_ns": 665969851843
+            }
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2364,
+            "elapsed_ms": 1.518846,
+            "empty_ns": 666001915219,
+            "event": "watchdog-kill",
+            "launcher": 2360,
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2362,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 666000396373,
+            "watchdog": 2361,
+            "watchdog_caused": true,
+            "watchdog_exited": true,
+            "watchdog_report": {
+              "error": null,
+              "kill_ns": 666000817709
+            }
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2369,
+            "elapsed_ms": 1.650415,
+            "empty_ns": 666038167899,
+            "event": "watchdog-kill",
+            "launcher": 2365,
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2367,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 666036517484,
+            "watchdog": 2366,
+            "watchdog_caused": true,
+            "watchdog_exited": true,
+            "watchdog_report": {
+              "error": null,
+              "kill_ns": 666037052092
+            }
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "direct": [
+              true,
+              true,
+              true
+            ],
+            "event": "summary",
+            "feasible": true,
+            "label": "scope",
+            "selected": "cgroup",
+            "watchdog": [
+              true,
+              true,
+              true
+            ]
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "apparmor_restrict_unprivileged_userns": "1",
+            "cgroup": {
+              "cgroup.controllers": [
+                "cpu",
+                "memory",
+                "pids"
+              ],
+              "cgroup.subtree_control": [],
+              "kill_file": true,
+              "owner_uid": 1001,
+              "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/run-u0.service"
+            },
+            "euid": 1001,
+            "event": "environment",
+            "image": "20261116.376.1",
+            "kernel": "7.0.0-1017-azure",
+            "machine": "x86_64",
+            "overrides": {},
+            "python": "3.12.3",
+            "uid": 1001
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "argv": [
+              "--user",
+              "--map-current-user",
+              "--pid",
+              "--fork",
+              "--kill-child=SIGKILL",
+              "--mount-proc",
+              "--",
+              "/usr/bin/true"
+            ],
+            "event": "select-userns",
+            "exit": 1,
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "unshare": "/usr/bin/unshare"
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2379,
+            "detached_sid": 2378,
+            "elapsed_ms": 1.123559,
+            "empty_ns": 666128552772,
+            "event": "select-cgroup",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2377,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 666127429213
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2382,
+            "detached_sid": 2381,
+            "elapsed_ms": 1.121206,
+            "empty_ns": 666131871620,
+            "event": "direct-kill",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2380,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 666130750414
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2385,
+            "detached_sid": 2384,
+            "elapsed_ms": 1.121956,
+            "empty_ns": 666135159230,
+            "event": "direct-kill",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2383,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 666134037274
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2388,
+            "detached_sid": 2387,
+            "elapsed_ms": 1.114795,
+            "empty_ns": 666138409404,
+            "event": "direct-kill",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2386,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 666137294609
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2393,
+            "elapsed_ms": 1.52764,
+            "empty_ns": 666168922817,
+            "event": "watchdog-kill",
+            "launcher": 2389,
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2391,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 666167395177,
+            "watchdog": 2390,
+            "watchdog_caused": true,
+            "watchdog_exited": true,
+            "watchdog_report": {
+              "error": null,
+              "kill_ns": 666167798798
+            }
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2398,
+            "elapsed_ms": 1.539828,
+            "empty_ns": 666197945206,
+            "event": "watchdog-kill",
+            "launcher": 2394,
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2396,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 666196405378,
+            "watchdog": 2395,
+            "watchdog_caused": true,
+            "watchdog_exited": true,
+            "watchdog_report": {
+              "error": null,
+              "kill_ns": 666196822689
+            }
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2403,
+            "elapsed_ms": 1.521961,
+            "empty_ns": 666225917176,
+            "event": "watchdog-kill",
+            "launcher": 2399,
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2401,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 666224395215,
+            "watchdog": 2400,
+            "watchdog_caused": true,
+            "watchdog_exited": true,
+            "watchdog_report": {
+              "error": null,
+              "kill_ns": 666224820719
+            }
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "direct": [
+              true,
+              true,
+              true
+            ],
+            "event": "summary",
+            "feasible": true,
+            "label": "service",
+            "selected": "cgroup",
+            "watchdog": [
+              true,
+              true,
+              true
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "arch": "arm64",
+      "jobId": 136759866459,
+      "preconditions": [
+        "user=runner uid=1001 kernel=7.0.0-1017-azure image=20261116.188.1",
+        "job_cgroup=0::/system.slice/hosted-compute-agent.service",
+        "systemd=systemd 255 (255.4-1ubuntu8.18)",
+        "linger_before=yes",
+        "user_manager_before=active",
+        "bus_before=present",
+        "select_exit=3 marker=absent",
+        "linger_after=yes",
+        "user_manager_after=active",
+        "bus_after=present"
+      ],
+      "records": [
+        {
+          "step": "select",
+          "value": {
+            "apparmor_restrict_unprivileged_userns": "1",
+            "cgroup": {
+              "cgroup.controllers": [
+                "cpuset",
+                "cpu",
+                "io",
+                "memory",
+                "pids"
+              ],
+              "cgroup.subtree_control": [],
+              "kill_file": true,
+              "owner_uid": 0,
+              "path": "/sys/fs/cgroup/system.slice/hosted-compute-agent.service"
+            },
+            "euid": 1001,
+            "event": "environment",
+            "image": "20261116.188.1",
+            "kernel": "7.0.0-1017-azure",
+            "machine": "aarch64",
+            "overrides": {},
+            "python": "3.12.3",
+            "uid": 1001
+          }
+        },
+        {
+          "step": "select",
+          "value": {
+            "argv": [
+              "--user",
+              "--map-current-user",
+              "--pid",
+              "--fork",
+              "--kill-child=SIGKILL",
+              "--mount-proc",
+              "--",
+              "/usr/bin/true"
+            ],
+            "event": "select-userns",
+            "exit": 1,
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "unshare": "/usr/bin/unshare"
+          }
+        },
+        {
+          "step": "select",
+          "value": {
+            "error": "EACCES",
+            "event": "select-cgroup",
+            "operation": "mkdir",
+            "outcome": "failed"
+          }
+        },
+        {
+          "step": "select",
+          "value": {
+            "event": "select",
+            "preparation_started": false,
+            "selected": "refused"
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "apparmor_restrict_unprivileged_userns": "1",
+            "cgroup": {
+              "cgroup.controllers": [
+                "cpu",
+                "memory",
+                "pids"
+              ],
+              "cgroup.subtree_control": [],
+              "kill_file": true,
+              "owner_uid": 1001,
+              "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/run-rab2a2eeb96734ac3bfb12e9f9c7b9fd7.scope"
+            },
+            "euid": 1001,
+            "event": "environment",
+            "image": "20261116.188.1",
+            "kernel": "7.0.0-1017-azure",
+            "machine": "aarch64",
+            "overrides": {},
+            "python": "3.12.3",
+            "uid": 1001
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "argv": [
+              "--user",
+              "--map-current-user",
+              "--pid",
+              "--fork",
+              "--kill-child=SIGKILL",
+              "--mount-proc",
+              "--",
+              "/usr/bin/true"
+            ],
+            "event": "select-userns",
+            "exit": 1,
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "unshare": "/usr/bin/unshare"
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2357,
+            "detached_sid": 2356,
+            "elapsed_ms": 1.154413,
+            "empty_ns": 192078844401,
+            "event": "select-cgroup",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2355,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192077689988
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2360,
+            "detached_sid": 2359,
+            "elapsed_ms": 1.14223,
+            "empty_ns": 192082696219,
+            "event": "direct-kill",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2358,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192081553989
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2363,
+            "detached_sid": 2362,
+            "elapsed_ms": 1.133831,
+            "empty_ns": 192086418484,
+            "event": "direct-kill",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2361,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192085284653
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2366,
+            "detached_sid": 2365,
+            "elapsed_ms": 1.139302,
+            "empty_ns": 192090215656,
+            "event": "direct-kill",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2364,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192089076354
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2371,
+            "elapsed_ms": 1.477035,
+            "empty_ns": 192127418250,
+            "event": "watchdog-kill",
+            "launcher": 2367,
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2369,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192125941215,
+            "watchdog": 2368,
+            "watchdog_caused": true,
+            "watchdog_exited": true,
+            "watchdog_report": {
+              "error": null,
+              "kill_ns": 192126299914
+            }
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2376,
+            "elapsed_ms": 2.605073,
+            "empty_ns": 192166391533,
+            "event": "watchdog-kill",
+            "launcher": 2372,
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2374,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192163786460,
+            "watchdog": 2373,
+            "watchdog_caused": true,
+            "watchdog_exited": true,
+            "watchdog_report": {
+              "error": null,
+              "kill_ns": 192164132584
+            }
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "detached": 2381,
+            "elapsed_ms": 1.522512,
+            "empty_ns": 192202419755,
+            "event": "watchdog-kill",
+            "launcher": 2377,
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2379,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192200897243,
+            "watchdog": 2378,
+            "watchdog_caused": true,
+            "watchdog_exited": true,
+            "watchdog_report": {
+              "error": null,
+              "kill_ns": 192201288156
+            }
+          }
+        },
+        {
+          "step": "scope",
+          "value": {
+            "direct": [
+              true,
+              true,
+              true
+            ],
+            "event": "summary",
+            "feasible": true,
+            "label": "scope",
+            "selected": "cgroup",
+            "watchdog": [
+              true,
+              true,
+              true
+            ]
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "apparmor_restrict_unprivileged_userns": "1",
+            "cgroup": {
+              "cgroup.controllers": [
+                "cpu",
+                "memory",
+                "pids"
+              ],
+              "cgroup.subtree_control": [],
+              "kill_file": true,
+              "owner_uid": 1001,
+              "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/run-u0.service"
+            },
+            "euid": 1001,
+            "event": "environment",
+            "image": "20261116.188.1",
+            "kernel": "7.0.0-1017-azure",
+            "machine": "aarch64",
+            "overrides": {},
+            "python": "3.12.3",
+            "uid": 1001
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "argv": [
+              "--user",
+              "--map-current-user",
+              "--pid",
+              "--fork",
+              "--kill-child=SIGKILL",
+              "--mount-proc",
+              "--",
+              "/usr/bin/true"
+            ],
+            "event": "select-userns",
+            "exit": 1,
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "unshare": "/usr/bin/unshare"
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2391,
+            "detached_sid": 2390,
+            "elapsed_ms": 1.123359,
+            "empty_ns": 192286027299,
+            "event": "select-cgroup",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2389,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192284903940
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2394,
+            "detached_sid": 2393,
+            "elapsed_ms": 1.134046,
+            "empty_ns": 192290027787,
+            "event": "direct-kill",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2392,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192288893741
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2397,
+            "detached_sid": 2396,
+            "elapsed_ms": 1.126631,
+            "empty_ns": 192293914131,
+            "event": "direct-kill",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2395,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192292787500
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2400,
+            "detached_sid": 2399,
+            "elapsed_ms": 1.130791,
+            "empty_ns": 192297792267,
+            "event": "direct-kill",
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2398,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192296661476
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2405,
+            "elapsed_ms": 2.616672,
+            "empty_ns": 192336380412,
+            "event": "watchdog-kill",
+            "launcher": 2401,
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2403,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192333763740,
+            "watchdog": 2402,
+            "watchdog_caused": true,
+            "watchdog_exited": true,
+            "watchdog_report": {
+              "error": null,
+              "kill_ns": 192334129486
+            }
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2410,
+            "elapsed_ms": 1.530344,
+            "empty_ns": 192375611721,
+            "event": "watchdog-kill",
+            "launcher": 2406,
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2408,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192374081377,
+            "watchdog": 2407,
+            "watchdog_caused": true,
+            "watchdog_exited": true,
+            "watchdog_report": {
+              "error": null,
+              "kill_ns": 192374456572
+            }
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "detached": 2415,
+            "elapsed_ms": 1.464691,
+            "empty_ns": 192414515712,
+            "event": "watchdog-kill",
+            "launcher": 2411,
+            "outcome": "passed",
+            "passed": true,
+            "prep": 2413,
+            "rmdir": "ok",
+            "survivors": [],
+            "t0_ns": 192413051021,
+            "watchdog": 2412,
+            "watchdog_caused": true,
+            "watchdog_exited": true,
+            "watchdog_report": {
+              "error": null,
+              "kill_ns": 192413416072
+            }
+          }
+        },
+        {
+          "step": "service",
+          "value": {
+            "direct": [
+              true,
+              true,
+              true
+            ],
+            "event": "summary",
+            "feasible": true,
+            "label": "service",
+            "selected": "cgroup",
+            "watchdog": [
+              true,
+              true,
+              true
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
