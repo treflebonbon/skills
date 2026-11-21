@@ -14,7 +14,7 @@
 | watchdog-kill（scope 3回＋service 3回） | 6/6 成立、1.519〜1.650 ms | 6/6 成立、1.465〜2.617 ms |
 | SIGKILL から watchdog が検知するまで | 0.404〜0.535 ms | 0.346〜0.391 ms |
 
-時間はいずれも `CLOCK_MONOTONIC`。空になったかどうかは 1 ms 間隔で確かめたので、direct-kill・watchdog-kill の時間は「その回の確認までに空になっていた」上限であり、kill そのものの所要時間ではない。watchdog の検知時刻は、`cgroup.kill` を書く直前に watchdog が取った時刻である。各回で、t0 の直前に準備子と離脱した孫が `cgroup.procs` にあり生存していることを確かめた。離脱した孫が `setsid` で作った session の ID は direct-kill と select-cgroup の記録にだけ残っている。watchdog-kill も同じ生成経路を使うが、session の ID は記録していない。終了は `populated 0` と、両 PID の消滅またはゾンビ化で判定した。全回で残存 PID は無く、`rmdir` が成功した。watchdog-kill では、watchdog が記録した書込み時刻が t0 と空になった時刻の間にあった。watchdog が準備用 cgroup の外にいることと、watchdog 自身が終了したことも確かめた。
+時間はいずれも `CLOCK_MONOTONIC`。測定器は約 1 ms 間隔で、時刻を取ってから `populated` と PID の状態を確認し、空だった回はその確認の前に取った時刻を返す。このため direct-kill・watchdog-kill の時間は、t0 から「空を最初に確認したポーリングの開始」までの差である。kill そのものの所要時間ではなく、厳密な上限でもない。実際に空になった時刻は、前回のポーリングとこのポーリングの確認が終わる間にある。watchdog の検知時刻は、`cgroup.kill` を書く直前に watchdog が取った時刻である。各回で、t0 の直前に準備子と離脱した孫が `cgroup.procs` にあり生存していることを確かめた。離脱した孫が `setsid` で作った session の ID は direct-kill と select-cgroup の記録にだけ残っている。watchdog-kill も同じ生成経路を使うが、session の ID は記録していない。終了は `populated 0` と、両 PID の消滅またはゾンビ化で判定した。全回で残存 PID は無く、`rmdir` が成功した。watchdog-kill では、watchdog が記録した書込み時刻が、t0 と空を確認したポーリングの開始時刻の間にあった。watchdog が準備用 cgroup の外にいることと、watchdog 自身が終了したことも確かめた。
 
 ## 前提条件
 
