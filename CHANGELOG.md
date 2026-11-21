@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.2](https://github.com/treflebonbon/skills/compare/v0.4.1...v0.4.2) (2026-11-21)
+
+
+### Features
+
+* add a Windows WSL recipe for the Sprites pilot ([#111](https://github.com/treflebonbon/skills/issues/111)) ([91777ed](https://github.com/treflebonbon/skills/commit/91777ed634773e72b12ae97570cb025640012b80))
+* **domain-modeling-studio:** propose verification methods per business rule and record declined ones ([#115](https://github.com/treflebonbon/skills/issues/115)) ([0ae4a31](https://github.com/treflebonbon/skills/commit/0ae4a3128d18a14ef09648c2ff6fe879891324fc))
+* **domain-modeling-studio:** trace business rules to existing tests and verification candidates ([#109](https://github.com/treflebonbon/skills/issues/109)) ([4a24e80](https://github.com/treflebonbon/skills/commit/4a24e80b0d4b7d3076e7e8894873d999c8c5a953))
+* **domain-modeling-studio:** trace representative examples and property candidates from business rules ([#113](https://github.com/treflebonbon/skills/issues/113)) ([0a27c00](https://github.com/treflebonbon/skills/commit/0a27c00cb0f953efec646fbef3160a3bc09957f5))
+
+
+### Bug Fixes
+
+* diagnose Linux proof EPERM and adopt host-adaptive containment ([#87](https://github.com/treflebonbon/skills/issues/87)) ([dce52df](https://github.com/treflebonbon/skills/commit/dce52df35255b564f678fa584687d9bc427d51d9))
+
 ## [0.4.1](https://github.com/treflebonbon/skills/compare/v0.4.0...v0.4.1) (2026-11-18)
 
 
