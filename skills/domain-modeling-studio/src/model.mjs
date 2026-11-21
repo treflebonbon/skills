@@ -51,6 +51,7 @@ export const RESULTS = {
 };
 export const DECISIONS = {
   ADD: "追加",
+  DECLINE: "不採用",
   DELETE: "削除",
   HOLD: "保留",
   KEEP: "維持",
@@ -58,6 +59,10 @@ export const DECISIONS = {
 };
 export const METHODS = {
   PROPERTY: "プロパティベーステスト",
+  MBT: "モデルベーステスト",
+  QUINT: "Quint",
+  ALLOY: "Alloy",
+  MUTATION: "ミューテーションテスト",
 };
 const views = ["current", "proposed"];
 const VIEW_LABELS = { current: "現状", proposed: "改善案" };
@@ -330,6 +335,14 @@ const validateResult = (result) => {
     replay.length === 0 || !["READ", "NOT_RUN"].includes(result.status),
     "seed・反例は実際の実行結果にだけ記録できます"
   );
+  need(
+    result.scope === undefined || nonempty(result.scope),
+    "探索した範囲は空でない文字列で指定してください"
+  );
+  need(
+    result.scope === undefined || !["READ", "NOT_RUN"].includes(result.status),
+    "探索した範囲は実際の実行結果にだけ記録できます"
+  );
 };
 const validateExistingTest = (item, rules) => {
   need(
@@ -357,6 +370,19 @@ const validateExistingTest = (item, rules) => {
       item.result.counterexample !== undefined,
     "失敗したプロパティベーステストには縮小された反例が必要です"
   );
+  // Only an explicit formal-model method tightens MODEL_*; older documents stay valid.
+  need(
+    !["QUINT", "ALLOY"].includes(item.method) ||
+      item.result.status !== "MODEL_COUNTEREXAMPLE" ||
+      item.result.counterexample !== undefined,
+    "形式モデルで反例ありの結果には反例が必要です"
+  );
+  need(
+    item.method !== "ALLOY" ||
+      item.result.status !== "MODEL_NO_COUNTEREXAMPLE" ||
+      item.result.scope !== undefined,
+    "Alloyで反例なしの結果には実際に探索した範囲が必要です"
+  );
 };
 // Unknown methods are rejected so a newer method never round-trips undisplayed.
 const validateMethod = (method) =>
@@ -370,7 +396,10 @@ const validateProperty = (item) => {
     item.method === "PROPERTY" || item.property === undefined,
     "性質にはmethod: PROPERTYが必要です"
   );
-  if (item.method !== "PROPERTY") {
+  if (
+    item.method !== "PROPERTY" ||
+    (item.decision === "DECLINE" && item.property === undefined)
+  ) {
     return;
   }
   const p = item.property;
@@ -384,6 +413,49 @@ const validateProperty = (item) => {
   );
   provenance(p);
 };
+const PLAN_METHODS = ["MBT", "QUINT", "ALLOY", "MUTATION"];
+const validatePlan = (item) => {
+  need(
+    PLAN_METHODS.includes(item.method) || item.plan === undefined,
+    "計画にはMBT・QUINT・ALLOY・MUTATIONのいずれかの検証手法が必要です"
+  );
+  if (item.plan === undefined && item.decision === "DECLINE") {
+    return;
+  }
+  if (!PLAN_METHODS.includes(item.method)) {
+    return;
+  }
+  const p = item.plan;
+  need(
+    object(p) &&
+      nonempty(p.target) &&
+      nonempty(p.expectedEvidence) &&
+      nonempty(p.limits),
+    "計画には対象・確かめたことになる観測・保証しないことが必要です"
+  );
+  provenance(p);
+  need(
+    item.method !== "MBT" || (nonempty(p.mapping) && nonempty(p.coverage)),
+    "モデルベーステストの計画には対応と被覆目標が必要です"
+  );
+  need(
+    item.method !== "ALLOY" || nonempty(p.scope),
+    "Alloyの計画には探索上限と制約が必要です"
+  );
+  // Optional fields are displayed, so a present one must be readable text.
+  need(
+    ["mapping", "coverage", "scope"].every(
+      (key) => p[key] === undefined || nonempty(p[key])
+    ),
+    "計画の項目は空でない文字列で指定してください"
+  );
+  need(
+    item.method !== "MUTATION" ||
+      ["HOLD", "DECLINE"].includes(item.decision) ||
+      (item.tests ?? []).length > 0,
+    "ミューテーションテストの候補には検出を確かめる既存テストが必要です"
+  );
+};
 const validateCandidate = (item, rules, tests) => {
   need(
     object(item) &&
@@ -395,8 +467,14 @@ const validateCandidate = (item, rules, tests) => {
   evidence(item.evidence);
   validateMethod(item.method);
   validateProperty(item);
+  validatePlan(item);
   need(
-    item.decision === "HOLD" ||
+    item.decision !== "DECLINE" ||
+      (item.method !== undefined && item.rule !== undefined && nonempty(item.reason)),
+    "不採用の検証候補には検証手法・業務ルール・理由が必要です"
+  );
+  need(
+    ["HOLD", "DECLINE"].includes(item.decision) ||
       (nonempty(item.error) &&
         item.rule !== undefined &&
         item.boundary !== undefined &&
@@ -404,7 +482,7 @@ const validateCandidate = (item, rules, tests) => {
     "保留以外の検証候補には検出したい誤り・守る業務ルール・検証の境界・理由が必要です"
   );
   need(
-    item.decision === "HOLD" || item.evidence.length > 0,
+    ["HOLD", "DECLINE"].includes(item.decision) || item.evidence.length > 0,
     "保留以外の検証候補には理由の根拠が必要です"
   );
   need(
@@ -520,13 +598,17 @@ const asArray = (v) => (Array.isArray(v) ? v : []);
 const hasV4Fields = (doc) =>
   asArray(doc.scenarios).some((s) => s?.rules !== undefined) ||
   asArray(doc.verificationCandidates).some(
-    (c) => c?.method !== undefined || c?.property !== undefined
+    (c) =>
+      c?.method !== undefined ||
+      c?.property !== undefined ||
+      c?.plan !== undefined
   ) ||
   asArray(doc.existingTests).some(
     (t) =>
       t?.method !== undefined ||
       t?.result?.seed !== undefined ||
-      t?.result?.counterexample !== undefined
+      t?.result?.counterexample !== undefined ||
+      t?.result?.scope !== undefined
   );
 export const validateDocument = (doc) => {
   need(
@@ -535,7 +617,7 @@ export const validateDocument = (doc) => {
   );
   need(
     doc.schemaVersion === 4 || !hasV4Fields(doc),
-    "代表例の業務ルール・検証手法・性質・seed・反例にはschemaVersion: 4が必要です"
+    "代表例の業務ルール・検証手法・性質・計画・seed・反例・探索した範囲にはschemaVersion: 4が必要です"
   );
   need(id(doc.sessionId) && id(doc.revision), "sessionId・revisionが不正です");
   need(nonempty(doc.title) && text(doc.scope), "タイトル・対象範囲が必要です");
@@ -899,6 +981,7 @@ const resultText = (result) =>
           `出所: ${md(result.source)}`,
         ]
       : []),
+    ...(result.scope ? [`${RESULT_SCOPE_LABEL}: ${md(result.scope)}`] : []),
     ...(result.seed ? [`seed: ${codeSpan(result.seed)}`] : []),
     ...(result.counterexample
       ? [`反例: ${codeSpan(result.counterexample)}`]
@@ -918,6 +1001,30 @@ export const propertyLines = (p, escape = String) => [
   `生成範囲: ${p.inputs.map(escape).join("、")}`,
   `観測する結果: ${escape(p.observation)}`,
 ];
+// What a run actually explored, kept apart from the scope a plan intends.
+export const RESULT_SCOPE_LABEL = "実際に探索した範囲";
+export const LIMITS_LABEL = "保証しないこと";
+export const planLines = (p, escape = String) => [
+  `計画の対象（${ORIGINS[p.origin]}）: ${escape(p.target)}`,
+  `確かめたことになる観測: ${escape(p.expectedEvidence)}`,
+  ...(p.mapping ? [`モデルと実装の対応: ${escape(p.mapping)}`] : []),
+  ...(p.coverage ? [`被覆目標: ${escape(p.coverage)}`] : []),
+  ...(p.scope ? [`計画時の探索範囲: ${escape(p.scope)}`] : []),
+];
+export const methodLabel = (method) => (method ? METHODS[method] : "未定");
+// Active candidates grouped by method in METHODS order (undecided last);
+// declined methods are listed apart so they never read as a plan.
+export const candidateGroups = (candidates) => ({
+  declined: candidates.filter((c) => c.decision === "DECLINE"),
+  groups: [...Object.keys(METHODS), undefined]
+    .map((method) => [
+      method,
+      candidates.filter((c) => c.decision !== "DECLINE" && c.method === method),
+    ])
+    .filter(([, items]) => items.length > 0),
+});
+const TIA_NOTE =
+  "TIA（変更時に先に実行するテストの選択）の選外は、統合・削除の理由になりません。";
 const verificationMarkdown = (doc) => {
   const { existingTests, rules, verificationCandidates } = verificationOf(doc);
   const testById = new Map(existingTests.map((t) => [t.id, t]));
@@ -932,7 +1039,7 @@ const verificationMarkdown = (doc) => {
     ].join("\n");
   const candidateSection = (c) =>
     [
-      `\n### 検証候補: ${md(c.title)}`,
+      `\n#### 検証候補: ${md(c.title)}`,
       `ID: ${md(c.id)} / 判断: ${DECISIONS[c.decision]}`,
       ...methodLines(c),
       ...(c.property
@@ -940,6 +1047,15 @@ const verificationMarkdown = (doc) => {
             ...propertyLines(c.property, md),
             ...(c.property.evidence.length
               ? ["性質の根拠:", refs(c.property.evidence)]
+              : []),
+          ]
+        : []),
+      ...(c.plan
+        ? [
+            ...planLines(c.plan, md),
+            `**${LIMITS_LABEL}**: ${md(c.plan.limits)}`,
+            ...(c.plan.evidence.length
+              ? ["計画の根拠:", refs(c.plan.evidence)]
               : []),
           ]
         : []),
@@ -952,10 +1068,25 @@ const verificationMarkdown = (doc) => {
       ),
       refs(c.evidence),
     ].join("\n");
+  const candidateBlock = (items) => {
+    const { declined, groups } = candidateGroups(items);
+    return [
+      ...groups.flatMap(([method, group]) => [
+        `\n### 検証手法: ${methodLabel(method)}`,
+        ...group.map(candidateSection),
+      ]),
+      ...(declined.length
+        ? ["\n### 不採用の検証手法", ...declined.map(candidateSection)]
+        : []),
+    ];
+  };
   const unassigned = verificationCandidates.filter((c) => !c.rule);
   return [
     "# 検証方針",
     "根拠と検証結果は別の区分です。根拠はコードで確認・業務上の合意・AIの推測・未検証の改善案を、検証結果はテストや形式モデルを実際にどう扱ったかを示します。テストを読んだことは、実行や合格を意味しません。" + EXAMPLES_AND_PROPERTIES_NOTE,
+    ...(verificationCandidates.some((c) => ["MERGE", "DELETE"].includes(c.decision))
+      ? [TIA_NOTE]
+      : []),
     ...(rules.length ? [] : ["\n業務ルールは未登録です。"]),
     ...rules.flatMap((r) => [
       `\n## 業務ルール: ${md(r.statement)}`,
@@ -969,12 +1100,10 @@ const verificationMarkdown = (doc) => {
             `代表例: ${md(s.title)}（${VIEW_LABELS[s.model]} / ${SCENARIO_STATUS[s.status]}）`
         ),
       ...existingTests.filter((t) => t.rules.includes(r.id)).map(testSection),
-      ...verificationCandidates
-        .filter((c) => c.rule === r.id)
-        .map(candidateSection),
+      ...candidateBlock(verificationCandidates.filter((c) => c.rule === r.id)),
     ]),
     ...(unassigned.length
-      ? ["\n## 業務ルールが未定の検証候補", ...unassigned.map(candidateSection)]
+      ? ["\n## 業務ルールが未定の検証候補", ...candidateBlock(unassigned)]
       : []),
     "\n## 未確認事項",
     ...verificationCandidates

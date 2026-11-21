@@ -376,6 +376,17 @@ summary {
   margin: 2px 0;
   overflow-wrap: anywhere;
 }
+.method-label {
+  margin: 12px 0 0;
+  font-weight: 650;
+}
+.record .limits {
+  border-left: 3px solid #cfa872;
+  margin: 4px 0;
+  padding: 2px 8px;
+  background: #fff6e7;
+  color: #6b4214;
+}
 .artifacts,
 .export {
   padding: 24px 28px;

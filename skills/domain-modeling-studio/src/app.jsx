@@ -23,8 +23,13 @@ import {
   EXAMPLES_AND_PROPERTIES_NOTE,
   SCENARIO_STATUS,
   boundaryText,
+  candidateGroups,
+  LIMITS_LABEL,
+  methodLabel,
   methodLines,
+  planLines,
   propertyLines,
+  RESULT_SCOPE_LABEL,
   elementName,
   retiredLabel,
   verificationOf,
@@ -195,6 +200,7 @@ const resultLines = (result) => [
         `出所: ${result.source}`,
       ]
     : []),
+  ...(result.scope ? [`${RESULT_SCOPE_LABEL}: ${result.scope}`] : []),
   ...(result.seed ? [`seed: ${result.seed}`] : []),
   ...(result.counterexample ? [`反例: ${result.counterexample}`] : []),
 ];
@@ -213,6 +219,7 @@ const candidateLines = (c, testById) => [
   `判断: ${DECISIONS[c.decision]}`,
   ...methodLines(c),
   ...(c.property ? propertyLines(c.property) : []),
+  ...(c.plan ? planLines(c.plan) : []),
   ...(c.error ? [`検出したい誤り: ${c.error}`] : []),
   ...(c.boundary ? [`検証の境界: ${boundaryText(c.boundary)}`] : []),
   ...(c.reason ? [`理由: ${c.reason}`] : []),
@@ -233,6 +240,19 @@ const VerificationPanel = ({ doc, focus, setFocus, children }) => {
       label="この検証候補に指摘"
       onComment={() => setFocus(c.id)}
     >
+      {c.plan && (
+        <>
+          <p className="limits">
+            <strong>{LIMITS_LABEL}</strong>: {c.plan.limits}
+          </p>
+          {c.plan.evidence.length > 0 && (
+            <section aria-label="計画の根拠">
+              <p>計画の根拠:</p>
+              <Evidence evidence={c.plan.evidence} />
+            </section>
+          )}
+        </>
+      )}
       {c.property && (
         <section aria-label="性質の根拠">
           <p>性質の根拠:</p>
@@ -241,6 +261,30 @@ const VerificationPanel = ({ doc, focus, setFocus, children }) => {
       )}
     </Record>
   );
+  const candidateBlock = (items) => {
+    const { declined, groups } = candidateGroups(items);
+    return (
+      <>
+        {groups.map(([method, group]) => {
+          const label = `検証手法: ${methodLabel(method)}`;
+          return (
+            <section key={label} aria-label={label} className="method-group">
+              <p className="method-label">
+                {label}（{group.length}）
+              </p>
+              {group.map(candidate)}
+            </section>
+          );
+        })}
+        {declined.length > 0 && (
+          <section aria-label="不採用の検証手法" className="method-group">
+            <p className="method-label">不採用の検証手法（{declined.length}）</p>
+            {declined.map(candidate)}
+          </section>
+        )}
+      </>
+    );
+  };
   const unassigned = verificationCandidates.filter((c) => !c.rule);
   return (
     <div className="workspace">
@@ -306,14 +350,14 @@ const VerificationPanel = ({ doc, focus, setFocus, children }) => {
                 />
               ))}
               <h3>検証候補（{candidates.length}）</h3>
-              {candidates.map(candidate)}
+              {candidateBlock(candidates)}
             </details>
           );
         })}
         {unassigned.length > 0 && (
           <details open>
             <summary>業務ルールが未定の検証候補（{unassigned.length}）</summary>
-            {unassigned.map(candidate)}
+            {candidateBlock(unassigned)}
           </details>
         )}
       </section>
