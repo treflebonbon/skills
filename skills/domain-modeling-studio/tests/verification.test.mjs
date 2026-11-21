@@ -1229,3 +1229,18 @@ test("verification.mdは業務ルールごとに手法でまとめ、計画・�
     assert.equal(artifacts(withChange)["verification.md"].match(new RegExp(tia, "gu"))?.length, 1, decision);
   }
 });
+
+test("計画の任意項目は、あれば空でない文字列に限る", () => {
+  const withQuint = (extra) =>
+    v4((d) => {
+      d.verificationCandidates.push(methodCandidate("QUINT", { plan: plan(extra) }));
+    });
+  assert.doesNotThrow(() => validateDocument(withQuint({ scope: "最大10手順" })));
+  for (const extra of [{ scope: " " }, { mapping: "" }, { coverage: 3 }]) {
+    assert.throws(
+      () => validateDocument(withQuint(extra)),
+      /計画の項目は空でない文字列で指定してください/u,
+      JSON.stringify(extra)
+    );
+  }
+});
