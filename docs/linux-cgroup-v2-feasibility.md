@@ -28,7 +28,7 @@ dispatch は source を固定した後、実行前に承認を得て1回だけ�
 
 ## 結果
 
-[run 44875717894 / attempt 1](evidence/linux-cgroup-v2/44875717894-1/README.md) で、x64／arm64 とも前提が成立した。userns は UID-map write の EPERM で使えず、測定器は cgroup を選んだ。委譲された scope と service の両方で、direct-kill と watchdog-kill がそれぞれ3回とも成立し、最大でも 2.617 ms だった。委譲の無い job の cgroup では、準備を始めずに拒否した。runner では linger が最初から有効で、linger を再現する step は状態を変えていない。
+[run 44875717894 / attempt 1](evidence/linux-cgroup-v2/44875717894-1/README.md) で、x64／arm64 とも前提が成立した。userns は UID-map write の EPERM で使えず、測定器は cgroup を選んだ。委譲された scope と service の両方で、direct-kill と watchdog-kill がそれぞれ3回とも成立し、1 ms 間隔の確認で最大でも 2.617 ms までに空になった。委譲の無い job の cgroup では、準備を始めずに拒否した。runner では linger が最初から有効で、linger を再現する step は状態を変えていない。
 
 これは #33 の必要範囲での成功ではない。正式実証へ進む根拠として扱う。
 
