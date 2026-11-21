@@ -413,6 +413,9 @@ const validateProperty = (item) => {
   );
   provenance(p);
 };
+// A hold cannot be settled yet and a decline only says why a method is unneeded,
+// so neither names the error, boundary or tests a justified decision needs.
+const unjustified = (item) => ["HOLD", "DECLINE"].includes(item.decision);
 const PLAN_METHODS = ["MBT", "QUINT", "ALLOY", "MUTATION"];
 const validatePlan = (item) => {
   need(
@@ -451,7 +454,7 @@ const validatePlan = (item) => {
   );
   need(
     item.method !== "MUTATION" ||
-      ["HOLD", "DECLINE"].includes(item.decision) ||
+      unjustified(item) ||
       (item.tests ?? []).length > 0,
     "ミューテーションテストの候補には検出を確かめる既存テストが必要です"
   );
@@ -474,7 +477,7 @@ const validateCandidate = (item, rules, tests) => {
     "不採用の検証候補には検証手法・業務ルール・理由が必要です"
   );
   need(
-    ["HOLD", "DECLINE"].includes(item.decision) ||
+    unjustified(item) ||
       (nonempty(item.error) &&
         item.rule !== undefined &&
         item.boundary !== undefined &&
@@ -482,7 +485,7 @@ const validateCandidate = (item, rules, tests) => {
     "保留以外の検証候補には検出したい誤り・守る業務ルール・検証の境界・理由が必要です"
   );
   need(
-    ["HOLD", "DECLINE"].includes(item.decision) || item.evidence.length > 0,
+    unjustified(item) || item.evidence.length > 0,
     "保留以外の検証候補には理由の根拠が必要です"
   );
   need(
