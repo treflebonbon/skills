@@ -776,7 +776,8 @@ async function run(root: string, out: string, local = false) {
         process.execPath,
         ["test", join(root, "tests/bun/process-namespace.test.ts")],
         root,
-        { ...process.env, ...environment },
+        // CLAUDECODE があると bun test は case ごとの行を出さず、判定に必要な case 名を取れない。
+        { ...process.env, CLAUDECODE: undefined, ...environment },
       );
       fs.writeFileSync(join(out, logName), result.stdout + result.stderr);
       let trial: unknown;
