@@ -23,6 +23,8 @@ if [[ $mode == create ]]; then
   GIT_TERMINAL_PROMPT=0 git -C "$project" fetch --quiet --depth=1 --no-tags origin "$PILOT_REF:$remote_ref"
   [[ $(git -C "$project" rev-parse "$remote_ref") == "$PILOT_SHA" ]] ||
     fail 'public Git ref does not match the approved target SHA'
+  # Orca creates the remote workspace from the default base ref, not the desktop selection.
+  git -C "$project" symbolic-ref refs/remotes/origin/HEAD "$remote_ref"
   git -C "$project" switch --quiet --detach "$PILOT_SHA"
 
   # Pin the package for the desktop Orca version used by this pilot.
