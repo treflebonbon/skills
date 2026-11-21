@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import { createHash } from "node:crypto";
 import { arch, release } from "node:os";
@@ -42,6 +42,440 @@ function command(command: string, args: string[], cwd: string, env = process.env
     error: result.error?.message,
   };
 }
+
+const probeArgs = [
+  "--user",
+  "--map-current-user",
+  "--pid",
+  "--fork",
+  "--kill-child=SIGKILL",
+  "--mount-proc",
+  "--",
+  "/usr/bin/true",
+];
+const probeOutputLimit = 32 * 1024 * 1024;
+function inspectProbeProcess(pid: number, expectedExecutable: string, expectedStartTicks?: string) {
+  const proc = "/proc/" + pid;
+  const identity = () => {
+    const stat = fs.readFileSync(proc + "/stat", "utf8");
+    const end = stat.lastIndexOf(")");
+    if (end < 0) throw Object.assign(new Error("stat-parse"), { code: "EIO" });
+    const fields = stat
+      .slice(end + 1)
+      .trim()
+      .split(/\s+/);
+    const startTicks = fields[19];
+    if (!/^\d+$/.test(startTicks ?? ""))
+      throw Object.assign(new Error("stat-parse"), { code: "EIO" });
+    let executable: string;
+    try {
+      executable = fs.readlinkSync(proc + "/exe");
+    } catch (error) {
+      throw Object.assign(error as NodeJS.ErrnoException, { startTicks });
+    }
+    return { startTicks, executable };
+  };
+  const processChanged = (
+    before: { startTicks: string; executable: string },
+    after: { startTicks: string; executable: string },
+  ) => ({
+    status: "process-changed",
+    pid,
+    expectedStartTicks: expectedStartTicks ?? before.startTicks,
+    observedStartTicks: after.startTicks,
+  });
+  const failure = (error: unknown, startTicks?: string) => {
+    const code = (error as NodeJS.ErrnoException).code;
+    const knownStartTicks =
+      startTicks ??
+      (error as NodeJS.ErrnoException & { startTicks?: string }).startTicks ??
+      expectedStartTicks;
+    const result =
+      code === "ENOENT"
+        ? { status: "process-exited-before-sample", pid }
+        : {
+            status: code === "EACCES" || code === "EPERM" ? "permission-denied" : "unavailable",
+            pid,
+            error: code,
+          };
+    return knownStartTicks ? { ...result, startTicks: knownStartTicks } : result;
+  };
+  let before: ReturnType<typeof identity>;
+  try {
+    before = identity();
+  } catch (error) {
+    return failure(error);
+  }
+  if (expectedStartTicks && before.startTicks !== expectedStartTicks)
+    return {
+      status: "process-changed",
+      pid,
+      expectedStartTicks,
+      observedStartTicks: before.startTicks,
+    };
+  if (before.executable.endsWith(" (deleted)") || before.executable !== expectedExecutable) {
+    try {
+      const after = identity();
+      if (after.startTicks !== before.startTicks || after.executable !== before.executable)
+        return processChanged(before, after);
+    } catch (error) {
+      return failure(error, before.startTicks);
+    }
+    return {
+      status: "exe-mismatch",
+      pid,
+      startTicks: before.startTicks,
+      executable: before.executable,
+    };
+  }
+  const lines: Record<string, string> = {};
+  try {
+    for (const line of fs.readFileSync(proc + "/status", "utf8").split("\n")) {
+      const separator = line.indexOf(":");
+      if (separator < 0) continue;
+      const name = line.slice(0, separator);
+      if (
+        [
+          "Uid",
+          "Gid",
+          "Groups",
+          "CapInh",
+          "CapPrm",
+          "CapEff",
+          "CapBnd",
+          "CapAmb",
+          "NoNewPrivs",
+          "Seccomp",
+        ].includes(name)
+      )
+        lines[name] = line.slice(separator + 1).trim();
+    }
+  } catch (error) {
+    return failure(error, before.startTicks);
+  }
+  const capabilityNames = ["CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb"];
+  const capabilities = Object.fromEntries(
+    capabilityNames.filter((name) => lines[name] !== undefined).map((name) => [name, lines[name]]),
+  );
+  const profile = readContext(proc + "/attr/current");
+  let after: ReturnType<typeof identity>;
+  try {
+    after = identity();
+  } catch (error) {
+    return failure(error, before.startTicks);
+  }
+  if (after.startTicks !== before.startTicks || after.executable !== before.executable)
+    return processChanged(before, after);
+  return {
+    status: "observed",
+    pid,
+    startTicks: before.startTicks,
+    executable: before.executable,
+    sampledAt: new Date().toISOString(),
+    identity: Object.fromEntries(
+      ["Uid", "Gid", "Groups"]
+        .filter((name) => lines[name] !== undefined)
+        .map((name) => [name, lines[name]]),
+    ),
+    profile,
+    capabilities: {
+      status: capabilityNames.every((name) => lines[name] !== undefined) ? "observed" : "partial",
+      values: capabilities,
+      missing: capabilityNames.filter((name) => lines[name] === undefined),
+    },
+    restrictions: Object.fromEntries(
+      ["NoNewPrivs", "Seccomp"]
+        .filter((name) => lines[name] !== undefined)
+        .map((name) => [name, lines[name]]),
+    ),
+  };
+}
+async function namespaceProbe(executable: string, cwd: string, argv = probeArgs) {
+  const startedAt = new Date().toISOString();
+  const child = spawn(executable, argv, {
+    cwd,
+    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const pid = child.pid;
+  const stdoutBuffers: Buffer[] = [];
+  const stderrBuffers: Buffer[] = [];
+  let stdoutBytes = 0;
+  let stderrBytes = 0;
+  let outputTruncated = false;
+  const collect = (buffers: Buffer[], size: number, chunk: Buffer) => {
+    const remaining = Math.max(0, probeOutputLimit - size);
+    if (chunk.length > remaining && !outputTruncated) {
+      outputTruncated = true;
+      child.kill("SIGTERM");
+    }
+    if (remaining) buffers.push(chunk.subarray(0, remaining));
+    return size + Math.min(chunk.length, remaining);
+  };
+  child.stdout?.on("data", (chunk: Buffer) => {
+    stdoutBytes = collect(stdoutBuffers, stdoutBytes, chunk);
+  });
+  child.stderr?.on("data", (chunk: Buffer) => {
+    stderrBytes = collect(stderrBuffers, stderrBytes, chunk);
+  });
+  let observedStartTicks: string | undefined;
+  const sampleProcess = () => {
+    if (!pid) return { status: "probe-pid-unavailable" };
+    const sample = inspectProbeProcess(pid, executable, observedStartTicks);
+    if (
+      !observedStartTicks &&
+      sample.status !== "process-changed" &&
+      "startTicks" in sample &&
+      typeof sample.startTicks === "string"
+    )
+      observedStartTicks = sample.startTicks;
+    return sample;
+  };
+  let processObservation = pid ? sampleProcess() : undefined;
+  const sampleTimer = setInterval(() => {
+    if (
+      pid &&
+      observedStartTicks &&
+      ["unavailable", "permission-denied", "exe-mismatch"].includes(
+        processObservation?.status ?? "",
+      )
+    )
+      processObservation = sampleProcess();
+  }, 5);
+  let spawnError: NodeJS.ErrnoException | undefined;
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    child.kill("SIGTERM");
+  }, 180_000);
+  const result = await new Promise<{ status: number | null; signal: NodeJS.Signals | null }>(
+    (resolveResult) => {
+      child.once("error", (error) => {
+        spawnError = error as NodeJS.ErrnoException;
+      });
+      child.once("close", (status, signal) => resolveResult({ status, signal }));
+    },
+  );
+  clearTimeout(timeout);
+  clearInterval(sampleTimer);
+  const endedAt = new Date().toISOString();
+  return {
+    path: executable,
+    argv,
+    pid,
+    startedAt,
+    endedAt,
+    status: timedOut || outputTruncated ? null : result.status,
+    signal: result.signal,
+    stdout: Buffer.concat(stdoutBuffers).toString("utf8"),
+    stderr: Buffer.concat(stderrBuffers).toString("utf8"),
+    outputTruncated,
+    error: timedOut ? "ETIMEDOUT" : outputTruncated ? "ENOBUFS" : spawnError?.message,
+    processObservation: processObservation ?? { status: "probe-pid-unavailable" },
+  };
+}
+function auditMessagePid(message: string) {
+  const pids: number[] = [];
+  let token = "";
+  let quoted = false;
+  let escaped = false;
+  const collect = () => {
+    const match = /^pid=(\d+)$/.exec(token);
+    if (match) pids.push(Number(match[1]));
+    token = "";
+  };
+  for (const character of message) {
+    if (quoted) {
+      token += character;
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') quoted = false;
+    } else if (character === '"') {
+      quoted = true;
+      token += character;
+    } else if (/\s|,/.test(character)) {
+      collect();
+    } else {
+      token += character;
+    }
+  }
+  collect();
+  return pids.length === 1 ? pids[0] : undefined;
+}
+/** probeのPIDと時刻に限定し、journalの取得不能と一致なしを区別する。 */
+function probeAudit(
+  probe: { pid?: number; startedAt: string; endedAt: string },
+  sudoPath: string | undefined,
+  cwd: string,
+) {
+  const unavailable = (status: string, reason?: string, extra: Record<string, unknown> = {}) => ({
+    status,
+    reason,
+    events: [],
+    ...extra,
+  });
+  if (typeof probe.pid !== "number" || !Number.isSafeInteger(probe.pid) || probe.pid <= 0)
+    return unavailable("probe-pid-unavailable");
+  const started = Date.parse(probe.startedAt);
+  const ended = Date.parse(probe.endedAt);
+  if (!Number.isFinite(started) || !Number.isFinite(ended) || ended < started)
+    return unavailable("window-unavailable");
+  const since = new Date(started - 1_000).toISOString();
+  const until = new Date(ended + 1_000).toISOString();
+  const window = { since, until };
+  const journalPath = "/usr/bin/journalctl";
+  const journalArgs = [
+    "--dmesg",
+    "--since",
+    since,
+    "--until",
+    until,
+    "--grep=(^|[^[:alnum:]_])pid=" + probe.pid + "([^[:alnum:]_]|$)",
+    "--output=json",
+    "--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE",
+    "--no-pager",
+    "--lines=101",
+  ];
+  let readerPath: string;
+  let readerHash: string;
+  try {
+    readerPath = fs.realpathSync(journalPath);
+    readerHash = hash(journalPath);
+  } catch (error) {
+    return unavailable(
+      "unavailable",
+      (error as NodeJS.ErrnoException).code ?? "journalctl-unavailable",
+      {
+        reader: {
+          path: journalPath,
+          version: { status: "unavailable", reason: "binary-unavailable" },
+        },
+        window,
+      },
+    );
+  }
+  const versionResult = spawnSync(readerPath, ["--version"], {
+    cwd,
+    env: process.env,
+    encoding: "utf8",
+    timeout: 5_000,
+    maxBuffer: 8 * 1024,
+  });
+  const versionError = (versionResult.error as NodeJS.ErrnoException | undefined)?.code;
+  const versionLine = (versionResult.stdout ?? "").split("\n").find(Boolean)?.trim().slice(0, 256);
+  const version =
+    !versionError && versionResult.status === 0 && versionLine
+      ? { status: "recorded", argv: ["--version"], value: versionLine }
+      : {
+          status: "unavailable",
+          argv: ["--version"],
+          reason: versionError ?? "version-exit-" + versionResult.status,
+        };
+  const reader = { path: readerPath, hash: readerHash, version };
+  const command = sudoPath
+    ? { path: sudoPath, argv: ["-n", "--", readerPath, ...journalArgs] }
+    : { path: readerPath, argv: journalArgs };
+  const context = { reader, window, command };
+  const result = spawnSync(command.path, command.argv, {
+    cwd,
+    env: process.env,
+    encoding: "utf8",
+    timeout: 5_000,
+    maxBuffer: 256 * 1024,
+  });
+  const errorCode = (result.error as NodeJS.ErrnoException | undefined)?.code;
+  const stderr = result.stderr ?? "";
+  if (errorCode === "ENOBUFS") return unavailable("truncated", "size-limit", context);
+  if (errorCode === "ETIMEDOUT") return unavailable("timeout", undefined, context);
+  if (errorCode)
+    return unavailable(
+      errorCode === "EACCES" || errorCode === "EPERM" ? "permission-denied" : "unavailable",
+      errorCode,
+      context,
+    );
+  const noMatches =
+    result.status === 1 && !result.signal && !(result.stdout ?? "").trim() && !stderr.trim();
+  if (result.status !== 0 && !noMatches) {
+    const denied = /permission denied|not allowed|a password is required|no password/i.test(stderr);
+    return unavailable(
+      denied ? "permission-denied" : "unavailable",
+      "journal-exit-" + result.status,
+      context,
+    );
+  }
+  const rows = (result.stdout ?? "").split("\n").filter(Boolean);
+  if (rows.length >= 101)
+    return unavailable("truncated", "record-limit", { ...context, recordCount: rows.length });
+  if (rows.length === 0) {
+    const versionUnavailable = version.status !== "recorded";
+    const readStatus = noMatches ? "no-matching-events" : "empty";
+    return {
+      ...context,
+      status: versionUnavailable ? "unavailable" : readStatus,
+      reason: versionUnavailable ? "journalctl-version-unavailable" : undefined,
+      readStatus,
+      recordCount: 0,
+      events: [],
+    };
+  }
+  const entries: Record<string, unknown>[] = [];
+  for (const line of rows) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      return unavailable("invalid-json", undefined, { ...context, recordCount: rows.length });
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+      return unavailable("unavailable", "record-not-object", {
+        ...context,
+        recordCount: rows.length,
+      });
+    const row = parsed as Record<string, unknown>;
+    const message = typeof row.MESSAGE === "string" ? row.MESSAGE : "";
+    const timestamp = Number(row.__REALTIME_TIMESTAMP);
+    if (!message || !Number.isFinite(timestamp))
+      return unavailable("unavailable", "message-or-timestamp-missing", {
+        ...context,
+        recordCount: rows.length,
+      });
+    const millis = timestamp / 1_000;
+    if (millis < started - 1_000 || millis > ended + 1_000) continue;
+    const pidMatches = auditMessagePid(message) === probe.pid;
+    const relevant = /\baudit(?::|\(\d+(?:\.\d+)?:\d+\):)/.test(message);
+    if (!pidMatches || !relevant) continue;
+    const messageTruncated = message.length > 4_096;
+    entries.push({
+      timestamp: new Date(millis).toISOString(),
+      journalPid: typeof row._PID === "string" ? row._PID : undefined,
+      messagePid: probe.pid,
+      message: message.slice(0, 4_096),
+      messageTruncated,
+    });
+    if (entries.length > 20)
+      return unavailable("truncated", "event-limit", {
+        ...context,
+        recordCount: rows.length,
+        events: entries.slice(0, 20),
+      });
+    if (messageTruncated)
+      return unavailable("truncated", "message-limit", {
+        ...context,
+        recordCount: rows.length,
+        events: entries,
+      });
+  }
+  const readStatus = entries.length ? "matched" : "no-matching-events";
+  const versionUnavailable = version.status !== "recorded";
+  return {
+    ...context,
+    status: versionUnavailable ? "unavailable" : readStatus,
+    reason: versionUnavailable ? "journalctl-version-unavailable" : undefined,
+    readStatus,
+    recordCount: rows.length,
+    events: entries,
+  };
+}
 function checked(command_: string, args: string[], cwd: string) {
   const result = command(command_, args, cwd);
   if (result.status !== 0 || result.error)
@@ -55,6 +489,7 @@ function readContext(path: string) {
     return { error: (error as NodeJS.ErrnoException).code };
   }
 }
+/** 両checkoutと実行環境のsource/workflow/run/attemptを検査する。 */
 function identity(root: string) {
   const sourceSha = process.env.PROOF_SOURCE_SHA!,
     workflowSha = process.env.GITHUB_SHA!;
@@ -93,7 +528,9 @@ function validRunnerImage(architecture: string, imageOS: unknown) {
     (architecture === "arm64" && imageOS === "ubuntu24-arm64")
   );
 }
-function preflight(root: string) {
+const namespacePreflightError = "同じ条件の namespace 前提検査が失敗しました。拒否原因は未確定です";
+
+async function preflight(root: string, onProgress?: (state: Record<string, unknown>) => void) {
   const tools = Object.fromEntries(
     proofTools.map((name) => {
       const selected = name === "bash" ? "/bin/bash" : Bun.which(name);
@@ -121,20 +558,37 @@ function preflight(root: string) {
   const namespaces = Object.fromEntries(
     ["user", "pid", "mnt"].map((name) => [name, fs.readlinkSync(`/proc/self/ns/${name}`)]),
   );
-  const probe = command(
-    tools.unshare!.path,
-    [
-      "--user",
-      "--map-current-user",
-      "--pid",
-      "--fork",
-      "--kill-child=SIGKILL",
-      "--mount-proc",
-      "--",
-      "/usr/bin/true",
-    ],
-    root,
-  );
+  const probe = await namespaceProbe(tools.unshare!.path, root);
+  const audit =
+    probe.status === 0
+      ? { status: "not-requested", events: [] }
+      : probeAudit(probe, tools.sudo!.path, root);
+  const observed = {
+    platform: process.platform,
+    arch: arch(),
+    kernel: release(),
+    imageOS: process.env.ImageOS,
+    imageVersion: process.env.ImageVersion,
+    tools,
+    contexts,
+    namespaces,
+    probe: { ...probe, audit },
+    environment: {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME,
+      NIX_REMOTE: process.env.NIX_REMOTE,
+      PROCESS_PROOF_NIX_BASH: process.env.PROCESS_PROOF_NIX_BASH,
+      PROCESS_PROOF_NIX_STDENV: process.env.PROCESS_PROOF_NIX_STDENV,
+      PROCESS_PROOF_GROUP_FILE: process.env.PROCESS_PROOF_GROUP_FILE,
+      PROCESS_PROOF_GROUP_GID: process.env.PROCESS_PROOF_GROUP_GID,
+    },
+    uid: process.getuid!(),
+    euid: process.geteuid!(),
+    gid: process.getgid!(),
+    groups: process.getgroups!(),
+    bun: Bun.version,
+  };
+  onProgress?.(observed);
   const config = JSON.parse(
     checked(
       "nix",
@@ -180,8 +634,7 @@ function preflight(root: string) {
     !/^VERSION_ID="24\.04"$/m.test(fs.readFileSync("/etc/os-release", "utf8"))
   )
     errors.push("Ubuntu VM image が不一致です");
-  if (probe.status !== 0 || probe.error)
-    errors.push("同じ条件の namespace 前提検査が失敗しました。拒否原因は未確定です");
+  if (probe.status !== 0 || probe.error) errors.push(namespacePreflightError);
   if (
     tools.nix!.version !== "nix (Nix) 2.34.6" ||
     nix.remote !== "daemon" ||
@@ -203,15 +656,7 @@ function preflight(root: string) {
   return {
     verified: errors.length === 0,
     errors,
-    platform: process.platform,
-    arch: arch(),
-    kernel: release(),
-    imageOS: process.env.ImageOS,
-    imageVersion: process.env.ImageVersion,
-    tools,
-    contexts,
-    namespaces,
-    probe,
+    ...observed,
     nix,
     group: {
       path: groupPath,
@@ -221,24 +666,10 @@ function preflight(root: string) {
       dev: String(group.dev),
       ino: String(group.ino),
     },
-    environment: {
-      PATH: process.env.PATH,
-      HOME: process.env.HOME,
-      NIX_REMOTE: process.env.NIX_REMOTE,
-      PROCESS_PROOF_NIX_BASH: process.env.PROCESS_PROOF_NIX_BASH,
-      PROCESS_PROOF_NIX_STDENV: process.env.PROCESS_PROOF_NIX_STDENV,
-      PROCESS_PROOF_GROUP_FILE: process.env.PROCESS_PROOF_GROUP_FILE,
-      PROCESS_PROOF_GROUP_GID: process.env.PROCESS_PROOF_GROUP_GID,
-    },
-    uid: process.getuid!(),
-    euid: process.geteuid!(),
-    gid: process.getgid!(),
-    groups: process.getgroups!(),
-    bun: Bun.version,
   };
 }
 
-function run(root: string, out: string) {
+async function run(root: string, out: string) {
   fs.mkdirSync(out, { recursive: true });
   const job: Record<string, unknown> = {
     schema: "linux-process-proof-job/v1",
@@ -249,7 +680,19 @@ function run(root: string, out: string) {
     Object.assign(job, identity(root));
     job.sources = sources(root);
     job.controllerHash = hash(fileURLToPath(import.meta.url));
-    job.preflight = preflight(root);
+    try {
+      job.preflight = await preflight(root, (observed) => {
+        job.preflight = observed;
+      });
+    } catch (error) {
+      if (job.preflight)
+        job.preflight = {
+          ...(job.preflight as Record<string, unknown>),
+          verified: false,
+          errors: [String(error)],
+        };
+      throw error;
+    }
     const before = JSON.stringify(job.sources);
     if (!(job.preflight as { verified: boolean }).verified)
       throw new Error("前提検査未達のため実証を開始しません");
@@ -523,7 +966,7 @@ if (import.meta.main) {
   try {
     if (!source || !directory)
       throw new Error("run SOURCE OUTPUT / aggregate SOURCE RAW OUTPUT が必要です");
-    if (mode === "run") run(resolve(source), resolve(directory));
+    if (mode === "run") await run(resolve(source), resolve(directory));
     else if (mode === "aggregate" && output)
       await aggregate(resolve(source), resolve(directory), resolve(output));
     else throw new Error("不明な実行方式です");

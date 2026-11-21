@@ -1,6 +1,6 @@
 # 通常 Linux x64／arm64 の追加実証計画
 
-状態: 計画確定・追加実証は未達。2026-11-16 に Q1〜Q10 の回答と、Claude Opus のレビュー反映後の計画全体の共有理解を確認した。専用 workflow と証跡収集を実装し、同日の [run 43869813149 / attempt 1](evidence/linux-process-proof/43869813149-1/README.md) は両構成とも前提検査で停止した。試験本体は未実行。
+状態: 計画確定・追加実証は未達。2026-11-16 に Q1〜Q10 の回答と、Claude Opus のレビュー反映後の計画全体の共有理解を確認した。専用 workflow と証跡収集を実装し、同日の [run 43869813149 / attempt 1](evidence/linux-process-proof/43869813149-1/README.md) は両構成とも前提検査で停止した。試験本体は未実行。 2026-11-17 の [run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) も namespace の前提未達で停止し、両構成とも試験本体0件だった。
 
 ## 目的と引継ぎ
 
@@ -121,7 +121,11 @@ kernel／sysctl／LSM の制限は変更しない。namespace が拒否された
 5. 成功・失敗のいずれも観測・ログを保存し、両構成の結果と artifact を照合する。
 6. 要約と必要な JSON を Git 管理する変更としてレビューに渡す。実証の成否と未確認範囲を #33 の次の判断へ引き継ぐ。
 
-前提検査では、取得可能な AppArmor／LSM の状態、caller の `/proc/self/attr/current`、`/proc/sys/kernel/apparmor_restrict_unprivileged_userns`、`/proc/sys/kernel/unprivileged_userns_clone`、`/proc/sys/user/max_user_namespaces` を読み取りで記録する。存在しない項目・取得できない項目も区別する。選択済み `unshare` による同じ user／PID／mount-proc 条件の前提検査の終了状態と stderr を残す。設定値や EPERM だけで原因を断定せず、直接の根拠がなければ拒否原因は未確定とする。
+前提検査では、取得可能な AppArmor／LSM の状態、caller の `/proc/self/attr/current`、`/proc/sys/kernel/apparmor_restrict_unprivileged_userns`、`/proc/sys/kernel/unprivileged_userns_clone`、`/proc/sys/user/max_user_namespaces` を読み取りで記録する。存在しない項目・取得できない項目も区別する。選択済み `unshare` の元の `argv`・継承環境を保ったprobeを非rootで実行し、probe自身のPID・開始／終了時刻・終了状態・stdout／stderrを保存する。実行中は同じPIDの `/proc/<pid>/stat` から開始時刻を取り、`/proc/<pid>/exe` とともに照合してから、profile、`Uid`／`Gid`／`Groups`、`CapInh`／`CapPrm`／`CapEff`／`CapBnd`／`CapAmb`、`NoNewPrivs`／`Seccomp` を取得する。短命、実行体不一致、権限拒否などの観測不足は状態として残し、caller値を代用しない。`/proc` の値は観測時点の非atomic sampleであり、`uid_map` の書込み失敗時点の状態を保証しない。これはjournalの監査イベントとも区別する。
+
+probeが失敗した場合だけ、既存 `sudo` から固定した `journalctl` 実体へ読み取り専用のkernel journal照会を行う。時間窓はprobe前後各1秒、5秒timeout、256 KiB上限、101行の切詰め検出を使い、PID候補は `--grep=(^|[^[:alnum:]_])pid=<PID>([^[:alnum:]_]|$)` で絞り、出力fieldを `__REALTIME_TIMESTAMP`・`_PID`・`MESSAGE` に限る。採否は `MESSAGE` 内の引用外・一意なtop-level `pid` とjournal時刻で決め、`_PID` は対応付けに使わない。一致したaudit行だけを最大20件・各4096文字で保存する。`journalctl` のpath／SHA-256／非root `--version`／実行 `argv` と、`empty`・`no-matching-events`・`permission-denied`・`truncated`・`timeout`・`unavailable` などの状態も保存する。成功probeでは特権journal照会をせず `not-requested` とする。空のjournal結果、取得失敗、profile／capabilityの観測不足を原因確定に読み替えない。設定値や `EPERM` だけで拒否元を断定せず、直接の根拠がなければ原因は未確定とする。
+
+失敗probeのjobは新しい診断証跡を含めてartifactに残すが、前提未達として実証の成功には数えない。44件のcase、cohort判定、既存記録の受理条件は緩めない。
 
 | 観測・状態                                         | 扱い                                                                                      |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------- |

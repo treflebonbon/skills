@@ -28,10 +28,40 @@ lib/bun/run test tests/bun/linux-process-proof.test.ts --test-name-pattern 'bund
 
 Ubuntu の AppArmor は user namespace の使用とその中の capability を制限できる。ただし、その一般仕様だけで今回の VM の拒否原因が確定するわけではない。[Ubuntu Security Team の説明](https://discourse.ubuntu.com/t/understanding-apparmor-user-namespace-restriction/58007)を参照した。
 
+## 2026-11-17 の追加診断観測
+
+失敗probeの証跡を増やすため、development/run-linux-process-proof.ts は既存の非root条件、継承環境と次のargvを保ったまま、probeのPID・開始／終了時刻・終了状態・stdout／stderrを保存する。
+
+`--user --map-current-user --pid --fork --kill-child=SIGKILL --mount-proc -- /usr/bin/true`
+
+probe出力はstdout／stderrごと32 MiBで打ち切り、超過時は `ENOBUFS` として前提未達にする。実行中は同じPIDの `/proc/<pid>/stat` から開始時刻を取り、`/proc/<pid>/exe` とともに前後で照合する。実体が選択済み `unshare` と一致した場合だけprofile、`Uid`／`Gid`／`Groups`、`CapInh`／`CapPrm`／`CapEff`／`CapBnd`／`CapAmb`、`NoNewPrivs`／`Seccomp` を保存する。短命で観測できない、PID／実行体が変化した、権限で読めない場合は状態を記録する。callerの値を代用しない。`/proc` の値は観測時点の非atomic sampleであり、`uid_map` の書込み失敗時点の状態を保証しない。これはjournalの監査イベントとも区別する。
+
+失敗したprobeに限って、終了後に既存 `sudo` を通じて固定実体の `journalctl` を読み取り専用で呼ぶ。対象はkernel journal、probeの開始／終了から各1秒の範囲、`--grep=(^|[^[:alnum:]_])pid=<PID>([^[:alnum:]_]|$)`、`--lines=101`、5秒のtimeout、256 KiBの出力上限に絞る。`MESSAGE` 内の一意なtop-level `pid` field（引用文字列内を除く）と時刻を照合し、journalの `_PID` は対応付けに使わない。JSONの出力fieldは `__REALTIME_TIMESTAMP`、`_PID`、`MESSAGE` に限定し、一致したaudit eventだけをartifactへ保存する。audit行は最大20件、各messageは4096文字までとし、上限超過を明示する。成功probeでは特権journal参照を行わず `not-requested` と記録する。
+
+`journalctl` は非rootで `--version` を取得し、選択実体のpath／SHA-256、版取得状態、`sudo` に渡した `argv` を記録する。取得できない場合もaudit不足として残す。取得結果の状態は `matched`、`no-matching-events`、`empty`、`permission-denied`、`truncated`、`timeout`、`unavailable` などに分ける。空の結果や取得失敗から拒否原因を推定しない。無関係なkernel log本文は保存しない。
+
+保護されたローカルfixtureでCLIのstdout／stderr／終了状態と job.json を読み、PID・argv・auditのPID／時刻照合、引用文字列と別PIDの除外、101件時の切詰め状態を確認する。正式VMで取得した証跡ではないため、#33 の原因判定には使わない。
+
 ## 未確定事項と次の調査条件
 
 namespace probe の拒否原因は未確定。失敗した CI VM は終了済みで、同じ拒否が起きる再現ループを現環境では構築できていない。現段階では仮説の検証や、環境原因が解決済みという認定へ進まない。
 
 次回は、正式実証の条件を変えず、失敗した probe の PID / 時刻と結び付く kernel audit event、およびその process の実効 AppArmor profile / capability を得る必要がある。caller の状態だけで代用しない。読取り権限や取得可能性も未確認であり、取得できない場合はその不足を記録する。root で試験本体を実行する変更、sysctl / LSM の緩和、別 binary / profile への切替は行わない。
 
-今回の image 修正は harness の変更なので、次の正式実証は新しい source SHA で x64 / arm64 の一組を測定する。workflow の再実行・新規 dispatch、追加の権限付与は行っていない。今回の run の未達判定と履歴を維持し、履歴解決記録も追加していない。#33 は OPEN、#82 は #33 待ち、macOS の Bun 移行は保留のままとする。
+今回の image 修正は harness の変更なので、次の正式実証は新しい source SHA で x64 / arm64 の一組を測定する。この診断追加の実装時点では新規 dispatch を実行していない。後続の承認済み実行は次節に記録する。今回の run の未達判定と履歴を維持し、履歴解決記録も追加していない。#33 は OPEN、#82 は #33 待ち、macOS の Bun 移行は保留のままとする。
+
+## 2026-11-17 の追加実証結果
+
+承認された [run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) は、source / workflow SHA を `d7087d4b5eebebc3157791b09ca1395e76c0a7f7` に固定して1回実行した。両構成とも約5ミリ秒の probe が `uid_map` 書込みの EPERM で終了し、試験本体は0件。arm64 の image 不一致エラーは今回はない。
+
+両 probe の PID・実際の開始／終了の範囲に一致する AppArmor の `AUDIT / userns_create` event が1件ずつ得られ、`unconfined` から `unprivileged_userns` への遷移を確認した。一方、直接の profile / capability 観測は間に合わず、取得した event は `DENIED` でもない。拒否原因の一意な確定には至っていない。
+
+実測版と同じ上流 util-linux 2.39.3 の実装では、`--fork` の子が UID mapping を書く。今回の audit 検索は起動した親 PID だけなので、子側の拒否 event を取りこぼす可能性がある。親子の対応付けと子側の証跡取得は次の診断設計に残る。詳細・一次資料・artifact の出典は実行記録にまとめた。[再現ループ](bun-process-linux-feedback-loop.md)は、後続の承認済み [run 44078199627](evidence/linux-namespace-loop/44078199627-1/README.md)でx64 / arm64とも3回同じEPERMとなった。前提検査は1回約0.22〜0.49秒。Phase 1は確認済みで、次はPhase 2の最小化を進める。環境起因と確定した履歴解決記録は追加せず、#33 と #82 の保留を維持する。
+
+## PR #87 の診断証跡に関する修正
+
+`journalctl --grep` の一致なしは終了コード1になる。[systemd v255の実装](https://raw.githubusercontent.com/systemd/systemd/v255/src/journal/journalctl.c)では、JSON出力がquietを有効にし、一致する記録が0件なら非0終了する。終了コード1・signalなし・stdout / stderrが空の場合を `no-matching-events` として記録し、読取拒否や別の非0終了と区別する。版を確認できない場合は従来どおり `unavailable` とする。PIDの `--grep`、時間窓、件数・timeout・出力上限は維持する。
+
+正式な `run` でも、probe / audit取得後にNix設定確認などが例外になった場合は、callbackで取得済みの部分観測を保持する。`preflight.verified = false`、`errors` に例外を保存し、`job.error` と空の `trials` を残す。部分観測を正式前提の成功として扱わない。
+
+CLI fixtureで、空結果の実際の終了コード1、空結果の終了コード0、拒否文言、別のstderr、部分出力を伴う非0終了、終了コード2を区別する。正式runの後続Nix設定失敗では、取得済みPID・stderr・auditが消える回帰を修正前に確認し、修正後の保存を検証する。

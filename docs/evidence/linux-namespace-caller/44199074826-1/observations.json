@@ -1,0 +1,961 @@
+{
+  "schema": "linux-namespace-caller-public-log/v1",
+  "runId": "44199074826",
+  "attempt": 1,
+  "sourceSha": "9c56366cfbb712b2a26c00efc0a1d9b5a65815b0",
+  "workflowSha": "9c56366cfbb712b2a26c00efc0a1d9b5a65815b0",
+  "source": "Actionsの新しい公開ログに含まれる限定JSON行",
+  "artifactContentsInspected": false,
+  "jobs": [
+    {
+      "jobId": 134448139124,
+      "name": "namespace caller比較 (x64)",
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44199074826/job/134448139124",
+      "records": [
+        {
+          "schema": "linux-namespace-caller-comparison/v1",
+          "sourceSha": "9c56366cfbb712b2a26c00efc0a1d9b5a65815b0",
+          "workflowSha": "9c56366cfbb712b2a26c00efc0a1d9b5a65815b0",
+          "runId": "44199074826",
+          "attempt": 1,
+          "arch": "x64",
+          "kernel": "7.0.0-1014-aws",
+          "imageOS": "ubuntu24",
+          "imageVersion": "20261111.127.1",
+          "setupAbsent": true,
+          "controllerHash": "a8ffc58fa701d13a8cdb0ca6fa263e098ca4b9eb77782dc7ed6267cca43d511c",
+          "runtimes": {
+            "bun": "/home/runner/.bun/bin/bun",
+            "node": "/usr/local/bin/node"
+          },
+          "runtimeHashes": {
+            "bun": "10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235",
+            "node": "94efd062ed066c1a0b332e18249859c905e920eeada5df55d24c99b919629a90"
+          }
+        },
+        {
+          "runtime": {
+            "name": "bun",
+            "version": "1.4.4",
+            "path": "/home/runner/.bun/bin/bun",
+            "hash": "10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235",
+            "pid": 2495,
+            "ppid": 2484
+          },
+          "controllerHash": "a8ffc58fa701d13a8cdb0ca6fa263e098ca4b9eb77782dc7ed6267cca43d511c",
+          "unshare": {
+            "path": "/usr/bin/unshare",
+            "hash": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c",
+            "version": "unshare from util-linux 2.39.3"
+          },
+          "before": {
+            "uid": 1001,
+            "euid": 1001,
+            "gid": 1001,
+            "groups": [4, 100, 117, 999, 1001],
+            "namespaces": {
+              "user": "user:[4026531837]",
+              "pid": "pid:[4026531836]",
+              "mnt": "mnt:[4026531832]"
+            },
+            "status": [
+              "Uid:\t1001\t1001\t1001\t1001",
+              "Gid:\t1001\t1001\t1001\t1001",
+              "Groups:\t4 100 117 999 1001 ",
+              "CapInh:\t0000000000000000",
+              "CapPrm:\t0000000000000000",
+              "CapEff:\t0000000000000000",
+              "CapBnd:\t000001ffffffffff",
+              "CapAmb:\t0000000000000000",
+              "NoNewPrivs:\t0",
+              "Seccomp:\t0"
+            ],
+            "contexts": {
+              "/proc/self/uid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/gid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/attr/current": {
+                "value": "unconfined"
+              },
+              "/sys/module/apparmor/parameters/enabled": {
+                "value": "Y"
+              },
+              "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                "value": "1"
+              },
+              "/proc/sys/kernel/unprivileged_userns_clone": {
+                "value": "1"
+              },
+              "/proc/sys/user/max_user_namespaces": {
+                "value": "55514"
+              }
+            },
+            "environment": {
+              "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+              "HOME": "/home/runner",
+              "LANG": "C.UTF-8",
+              "LC_ALL": null,
+              "TMPDIR": null
+            }
+          },
+          "after": {
+            "uid": 1001,
+            "euid": 1001,
+            "gid": 1001,
+            "groups": [4, 100, 117, 999, 1001],
+            "namespaces": {
+              "user": "user:[4026531837]",
+              "pid": "pid:[4026531836]",
+              "mnt": "mnt:[4026531832]"
+            },
+            "status": [
+              "Uid:\t1001\t1001\t1001\t1001",
+              "Gid:\t1001\t1001\t1001\t1001",
+              "Groups:\t4 100 117 999 1001 ",
+              "CapInh:\t0000000000000000",
+              "CapPrm:\t0000000000000000",
+              "CapEff:\t0000000000000000",
+              "CapBnd:\t000001ffffffffff",
+              "CapAmb:\t0000000000000000",
+              "NoNewPrivs:\t0",
+              "Seccomp:\t0"
+            ],
+            "contexts": {
+              "/proc/self/uid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/gid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/attr/current": {
+                "value": "unconfined"
+              },
+              "/sys/module/apparmor/parameters/enabled": {
+                "value": "Y"
+              },
+              "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                "value": "1"
+              },
+              "/proc/sys/kernel/unprivileged_userns_clone": {
+                "value": "1"
+              },
+              "/proc/sys/user/max_user_namespaces": {
+                "value": "55514"
+              }
+            },
+            "environment": {
+              "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+              "HOME": "/home/runner",
+              "LANG": "C.UTF-8",
+              "LC_ALL": null,
+              "TMPDIR": null
+            }
+          },
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "bun",
+          "case": "minimal",
+          "repetition": 1,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2507,
+          "startedAt": "2026-11-17T23:24:42.383Z",
+          "endedAt": "2026-11-17T23:24:42.384Z",
+          "elapsedMs": 0.811378000000019,
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "logTruncated": false,
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "bun",
+          "case": "minimal",
+          "repetition": 2,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2508,
+          "startedAt": "2026-11-17T23:24:42.384Z",
+          "endedAt": "2026-11-17T23:24:42.385Z",
+          "elapsedMs": 0.9289210000000026,
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "logTruncated": false,
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "bun",
+          "case": "minimal",
+          "repetition": 3,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2509,
+          "startedAt": "2026-11-17T23:24:42.385Z",
+          "endedAt": "2026-11-17T23:24:42.386Z",
+          "elapsedMs": 0.7975169999999991,
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "logTruncated": false,
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "bun",
+          "case": "control",
+          "repetition": 1,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2510,
+          "startedAt": "2026-11-17T23:24:42.386Z",
+          "endedAt": "2026-11-17T23:24:42.386Z",
+          "elapsedMs": 0.9145379999999932,
+          "status": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "logTruncated": false,
+          "outcome": "passed"
+        },
+        {
+          "runtime": "bun",
+          "case": "control",
+          "repetition": 2,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2511,
+          "startedAt": "2026-11-17T23:24:42.386Z",
+          "endedAt": "2026-11-17T23:24:42.387Z",
+          "elapsedMs": 0.8674489999999935,
+          "status": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "logTruncated": false,
+          "outcome": "passed"
+        },
+        {
+          "runtime": "bun",
+          "case": "control",
+          "repetition": 3,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2512,
+          "startedAt": "2026-11-17T23:24:42.387Z",
+          "endedAt": "2026-11-17T23:24:42.388Z",
+          "elapsedMs": 0.8080889999999954,
+          "status": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "logTruncated": false,
+          "outcome": "passed"
+        },
+        {
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": {
+            "name": "node",
+            "version": "22.23.4",
+            "path": "/usr/local/bin/node",
+            "hash": "94efd062ed066c1a0b332e18249859c905e920eeada5df55d24c99b919629a90",
+            "pid": 2513,
+            "ppid": 2484
+          },
+          "controllerHash": "a8ffc58fa701d13a8cdb0ca6fa263e098ca4b9eb77782dc7ed6267cca43d511c",
+          "unshare": {
+            "path": "/usr/bin/unshare",
+            "hash": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c",
+            "version": "unshare from util-linux 2.39.3"
+          },
+          "before": {
+            "uid": 1001,
+            "euid": 1001,
+            "gid": 1001,
+            "groups": [4, 100, 117, 999, 1001],
+            "namespaces": {
+              "user": "user:[4026531837]",
+              "pid": "pid:[4026531836]",
+              "mnt": "mnt:[4026531832]"
+            },
+            "status": [
+              "Uid:\t1001\t1001\t1001\t1001",
+              "Gid:\t1001\t1001\t1001\t1001",
+              "Groups:\t4 100 117 999 1001 ",
+              "CapInh:\t0000000000000000",
+              "CapPrm:\t0000000000000000",
+              "CapEff:\t0000000000000000",
+              "CapBnd:\t000001ffffffffff",
+              "CapAmb:\t0000000000000000",
+              "NoNewPrivs:\t0",
+              "Seccomp:\t0"
+            ],
+            "contexts": {
+              "/proc/self/uid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/gid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/attr/current": {
+                "value": "unconfined"
+              },
+              "/sys/module/apparmor/parameters/enabled": {
+                "value": "Y"
+              },
+              "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                "value": "1"
+              },
+              "/proc/sys/kernel/unprivileged_userns_clone": {
+                "value": "1"
+              },
+              "/proc/sys/user/max_user_namespaces": {
+                "value": "55514"
+              }
+            },
+            "environment": {
+              "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+              "HOME": "/home/runner",
+              "LANG": "C.UTF-8",
+              "LC_ALL": null,
+              "TMPDIR": null
+            }
+          },
+          "after": {
+            "uid": 1001,
+            "euid": 1001,
+            "gid": 1001,
+            "groups": [4, 100, 117, 999, 1001],
+            "namespaces": {
+              "user": "user:[4026531837]",
+              "pid": "pid:[4026531836]",
+              "mnt": "mnt:[4026531832]"
+            },
+            "status": [
+              "Uid:\t1001\t1001\t1001\t1001",
+              "Gid:\t1001\t1001\t1001\t1001",
+              "Groups:\t4 100 117 999 1001 ",
+              "CapInh:\t0000000000000000",
+              "CapPrm:\t0000000000000000",
+              "CapEff:\t0000000000000000",
+              "CapBnd:\t000001ffffffffff",
+              "CapAmb:\t0000000000000000",
+              "NoNewPrivs:\t0",
+              "Seccomp:\t0"
+            ],
+            "contexts": {
+              "/proc/self/uid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/gid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/attr/current": {
+                "value": "unconfined"
+              },
+              "/sys/module/apparmor/parameters/enabled": {
+                "value": "Y"
+              },
+              "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                "value": "1"
+              },
+              "/proc/sys/kernel/unprivileged_userns_clone": {
+                "value": "1"
+              },
+              "/proc/sys/user/max_user_namespaces": {
+                "value": "55514"
+              }
+            },
+            "environment": {
+              "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+              "HOME": "/home/runner",
+              "LANG": "C.UTF-8",
+              "LC_ALL": null,
+              "TMPDIR": null
+            }
+          },
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "node",
+          "case": "minimal",
+          "repetition": 1,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2524,
+          "startedAt": "2026-11-17T23:24:42.547Z",
+          "endedAt": "2026-11-17T23:24:42.549Z",
+          "elapsedMs": 1.4543000000000177,
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "logTruncated": false,
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "node",
+          "case": "minimal",
+          "repetition": 2,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2525,
+          "startedAt": "2026-11-17T23:24:42.549Z",
+          "endedAt": "2026-11-17T23:24:42.550Z",
+          "elapsedMs": 1.3746909999999843,
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "logTruncated": false,
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "node",
+          "case": "minimal",
+          "repetition": 3,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2526,
+          "startedAt": "2026-11-17T23:24:42.550Z",
+          "endedAt": "2026-11-17T23:24:42.552Z",
+          "elapsedMs": 1.3251339999999914,
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "logTruncated": false,
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "node",
+          "case": "control",
+          "repetition": 1,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2527,
+          "startedAt": "2026-11-17T23:24:42.552Z",
+          "endedAt": "2026-11-17T23:24:42.553Z",
+          "elapsedMs": 1.4840059999999937,
+          "status": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "logTruncated": false,
+          "outcome": "passed"
+        },
+        {
+          "runtime": "node",
+          "case": "control",
+          "repetition": 2,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2528,
+          "startedAt": "2026-11-17T23:24:42.553Z",
+          "endedAt": "2026-11-17T23:24:42.555Z",
+          "elapsedMs": 1.4625780000000077,
+          "status": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "logTruncated": false,
+          "outcome": "passed"
+        },
+        {
+          "runtime": "node",
+          "case": "control",
+          "repetition": 3,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2529,
+          "startedAt": "2026-11-17T23:24:42.555Z",
+          "endedAt": "2026-11-17T23:24:42.556Z",
+          "elapsedMs": 1.3749159999999847,
+          "status": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "logTruncated": false,
+          "outcome": "passed"
+        },
+        {
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "outcome": "bun-not-required"
+        }
+      ]
+    },
+    {
+      "jobId": 134448139503,
+      "name": "namespace caller比較 (arm64)",
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44199074826/job/134448139503",
+      "records": [
+        {
+          "schema": "linux-namespace-caller-comparison/v1",
+          "sourceSha": "9c56366cfbb712b2a26c00efc0a1d9b5a65815b0",
+          "workflowSha": "9c56366cfbb712b2a26c00efc0a1d9b5a65815b0",
+          "runId": "44199074826",
+          "attempt": 1,
+          "arch": "arm64",
+          "kernel": "7.0.0-1017-azure",
+          "imageOS": "ubuntu24-arm64",
+          "imageVersion": "20261111.182.1",
+          "setupAbsent": true,
+          "controllerHash": "a8ffc58fa701d13a8cdb0ca6fa263e098ca4b9eb77782dc7ed6267cca43d511c",
+          "runtimes": {
+            "bun": "/home/runner/.bun/bin/bun",
+            "node": "/usr/local/bin/node"
+          },
+          "runtimeHashes": {
+            "bun": "354c2b049c716aca07b2e5cddb887928ac58950675d1258bb6312083917793b6",
+            "node": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16"
+          }
+        },
+        {
+          "runtime": {
+            "name": "bun",
+            "version": "1.4.4",
+            "path": "/home/runner/.bun/bin/bun",
+            "hash": "354c2b049c716aca07b2e5cddb887928ac58950675d1258bb6312083917793b6",
+            "pid": 2583,
+            "ppid": 2573
+          },
+          "controllerHash": "a8ffc58fa701d13a8cdb0ca6fa263e098ca4b9eb77782dc7ed6267cca43d511c",
+          "unshare": {
+            "path": "/usr/bin/unshare",
+            "hash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "version": "unshare from util-linux 2.39.3"
+          },
+          "before": {
+            "uid": 1001,
+            "euid": 1001,
+            "gid": 1001,
+            "groups": [4, 100, 118, 999, 1001],
+            "namespaces": {
+              "user": "user:[4026531837]",
+              "pid": "pid:[4026531836]",
+              "mnt": "mnt:[4026531832]"
+            },
+            "status": [
+              "Uid:\t1001\t1001\t1001\t1001",
+              "Gid:\t1001\t1001\t1001\t1001",
+              "Groups:\t4 100 118 999 1001 ",
+              "CapInh:\t0000000000000000",
+              "CapPrm:\t0000000000000000",
+              "CapEff:\t0000000000000000",
+              "CapBnd:\t000001ffffffffff",
+              "CapAmb:\t0000000000000000",
+              "NoNewPrivs:\t0",
+              "Seccomp:\t0"
+            ],
+            "contexts": {
+              "/proc/self/uid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/gid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/attr/current": {
+                "value": "unconfined"
+              },
+              "/sys/module/apparmor/parameters/enabled": {
+                "value": "Y"
+              },
+              "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                "value": "1"
+              },
+              "/proc/sys/kernel/unprivileged_userns_clone": {
+                "value": "1"
+              },
+              "/proc/sys/user/max_user_namespaces": {
+                "value": "58304"
+              }
+            },
+            "environment": {
+              "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+              "HOME": "/home/runner",
+              "LANG": "C.UTF-8",
+              "LC_ALL": null,
+              "TMPDIR": null
+            }
+          },
+          "after": {
+            "uid": 1001,
+            "euid": 1001,
+            "gid": 1001,
+            "groups": [4, 100, 118, 999, 1001],
+            "namespaces": {
+              "user": "user:[4026531837]",
+              "pid": "pid:[4026531836]",
+              "mnt": "mnt:[4026531832]"
+            },
+            "status": [
+              "Uid:\t1001\t1001\t1001\t1001",
+              "Gid:\t1001\t1001\t1001\t1001",
+              "Groups:\t4 100 118 999 1001 ",
+              "CapInh:\t0000000000000000",
+              "CapPrm:\t0000000000000000",
+              "CapEff:\t0000000000000000",
+              "CapBnd:\t000001ffffffffff",
+              "CapAmb:\t0000000000000000",
+              "NoNewPrivs:\t0",
+              "Seccomp:\t0"
+            ],
+            "contexts": {
+              "/proc/self/uid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/gid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/attr/current": {
+                "value": "unconfined"
+              },
+              "/sys/module/apparmor/parameters/enabled": {
+                "value": "Y"
+              },
+              "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                "value": "1"
+              },
+              "/proc/sys/kernel/unprivileged_userns_clone": {
+                "value": "1"
+              },
+              "/proc/sys/user/max_user_namespaces": {
+                "value": "58304"
+              }
+            },
+            "environment": {
+              "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+              "HOME": "/home/runner",
+              "LANG": "C.UTF-8",
+              "LC_ALL": null,
+              "TMPDIR": null
+            }
+          },
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "bun",
+          "case": "minimal",
+          "repetition": 1,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2598,
+          "startedAt": "2026-11-17T23:24:32.039Z",
+          "endedAt": "2026-11-17T23:24:32.041Z",
+          "elapsedMs": 1.2618010000000055,
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "logTruncated": false,
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "bun",
+          "case": "minimal",
+          "repetition": 2,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2599,
+          "startedAt": "2026-11-17T23:24:32.041Z",
+          "endedAt": "2026-11-17T23:24:32.042Z",
+          "elapsedMs": 1.2307210000000026,
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "logTruncated": false,
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "bun",
+          "case": "minimal",
+          "repetition": 3,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2600,
+          "startedAt": "2026-11-17T23:24:32.042Z",
+          "endedAt": "2026-11-17T23:24:32.043Z",
+          "elapsedMs": 1.1491520000000008,
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "logTruncated": false,
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "bun",
+          "case": "control",
+          "repetition": 1,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2601,
+          "startedAt": "2026-11-17T23:24:32.043Z",
+          "endedAt": "2026-11-17T23:24:32.044Z",
+          "elapsedMs": 1.3618730000000028,
+          "status": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "logTruncated": false,
+          "outcome": "passed"
+        },
+        {
+          "runtime": "bun",
+          "case": "control",
+          "repetition": 2,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2602,
+          "startedAt": "2026-11-17T23:24:32.044Z",
+          "endedAt": "2026-11-17T23:24:32.046Z",
+          "elapsedMs": 1.326864999999998,
+          "status": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "logTruncated": false,
+          "outcome": "passed"
+        },
+        {
+          "runtime": "bun",
+          "case": "control",
+          "repetition": 3,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2603,
+          "startedAt": "2026-11-17T23:24:32.046Z",
+          "endedAt": "2026-11-17T23:24:32.047Z",
+          "elapsedMs": 1.2716970000000032,
+          "status": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "logTruncated": false,
+          "outcome": "passed"
+        },
+        {
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": {
+            "name": "node",
+            "version": "22.23.4",
+            "path": "/usr/local/bin/node",
+            "hash": "7e48183361053f039294fbbc3ba586722fe756bf296d6cb8195356d10819cd16",
+            "pid": 2604,
+            "ppid": 2573
+          },
+          "controllerHash": "a8ffc58fa701d13a8cdb0ca6fa263e098ca4b9eb77782dc7ed6267cca43d511c",
+          "unshare": {
+            "path": "/usr/bin/unshare",
+            "hash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "version": "unshare from util-linux 2.39.3"
+          },
+          "before": {
+            "uid": 1001,
+            "euid": 1001,
+            "gid": 1001,
+            "groups": [4, 100, 118, 999, 1001],
+            "namespaces": {
+              "user": "user:[4026531837]",
+              "pid": "pid:[4026531836]",
+              "mnt": "mnt:[4026531832]"
+            },
+            "status": [
+              "Uid:\t1001\t1001\t1001\t1001",
+              "Gid:\t1001\t1001\t1001\t1001",
+              "Groups:\t4 100 118 999 1001 ",
+              "CapInh:\t0000000000000000",
+              "CapPrm:\t0000000000000000",
+              "CapEff:\t0000000000000000",
+              "CapBnd:\t000001ffffffffff",
+              "CapAmb:\t0000000000000000",
+              "NoNewPrivs:\t0",
+              "Seccomp:\t0"
+            ],
+            "contexts": {
+              "/proc/self/uid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/gid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/attr/current": {
+                "value": "unconfined"
+              },
+              "/sys/module/apparmor/parameters/enabled": {
+                "value": "Y"
+              },
+              "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                "value": "1"
+              },
+              "/proc/sys/kernel/unprivileged_userns_clone": {
+                "value": "1"
+              },
+              "/proc/sys/user/max_user_namespaces": {
+                "value": "58304"
+              }
+            },
+            "environment": {
+              "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+              "HOME": "/home/runner",
+              "LANG": "C.UTF-8",
+              "LC_ALL": null,
+              "TMPDIR": null
+            }
+          },
+          "after": {
+            "uid": 1001,
+            "euid": 1001,
+            "gid": 1001,
+            "groups": [4, 100, 118, 999, 1001],
+            "namespaces": {
+              "user": "user:[4026531837]",
+              "pid": "pid:[4026531836]",
+              "mnt": "mnt:[4026531832]"
+            },
+            "status": [
+              "Uid:\t1001\t1001\t1001\t1001",
+              "Gid:\t1001\t1001\t1001\t1001",
+              "Groups:\t4 100 118 999 1001 ",
+              "CapInh:\t0000000000000000",
+              "CapPrm:\t0000000000000000",
+              "CapEff:\t0000000000000000",
+              "CapBnd:\t000001ffffffffff",
+              "CapAmb:\t0000000000000000",
+              "NoNewPrivs:\t0",
+              "Seccomp:\t0"
+            ],
+            "contexts": {
+              "/proc/self/uid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/gid_map": {
+                "value": "0          0 4294967295"
+              },
+              "/proc/self/attr/current": {
+                "value": "unconfined"
+              },
+              "/sys/module/apparmor/parameters/enabled": {
+                "value": "Y"
+              },
+              "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                "value": "1"
+              },
+              "/proc/sys/kernel/unprivileged_userns_clone": {
+                "value": "1"
+              },
+              "/proc/sys/user/max_user_namespaces": {
+                "value": "58304"
+              }
+            },
+            "environment": {
+              "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+              "HOME": "/home/runner",
+              "LANG": "C.UTF-8",
+              "LC_ALL": null,
+              "TMPDIR": null
+            }
+          },
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "node",
+          "case": "minimal",
+          "repetition": 1,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2615,
+          "startedAt": "2026-11-17T23:24:32.204Z",
+          "endedAt": "2026-11-17T23:24:32.207Z",
+          "elapsedMs": 2.109496999999976,
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "logTruncated": false,
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "node",
+          "case": "minimal",
+          "repetition": 2,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2616,
+          "startedAt": "2026-11-17T23:24:32.207Z",
+          "endedAt": "2026-11-17T23:24:32.209Z",
+          "elapsedMs": 1.9508490000000052,
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "logTruncated": false,
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "node",
+          "case": "minimal",
+          "repetition": 3,
+          "argv": ["--map-current-user", "--", "/usr/bin/true"],
+          "pid": 2617,
+          "startedAt": "2026-11-17T23:24:32.209Z",
+          "endedAt": "2026-11-17T23:24:32.211Z",
+          "elapsedMs": 1.9748739999999998,
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "logTruncated": false,
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "runtime": "node",
+          "case": "control",
+          "repetition": 1,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2618,
+          "startedAt": "2026-11-17T23:24:32.211Z",
+          "endedAt": "2026-11-17T23:24:32.213Z",
+          "elapsedMs": 2.19306499999999,
+          "status": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "logTruncated": false,
+          "outcome": "passed"
+        },
+        {
+          "runtime": "node",
+          "case": "control",
+          "repetition": 2,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2619,
+          "startedAt": "2026-11-17T23:24:32.213Z",
+          "endedAt": "2026-11-17T23:24:32.216Z",
+          "elapsedMs": 2.3121770000000197,
+          "status": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "logTruncated": false,
+          "outcome": "passed"
+        },
+        {
+          "runtime": "node",
+          "case": "control",
+          "repetition": 3,
+          "argv": ["--", "/usr/bin/true"],
+          "pid": 2620,
+          "startedAt": "2026-11-17T23:24:32.216Z",
+          "endedAt": "2026-11-17T23:24:32.218Z",
+          "elapsedMs": 2.2648100000000113,
+          "status": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": "",
+          "logTruncated": false,
+          "outcome": "passed"
+        },
+        {
+          "outcome": "uid-map-eperm"
+        },
+        {
+          "outcome": "bun-not-required"
+        }
+      ]
+    }
+  ]
+}

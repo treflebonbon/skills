@@ -1,0 +1,335 @@
+{
+  "attempt": 1,
+  "conclusion": "failure",
+  "createdAt": "2026-11-18T03:41:27Z",
+  "databaseId": 44232172294,
+  "displayTitle": "Linux namespace 起動経路比較: e0ec91b8eca9f4e2faf440ed3d83fb66966b793e",
+  "event": "workflow_dispatch",
+  "headSha": "e0ec91b8eca9f4e2faf440ed3d83fb66966b793e",
+  "jobs": [
+    {
+      "completedAt": "2026-11-18T03:41:45Z",
+      "conclusion": "failure",
+      "databaseId": 134559609416,
+      "name": "namespace 起動経路比較 (arm64)",
+      "startedAt": "2026-11-18T03:41:32Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-18T03:41:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-18T03:41:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:35Z",
+          "conclusion": "success",
+          "name": "入力 SHA と方式を検査",
+          "number": 2,
+          "startedAt": "2026-11-18T03:41:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:36Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 3,
+          "startedAt": "2026-11-18T03:41:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:37Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 4,
+          "startedAt": "2026-11-18T03:41:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:38Z",
+          "conclusion": "success",
+          "name": "Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 5,
+          "startedAt": "2026-11-18T03:41:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:38Z",
+          "conclusion": "skipped",
+          "name": "CI 専用依存と補助 group を準備",
+          "number": 6,
+          "startedAt": "2026-11-18T03:41:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:38Z",
+          "conclusion": "skipped",
+          "name": "非root で全44件を3反復",
+          "number": 7,
+          "startedAt": "2026-11-18T03:41:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:38Z",
+          "conclusion": "skipped",
+          "name": "同じ条件のnamespace probeを3回測定",
+          "number": 8,
+          "startedAt": "2026-11-18T03:41:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:38Z",
+          "conclusion": "skipped",
+          "name": "namespaceオプションを一つずつ削減",
+          "number": 9,
+          "startedAt": "2026-11-18T03:41:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:38Z",
+          "conclusion": "skipped",
+          "name": "専用準備なしで元argv・最小候補・対照を各3回測定",
+          "number": 10,
+          "startedAt": "2026-11-18T03:41:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:38Z",
+          "conclusion": "skipped",
+          "name": "同じ測定コードでBunとNodeのcallerを比較",
+          "number": 11,
+          "startedAt": "2026-11-18T03:41:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:38Z",
+          "conclusion": "skipped",
+          "name": "Nodeを固定してunshareの継承環境と空環境を比較",
+          "number": 12,
+          "startedAt": "2026-11-18T03:41:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:40Z",
+          "conclusion": "failure",
+          "name": "共通Python親からNode経由と直接起動を空環境で比較",
+          "number": 13,
+          "startedAt": "2026-11-18T03:41:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:41Z",
+          "conclusion": "success",
+          "name": "成功・失敗の生証跡を保存",
+          "number": 14,
+          "startedAt": "2026-11-18T03:41:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:41Z",
+          "conclusion": "skipped",
+          "name": "Post Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 26,
+          "startedAt": "2026-11-18T03:41:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:42Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 27,
+          "startedAt": "2026-11-18T03:41:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:42Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 28,
+          "startedAt": "2026-11-18T03:41:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:42Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 29,
+          "startedAt": "2026-11-18T03:41:42Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44232172294/job/134559609416"
+    },
+    {
+      "completedAt": "2026-11-18T03:41:56Z",
+      "conclusion": "failure",
+      "databaseId": 134559609650,
+      "name": "namespace 起動経路比較 (x64)",
+      "startedAt": "2026-11-18T03:41:30Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-18T03:41:34Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-18T03:41:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:34Z",
+          "conclusion": "success",
+          "name": "入力 SHA と方式を検査",
+          "number": 2,
+          "startedAt": "2026-11-18T03:41:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:39Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 3,
+          "startedAt": "2026-11-18T03:41:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:39Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 4,
+          "startedAt": "2026-11-18T03:41:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:41Z",
+          "conclusion": "success",
+          "name": "Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 5,
+          "startedAt": "2026-11-18T03:41:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:41Z",
+          "conclusion": "skipped",
+          "name": "CI 専用依存と補助 group を準備",
+          "number": 6,
+          "startedAt": "2026-11-18T03:41:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:41Z",
+          "conclusion": "skipped",
+          "name": "非root で全44件を3反復",
+          "number": 7,
+          "startedAt": "2026-11-18T03:41:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:41Z",
+          "conclusion": "skipped",
+          "name": "同じ条件のnamespace probeを3回測定",
+          "number": 8,
+          "startedAt": "2026-11-18T03:41:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:41Z",
+          "conclusion": "skipped",
+          "name": "namespaceオプションを一つずつ削減",
+          "number": 9,
+          "startedAt": "2026-11-18T03:41:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:41Z",
+          "conclusion": "skipped",
+          "name": "専用準備なしで元argv・最小候補・対照を各3回測定",
+          "number": 10,
+          "startedAt": "2026-11-18T03:41:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:41Z",
+          "conclusion": "skipped",
+          "name": "同じ測定コードでBunとNodeのcallerを比較",
+          "number": 11,
+          "startedAt": "2026-11-18T03:41:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:41Z",
+          "conclusion": "skipped",
+          "name": "Nodeを固定してunshareの継承環境と空環境を比較",
+          "number": 12,
+          "startedAt": "2026-11-18T03:41:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:50Z",
+          "conclusion": "failure",
+          "name": "共通Python親からNode経由と直接起動を空環境で比較",
+          "number": 13,
+          "startedAt": "2026-11-18T03:41:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:52Z",
+          "conclusion": "success",
+          "name": "成功・失敗の生証跡を保存",
+          "number": 14,
+          "startedAt": "2026-11-18T03:41:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:52Z",
+          "conclusion": "skipped",
+          "name": "Post Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 26,
+          "startedAt": "2026-11-18T03:41:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:52Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 27,
+          "startedAt": "2026-11-18T03:41:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:52Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 28,
+          "startedAt": "2026-11-18T03:41:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-18T03:41:52Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 29,
+          "startedAt": "2026-11-18T03:41:52Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44232172294/job/134559609650"
+    },
+    {
+      "completedAt": "2026-11-18T03:41:56Z",
+      "conclusion": "skipped",
+      "databaseId": 134559782513,
+      "name": "両 architecture と履歴を照合",
+      "startedAt": "2026-11-18T03:41:56Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44232172294/job/134559782513"
+    }
+  ],
+  "status": "completed",
+  "updatedAt": "2026-11-18T03:41:56Z",
+  "url": "https://github.com/treflebonbon/skills/actions/runs/44232172294",
+  "workflowName": "Linux process proof"
+}

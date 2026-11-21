@@ -361,13 +361,13 @@ test("test_no_dangling_references_to_removed_parts", () => {
     if (path === "CHANGELOG.md" || path.startsWith("docs/adr/0004-")) continue;
     for (const pattern of removed) {
       expect(pattern.test(path), "dangling reference in path " + path + " " + pattern).toBe(false);
-      if (!fs.existsSync(resolve(root, path))) continue;
-      const bytes = fs.readFileSync(resolve(root, path));
-      if (bytes.includes(0)) continue;
-      expect(
-        pattern.test(withoutSources(path, bytes.toString("utf8"))),
-        "dangling reference in " + path + " " + pattern,
-      ).toBe(false);
+    }
+    if (!fs.existsSync(resolve(root, path))) continue;
+    const bytes = fs.readFileSync(resolve(root, path));
+    if (bytes.includes(0)) continue;
+    const body = withoutSources(path, bytes.toString("utf8"));
+    for (const pattern of removed) {
+      expect(pattern.test(body), "dangling reference in " + path + " " + pattern).toBe(false);
     }
   }
 });

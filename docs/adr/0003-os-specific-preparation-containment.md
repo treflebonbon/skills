@@ -4,6 +4,8 @@ status: accepted
 
 # 準備子孫の終了方式と依存を OS ごとに決める
 
+> Linux／WSL2 の方式は [ADR 0005](0005-linux-host-adaptive-preparation-containment.md) で置き換えた。macOS の方針は引き続き有効。
+
 [ADR 0002](0002-native-exec-and-perl-flock.md) の全子孫5秒保証と、#33 の実証／#82 の製品化という分担を引き継ぐ。現行の process group 方式は離脱した子孫に不適合で、[OS 別の調査](../bun-preparation-containment-research.md)を踏まえて以下の方式・依存・配布方針を確定した。2026-11-15 に Q1〜Q3 の回答と全体の共有理解を確認した。これは各 OS での方式の実証成功・製品化完了を意味しない。
 
 ## 対話で決定した方針

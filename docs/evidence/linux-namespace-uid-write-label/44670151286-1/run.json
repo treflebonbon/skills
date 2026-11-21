@@ -1,0 +1,246 @@
+{
+  "attempt": 1,
+  "conclusion": "failure",
+  "createdAt": "2026-11-20T03:48:06Z",
+  "databaseId": 44670151286,
+  "displayTitle": "Linux namespace UID-map AppArmorラベル観測: 5181d087a882d0e647b2ea59e1a2b02991cb9ece",
+  "event": "workflow_dispatch",
+  "headBranch": "integration/python-to-bun",
+  "headSha": "5181d087a882d0e647b2ea59e1a2b02991cb9ece",
+  "jobs": [
+    {
+      "completedAt": "2026-11-20T03:48:26Z",
+      "conclusion": "failure",
+      "databaseId": 136068909170,
+      "name": "namespace UID-map直接書込み比較 (arm64)",
+      "startedAt": "2026-11-20T03:48:11Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-20T03:48:14Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-20T03:48:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:14Z",
+          "conclusion": "success",
+          "name": "入力 SHA と方式を検査",
+          "number": 2,
+          "startedAt": "2026-11-20T03:48:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:15Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 3,
+          "startedAt": "2026-11-20T03:48:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:17Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 4,
+          "startedAt": "2026-11-20T03:48:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "success",
+          "name": "Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 5,
+          "startedAt": "2026-11-20T03:48:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "CI 専用依存と補助 group を準備",
+          "number": 6,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "非root で全44件を3反復",
+          "number": 7,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "同じ条件のnamespace probeを3回測定",
+          "number": 8,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "namespaceオプションを一つずつ削減",
+          "number": 9,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "専用準備なしで元argv・最小候補・対照を各3回測定",
+          "number": 10,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "同じ測定コードでBunとNodeのcallerを比較",
+          "number": 11,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "Nodeを固定してunshareの継承環境と空環境を比較",
+          "number": 12,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "共通Python親からNode経由と直接起動を空環境で比較",
+          "number": 13,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "同じPython親の直接起動でcheckoutとrootのcwdを比較",
+          "number": 14,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "cwdと空環境を固定してstdoutだけsocketからpipeへ変更",
+          "number": 15,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "stdoutをpipeに固定してstderrだけsocketからpipeへ変更",
+          "number": 16,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "共通Bash親でPythonとPerlの起動層を比較",
+          "number": 17,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:19Z",
+          "conclusion": "skipped",
+          "name": "同じPerl親でstdinだけを閉じて比較",
+          "number": 18,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:22Z",
+          "conclusion": "failure",
+          "name": "共通BashからPerlを経由せず直接起動して比較",
+          "number": 19,
+          "startedAt": "2026-11-20T03:48:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:22Z",
+          "conclusion": "skipped",
+          "name": "Bash直接の失敗PIDに対応するkernel監査を非rootで取得",
+          "number": 20,
+          "startedAt": "2026-11-20T03:48:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:22Z",
+          "conclusion": "skipped",
+          "name": "直接UID-map書込みと成功対照のkernel監査を非rootで取得",
+          "number": 21,
+          "startedAt": "2026-11-20T03:48:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:23Z",
+          "conclusion": "success",
+          "name": "成功・失敗の生証跡を保存",
+          "number": 22,
+          "startedAt": "2026-11-20T03:48:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:23Z",
+          "conclusion": "skipped",
+          "name": "Post Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "number": 42,
+          "startedAt": "2026-11-20T03:48:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:23Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 43,
+          "startedAt": "2026-11-20T03:48:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:24Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "number": 44,
+          "startedAt": "2026-11-20T03:48:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-20T03:48:24Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 45,
+          "startedAt": "2026-11-20T03:48:24Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44670151286/job/136068909170"
+    },
+    {
+      "completedAt": "2026-11-20T03:48:26Z",
+      "conclusion": "skipped",
+      "databaseId": 136069021461,
+      "name": "両 architecture と履歴を照合",
+      "startedAt": "2026-11-20T03:48:26Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/treflebonbon/skills/actions/runs/44670151286/job/136069021461"
+    }
+  ],
+  "name": "Linux namespace UID-map AppArmorラベル観測: 5181d087a882d0e647b2ea59e1a2b02991cb9ece",
+  "startedAt": "2026-11-20T03:48:06Z",
+  "status": "completed",
+  "updatedAt": "2026-11-20T03:48:27Z",
+  "url": "https://github.com/treflebonbon/skills/actions/runs/44670151286"
+}

@@ -23,6 +23,7 @@ validator は manifest の受理、mock/fixture は指定分岐の挙動、公�
 ## 再実行する品質入口
 
 開発依存として Node.js 20.19+、npm、Python 3、Bun 1.4.4+、Bats Core 1.x、`jq` を用意します。TypeScript evidence の Bats は `npm test` と pre-push で実行され、Bun 1.4.4 以上を必要とします。旧版の拒否も確認する場合は、`TYPESCRIPT_EVIDENCE_OLD_BUN` に Bun 1.2.14 の実行ファイルの絶対パスを指定します。`npm run lint:sh` には `shfmt` と `shellcheck` も要ります。
+`linux-process-proof.test.ts` の通常 `run` 監査fixtureは、Linuxかつ `/usr/bin/journalctl` が存在する環境で実行します。
 
 `main` 向け PR では、`CI` workflow が `opened`・`synchronize`・`reopened` でコードを検査します。`PR タイトル` workflow は、この3イベントと `edited` で `conventional-commits` を実行します。タイトル・本文の編集ではコード CI を再実行せず、workflow ごとに concurrency group を分けるため、実行中のコード CI も取り消しません。
 

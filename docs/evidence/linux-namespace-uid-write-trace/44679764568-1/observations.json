@@ -1,0 +1,1674 @@
+{
+  "schema": "linux-namespace-uid-write-trace-public-logs/v1",
+  "runId": 44679764568,
+  "attempt": 1,
+  "sourceSha": "0bb4e2d50406bdc14b3aebb9c725db0dcb829018",
+  "prefixes": [
+    "[DEBUG-ns-uid]",
+    "[DEBUG-ns-uid-write]",
+    "[DEBUG-ns-uid-write-trace]"
+  ],
+  "jobs": [
+    {
+      "arch": "arm64",
+      "jobId": 136100096954,
+      "records": [
+        {
+          "prefix": "[DEBUG-ns-uid-write-trace]",
+          "value": {
+            "schema": "linux-namespace-uid-write-trace/v1",
+            "status": "ready",
+            "phase": "check",
+            "kernel": "7.0.0-1017-azure",
+            "runId": "44679764568",
+            "attempt": 1
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "stage": "uid-prepare",
+            "outcome": "ready",
+            "error": null
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "stage": "perl-baseline",
+            "outcome": "uid-map-eperm",
+            "error": null
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "stage": "uid-name-check",
+            "schema": "linux-namespace-uid-name-check/v1",
+            "outcome": "ready",
+            "requestedUid": 1001,
+            "resolvedUid": null,
+            "resolution": "numeric-fallback",
+            "identity": {
+              "sourceSha": "0bb4e2d50406bdc14b3aebb9c725db0dcb829018",
+              "workflowSha": "0bb4e2d50406bdc14b3aebb9c725db0dcb829018",
+              "runId": "44679764568",
+              "attempt": 1,
+              "arch": "arm64",
+              "kernel": "7.0.0-1017-azure",
+              "imageOS": "ubuntu24-arm64",
+              "imageVersion": "20261116.188.1",
+              "setupAbsent": true
+            },
+            "controllerHashes": {
+              "parent": "ae7a03434756b2b58cd52a4741986c36916d8b2b7bd1ff2e561792e3859b2077",
+              "python": "23733c4730bf653dbb6f03ea829d9b0b184e3c00d176dc72070164b18c5497f4",
+              "perl": "b7fce1f8cb2ece6e10d3a373c4a798ba619c0baf0d66259d46852938c97b8319",
+              "driver": "495b7df6cb709088013e83e3d9df186ea72a76827585d9356c4bb86f6aecfe0f",
+              "bash": "f40a29e3c194fef0c9c9dd7f120a5c09837223b3b71c3646872e88c3cd3a81ad",
+              "observer": "3cbed54a7be65d398c69911f26561799809efccd05130b25c43b70720da039c7"
+            }
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "schema": "linux-namespace-uid-comparison/v1",
+            "stages": [
+              46,
+              0,
+              47,
+              0
+            ],
+            "identity": {
+              "sourceSha": "0bb4e2d50406bdc14b3aebb9c725db0dcb829018",
+              "workflowSha": "0bb4e2d50406bdc14b3aebb9c725db0dcb829018",
+              "runId": "44679764568",
+              "attempt": 1,
+              "arch": "arm64",
+              "kernel": "7.0.0-1017-azure",
+              "imageOS": "ubuntu24-arm64",
+              "imageVersion": "20261116.188.1",
+              "setupAbsent": true
+            },
+            "controllerHashes": {
+              "parent": "ae7a03434756b2b58cd52a4741986c36916d8b2b7bd1ff2e561792e3859b2077",
+              "python": "23733c4730bf653dbb6f03ea829d9b0b184e3c00d176dc72070164b18c5497f4",
+              "perl": "b7fce1f8cb2ece6e10d3a373c4a798ba619c0baf0d66259d46852938c97b8319",
+              "driver": "495b7df6cb709088013e83e3d9df186ea72a76827585d9356c4bb86f6aecfe0f",
+              "bash": "f40a29e3c194fef0c9c9dd7f120a5c09837223b3b71c3646872e88c3cd3a81ad",
+              "observer": "3cbed54a7be65d398c69911f26561799809efccd05130b25c43b70720da039c7"
+            },
+            "runtimeHashes": {
+              "python": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+              "perl": "fb6349e1d854c8b832f46f456aeeb9060c6cbc27e4cfea8885766cef87e3db63",
+              "bash": "af955ef55333c8fc9c5aa50df91ad1a629d9a79a9afa125cd5e9629585f78015"
+            },
+            "unshare": {
+              "path": "/usr/bin/unshare",
+              "hash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+              "version": "unshare from util-linux 2.39.3"
+            },
+            "uidMappingLookup": {
+              "schema": "linux-namespace-uid-name-check/v1",
+              "outcome": "ready",
+              "requestedUid": 1001,
+              "resolvedUid": null,
+              "resolution": "numeric-fallback",
+              "identity": {
+                "sourceSha": "0bb4e2d50406bdc14b3aebb9c725db0dcb829018",
+                "workflowSha": "0bb4e2d50406bdc14b3aebb9c725db0dcb829018",
+                "runId": "44679764568",
+                "attempt": 1,
+                "arch": "arm64",
+                "kernel": "7.0.0-1017-azure",
+                "imageOS": "ubuntu24-arm64",
+                "imageVersion": "20261116.188.1",
+                "setupAbsent": true
+              },
+              "controllerHashes": {
+                "parent": "ae7a03434756b2b58cd52a4741986c36916d8b2b7bd1ff2e561792e3859b2077",
+                "python": "23733c4730bf653dbb6f03ea829d9b0b184e3c00d176dc72070164b18c5497f4",
+                "perl": "b7fce1f8cb2ece6e10d3a373c4a798ba619c0baf0d66259d46852938c97b8319",
+                "driver": "495b7df6cb709088013e83e3d9df186ea72a76827585d9356c4bb86f6aecfe0f",
+                "bash": "f40a29e3c194fef0c9c9dd7f120a5c09837223b3b71c3646872e88c3cd3a81ad",
+                "observer": "3cbed54a7be65d398c69911f26561799809efccd05130b25c43b70720da039c7"
+              }
+            }
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "perl",
+            "runtime": {
+              "cwd": "/home/runner/work/skills/skills/subject",
+              "hash": "fb6349e1d854c8b832f46f456aeeb9060c6cbc27e4cfea8885766cef87e3db63",
+              "name": "perl",
+              "path": "/usr/bin/perl",
+              "pid": 2609,
+              "ppid": 2584,
+              "version": "5.38.2"
+            },
+            "ancestry": [
+              {
+                "path": "/usr/bin/perl",
+                "pid": 2609,
+                "ppid": 2584,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 14751
+              },
+              {
+                "path": "/usr/bin/bash",
+                "pid": 2584,
+                "ppid": 2583,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 14732
+              },
+              {
+                "path": "/usr/bin/bash",
+                "pid": 2583,
+                "ppid": 2118,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 14732
+              },
+              {
+                "path": "/home/runner/extracted/bin/Runner.Worker",
+                "pid": 2118,
+                "ppid": 2101,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 14130
+              },
+              {
+                "path": "/home/runner/extracted/bin/Runner.Listener",
+                "pid": 2101,
+                "ppid": 2011,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 13986
+              },
+              {
+                "path": "/opt/hca/hosted-compute-agent",
+                "pid": 2011,
+                "ppid": 1,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 1186
+              },
+              {
+                "pathError": "EACCES",
+                "pid": 1,
+                "ppid": 0,
+                "processGroup": 1,
+                "session": 1,
+                "startTimeTicks": 1
+              }
+            ],
+            "probeEnvironment": "empty",
+            "controllerHash": "b7fce1f8cb2ece6e10d3a373c4a798ba619c0baf0d66259d46852938c97b8319",
+            "unshare": {
+              "hash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+              "path": "/usr/bin/unshare",
+              "version": "unshare from util-linux 2.39.3"
+            },
+            "before": {
+              "contexts": {
+                "/proc/self/attr/current": {
+                  "value": "unconfined"
+                },
+                "/proc/self/gid_map": {
+                  "value": "0          0 4294967295"
+                },
+                "/proc/self/uid_map": {
+                  "value": "0          0 4294967295"
+                },
+                "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                  "value": "1"
+                },
+                "/proc/sys/kernel/unprivileged_userns_clone": {
+                  "value": "1"
+                },
+                "/proc/sys/user/max_user_namespaces": {
+                  "value": "58304"
+                },
+                "/sys/module/apparmor/parameters/enabled": {
+                  "value": "Y"
+                }
+              },
+              "environment": {
+                "HOME": "/home/runner",
+                "LANG": "C.UTF-8",
+                "LC_ALL": null,
+                "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+                "TMPDIR": null
+              },
+              "euid": 1001,
+              "gid": 1001,
+              "groups": [
+                4,
+                100,
+                117,
+                999,
+                1001
+              ],
+              "namespaces": {
+                "mnt": "mnt:[4026531832]",
+                "pid": "pid:[4026531836]",
+                "user": "user:[4026531837]"
+              },
+              "status": [
+                "Uid:\t1001\t1001\t1001\t1001",
+                "Gid:\t1001\t1001\t1001\t1001",
+                "Groups:\t4 100 117 999 1001 ",
+                "CapInh:\t0000000000000000",
+                "CapPrm:\t0000000000000000",
+                "CapEff:\t0000000000000000",
+                "CapBnd:\t000001ffffffffff",
+                "CapAmb:\t0000000000000000",
+                "NoNewPrivs:\t0",
+                "Seccomp:\t0"
+              ],
+              "uid": 1001
+            },
+            "after": {
+              "contexts": {
+                "/proc/self/attr/current": {
+                  "value": "unconfined"
+                },
+                "/proc/self/gid_map": {
+                  "value": "0          0 4294967295"
+                },
+                "/proc/self/uid_map": {
+                  "value": "0          0 4294967295"
+                },
+                "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                  "value": "1"
+                },
+                "/proc/sys/kernel/unprivileged_userns_clone": {
+                  "value": "1"
+                },
+                "/proc/sys/user/max_user_namespaces": {
+                  "value": "58304"
+                },
+                "/sys/module/apparmor/parameters/enabled": {
+                  "value": "Y"
+                }
+              },
+              "environment": {
+                "HOME": "/home/runner",
+                "LANG": "C.UTF-8",
+                "LC_ALL": null,
+                "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+                "TMPDIR": null
+              },
+              "euid": 1001,
+              "gid": 1001,
+              "groups": [
+                4,
+                100,
+                117,
+                999,
+                1001
+              ],
+              "namespaces": {
+                "mnt": "mnt:[4026531832]",
+                "pid": "pid:[4026531836]",
+                "user": "user:[4026531837]"
+              },
+              "status": [
+                "Uid:\t1001\t1001\t1001\t1001",
+                "Gid:\t1001\t1001\t1001\t1001",
+                "Groups:\t4 100 117 999 1001 ",
+                "CapInh:\t0000000000000000",
+                "CapPrm:\t0000000000000000",
+                "CapEff:\t0000000000000000",
+                "CapBnd:\t000001ffffffffff",
+                "CapAmb:\t0000000000000000",
+                "NoNewPrivs:\t0",
+                "Seccomp:\t0"
+              ],
+              "uid": 1001
+            },
+            "cwd": "/",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "forkCount": 6
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "perl",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "minimal",
+            "argv": [
+              "--map-current-user",
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2610,
+            "startedAt": "2026-11-20T05:15:17.746Z",
+            "endedAt": "2026-11-20T05:15:17.749Z",
+            "elapsedMs": 3.064414999983,
+            "status": 1,
+            "signal": null,
+            "repetition": 1,
+            "stdout": "",
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "logTruncated": false,
+            "outcome": "uid-map-eperm"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "perl",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "minimal",
+            "argv": [
+              "--map-current-user",
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2611,
+            "startedAt": "2026-11-20T05:15:17.749Z",
+            "endedAt": "2026-11-20T05:15:17.752Z",
+            "elapsedMs": 2.70423700001743,
+            "status": 1,
+            "signal": null,
+            "repetition": 2,
+            "stdout": "",
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "logTruncated": false,
+            "outcome": "uid-map-eperm"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "perl",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "minimal",
+            "argv": [
+              "--map-current-user",
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2612,
+            "startedAt": "2026-11-20T05:15:17.752Z",
+            "endedAt": "2026-11-20T05:15:17.753Z",
+            "elapsedMs": 1.59496099999501,
+            "status": 1,
+            "signal": null,
+            "repetition": 3,
+            "stdout": "",
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "logTruncated": false,
+            "outcome": "uid-map-eperm"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "perl",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "control",
+            "argv": [
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2613,
+            "startedAt": "2026-11-20T05:15:17.753Z",
+            "endedAt": "2026-11-20T05:15:17.756Z",
+            "elapsedMs": 2.90742700002511,
+            "status": 0,
+            "signal": null,
+            "repetition": 1,
+            "stdout": "",
+            "stderr": "",
+            "logTruncated": false,
+            "outcome": "passed"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "perl",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "control",
+            "argv": [
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2614,
+            "startedAt": "2026-11-20T05:15:17.756Z",
+            "endedAt": "2026-11-20T05:15:17.759Z",
+            "elapsedMs": 2.82670600000756,
+            "status": 0,
+            "signal": null,
+            "repetition": 2,
+            "stdout": "",
+            "stderr": "",
+            "logTruncated": false,
+            "outcome": "passed"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "perl",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "control",
+            "argv": [
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2615,
+            "startedAt": "2026-11-20T05:15:17.759Z",
+            "endedAt": "2026-11-20T05:15:17.762Z",
+            "elapsedMs": 2.88540300002182,
+            "status": 0,
+            "signal": null,
+            "repetition": 3,
+            "stdout": "",
+            "stderr": "",
+            "logTruncated": false,
+            "outcome": "passed"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "bash",
+            "runtime": {
+              "name": "bash",
+              "path": "/usr/bin/bash",
+              "hash": "af955ef55333c8fc9c5aa50df91ad1a629d9a79a9afa125cd5e9629585f78015",
+              "version": "5.2.21(1)-release",
+              "pid": 2584,
+              "ppid": 2583,
+              "cwd": "/home/runner/work/skills/skills/subject"
+            },
+            "ancestry": [
+              {
+                "pid": 2584,
+                "ppid": 2583,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 14732,
+                "path": "/usr/bin/bash"
+              },
+              {
+                "pid": 2583,
+                "ppid": 2118,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 14732,
+                "path": "/usr/bin/bash"
+              },
+              {
+                "pid": 2118,
+                "ppid": 2101,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 14130,
+                "path": "/home/runner/extracted/bin/Runner.Worker"
+              },
+              {
+                "pid": 2101,
+                "ppid": 2011,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 13986,
+                "path": "/home/runner/extracted/bin/Runner.Listener"
+              },
+              {
+                "pid": 2011,
+                "ppid": 1,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 1186,
+                "path": "/opt/hca/hosted-compute-agent"
+              },
+              {
+                "pid": 1,
+                "ppid": 0,
+                "processGroup": 1,
+                "session": 1,
+                "startTimeTicks": 1,
+                "pathError": "EACCES"
+              }
+            ],
+            "probeEnvironment": "empty",
+            "controllerHash": "f40a29e3c194fef0c9c9dd7f120a5c09837223b3b71c3646872e88c3cd3a81ad",
+            "unshare": {
+              "path": "/usr/bin/unshare",
+              "hash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+              "version": "unshare from util-linux 2.39.3"
+            },
+            "before": {
+              "uid": 1001,
+              "euid": 1001,
+              "gid": 1001,
+              "groups": [
+                4,
+                100,
+                117,
+                999,
+                1001
+              ],
+              "namespaces": {
+                "user": "user:[4026531837]",
+                "pid": "pid:[4026531836]",
+                "mnt": "mnt:[4026531832]"
+              },
+              "status": [
+                "Uid:\t1001\t1001\t1001\t1001",
+                "Gid:\t1001\t1001\t1001\t1001",
+                "Groups:\t4 100 117 999 1001 ",
+                "CapInh:\t0000000000000000",
+                "CapPrm:\t0000000000000000",
+                "CapEff:\t0000000000000000",
+                "CapBnd:\t000001ffffffffff",
+                "CapAmb:\t0000000000000000",
+                "NoNewPrivs:\t0",
+                "Seccomp:\t0"
+              ],
+              "contexts": {
+                "/proc/self/uid_map": {
+                  "value": "0          0 4294967295"
+                },
+                "/proc/self/gid_map": {
+                  "value": "0          0 4294967295"
+                },
+                "/proc/self/attr/current": {
+                  "value": "unconfined"
+                },
+                "/sys/module/apparmor/parameters/enabled": {
+                  "value": "Y"
+                },
+                "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                  "value": "1"
+                },
+                "/proc/sys/kernel/unprivileged_userns_clone": {
+                  "value": "1"
+                },
+                "/proc/sys/user/max_user_namespaces": {
+                  "value": "58304"
+                }
+              },
+              "environment": {
+                "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+                "HOME": "/home/runner",
+                "LANG": "C.UTF-8",
+                "LC_ALL": null,
+                "TMPDIR": null
+              }
+            },
+            "after": {
+              "uid": 1001,
+              "euid": 1001,
+              "gid": 1001,
+              "groups": [
+                4,
+                100,
+                117,
+                999,
+                1001
+              ],
+              "namespaces": {
+                "user": "user:[4026531837]",
+                "pid": "pid:[4026531836]",
+                "mnt": "mnt:[4026531832]"
+              },
+              "status": [
+                "Uid:\t1001\t1001\t1001\t1001",
+                "Gid:\t1001\t1001\t1001\t1001",
+                "Groups:\t4 100 117 999 1001 ",
+                "CapInh:\t0000000000000000",
+                "CapPrm:\t0000000000000000",
+                "CapEff:\t0000000000000000",
+                "CapBnd:\t000001ffffffffff",
+                "CapAmb:\t0000000000000000",
+                "NoNewPrivs:\t0",
+                "Seccomp:\t0"
+              ],
+              "contexts": {
+                "/proc/self/uid_map": {
+                  "value": "0          0 4294967295"
+                },
+                "/proc/self/gid_map": {
+                  "value": "0          0 4294967295"
+                },
+                "/proc/self/attr/current": {
+                  "value": "unconfined"
+                },
+                "/sys/module/apparmor/parameters/enabled": {
+                  "value": "Y"
+                },
+                "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                  "value": "1"
+                },
+                "/proc/sys/kernel/unprivileged_userns_clone": {
+                  "value": "1"
+                },
+                "/proc/sys/user/max_user_namespaces": {
+                  "value": "58304"
+                }
+              },
+              "environment": {
+                "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+                "HOME": "/home/runner",
+                "LANG": "C.UTF-8",
+                "LC_ALL": null,
+                "TMPDIR": null
+              }
+            },
+            "cwd": "/",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "forkCount": 9
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "bash",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "minimal",
+            "argv": [
+              "--map-current-user",
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2639,
+            "startedAt": "2026-11-20T05:15:17.997Z",
+            "endedAt": "2026-11-20T05:15:17.998Z",
+            "elapsedMs": 1.1134369999865612,
+            "status": 1,
+            "signal": null,
+            "repetition": 1,
+            "ownerPid": 2584,
+            "observerPid": 2638,
+            "waitStatus": 1,
+            "observerStatus": 0,
+            "executableHash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "executableHashAfter": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "childBefore": {
+              "pid": 2639,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14794
+            },
+            "stdout": "",
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "logTruncated": false,
+            "outcome": "uid-map-eperm"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "bash",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "minimal",
+            "argv": [
+              "--map-current-user",
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2643,
+            "startedAt": "2026-11-20T05:15:18.091Z",
+            "endedAt": "2026-11-20T05:15:18.092Z",
+            "elapsedMs": 0.9676569999896856,
+            "status": 1,
+            "signal": null,
+            "repetition": 2,
+            "ownerPid": 2584,
+            "observerPid": 2642,
+            "waitStatus": 1,
+            "observerStatus": 0,
+            "executableHash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "executableHashAfter": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "childBefore": {
+              "pid": 2643,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14803
+            },
+            "stdout": "",
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "logTruncated": false,
+            "outcome": "uid-map-eperm"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "bash",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "minimal",
+            "argv": [
+              "--map-current-user",
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2647,
+            "startedAt": "2026-11-20T05:15:18.184Z",
+            "endedAt": "2026-11-20T05:15:18.185Z",
+            "elapsedMs": 1.0339629999975841,
+            "status": 1,
+            "signal": null,
+            "repetition": 3,
+            "ownerPid": 2584,
+            "observerPid": 2646,
+            "waitStatus": 1,
+            "observerStatus": 0,
+            "executableHash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "executableHashAfter": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "childBefore": {
+              "pid": 2647,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14812
+            },
+            "stdout": "",
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "logTruncated": false,
+            "outcome": "uid-map-eperm"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "bash",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "uid-only",
+            "argv": [
+              "--map-user=1001",
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2661,
+            "startedAt": "2026-11-20T05:15:18.354Z",
+            "endedAt": "2026-11-20T05:15:18.355Z",
+            "elapsedMs": 1.4477980000151547,
+            "status": 1,
+            "signal": null,
+            "repetition": 1,
+            "ownerPid": 2584,
+            "observerPid": 2660,
+            "waitStatus": 1,
+            "observerStatus": 0,
+            "executableHash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "executableHashAfter": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "childBefore": {
+              "pid": 2661,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14829
+            },
+            "stdout": "",
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "logTruncated": false,
+            "outcome": "uid-map-eperm"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "bash",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "uid-only",
+            "argv": [
+              "--map-user=1001",
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2665,
+            "startedAt": "2026-11-20T05:15:18.449Z",
+            "endedAt": "2026-11-20T05:15:18.450Z",
+            "elapsedMs": 1.3798989999997957,
+            "status": 1,
+            "signal": null,
+            "repetition": 2,
+            "ownerPid": 2584,
+            "observerPid": 2664,
+            "waitStatus": 1,
+            "observerStatus": 0,
+            "executableHash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "executableHashAfter": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "childBefore": {
+              "pid": 2665,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14839
+            },
+            "stdout": "",
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "logTruncated": false,
+            "outcome": "uid-map-eperm"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "bash",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "uid-only",
+            "argv": [
+              "--map-user=1001",
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2669,
+            "startedAt": "2026-11-20T05:15:18.544Z",
+            "endedAt": "2026-11-20T05:15:18.546Z",
+            "elapsedMs": 1.4016359999970973,
+            "status": 1,
+            "signal": null,
+            "repetition": 3,
+            "ownerPid": 2584,
+            "observerPid": 2668,
+            "waitStatus": 1,
+            "observerStatus": 0,
+            "executableHash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "executableHashAfter": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "childBefore": {
+              "pid": 2669,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14848
+            },
+            "stdout": "",
+            "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+            "logTruncated": false,
+            "outcome": "uid-map-eperm"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "bash",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "control",
+            "argv": [
+              "--user",
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2673,
+            "startedAt": "2026-11-20T05:15:18.640Z",
+            "endedAt": "2026-11-20T05:15:18.641Z",
+            "elapsedMs": 1.4250770000217017,
+            "status": 0,
+            "signal": null,
+            "repetition": 1,
+            "ownerPid": 2584,
+            "observerPid": 2672,
+            "waitStatus": 0,
+            "observerStatus": 0,
+            "executableHash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "executableHashAfter": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "childBefore": {
+              "pid": 2673,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14858
+            },
+            "stdout": "",
+            "stderr": "",
+            "logTruncated": false,
+            "outcome": "passed"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "bash",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "control",
+            "argv": [
+              "--user",
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2677,
+            "startedAt": "2026-11-20T05:15:18.734Z",
+            "endedAt": "2026-11-20T05:15:18.735Z",
+            "elapsedMs": 1.3436029999809307,
+            "status": 0,
+            "signal": null,
+            "repetition": 2,
+            "ownerPid": 2584,
+            "observerPid": 2676,
+            "waitStatus": 0,
+            "observerStatus": 0,
+            "executableHash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "executableHashAfter": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "childBefore": {
+              "pid": 2677,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14867
+            },
+            "stdout": "",
+            "stderr": "",
+            "logTruncated": false,
+            "outcome": "passed"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "parent": "bash",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "control",
+            "argv": [
+              "--user",
+              "--",
+              "/usr/bin/true"
+            ],
+            "pid": 2681,
+            "startedAt": "2026-11-20T05:15:18.827Z",
+            "endedAt": "2026-11-20T05:15:18.828Z",
+            "elapsedMs": 1.3202020000164794,
+            "status": 0,
+            "signal": null,
+            "repetition": 3,
+            "ownerPid": 2584,
+            "observerPid": 2680,
+            "waitStatus": 0,
+            "observerStatus": 0,
+            "executableHash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "executableHashAfter": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "childBefore": {
+              "pid": 2681,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14877
+            },
+            "stdout": "",
+            "stderr": "",
+            "logTruncated": false,
+            "outcome": "passed"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid]",
+          "value": {
+            "outcome": "uid-mapping-reproduced",
+            "error": null
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write]",
+          "value": {
+            "stage": "direct-gate",
+            "schema": "linux-namespace-uid-write-checkpoint/v1",
+            "outcome": "ready",
+            "identity": {
+              "sourceSha": "0bb4e2d50406bdc14b3aebb9c725db0dcb829018",
+              "workflowSha": "0bb4e2d50406bdc14b3aebb9c725db0dcb829018",
+              "runId": "44679764568",
+              "attempt": 1,
+              "arch": "arm64",
+              "kernel": "7.0.0-1017-azure",
+              "imageOS": "ubuntu24-arm64",
+              "imageVersion": "20261116.188.1",
+              "setupAbsent": true
+            },
+            "controllerHashes": {
+              "parent": "ae7a03434756b2b58cd52a4741986c36916d8b2b7bd1ff2e561792e3859b2077",
+              "python": "23733c4730bf653dbb6f03ea829d9b0b184e3c00d176dc72070164b18c5497f4",
+              "perl": "b7fce1f8cb2ece6e10d3a373c4a798ba619c0baf0d66259d46852938c97b8319",
+              "driver": "495b7df6cb709088013e83e3d9df186ea72a76827585d9356c4bb86f6aecfe0f",
+              "bash": "f40a29e3c194fef0c9c9dd7f120a5c09837223b3b71c3646872e88c3cd3a81ad",
+              "observer": "3cbed54a7be65d398c69911f26561799809efccd05130b25c43b70720da039c7",
+              "direct": "084dbf7052e5f9407db1b70df49b6581c1bb9bf091f9fb4f6885b5d675fd8382"
+            },
+            "runtime": {
+              "name": "python",
+              "path": "/usr/bin/python3.12",
+              "hash": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+              "version": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]"
+            },
+            "baselineStatus": 43
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write-trace]",
+          "value": {
+            "schema": "linux-namespace-uid-write-trace/v1",
+            "status": "armed",
+            "phase": "arm",
+            "role": "map",
+            "ownerPid": 2584,
+            "pid": 2744
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write-trace]",
+          "value": {
+            "schema": "linux-namespace-uid-write-trace/v1",
+            "status": "observed",
+            "phase": "finish",
+            "role": "map",
+            "ownerPid": 2584,
+            "pid": 2744,
+            "events": [
+              {
+                "event": "write_enter",
+                "time": "149.265497"
+              },
+              {
+                "event": "file_enter",
+                "time": "149.265504",
+                "cap": 21
+              },
+              {
+                "event": "apparmor_enter",
+                "time": "149.265506",
+                "cap": 21
+              },
+              {
+                "event": "apparmor_exit",
+                "time": "149.265517",
+                "ret": -1
+              },
+              {
+                "event": "file_exit",
+                "time": "149.265518",
+                "ret": 0
+              },
+              {
+                "event": "write_exit",
+                "time": "149.265519",
+                "ret": -1
+              }
+            ]
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write-trace]",
+          "value": {
+            "schema": "linux-namespace-uid-write-trace/v1",
+            "status": "armed",
+            "phase": "arm",
+            "role": "control",
+            "ownerPid": 2584,
+            "pid": 2762
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write-trace]",
+          "value": {
+            "schema": "linux-namespace-uid-write-trace/v1",
+            "status": "no-uid-map-write",
+            "phase": "finish",
+            "role": "control",
+            "ownerPid": 2584,
+            "pid": 2762,
+            "events": []
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write]",
+          "value": {
+            "schema": "linux-namespace-uid-write-comparison/v1",
+            "stages": [
+              43,
+              48,
+              0
+            ],
+            "identity": {
+              "sourceSha": "0bb4e2d50406bdc14b3aebb9c725db0dcb829018",
+              "workflowSha": "0bb4e2d50406bdc14b3aebb9c725db0dcb829018",
+              "runId": "44679764568",
+              "attempt": 1,
+              "arch": "arm64",
+              "kernel": "7.0.0-1017-azure",
+              "imageOS": "ubuntu24-arm64",
+              "imageVersion": "20261116.188.1",
+              "setupAbsent": true
+            },
+            "controllerHashes": {
+              "parent": "ae7a03434756b2b58cd52a4741986c36916d8b2b7bd1ff2e561792e3859b2077",
+              "python": "23733c4730bf653dbb6f03ea829d9b0b184e3c00d176dc72070164b18c5497f4",
+              "perl": "b7fce1f8cb2ece6e10d3a373c4a798ba619c0baf0d66259d46852938c97b8319",
+              "driver": "495b7df6cb709088013e83e3d9df186ea72a76827585d9356c4bb86f6aecfe0f",
+              "bash": "f40a29e3c194fef0c9c9dd7f120a5c09837223b3b71c3646872e88c3cd3a81ad",
+              "observer": "3cbed54a7be65d398c69911f26561799809efccd05130b25c43b70720da039c7",
+              "direct": "084dbf7052e5f9407db1b70df49b6581c1bb9bf091f9fb4f6885b5d675fd8382"
+            },
+            "runtime": {
+              "name": "python",
+              "path": "/usr/bin/python3.12",
+              "hash": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+              "version": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]"
+            }
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write]",
+          "value": {
+            "parent": "direct",
+            "runtime": {
+              "name": "bash",
+              "path": "/usr/bin/bash",
+              "hash": "af955ef55333c8fc9c5aa50df91ad1a629d9a79a9afa125cd5e9629585f78015",
+              "version": "5.2.21(1)-release",
+              "pid": 2584,
+              "ppid": 2583,
+              "cwd": "/home/runner/work/skills/skills/subject"
+            },
+            "ancestry": [
+              {
+                "pid": 2584,
+                "ppid": 2583,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 14732,
+                "path": "/usr/bin/bash"
+              },
+              {
+                "pid": 2583,
+                "ppid": 2118,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 14732,
+                "path": "/usr/bin/bash"
+              },
+              {
+                "pid": 2118,
+                "ppid": 2101,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 14130,
+                "path": "/home/runner/extracted/bin/Runner.Worker"
+              },
+              {
+                "pid": 2101,
+                "ppid": 2011,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 13986,
+                "path": "/home/runner/extracted/bin/Runner.Listener"
+              },
+              {
+                "pid": 2011,
+                "ppid": 1,
+                "processGroup": 2011,
+                "session": 2011,
+                "startTimeTicks": 1186,
+                "path": "/opt/hca/hosted-compute-agent"
+              },
+              {
+                "pid": 1,
+                "ppid": 0,
+                "processGroup": 1,
+                "session": 1,
+                "startTimeTicks": 1,
+                "pathError": "EACCES"
+              }
+            ],
+            "probeEnvironment": "empty",
+            "controllerHash": "f40a29e3c194fef0c9c9dd7f120a5c09837223b3b71c3646872e88c3cd3a81ad",
+            "unshare": {
+              "path": "/usr/bin/unshare",
+              "hash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+              "version": "unshare from util-linux 2.39.3"
+            },
+            "before": {
+              "uid": 1001,
+              "euid": 1001,
+              "gid": 1001,
+              "groups": [
+                4,
+                100,
+                117,
+                999,
+                1001
+              ],
+              "namespaces": {
+                "user": "user:[4026531837]",
+                "pid": "pid:[4026531836]",
+                "mnt": "mnt:[4026531832]"
+              },
+              "status": [
+                "Uid:\t1001\t1001\t1001\t1001",
+                "Gid:\t1001\t1001\t1001\t1001",
+                "Groups:\t4 100 117 999 1001 ",
+                "CapInh:\t0000000000000000",
+                "CapPrm:\t0000000000000000",
+                "CapEff:\t0000000000000000",
+                "CapBnd:\t000001ffffffffff",
+                "CapAmb:\t0000000000000000",
+                "NoNewPrivs:\t0",
+                "Seccomp:\t0"
+              ],
+              "contexts": {
+                "/proc/self/uid_map": {
+                  "value": "0          0 4294967295"
+                },
+                "/proc/self/gid_map": {
+                  "value": "0          0 4294967295"
+                },
+                "/proc/self/attr/current": {
+                  "value": "unconfined"
+                },
+                "/sys/module/apparmor/parameters/enabled": {
+                  "value": "Y"
+                },
+                "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                  "value": "1"
+                },
+                "/proc/sys/kernel/unprivileged_userns_clone": {
+                  "value": "1"
+                },
+                "/proc/sys/user/max_user_namespaces": {
+                  "value": "58304"
+                }
+              },
+              "environment": {
+                "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+                "HOME": "/home/runner",
+                "LANG": "C.UTF-8",
+                "LC_ALL": null,
+                "TMPDIR": null
+              }
+            },
+            "after": {
+              "uid": 1001,
+              "euid": 1001,
+              "gid": 1001,
+              "groups": [
+                4,
+                100,
+                117,
+                999,
+                1001
+              ],
+              "namespaces": {
+                "user": "user:[4026531837]",
+                "pid": "pid:[4026531836]",
+                "mnt": "mnt:[4026531832]"
+              },
+              "status": [
+                "Uid:\t1001\t1001\t1001\t1001",
+                "Gid:\t1001\t1001\t1001\t1001",
+                "Groups:\t4 100 117 999 1001 ",
+                "CapInh:\t0000000000000000",
+                "CapPrm:\t0000000000000000",
+                "CapEff:\t0000000000000000",
+                "CapBnd:\t000001ffffffffff",
+                "CapAmb:\t0000000000000000",
+                "NoNewPrivs:\t0",
+                "Seccomp:\t0"
+              ],
+              "contexts": {
+                "/proc/self/uid_map": {
+                  "value": "0          0 4294967295"
+                },
+                "/proc/self/gid_map": {
+                  "value": "0          0 4294967295"
+                },
+                "/proc/self/attr/current": {
+                  "value": "unconfined"
+                },
+                "/sys/module/apparmor/parameters/enabled": {
+                  "value": "Y"
+                },
+                "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+                  "value": "1"
+                },
+                "/proc/sys/kernel/unprivileged_userns_clone": {
+                  "value": "1"
+                },
+                "/proc/sys/user/max_user_namespaces": {
+                  "value": "58304"
+                }
+              },
+              "environment": {
+                "PATH": "/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+                "HOME": "/home/runner",
+                "LANG": "C.UTF-8",
+                "LC_ALL": null,
+                "TMPDIR": null
+              }
+            },
+            "cwd": "/",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "forkCount": 6
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write]",
+          "value": {
+            "parent": "direct",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "direct-map",
+            "argv": [
+              "-I",
+              "/home/runner/work/skills/skills/control/development/probe-linux-namespace-uid-write.py",
+              "child",
+              "map",
+              "1001"
+            ],
+            "pid": 2744,
+            "startedAt": "2026-11-20T05:15:19.300Z",
+            "endedAt": "2026-11-20T05:15:19.328Z",
+            "elapsedMs": 28.076390999984824,
+            "status": 1,
+            "signal": null,
+            "repetition": 1,
+            "ownerPid": 2584,
+            "observerPid": 2743,
+            "waitStatus": 1,
+            "observerStatus": 0,
+            "executableHash": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "executableHashAfter": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "childBefore": {
+              "pid": 2744,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14917
+            },
+            "stdout": "{\"schema\": \"linux-namespace-uid-write-child/v1\", \"mode\": \"map\", \"uid\": 1001, \"euid\": 1001, \"steps\": [{\"operation\": \"unshare\", \"outcome\": \"passed\"}, {\"operation\": \"open\", \"outcome\": \"passed\"}, {\"operation\": \"write\", \"outcome\": \"failed\", \"errno\": 1, \"error\": \"EPERM\"}], \"outcome\": \"failed\"}\n",
+            "stderr": "",
+            "logTruncated": false,
+            "outcome": "uid-map-write-eperm"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write]",
+          "value": {
+            "parent": "direct",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "direct-map",
+            "argv": [
+              "-I",
+              "/home/runner/work/skills/skills/control/development/probe-linux-namespace-uid-write.py",
+              "child",
+              "map",
+              "1001"
+            ],
+            "pid": 2754,
+            "startedAt": "2026-11-20T05:15:19.547Z",
+            "endedAt": "2026-11-20T05:15:19.576Z",
+            "elapsedMs": 28.8520109999979,
+            "status": 1,
+            "signal": null,
+            "repetition": 2,
+            "ownerPid": 2584,
+            "observerPid": 2753,
+            "waitStatus": 1,
+            "observerStatus": 0,
+            "executableHash": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "executableHashAfter": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "childBefore": {
+              "pid": 2754,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14948
+            },
+            "stdout": "{\"schema\": \"linux-namespace-uid-write-child/v1\", \"mode\": \"map\", \"uid\": 1001, \"euid\": 1001, \"steps\": [{\"operation\": \"unshare\", \"outcome\": \"passed\"}, {\"operation\": \"open\", \"outcome\": \"passed\"}, {\"operation\": \"write\", \"outcome\": \"failed\", \"errno\": 1, \"error\": \"EPERM\"}], \"outcome\": \"failed\"}\n",
+            "stderr": "",
+            "logTruncated": false,
+            "outcome": "uid-map-write-eperm"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write]",
+          "value": {
+            "parent": "direct",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "direct-map",
+            "argv": [
+              "-I",
+              "/home/runner/work/skills/skills/control/development/probe-linux-namespace-uid-write.py",
+              "child",
+              "map",
+              "1001"
+            ],
+            "pid": 2758,
+            "startedAt": "2026-11-20T05:15:19.690Z",
+            "endedAt": "2026-11-20T05:15:19.719Z",
+            "elapsedMs": 28.701159000007692,
+            "status": 1,
+            "signal": null,
+            "repetition": 3,
+            "ownerPid": 2584,
+            "observerPid": 2757,
+            "waitStatus": 1,
+            "observerStatus": 0,
+            "executableHash": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "executableHashAfter": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "childBefore": {
+              "pid": 2758,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14962
+            },
+            "stdout": "{\"schema\": \"linux-namespace-uid-write-child/v1\", \"mode\": \"map\", \"uid\": 1001, \"euid\": 1001, \"steps\": [{\"operation\": \"unshare\", \"outcome\": \"passed\"}, {\"operation\": \"open\", \"outcome\": \"passed\"}, {\"operation\": \"write\", \"outcome\": \"failed\", \"errno\": 1, \"error\": \"EPERM\"}], \"outcome\": \"failed\"}\n",
+            "stderr": "",
+            "logTruncated": false,
+            "outcome": "uid-map-write-eperm"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write]",
+          "value": {
+            "parent": "direct",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "direct-control",
+            "argv": [
+              "-I",
+              "/home/runner/work/skills/skills/control/development/probe-linux-namespace-uid-write.py",
+              "child",
+              "control",
+              "1001"
+            ],
+            "pid": 2762,
+            "startedAt": "2026-11-20T05:15:19.897Z",
+            "endedAt": "2026-11-20T05:15:19.925Z",
+            "elapsedMs": 28.31911699999523,
+            "status": 0,
+            "signal": null,
+            "repetition": 1,
+            "ownerPid": 2584,
+            "observerPid": 2761,
+            "waitStatus": 0,
+            "observerStatus": 0,
+            "executableHash": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "executableHashAfter": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "childBefore": {
+              "pid": 2762,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 14977
+            },
+            "stdout": "{\"schema\": \"linux-namespace-uid-write-child/v1\", \"mode\": \"control\", \"uid\": 1001, \"euid\": 1001, \"steps\": [{\"operation\": \"unshare\", \"outcome\": \"passed\"}], \"outcome\": \"passed\"}\n",
+            "stderr": "",
+            "logTruncated": false,
+            "outcome": "passed"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write]",
+          "value": {
+            "parent": "direct",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "direct-control",
+            "argv": [
+              "-I",
+              "/home/runner/work/skills/skills/control/development/probe-linux-namespace-uid-write.py",
+              "child",
+              "control",
+              "1001"
+            ],
+            "pid": 2772,
+            "startedAt": "2026-11-20T05:15:20.133Z",
+            "endedAt": "2026-11-20T05:15:20.162Z",
+            "elapsedMs": 28.463313000003154,
+            "status": 0,
+            "signal": null,
+            "repetition": 2,
+            "ownerPid": 2584,
+            "observerPid": 2771,
+            "waitStatus": 0,
+            "observerStatus": 0,
+            "executableHash": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "executableHashAfter": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "childBefore": {
+              "pid": 2772,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 15007
+            },
+            "stdout": "{\"schema\": \"linux-namespace-uid-write-child/v1\", \"mode\": \"control\", \"uid\": 1001, \"euid\": 1001, \"steps\": [{\"operation\": \"unshare\", \"outcome\": \"passed\"}], \"outcome\": \"passed\"}\n",
+            "stderr": "",
+            "logTruncated": false,
+            "outcome": "passed"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write]",
+          "value": {
+            "parent": "direct",
+            "stdoutType": "pipe",
+            "stderrType": "pipe",
+            "stdinType": "closed",
+            "case": "direct-control",
+            "argv": [
+              "-I",
+              "/home/runner/work/skills/skills/control/development/probe-linux-namespace-uid-write.py",
+              "child",
+              "control",
+              "1001"
+            ],
+            "pid": 2776,
+            "startedAt": "2026-11-20T05:15:20.275Z",
+            "endedAt": "2026-11-20T05:15:20.304Z",
+            "elapsedMs": 28.276716000021906,
+            "status": 0,
+            "signal": null,
+            "repetition": 3,
+            "ownerPid": 2584,
+            "observerPid": 2775,
+            "waitStatus": 0,
+            "observerStatus": 0,
+            "executableHash": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "executableHashAfter": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "childBefore": {
+              "pid": 2776,
+              "ppid": 2584,
+              "path": "/usr/bin/bash",
+              "processGroup": 2011,
+              "session": 2011,
+              "startTimeTicks": 15021
+            },
+            "stdout": "{\"schema\": \"linux-namespace-uid-write-child/v1\", \"mode\": \"control\", \"uid\": 1001, \"euid\": 1001, \"steps\": [{\"operation\": \"unshare\", \"outcome\": \"passed\"}], \"outcome\": \"passed\"}\n",
+            "stderr": "",
+            "logTruncated": false,
+            "outcome": "passed"
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write]",
+          "value": {
+            "outcome": "direct-write-reproduced",
+            "error": null
+          }
+        },
+        {
+          "prefix": "[DEBUG-ns-uid-write-trace]",
+          "value": {
+            "schema": "linux-namespace-uid-write-trace/v1",
+            "status": "cleaned",
+            "phase": "cleanup"
+          }
+        }
+      ],
+      "exitCodes": [
+        1
+      ]
+    }
+  ]
+}
