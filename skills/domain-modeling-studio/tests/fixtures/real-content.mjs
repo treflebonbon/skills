@@ -54,7 +54,7 @@ export const buildRealContentDocument = async () => {
       retired: [],
       revision: "r1",
       scenarios: [],
-      schemaVersion: 3,
+      schemaVersion: 4,
       ...checkoutVerification(),
       scope:
         "実際の生成器・手順が出した3層(アーキテクチャ/関数フロー/業務フロー)モデル",

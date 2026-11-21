@@ -202,12 +202,54 @@ export const checkoutFunctionFlow = () => {
   return { businessNode, edges, nodes };
 };
 
-// Fictional verification records for the checkout flow (#58). The test paths
-// below are illustrative only: no checkout test suite exists in this repo.
+// Fictional verification records for the checkout flow (#58, #105). The test
+// paths and runs below are illustrative only: no checkout test suite exists in
+// this repo.
 const CHECKOUT_TEST = "tests/checkout.test.ts";
+const CHECKOUT_PROPERTY_TEST = "tests/checkout.property.test.ts";
 export const checkoutVerification = () => {
   const recoveryTest = ref(CHECKOUT_TEST, "OutOfStockを代替入荷で確定する", 20);
+  const declinedProperty = ref(
+    CHECKOUT_PROPERTY_TEST,
+    "支払い拒否の注文は内容によらず確定しない",
+    8
+  );
   return {
+    scenarios: [
+      {
+        evidence: [ref(TS_PATH, "catchTag", 15)],
+        given: ["注文した品目の在庫が切れている"],
+        id: "scenario-backorder",
+        model: "current",
+        rules: ["rule-backorder"],
+        status: "confirmed",
+        then: ["注文は代替入荷で確定する"],
+        title: "在庫切れの注文を代替入荷で確定する",
+        when: "注文を確定する",
+      },
+      {
+        evidence: [ref(TS_PATH, "mapError", 16)],
+        given: ["在庫を予約できる", "支払いが拒否される"],
+        id: "scenario-declined",
+        model: "current",
+        rules: ["rule-declined"],
+        status: "confirmed",
+        then: ["注文は確定しない", "CheckoutFailedが返る"],
+        title: "支払いを拒否された注文は確定しない",
+        when: "注文を確定する",
+      },
+      {
+        evidence: [],
+        given: ["在庫を予約できる", "請求が成功する"],
+        id: "scenario-confirmed",
+        model: "current",
+        rules: ["rule-confirmed"],
+        status: "draft",
+        then: ["注文は確定済みになる"],
+        title: "請求に成功した注文を確定する",
+        when: "注文を確定する",
+      },
+    ],
     existingTests: [
       {
         boundary: { evidence: [recoveryTest], kind: "FUNCTION", origin: "code" },
@@ -229,6 +271,22 @@ export const checkoutVerification = () => {
         },
         rules: ["rule-declined"],
         title: "支払い拒否を確定しないテスト",
+      },
+      {
+        boundary: { evidence: [declinedProperty], kind: "DOMAIN", origin: "code" },
+        evidence: [declinedProperty],
+        id: "test-declined-property",
+        method: "PROPERTY",
+        result: {
+          command: "npm test -- checkout.property",
+          counterexample: "明細: [{ 数量: 1, 単価: 0 }], 支払い: 拒否",
+          revision: FIXTURE_REVISION,
+          seed: "1729",
+          source: "架空の実行記録（説明用）",
+          status: "FAILED",
+        },
+        rules: ["rule-declined"],
+        title: "支払い拒否の注文は内容によらず確定しないプロパティテスト",
       },
     ],
     rules: [
@@ -283,6 +341,66 @@ export const checkoutVerification = () => {
         rule: "rule-confirmed",
         tests: [],
         title: "請求成功時だけ確定することを検証する",
+      },
+      {
+        boundary: { evidence: [declinedProperty], kind: "DOMAIN", origin: "code" },
+        decision: "KEEP",
+        error: "金額や明細によっては、支払いを拒否された注文を確定してしまう",
+        evidence: [declinedProperty],
+        id: "keep-declined-property",
+        method: "PROPERTY",
+        property: {
+          evidence: [],
+          inputs: ["明細: 1〜20件", "各明細の数量: 1〜99、単価: 0〜100,000円"],
+          observation: "注文が確定済みになったかどうか",
+          origin: "agreement",
+          preconditions: ["在庫を予約できる", "支払いが拒否される"],
+          statement: "支払いが拒否された注文は、明細や金額によらず確定しない",
+        },
+        reason:
+          "反例で失敗しているが、注文内容を変えても拒否時に確定しないことを直接観測する唯一のテストのため維持し、反例を実装の修正で解消する",
+        rule: "rule-declined",
+        tests: ["test-declined-property"],
+        title: "支払い拒否の性質テストを維持する",
+      },
+      {
+        boundary: { evidence: [], kind: "FUNCTION", origin: "inference" },
+        decision: "ADD",
+        error: "拒否理由によってはCheckoutFailed以外の失敗を返してしまう",
+        evidence: [ref(TS_PATH, "mapError", 16)],
+        id: "add-declined-reasons",
+        method: "PROPERTY",
+        property: {
+          evidence: [],
+          inputs: ["支払いの拒否理由: 残高不足・期限切れ・不正の疑いなど決済代行が返す全種別"],
+          observation: "返る失敗の種類",
+          origin: "inference",
+          preconditions: ["在庫を予約できる", "支払いが拒否される"],
+          statement: "支払いの拒否理由が何であっても、失敗はCheckoutFailedとして返る",
+        },
+        reason:
+          "既存テストは1種類の拒否理由だけを観測し、mapErrorがすべての拒否理由を同じ失敗へ変換するかを確かめていない",
+        rule: "rule-declined",
+        tests: [],
+        title: "拒否理由によらずCheckoutFailedを返すことを確かめる",
+      },
+      {
+        decision: "HOLD",
+        evidence: [ref(TS_PATH, "catchTag", 15)],
+        id: "hold-backorder-formula",
+        method: "PROPERTY",
+        property: {
+          evidence: [ref(TS_PATH, "catchTag", 15)],
+          inputs: ["在庫切れの品目を含む注文"],
+          observation: "確定応答",
+          origin: "code",
+          preconditions: ["予約でOutOfStockが起きる"],
+          statement: "在庫切れの注文の確定応答は、catchTagが呼ぶbackorder(order)の戻り値に等しい",
+        },
+        reason:
+          "実装の式をそのまま期待値に写しており、代替入荷で確定する業務上の条件を確かめないため、条件を合意するまで保留する",
+        rule: "rule-backorder",
+        title: "実装の式を写した代替入荷の性質を保留する",
       },
       {
         decision: "HOLD",

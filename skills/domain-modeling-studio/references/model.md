@@ -1,10 +1,10 @@
-# Model contract (schemaVersion 3)
+# Model contract (schemaVersion 4)
 
 The JSON document is the editable model, not raw React Flow props. The UI projects whitelisted fields into the graph: supplied HTML, styles and callbacks never execute. See `tests/fixture.mjs` for a minimal fictional example and `src/model.mjs` for the executable validator.
 
 ```json
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "sessionId": "project-flow-unique-session",
   "revision": "r1",
   "basedOn": null,
@@ -31,7 +31,7 @@ The JSON document is the editable model, not raw React Flow props. The UI projec
 }
 ```
 
-A schemaVersion 2 document omits the three verification arrays and still opens; it reads as having no verification records. IDs (`sessionId`, `revision`, nodes, edges, comments, scenarios, changes, rules, existing tests, verification candidates) start with an ASCII letter/digit, followed by up to 99 letters/digits/underscores/hyphens. Node and edge IDs share a namespace per model. Reuse IDs across current/proposed for the same concept. Names are Japanese business vocabulary; IDs are opaque identity.
+A schemaVersion 2 document omits the three verification arrays and still opens; it reads as having no verification records. A schemaVersion 3 document opens as one without the schemaVersion 4 fields (scenario `rules`, candidate `method`/`property`, existing test `method`, result `seed`/`counterexample`); a schemaVersion 2 or 3 document carrying any of them is rejected as needing schemaVersion 4, and an older template rejects a schemaVersion 4 document, so no field round-trips undisplayed. IDs (`sessionId`, `revision`, nodes, edges, comments, scenarios, changes, rules, existing tests, verification candidates) start with an ASCII letter/digit, followed by up to 99 letters/digits/underscores/hyphens. Node and edge IDs share a namespace per model. Reuse IDs across current/proposed for the same concept. Names are Japanese business vocabulary; IDs are opaque identity.
 
 Evidence: `{ "path": "src/orders.ts", "symbol": "confirmOrder", "revision": "0000000000000000000000000000000000000000", "line": 42 }`. Repository and evidence revisions must be complete 40- or 64-character hexadecimal Git commit IDs (case-insensitive), never branch names, `HEAD`, or abbreviations. The all-zero examples are fictional: replace them with inspected commit IDs. `line` is optional; use an exact line only after inspection. Paths are repository-relative. A reference establishes only what was inspected at that version, not a guarantee that a changed proposal is implemented.
 
@@ -66,11 +66,11 @@ Retired record: `{ "view": "proposed", "entity": "node", "item": <complete remov
 
 Glossary entry: `{ "term": "依頼", "definition": "業務上の意味", "status": "draft", "evidence": [] }`. `confirmed` means the vocabulary has been agreed or comes from the existing authoritative glossary; it does not mean proposed behavior already exists in code.
 
-Scenario: `{ "id": "expiry", "title": "満了した依頼を拒否する", "model": "current", "status": "draft", "given": ["依頼が満了した"], "when": "受諾する", "then": ["拒否される"], "evidence": [] }`. `model` is current/proposed, status is confirmed/draft; confirmed requires evidence. Confirmed describes source-grounded scenario content, not an executed passing test. Use concrete boundaries and known exceptions. Mark unknowns explicitly; never synthesize an imaginary failure event.
+Scenario: `{ "id": "expiry", "title": "満了した依頼を拒否する", "model": "current", "status": "draft", "given": ["依頼が満了した"], "when": "受諾する", "then": ["拒否される"], "evidence": [] }`. `model` is current/proposed, status is confirmed/draft; confirmed requires evidence. Confirmed describes source-grounded scenario content, not an executed passing test. Use concrete boundaries and known exceptions. Mark unknowns explicitly; never synthesize an imaginary failure event. Optional `rules` (schemaVersion 4) lists the rule IDs the scenario is a representative example of: a `current` scenario names current rules only, a `proposed` scenario current or proposed ones. `scenarios.feature` writes `# 業務ルール: <id>` above each such scenario, and `verification.md` and the **検証** tab list it under each rule.
 
 Change candidate: `{ "id": "clarify-expiry", "title": "期限の案内を改善する", "reason": "合意した変更理由と検討事項", "status": "proposed", "evidence": [] }`. `status` is proposed/agreed. Evidence lists affected source locations. Changes are not implemented by the modeling skill.
 
-## Verification (schemaVersion 3)
+## Verification (schemaVersion 4)
 
 Rule, existing test and verification candidate IDs share one namespace. A record's `origin` says where a claim comes from; a verification result says what actually happened to a test or formal model. Keep the two separate.
 
@@ -79,6 +79,8 @@ Rule: `{ "id": "accept-once", "kind": "INVARIANT", "statement": "受諾済みの
 Existing test: `{ "id": "accept-once-test", "title": "再受諾を拒否するテスト", "evidence": [<test location>], "rules": ["accept-once"], "boundary": { "kind": "DOMAIN", "origin": "code", "evidence": [] }, "result": { "status": "READ" } }`. `evidence` holds at least one test location. `rules` names current rules only; a proposed rule has candidates, never existing tests. Boundary `kind` is `DOMAIN`, `PORT_CONTRACT`, `ADAPTER_INTEGRATION`, `SLICE` or `FUNCTION`; anything but `origin: code` displays as an unconfirmed structure. Result `status` is `READ`, `NOT_RUN`, `PASSED`, `FAILED`, `SKIPPED`, `MODEL_NO_COUNTEREXAMPLE` or `MODEL_COUNTEREXAMPLE`; every status except `READ` and `NOT_RUN` requires `command`, a full commit `revision`, and `source` (who ran it, e.g. a user-approved session run or CI).
 
 Verification candidate: `{ "id": "accept-race", "title": "同時受諾の二重成功を検出する", "decision": "ADD", "rule": "accept-once", "tests": [], "error": "検出したい誤り", "boundary": { "kind": "ADAPTER_INTEGRATION", "origin": "inference", "evidence": [] }, "reason": "既存テストでは足りない理由", "evidence": [] }`. `decision` is `ADD`, `KEEP`, `MERGE`, `DELETE` or `HOLD`. Every decision but `HOLD` requires `error`, `rule`, `boundary`, `reason`, and at least one `evidence` reference supporting the reason; a `HOLD` may omit them. `KEEP`, `MERGE` and `DELETE` list the affected existing tests, and each of those tests must keep the candidate's rule.
+
+Verification method (schemaVersion 4): a candidate or existing test may carry `method`, whose only value is `PROPERTY` (property-based testing); any other value is rejected. A candidate without `method` is a proposal whose method is undecided. A `PROPERTY` candidate requires `property`, even under `HOLD`; a candidate without `method` carries no `property`. `property`: `{ "statement": "入力が変わっても成り立つ性質", "preconditions": ["事前条件"], "inputs": ["入力ごとの生成範囲"], "observation": "観測する結果", "origin": "inference", "evidence": [] }`, natural business language rather than generator code. `preconditions` and `inputs` hold at least one nonempty string; `origin`/`evidence` follow the usual provenance rule. Only `origin: agreement` displays as 合意済みの性質; `code`, `inference` and `proposal` display as 未合意の性質 and also appear under 未確認事項. An existing test keeps only `method`; the property itself lives on candidates. A result may record nonempty `seed` and `counterexample` (the shrunk counterexample) for an actual run only, never with `READ` or `NOT_RUN`; a `PROPERTY` test whose result is `FAILED` requires `counterexample`.
 
 An AI update keeps every prior rule, existing test and candidate ID, or moves the record into `retired`; a silently missing record is held as a conflict. Record content may be regenerated under the same ID.
 
@@ -92,4 +94,4 @@ The copied Markdown contains `{ "format": "domain-studio-feedback-v1", "exportId
 
 The browser stores the seed document, editable draft, and last copied document signature. It adopts an AI update automatically only when the submitted export matches the current draft and revision. Otherwise it protects the draft and exposes the pending update separately for recovery. A fresh export is necessary after additional edits. If local storage is unavailable, retain JSON backups and use the existing open page's import action for the guarded update; opening a new file alone cannot discover an unavailable browser draft.
 
-The generator writes new files only. Five outputs are `model.md` (a per-layer Mermaid diagram for each layer present, a further "層をまたぐ関係" diagram for any edge whose endpoints fall in different layers so it stays visible rather than silently dropped, plus each node's kind and `drillInto`, every node's/edge's origin and evidence, and each rule's mapped elements), `glossary.md`, `scenarios.feature`, `changes.md`, `verification.md` (each rule with its existing tests, candidates, boundaries, results, and remaining unknowns). All five deliverables draw from every layer present in the model, not only the business flow. The artifacts must be regenerated after AI review of semantic changes; `needsReview` flags pre-review derived content. Mermaid is an output view, not a lossless editing format.
+The generator writes new files only. Five outputs are `model.md` (a per-layer Mermaid diagram for each layer present, a further "層をまたぐ関係" diagram for any edge whose endpoints fall in different layers so it stays visible rather than silently dropped, plus each node's kind and `drillInto`, every node's/edge's origin and evidence, and each rule's mapped elements), `glossary.md`, `scenarios.feature`, `changes.md`, `verification.md` (each rule with its representative examples, existing tests, candidates, properties and their agreement, boundaries, results with seeds and counterexamples, and remaining unknowns). All five deliverables draw from every layer present in the model, not only the business flow. The artifacts must be regenerated after AI review of semantic changes; `needsReview` flags pre-review derived content. Mermaid is an output view, not a lossless editing format.

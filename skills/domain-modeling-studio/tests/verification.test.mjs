@@ -545,3 +545,357 @@ test("verification.mdは業務ルールから既存テストと検証候補を�
     /業務ルールは未登録です/u
   );
 });
+
+// schemaVersion 4 (#105): representative examples and properties.
+const scenario = (extra = {}) => ({
+  evidence: [testRef],
+  given: ["依頼を受諾済みである"],
+  id: "accept-twice",
+  model: "current",
+  rules: ["accept-once"],
+  status: "confirmed",
+  then: ["受諾は拒否される"],
+  title: "受諾済みの依頼をもう一度受諾する",
+  when: "同じ依頼を受諾する",
+  ...extra,
+});
+const v4 = (mutate = () => {}) =>
+  v3((d) => {
+    d.schemaVersion = 4;
+    d.scenarios = [scenario()];
+    mutate(d);
+  });
+
+test("代表例は参照できるviewの業務ルールだけに紐づく", () => {
+  assert.doesNotThrow(() => validateDocument(v4()));
+  assert.doesNotThrow(() =>
+    validateDocument(
+      v4((d) => {
+        d.rules.push(rule({ id: "accept-proposed", model: "proposed" }));
+        d.scenarios[0].model = "proposed";
+        d.scenarios[0].rules = ["accept-once", "accept-proposed"];
+      })
+    )
+  );
+  for (const [mutate, message] of [
+    [
+      (d) => {
+        d.scenarios[0].rules = ["missing"];
+      },
+      /代表例の業務ルールが見つかりません/u,
+    ],
+    [
+      (d) => {
+        d.rules.push(rule({ id: "accept-proposed", model: "proposed" }));
+        d.scenarios[0].rules = ["accept-proposed"];
+      },
+      /現状の代表例は改善案の業務ルールを参照できません/u,
+    ],
+    [
+      (d) => {
+        d.scenarios[0].rules = "accept-once";
+      },
+      /代表例の業務ルールが見つかりません/u,
+    ],
+  ]) {
+    assert.throws(() => validateDocument(v4(mutate)), message);
+  }
+});
+
+test("v4の項目を持つv2・v3の文書はschemaVersion: 4が必要と拒否し、持たなければ読み込める", () => {
+  const property = {
+    evidence: [],
+    inputs: ["受諾の回数: 2〜10回"],
+    observation: "成功する受諾の件数",
+    origin: "inference",
+    preconditions: ["依頼は受諾できる状態にある"],
+    statement: "何回受諾しても成功するのは最初の1回だけ",
+  };
+  const failedRun = {
+    command: "npm test -- accept",
+    revision: REVISION,
+    source: "CI",
+    status: "FAILED",
+  };
+  for (const mutate of [
+    (d) => {
+      d.scenarios = [scenario()];
+    },
+    (d) => {
+      d.verificationCandidates[0].method = "PROPERTY";
+    },
+    (d) => {
+      d.verificationCandidates[0].property = property;
+    },
+    (d) => {
+      d.existingTests[0].method = "PROPERTY";
+    },
+    (d) => {
+      d.existingTests[0].result = { ...failedRun, seed: "42" };
+    },
+    (d) => {
+      d.existingTests[0].result = { ...failedRun, counterexample: "[0]" };
+    },
+  ]) {
+    assert.throws(() => validateDocument(v3(mutate)), /schemaVersion: 4/u);
+  }
+  const legacy = example();
+  legacy.scenarios = [scenario({ rules: ["accept-once"] })];
+  assert.throws(() => validateDocument(legacy), /schemaVersion: 4/u);
+  // Retired records stay as stored; they are not displayed field by field.
+  assert.doesNotThrow(() =>
+    validateDocument(
+      v3((d) => {
+        d.retired.push({
+          entity: "verificationCandidate",
+          item: { ...candidate({ id: "old" }), method: "PROPERTY" },
+          view: "verification",
+        });
+      })
+    )
+  );
+  assert.doesNotThrow(() => validateDocument(v3()));
+  assert.doesNotThrow(() => validateDocument(example()));
+});
+
+const property = (extra = {}) => ({
+  evidence: [],
+  inputs: ["受諾の回数: 2〜10回", "受諾の間隔: 0〜1000ミリ秒"],
+  observation: "成功する受諾の件数",
+  origin: "inference",
+  preconditions: ["依頼は受諾できる状態にある"],
+  statement: "何回受諾しても成功するのは最初の1回だけ",
+  ...extra,
+});
+const propertyCandidate = (extra = {}) =>
+  candidate({
+    id: "accept-once-property",
+    method: "PROPERTY",
+    property: property(),
+    title: "受諾の回数を変えても成功は1回だけと確かめる",
+    ...extra,
+  });
+
+test("PROPERTYの検証候補は保留でも性質の4項目を必須とし、未知の検証手法を拒否する", () => {
+  const withCandidate = (extra, mutate = () => {}) =>
+    v4((d) => {
+      d.verificationCandidates.push(propertyCandidate(extra));
+      mutate(d);
+    });
+  assert.doesNotThrow(() => validateDocument(withCandidate({})));
+  assert.doesNotThrow(() =>
+    validateDocument(
+      withCandidate({
+        decision: "HOLD",
+        property: property({
+          evidence: [testRef],
+          origin: "code",
+          statement: "受諾の結果は accepted === previous + 1 に等しい",
+        }),
+      })
+    )
+  );
+  const invalid = /性質には成り立つ性質・事前条件・生成範囲・観測する結果が必要です/u;
+  for (const decision of ["ADD", "HOLD"]) {
+    for (const [extra, message] of [
+      [{ property: undefined }, invalid],
+      [{ property: property({ statement: " " }) }, invalid],
+      [{ property: property({ observation: "" }) }, invalid],
+      [{ property: property({ preconditions: [] }) }, invalid],
+      [{ property: property({ preconditions: [""] }) }, invalid],
+      [{ property: property({ inputs: [] }) }, invalid],
+      [{ property: property({ inputs: "受諾の回数" }) }, invalid],
+      [{ property: property({ origin: "test" }) }, /確度が不正/u],
+      [{ property: property({ origin: "code" }) }, /根拠が必要/u],
+      [{ method: "MBT" }, /検証手法が不正です/u],
+      [{ method: undefined }, /性質にはmethod: PROPERTYが必要です/u],
+    ]) {
+      assert.throws(
+        () => validateDocument(withCandidate({ decision, ...extra })),
+        message,
+        `${decision} ${JSON.stringify(extra)}`
+      );
+    }
+  }
+});
+
+test("PROPERTYの既存テストが失敗したら反例を必須とし、seed・反例は実際の実行結果にだけ記録できる", () => {
+  const run = (status, extra = {}) => ({
+    command: "npm test -- accept.property",
+    revision: REVISION,
+    source: "CI",
+    status,
+    ...extra,
+  });
+  const withTest = (extra) =>
+    v4((d) => {
+      Object.assign(d.existingTests[0], { method: "PROPERTY", ...extra });
+    });
+  for (const result of [
+    run("FAILED", { counterexample: "受諾の回数: 2, 間隔: 0" }),
+    run("FAILED", { counterexample: "[2, 0]", seed: "1729" }),
+    run("PASSED"),
+    run("PASSED", { seed: "1729" }),
+    { status: "READ" },
+  ]) {
+    assert.doesNotThrow(() => validateDocument(withTest({ result })));
+  }
+  // Without method, a failed run still needs no counterexample (as in v3).
+  assert.doesNotThrow(() =>
+    validateDocument(
+      v4((d) => {
+        d.existingTests[0].result = run("FAILED");
+      })
+    )
+  );
+  for (const [extra, message] of [
+    [{ result: run("FAILED") }, /失敗したプロパティベーステストには縮小された反例が必要です/u],
+    [{ result: run("FAILED", { counterexample: " " }) }, /seed・反例は空でない文字列/u],
+    [{ result: run("PASSED", { seed: "" }) }, /seed・反例は空でない文字列/u],
+    [{ result: run("PASSED", { seed: 1729 }) }, /seed・反例は空でない文字列/u],
+    [
+      { result: { counterexample: "[2]", status: "READ" } },
+      /seed・反例は実際の実行結果にだけ記録できます/u,
+    ],
+    [
+      { result: { seed: "1", status: "NOT_RUN" } },
+      /seed・反例は実際の実行結果にだけ記録できます/u,
+    ],
+    [{ method: "MUTATION" }, /検証手法が不正です/u],
+  ]) {
+    assert.throws(() => validateDocument(withTest(extra)), message, JSON.stringify(extra));
+  }
+});
+
+test("v4の項目を持つ文書のAI更新でも、消えた検証候補はretiredがなければ競合にする", () => {
+  const before = validateDocument(
+    v4((d) => {
+      d.verificationCandidates.push(propertyCandidate());
+      Object.assign(d.existingTests[0], { method: "PROPERTY" });
+    })
+  );
+  const saved = {
+    document: before,
+    lastExport: { id: "export-1", signature: signature(before) },
+    seed: signature(before),
+  };
+  const update = (mutate) => {
+    const next = {
+      ...structuredClone(before),
+      basedOn: { exportId: "export-1", revision: "r1" },
+      revision: "r2",
+    };
+    mutate(next);
+    return reconcile(next, saved).conflict;
+  };
+  assert.equal(
+    update((d) => {
+      d.verificationCandidates.at(-1).property.origin = "agreement";
+      d.scenarios[0].rules = [];
+    }),
+    false
+  );
+  assert.equal(
+    update((d) => {
+      d.verificationCandidates.pop();
+    }),
+    true
+  );
+  assert.equal(
+    update((d) => {
+      d.retired.push({
+        entity: "verificationCandidate",
+        item: d.verificationCandidates.pop(),
+        view: "verification",
+      });
+    }),
+    false
+  );
+  const legacy = validateDocument(v3());
+  const legacySaved = {
+    document: legacy,
+    lastExport: { id: "export-1", signature: signature(legacy) },
+    seed: signature(legacy),
+  };
+  assert.equal(
+    reconcile(
+      { ...before, basedOn: { exportId: "export-1", revision: "r1" }, revision: "r2" },
+      legacySaved
+    ).conflict,
+    false
+  );
+});
+
+test("生成物は業務ルールから代表例・性質・seed・反例を辿れ、合意済みの性質はagreementだけに出す", () => {
+  const doc = validateDocument(
+    v4((d) => {
+      d.scenarios.push(
+        scenario({ id: "accept-first", rules: undefined, title: "初めて受諾する" })
+      );
+      d.existingTests[0] = existingTest({
+        method: "PROPERTY",
+        result: {
+          command: "npm test -- accept.property",
+          counterexample: "受諾の回数: 2, 間隔: `0`",
+          revision: REVISION,
+          seed: "1729",
+          source: "CI",
+          status: "FAILED",
+        },
+      });
+      d.verificationCandidates.push(
+        propertyCandidate({ property: property({ origin: "agreement" }) }),
+        propertyCandidate({
+          decision: "HOLD",
+          id: "accept-formula",
+          property: property({
+            evidence: [testRef],
+            origin: "code",
+            statement: "受諾件数は previous + 1 に等しい",
+          }),
+          title: "実装の式を写した性質を保留する",
+        })
+      );
+    })
+  );
+  const out = artifacts(doc);
+  const feature = out["scenarios.feature"];
+  assert.match(
+    feature,
+    /# 業務ルール: accept-once\n {2}Scenario: 受諾済みの依頼をもう一度受諾する/u
+  );
+  assert.equal(feature.match(/# 業務ルール:/gu).length, 1);
+
+  const file = out["verification.md"];
+  const section = (heading) => {
+    const start = file.indexOf(heading);
+    assert.notEqual(start, -1, heading);
+    const next = file.indexOf("\n#", start + heading.length);
+    return file.slice(start, next === -1 ? undefined : next);
+  };
+  const ruleSection = file.slice(
+    file.indexOf("## 業務ルール: 受諾済みの依頼は再受諾できない"),
+    file.indexOf("\n## ", file.indexOf("## 業務ルール:") + 1)
+  );
+  assert.match(
+    ruleSection,
+    /代表例: 受諾済みの依頼をもう一度受諾する（現状 \/ 確認済み）/u
+  );
+  assert.doesNotMatch(ruleSection, /初めて受諾する/u);
+  const failed = section("### 既存テスト: 再受諾を拒否するテスト");
+  assert.match(failed, /検証手法: プロパティベーステスト/u);
+  assert.match(failed, /seed: ` 1729 `/u);
+  assert.match(failed, /反例: `` 受諾の回数: 2, 間隔: `0` ``/u);
+  const agreed = section("### 検証候補: 受諾の回数を変えても成功は1回だけと確かめる");
+  assert.match(agreed, /検証手法: プロパティベーステスト/u);
+  assert.match(agreed, /合意済みの性質（業務上の合意）: 何回受諾しても成功するのは最初の1回だけ/u);
+  assert.match(agreed, /事前条件: 依頼は受諾できる状態にある/u);
+  assert.match(agreed, /生成範囲: 受諾の回数: 2〜10回、受諾の間隔: 0〜1000ミリ秒/u);
+  assert.match(agreed, /観測する結果: 成功する受諾の件数/u);
+  const held = section("### 検証候補: 実装の式を写した性質を保留する");
+  assert.match(held, /未合意の性質（コードで確認）: 受諾件数は previous \\\+ 1 に等しい/u);
+  assert.equal(file.match(/合意済みの性質/gu).length, 1);
+  const unknowns = section("## 未確認事項");
+  assert.match(unknowns, /未合意の性質: 実装の式を写した性質を保留する（コードで確認）/u);
+  assert.doesNotMatch(unknowns, /未合意の性質: 受諾の回数を変えても/u);
+});

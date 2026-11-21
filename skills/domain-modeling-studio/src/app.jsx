@@ -20,7 +20,10 @@ import {
   RULE_KINDS,
   RESULTS,
   DECISIONS,
+  SCENARIO_STATUS,
   boundaryText,
+  methodLines,
+  propertyLines,
   elementName,
   retiredLabel,
   verificationOf,
@@ -191,6 +194,8 @@ const resultLines = (result) => [
         `出所: ${result.source}`,
       ]
     : []),
+  ...(result.seed ? [`seed: ${result.seed}`] : []),
+  ...(result.counterexample ? [`反例: ${result.counterexample}`] : []),
 ];
 const Record = ({ heading, lines, evidence, label, onComment }) => (
   <div className="record">
@@ -204,6 +209,8 @@ const Record = ({ heading, lines, evidence, label, onComment }) => (
 );
 const candidateLines = (c, testById) => [
   `判断: ${DECISIONS[c.decision]}`,
+  ...methodLines(c),
+  ...(c.property ? propertyLines(c.property) : []),
   ...(c.error ? [`検出したい誤り: ${c.error}`] : []),
   ...(c.boundary ? [`検証の境界: ${boundaryText(c.boundary)}`] : []),
   ...(c.reason ? [`理由: ${c.reason}`] : []),
@@ -230,7 +237,7 @@ const VerificationPanel = ({ doc, focus, setFocus, children }) => {
     <div className="workspace">
       <section className="verification" aria-label="業務ルールと検証">
         <p>
-          根拠（コードで確認・合意・推測・改善案）と検証結果（読んだのみ・未実行・実行結果・形式モデルの結果）は別の区分です。テストを読んだことは実行や合格を意味しません。
+          根拠（コードで確認・合意・推測・改善案）と検証結果（読んだのみ・未実行・実行結果・形式モデルの結果）は別の区分です。テストを読んだことは実行や合格を意味しません。代表例は人と合意するための例で、性質はプロパティベーステストで確かめる業務ルールの言い換えです。どちらも実行や合格を意味せず、業務上の合意がない性質は未合意として示します。
         </p>
         {rules.length === 0 && (
           <p className="muted">業務ルールは未登録です。</p>
@@ -239,6 +246,9 @@ const VerificationPanel = ({ doc, focus, setFocus, children }) => {
           const tests = existingTests.filter((t) => t.rules.includes(rule.id));
           const candidates = verificationCandidates.filter(
             (c) => c.rule === rule.id
+          );
+          const examples = doc.scenarios.filter((s) =>
+            s.rules?.includes(rule.id)
           );
           const related = [rule, ...tests, ...candidates].some(
             (item) => item.id === focus
@@ -262,12 +272,21 @@ const VerificationPanel = ({ doc, focus, setFocus, children }) => {
               <button onClick={() => setFocus(rule.id)}>
                 この業務ルールに指摘
               </button>
+              <h3>代表例（{examples.length}）</h3>
+              <ul>
+                {examples.map((s) => (
+                  <li key={s.id}>
+                    {s.title}（{names[s.model]} · {SCENARIO_STATUS[s.status]}）
+                  </li>
+                ))}
+              </ul>
               <h3>既存テスト（{tests.length}）</h3>
               {tests.map((t) => (
                 <Record
                   key={t.id}
                   heading={`既存テスト: ${t.title}`}
                   lines={[
+                    ...methodLines(t),
                     `検証の境界: ${boundaryText(t.boundary)}`,
                     ...resultLines(t.result),
                   ]}
