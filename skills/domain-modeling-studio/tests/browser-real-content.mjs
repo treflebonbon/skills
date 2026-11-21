@@ -138,6 +138,41 @@ try {
   );
   assert.ok(declinedText.includes("検証結果: 実行・合格"));
   assert.ok(declinedText.includes("npm test -- checkout"));
+  // #105: representative examples, properties and the shrunk counterexample.
+  for (const expected of [
+    "代表例（1）",
+    "支払いを拒否された注文は確定しない（現状 · 確認済み）",
+    "検証手法: プロパティベーステスト",
+    "合意済みの性質（業務上の合意）: 支払いが拒否された注文は、明細や金額によらず確定しない",
+    "事前条件: 在庫を予約できる、支払いが拒否される",
+    "生成範囲: 明細: 1〜20件、各明細の数量: 1〜99、単価: 0〜100,000円",
+    "観測する結果: 注文が確定済みになったかどうか",
+    "未合意の性質（AIの推測）: 支払いの拒否理由が何であっても",
+    "seed: 1729",
+    "反例: 明細: [{ 数量: 1, 単価: 0 }], 支払い: 拒否",
+  ]) {
+    assert.ok(declinedText.includes(expected), expected);
+  }
+  assert.ok(
+    recoveredText.includes(
+      "在庫切れの注文を代替入荷で確定する（現状 · 確認済み）"
+    )
+  );
+  assert.ok(
+    recoveredText.includes("未合意の性質（コードで確認）: 在庫切れの注文の確定応答は")
+  );
+  // A property's own evidence shows beside it, apart from the candidate's.
+  const formula = recovered.locator(".record", {
+    hasText: "実装の式を写した代替入荷の性質を保留する",
+  });
+  assert.equal(
+    await formula.getByLabel("性質の根拠", { exact: true }).locator("li").count(),
+    1
+  );
+  const verificationText = await page
+    .getByLabel("業務ルールと検証", { exact: true })
+    .innerText();
+  assert.equal(verificationText.split("合意済みの性質").length - 1, 1);
 
   // The comment typed here must target the rule, not the node still selected
   // on the model tab.

@@ -98,3 +98,40 @@ test("架空のcheckoutで、業務ルールから関連要素・既存テスト
   assert.match(confirmed, /判断: 追加/u);
   assert.match(confirmed, /理由: この状態遷移を観測する既存テストがない/u);
 });
+
+test("架空のcheckoutで、業務ルールから代表例・性質・反例を辿れ、未合意の性質は未確認事項にも並ぶ", async () => {
+  const { document } = await buildRealContentDocument();
+  const doc = validateDocument(document);
+  const out = artifacts(doc);
+  const file = out["verification.md"];
+  const ruleBlock = (statement) => {
+    const start = file.indexOf(`## 業務ルール: ${statement}`);
+    assert.notEqual(start, -1, statement);
+    const next = file.indexOf("\n## ", start + 1);
+    return file.slice(start, next === -1 ? undefined : next);
+  };
+
+  const recovered = ruleBlock("在庫切れの注文は代替入荷で確定する");
+  assert.match(recovered, /代表例: 在庫切れの注文を代替入荷で確定する（現状 \/ 確認済み）/u);
+  assert.match(recovered, /判断: 保留/u);
+  assert.match(recovered, /未合意の性質（コードで確認）: 在庫切れの注文の確定応答は/u);
+  assert.match(recovered, /理由: 実装の式をそのまま期待値に写しており/u);
+
+  const declined = ruleBlock("支払いが拒否された注文は確定しない");
+  assert.match(declined, /代表例: 支払いを拒否された注文は確定しない（現状 \/ 確認済み）/u);
+  assert.match(declined, /合意済みの性質（業務上の合意）: 支払いが拒否された注文は、明細や金額によらず確定しない/u);
+  assert.match(declined, /未合意の性質（AIの推測）: 支払いの拒否理由が何であっても/u);
+  assert.match(declined, /検証結果: 実行・失敗/u);
+  assert.match(declined, /seed: ` 1729 `/u);
+  assert.match(declined, /反例: ` 明細: \[\{ 数量: 1, 単価: 0 \}\], 支払い: 拒否 `/u);
+  assert.equal(file.match(/合意済みの性質/gu).length, 1);
+
+  const unknowns = file.slice(file.indexOf("## 未確認事項"));
+  assert.match(unknowns, /未合意の性質: 実装の式を写した代替入荷の性質を保留する（コードで確認）/u);
+  assert.match(unknowns, /未合意の性質: 拒否理由によらずCheckoutFailedを返すことを確かめる（AIの推測）/u);
+
+  const feature = out["scenarios.feature"];
+  for (const id of ["rule-backorder", "rule-declined", "rule-confirmed"]) {
+    assert.match(feature, new RegExp(`# 業務ルール: ${id}\\n {2}Scenario:`, "u"));
+  }
+});
