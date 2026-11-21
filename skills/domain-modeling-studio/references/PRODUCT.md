@@ -10,7 +10,7 @@ A developer or domain expert collaborates with a coding agent to understand an e
 
 ## Confirmed scope
 
-Current/proposed switch, diagram at left, evidence and feedback at right. Proposed nodes and edges support direct editing, with undo/redo and saved state. Feedback is copied as Markdown with model JSON. Baseline conflicts protect additional human edits. Outputs are model/evidence records, agreed glossary, Gherkin drafts, implementation candidates and a verification policy. A read-only verification tab traces each business rule to its existing tests and verification candidates. Source citations, AI deductions and human agreements remain distinguishable.
+Current/proposed switch, diagram at left, evidence and feedback at right. Proposed nodes and edges support direct editing, with undo/redo and saved state. Feedback is copied as Markdown with model JSON. Baseline conflicts protect additional human edits. Outputs are model/evidence records, agreed glossary, Gherkin drafts, implementation candidates and a verification policy. A read-only verification tab traces each business rule to its representative examples, existing tests and verification candidates, including property candidates and whether each property is agreed. Source citations, AI deductions and human agreements remain distinguishable.
 
 ## Visual contract
 
