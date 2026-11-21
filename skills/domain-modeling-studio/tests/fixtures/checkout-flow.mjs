@@ -202,11 +202,12 @@ export const checkoutFunctionFlow = () => {
   return { businessNode, edges, nodes };
 };
 
-// Fictional verification records for the checkout flow (#58, #105). The test
+// Fictional verification records for the checkout flow (#58, #105, #106). The test
 // paths and runs below are illustrative only: no checkout test suite exists in
 // this repo.
 const CHECKOUT_TEST = "tests/checkout.test.ts";
 const CHECKOUT_PROPERTY_TEST = "tests/checkout.property.test.ts";
+const CHECKOUT_ALLOY_MODEL = "specs/checkout.als";
 export const checkoutVerification = () => {
   const recoveryTest = ref(CHECKOUT_TEST, "OutOfStockを代替入荷で確定する", 20);
   const declinedProperty = ref(
@@ -214,6 +215,8 @@ export const checkoutVerification = () => {
     "支払い拒否の注文は内容によらず確定しない",
     8
   );
+  const declinedTest = ref(CHECKOUT_TEST, "PaymentDeclinedをCheckoutFailedで返す", 34);
+  const alloyModel = ref(CHECKOUT_ALLOY_MODEL, "DeclinedNeverConfirmed", 12);
   return {
     scenarios: [
       {
@@ -261,7 +264,7 @@ export const checkoutVerification = () => {
       },
       {
         boundary: { evidence: [], kind: "PORT_CONTRACT", origin: "inference" },
-        evidence: [ref(CHECKOUT_TEST, "PaymentDeclinedをCheckoutFailedで返す", 34)],
+        evidence: [declinedTest],
         id: "test-declined",
         result: {
           command: "npm test -- checkout",
@@ -287,6 +290,21 @@ export const checkoutVerification = () => {
         },
         rules: ["rule-declined"],
         title: "支払い拒否の注文は内容によらず確定しないプロパティテスト",
+      },
+      {
+        boundary: { evidence: [alloyModel], kind: "DOMAIN", origin: "code" },
+        evidence: [alloyModel],
+        id: "test-declined-alloy",
+        method: "ALLOY",
+        result: {
+          command: "alloy exec specs/checkout.als",
+          revision: FIXTURE_REVISION,
+          scope: "注文3件・明細4件・支払い3件まで",
+          source: "架空の実行記録（説明用）",
+          status: "MODEL_NO_COUNTEREXAMPLE",
+        },
+        rules: ["rule-declined"],
+        title: "支払い拒否の注文が確定に至らないAlloyモデル",
       },
     ],
     rules: [
@@ -316,6 +334,15 @@ export const checkoutVerification = () => {
         origin: "code",
         statement: "注文は請求が成功したときだけ確定済みになる",
         targets: ["e-ts-charge-success", "ts-success-end"],
+      },
+      {
+        evidence: [],
+        id: "rule-backorder-notice",
+        kind: "RULE",
+        model: "proposed",
+        origin: "proposal",
+        statement: "代替入荷で確定した注文には入荷予定日を知らせる",
+        targets: ["ts-recovery"],
       },
     ],
     verificationCandidates: [
@@ -407,6 +434,123 @@ export const checkoutVerification = () => {
         evidence: [ref(RS_PATH, "tax_rate", 24)],
         id: "hold-tax-recovery",
         title: "税率照会の0円回復を検証対象にするか決める",
+      },
+      {
+        boundary: { evidence: [], kind: "SLICE", origin: "inference" },
+        decision: "ADD",
+        error: "在庫予約・請求・確定の順序が崩れたとき、請求前の注文を確定済みにしてしまう",
+        evidence: [ref(TS_PATH, "charge", 13)],
+        id: "add-confirmed-mbt",
+        method: "MBT",
+        plan: {
+          coverage:
+            "請求の失敗から確定を試みる遷移と、請求の成功から確定する遷移を一度ずつ通る。全経路は対象にしない",
+          evidence: [],
+          expectedEvidence:
+            "どの操作の列でも、注文の照会結果が確定済みになるのは請求の成功の後だけであること",
+          limits: "決済代行の実際の応答時間・再送・部分的な障害は保証しない",
+          mapping:
+            "モデルの在庫予約・請求・確定の操作を注文確定APIの呼び出しに、モデルの注文の状態を注文の照会結果に対応させる",
+          origin: "inference",
+          target: "注文の未確定・確定済み・失敗の状態と、在庫予約・請求・確定の操作",
+        },
+        reason:
+          "既存テストはこの状態遷移を観測しておらず、操作の順序によって確定済みへ移る条件を確かめていない",
+        rule: "rule-confirmed",
+        tests: [],
+        title: "操作の順序を変えても請求成功の後だけ確定することを確かめる",
+      },
+      {
+        boundary: { evidence: [], kind: "DOMAIN", origin: "inference" },
+        decision: "ADD",
+        error: "請求の再試行と確定が重なると、失敗した請求の後に確定済みへ移ってしまう",
+        evidence: [ref(TS_PATH, "charge", 13)],
+        id: "add-confirmed-quint",
+        method: "QUINT",
+        plan: {
+          evidence: [],
+          expectedEvidence:
+            "請求の再試行を含むすべての手順で、確定済みの注文には成功した請求があること",
+          limits:
+            "実装の正しさの証明ではない。モデルとコードの対応はモデルベーステストか既存テストで別に確かめる",
+          origin: "inference",
+          target: "請求の再試行を含む注文確定の手順",
+        },
+        reason:
+          "請求の再試行と確定の交互の起き方は既存テストで列挙しておらず、手順の組み合わせを網羅的に探す必要がある",
+        rule: "rule-confirmed",
+        tests: [],
+        title: "請求の再試行を含めても請求成功の後だけ確定することを確かめる",
+      },
+      {
+        boundary: { evidence: [alloyModel], kind: "DOMAIN", origin: "code" },
+        decision: "KEEP",
+        error: "明細と支払いの組み合わせによっては、拒否された支払いの注文を確定済みにしてしまう",
+        evidence: [alloyModel],
+        id: "keep-declined-alloy",
+        method: "ALLOY",
+        plan: {
+          evidence: [alloyModel],
+          expectedEvidence: "探索範囲の中で、拒否された支払いを持つ確定済みの注文が見つからないこと",
+          limits: "探索範囲より大きい注文・明細・支払いの組み合わせでの不在は保証しない",
+          origin: "code",
+          scope: "注文5件・明細6件・支払い5件まで。支払いは1注文に1件",
+          target: "注文・明細・支払いの関係と、確定済みの注文の制約",
+        },
+        reason:
+          "注文・明細・支払いの関係の制約を探索で確かめる唯一の記録のため維持し、探索範囲を広げて再実行する",
+        rule: "rule-declined",
+        tests: ["test-declined-alloy"],
+        title: "支払い拒否のAlloyモデルを維持する",
+      },
+      {
+        boundary: { evidence: [], kind: "PORT_CONTRACT", origin: "inference" },
+        decision: "ADD",
+        error: "mapErrorの変換を誤っても既存テストが気づかない",
+        evidence: [declinedTest],
+        id: "add-declined-mutation",
+        method: "MUTATION",
+        plan: {
+          evidence: [],
+          expectedEvidence:
+            "mapErrorの変換を変えた変異が既存テストで検出されること。生存変異はテスト不足・同値変異・対象外に分け、分けた根拠を変異ごとに示す",
+          limits: "変異の種類にない誤りを既存テストが検出できることは保証しない",
+          origin: "inference",
+          target: "支払い拒否をCheckoutFailedへ変換するmapErrorの実装箇所",
+        },
+        reason:
+          "既存テストが変換の誤りを実際に検出できるかを確かめた記録がない",
+        rule: "rule-declined",
+        tests: ["test-declined"],
+        title: "支払い拒否の変換の誤りを既存テストが検出するか確かめる",
+      },
+      {
+        decision: "DECLINE",
+        evidence: [recoveryTest],
+        id: "decline-backorder-quint",
+        method: "QUINT",
+        reason:
+          "1回の予約失敗を回復する分岐で、操作の順序や並行性が関わらないため、関数の境界の既存テストで足りる",
+        rule: "rule-backorder",
+        title: "代替入荷の確定にQuintは使わない",
+      },
+      {
+        decision: "HOLD",
+        evidence: [],
+        id: "hold-notice-mutation",
+        method: "MUTATION",
+        plan: {
+          evidence: [],
+          expectedEvidence:
+            "入荷予定日の通知を変えた変異が検出されること。生存変異はテスト不足・同値変異・対象外に分け、分けた根拠を示す",
+          limits: "通知の文面や配送の成否は保証しない",
+          origin: "proposal",
+          target: "代替入荷で確定したときの入荷予定日の通知",
+        },
+        reason:
+          "改善案の業務ルールで、検出を確かめる既存テストがまだないため保留する。テストを追加した後に検討し直す",
+        rule: "rule-backorder-notice",
+        title: "入荷予定日の通知の誤りを検出できるか確かめる",
       },
     ],
   };

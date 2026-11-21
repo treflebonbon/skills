@@ -707,7 +707,7 @@ test("PROPERTYの検証候補は保留でも性質の4項目を必須とし、�
       [{ property: property({ inputs: "受諾の回数" }) }, invalid],
       [{ property: property({ origin: "test" }) }, /確度が不正/u],
       [{ property: property({ origin: "code" }) }, /根拠が必要/u],
-      [{ method: "MBT" }, /検証手法が不正です/u],
+      [{ method: "TIA" }, /検証手法が不正です/u],
       [{ method: undefined }, /性質にはmethod: PROPERTYが必要です/u],
     ]) {
       assert.throws(
@@ -761,7 +761,7 @@ test("PROPERTYの既存テストが失敗したら反例を必須とし、seed�
       { result: { seed: "1", status: "NOT_RUN" } },
       /seed・反例は実際の実行結果にだけ記録できます/u,
     ],
-    [{ method: "MUTATION" }, /検証手法が不正です/u],
+    [{ method: "TIA" }, /検証手法が不正です/u],
   ]) {
     assert.throws(() => validateDocument(withTest(extra)), message, JSON.stringify(extra));
   }
@@ -934,5 +934,313 @@ test("列挙値は文字列だけを受け付け、配列に包んだ値で検�
     ],
   ]) {
     assert.throws(() => validateDocument(v4(mutate)), message);
+  }
+});
+
+// #106: verification methods beyond PROPERTY, declined methods and plans.
+const decline = (extra = {}) => ({
+  decision: "DECLINE",
+  evidence: [],
+  id: "decline-alloy",
+  method: "ALLOY",
+  reason: "再受諾の拒否は1件の依頼の状態だけで決まり、関係の制約を探索する必要がない",
+  rule: "accept-once",
+  title: "再受諾の拒否にAlloyは使わない",
+  ...extra,
+});
+
+test("不採用の検証候補は手法・業務ルール・理由を必須とし、根拠は空の配列でもよい", () => {
+  const withDecline = (extra) =>
+    v4((d) => {
+      d.verificationCandidates.push(decline(extra));
+    });
+  for (const extra of [
+    {},
+    { evidence: [testRef] },
+    { method: "PROPERTY" },
+    { method: "MUTATION" },
+    { method: "MBT" },
+  ]) {
+    assert.doesNotThrow(() => validateDocument(withDecline(extra)), JSON.stringify(extra));
+  }
+  const required = /不採用の検証候補には検証手法・業務ルール・理由が必要です/u;
+  for (const [extra, message] of [
+    [{ method: undefined }, required],
+    [{ rule: undefined }, required],
+    [{ reason: " " }, required],
+    [{ reason: undefined }, required],
+    [{ rule: "missing" }, /検証候補の業務ルールが見つかりません/u],
+    [{ evidence: undefined }, /根拠は配列で指定してください/u],
+    [{ evidence: {} }, /根拠は配列で指定してください/u],
+    [{ method: "TIA" }, /検証手法が不正です/u],
+  ]) {
+    assert.throws(() => validateDocument(withDecline(extra)), message, JSON.stringify(extra));
+  }
+});
+
+const plan = (extra = {}) => ({
+  evidence: [],
+  expectedEvidence: "受諾済みの依頼への受諾がすべて拒否されること",
+  limits: "保存先の同時実行制御が正しいことは保証しない",
+  origin: "inference",
+  target: "依頼の受諾待ち・受諾済みの状態と受諾の操作",
+  ...extra,
+});
+const mbtPlan = (extra = {}) =>
+  plan({
+    coverage: "受諾済みからの再受諾と、受諾待ちからの受諾の遷移を一度ずつ通る",
+    mapping: "モデルの受諾操作をAPIの受諾要求に、モデルの状態を依頼の状態の照会結果に対応させる",
+    ...extra,
+  });
+const methodCandidate = (method, extra = {}) =>
+  candidate({
+    id: `accept-${method.toLowerCase()}`,
+    method,
+    plan: { MBT: mbtPlan(), ALLOY: plan({ scope: "依頼3件・受諾者3人まで" }) }[method] ?? plan(),
+    title: `${method}で再受諾の拒否を確かめる`,
+    ...(method === "MUTATION" ? { tests: ["accept-once-test"] } : {}),
+    ...extra,
+  });
+
+test("MBT・QUINT・ALLOY・MUTATIONの候補は保留でも計画を必須とし、手法ごとの項目を検査する", () => {
+  const withCandidate = (method, extra) =>
+    v4((d) => {
+      d.verificationCandidates.push(methodCandidate(method, extra));
+    });
+  for (const method of ["MBT", "QUINT", "ALLOY", "MUTATION"]) {
+    assert.doesNotThrow(() => validateDocument(withCandidate(method)), method);
+    assert.doesNotThrow(
+      () => validateDocument(withCandidate(method, { decision: "HOLD", tests: [] })),
+      `${method} HOLD`
+    );
+    assert.doesNotThrow(
+      () => validateDocument(withCandidate(method, { plan: undefined, ...decline({ method }) })),
+      `${method} DECLINE`
+    );
+    const missing = /計画には対象・確かめたことになる観測・保証しないことが必要です/u;
+    for (const decision of ["ADD", "HOLD"]) {
+      for (const [extra, message] of [
+        [{ plan: undefined }, missing],
+        [{ plan: { ...methodCandidate(method).plan, target: " " } }, missing],
+        [{ plan: { ...methodCandidate(method).plan, expectedEvidence: undefined } }, missing],
+        [{ plan: { ...methodCandidate(method).plan, limits: "" } }, missing],
+        [{ plan: { ...methodCandidate(method).plan, origin: "code" } }, /根拠が必要/u],
+        [{ plan: { ...methodCandidate(method).plan, evidence: undefined } }, /根拠は配列/u],
+      ]) {
+        assert.throws(
+          () => validateDocument(withCandidate(method, { decision, ...extra })),
+          message,
+          `${method} ${decision} ${JSON.stringify(extra)}`
+        );
+      }
+    }
+  }
+  for (const [method, extra, message] of [
+    ["MBT", { plan: plan({ coverage: "全遷移" }) }, /モデルベーステストの計画には対応と被覆目標が必要です/u],
+    ["MBT", { plan: plan({ mapping: "対応" }) }, /モデルベーステストの計画には対応と被覆目標が必要です/u],
+    ["MBT", { decision: "HOLD", plan: mbtPlan({ coverage: " " }) }, /対応と被覆目標/u],
+    ["ALLOY", { plan: plan() }, /Alloyの計画には探索上限と制約が必要です/u],
+    ["ALLOY", { decision: "HOLD", plan: plan({ scope: "" }) }, /探索上限と制約/u],
+    ["MUTATION", { tests: [] }, /ミューテーションテストの候補には検出を確かめる既存テストが必要です/u],
+    ["MUTATION", { tests: undefined }, /検出を確かめる既存テスト/u],
+    ["PROPERTY", { plan: plan(), property: property() }, /計画にはMBT・QUINT・ALLOY・MUTATIONのいずれかの検証手法が必要です/u],
+  ]) {
+    assert.throws(() => validateDocument(withCandidate(method, extra)), message, `${method} ${JSON.stringify(extra)}`);
+  }
+  // A method-less candidate carries no plan either.
+  assert.throws(
+    () => validateDocument(v4((d) => { d.verificationCandidates[0].plan = plan(); })),
+    /計画にはMBT・QUINT・ALLOY・MUTATIONのいずれかの検証手法が必要です/u
+  );
+});
+
+test("QUINT・ALLOYと明示した既存テストだけ反例と探索した範囲を必須とし、手法のない古い文書は従来どおり受け付ける", () => {
+  const run = (status, extra = {}) => ({
+    command: "alloy exec specs/accept.als",
+    revision: REVISION,
+    source: "CI",
+    status,
+    ...extra,
+  });
+  const withTest = (extra, schemaVersion = 4) =>
+    (schemaVersion === 4 ? v4 : v3)((d) => {
+      Object.assign(d.existingTests[0], extra);
+    });
+  for (const extra of [
+    { method: "ALLOY", result: run("MODEL_NO_COUNTEREXAMPLE", { scope: "依頼3件・受諾者3人まで" }) },
+    { method: "ALLOY", result: run("MODEL_COUNTEREXAMPLE", { counterexample: "依頼1件に受諾2件" }) },
+    { method: "QUINT", result: run("MODEL_COUNTEREXAMPLE", { counterexample: "受諾→受諾" }) },
+    { method: "QUINT", result: run("MODEL_NO_COUNTEREXAMPLE") },
+    { method: "QUINT", result: run("MODEL_NO_COUNTEREXAMPLE", { scope: "最大10手順" }) },
+    { method: "ALLOY", result: { status: "READ" } },
+    // MODEL_* is not limited to formal-model methods.
+    { method: "MBT", result: run("MODEL_COUNTEREXAMPLE") },
+    { method: "PROPERTY", result: run("PASSED", { scope: "1000件の入力" }) },
+    { result: run("MODEL_COUNTEREXAMPLE") },
+  ]) {
+    assert.doesNotThrow(() => validateDocument(withTest(extra)), JSON.stringify(extra));
+  }
+  // v3 documents without method keep accepting a bare MODEL_COUNTEREXAMPLE.
+  assert.doesNotThrow(() => validateDocument(withTest({ result: run("MODEL_COUNTEREXAMPLE") }, 3)));
+  for (const [extra, message] of [
+    [{ method: "ALLOY", result: run("MODEL_COUNTEREXAMPLE") }, /形式モデルで反例ありの結果には反例が必要です/u],
+    [{ method: "QUINT", result: run("MODEL_COUNTEREXAMPLE") }, /形式モデルで反例ありの結果には反例が必要です/u],
+    [{ method: "ALLOY", result: run("MODEL_NO_COUNTEREXAMPLE") }, /Alloyで反例なしの結果には実際に探索した範囲が必要です/u],
+    [{ result: run("PASSED", { scope: " " }) }, /探索した範囲は空でない文字列/u],
+    [{ result: { scope: "依頼3件", status: "READ" } }, /探索した範囲は実際の実行結果にだけ記録できます/u],
+    [{ result: { scope: "依頼3件", status: "NOT_RUN" } }, /探索した範囲は実際の実行結果にだけ記録できます/u],
+  ]) {
+    assert.throws(() => validateDocument(withTest(extra)), message, JSON.stringify(extra));
+  }
+  // The new fields need schemaVersion 4 so an older template never drops them.
+  for (const mutate of [
+    (d) => {
+      d.existingTests[0].result = run("PASSED", { scope: "依頼3件" });
+    },
+    (d) => {
+      d.verificationCandidates[0].plan = plan();
+    },
+  ]) {
+    assert.throws(() => validateDocument(v3(mutate)), /schemaVersion: 4/u);
+  }
+});
+
+test("AI更新で消えた不採用や手法付きの候補は、retiredがなければ競合にする", () => {
+  const before = validateDocument(
+    v4((d) => {
+      d.verificationCandidates.push(decline(), methodCandidate("MBT"), methodCandidate("MUTATION"));
+    })
+  );
+  const saved = {
+    document: before,
+    lastExport: { id: "export-1", signature: signature(before) },
+    seed: signature(before),
+  };
+  const update = (mutate) => {
+    const next = {
+      ...structuredClone(before),
+      basedOn: { exportId: "export-1", revision: "r1" },
+      revision: "r2",
+    };
+    mutate(next);
+    return reconcile(next, saved).conflict;
+  };
+  for (const id of ["decline-alloy", "accept-mbt", "accept-mutation"]) {
+    const drop = (d) => {
+      const index = d.verificationCandidates.findIndex((c) => c.id === id);
+      return d.verificationCandidates.splice(index, 1)[0];
+    };
+    assert.equal(update(drop), true, id);
+    assert.equal(
+      update((d) => {
+        d.retired.push({ entity: "verificationCandidate", item: drop(d), view: "verification" });
+      }),
+      false,
+      id
+    );
+  }
+  // Reconsidering under the same ID may change the decision.
+  assert.equal(
+    update((d) => {
+      Object.assign(d.verificationCandidates.find((c) => c.id === "decline-alloy"), {
+        boundary: { evidence: [], kind: "DOMAIN", origin: "inference" },
+        decision: "HOLD",
+        plan: plan({ scope: "依頼3件まで" }),
+      });
+    }),
+    false
+  );
+});
+
+test("verification.mdは業務ルールごとに手法でまとめ、計画・保証しないこと・不採用・探索した範囲を区別して示す", () => {
+  const doc = validateDocument(
+    v4((d) => {
+      d.existingTests[0] = existingTest({
+        method: "ALLOY",
+        result: {
+          command: "alloy exec specs/accept.als",
+          counterexample: "依頼1件に受諾2件",
+          revision: REVISION,
+          scope: "依頼3件・受諾者3人まで",
+          source: "CI",
+          status: "MODEL_COUNTEREXAMPLE",
+        },
+      });
+      d.verificationCandidates.push(
+        methodCandidate("MBT"),
+        methodCandidate("ALLOY", { decision: "KEEP", tests: ["accept-once-test"] }),
+        methodCandidate("MUTATION"),
+        decline({ method: "QUINT", title: "再受諾の拒否にQuintは使わない" })
+      );
+    })
+  );
+  const file = artifacts(doc)["verification.md"];
+  const section = (heading) => {
+    const start = file.indexOf(heading);
+    assert.notEqual(start, -1, heading);
+    const next = file.indexOf("\n#", start + heading.length);
+    return file.slice(start, next === -1 ? undefined : next);
+  };
+  const ruleBlock = file.slice(file.indexOf("## 業務ルール:"), file.indexOf("\n## 未確認事項"));
+  const order = [
+    "### 既存テスト: 再受諾を拒否するテスト",
+    "### 検証手法: モデルベーステスト",
+    "#### 検証候補: MBTで再受諾の拒否を確かめる",
+    "### 検証手法: Alloy",
+    "### 検証手法: ミューテーションテスト",
+    "### 検証手法: 未定",
+    "#### 検証候補: 同時受諾の二重成功を検出する",
+    "### 不採用の検証手法",
+    "#### 検証候補: 再受諾の拒否にQuintは使わない",
+  ].map((heading) => ruleBlock.indexOf(heading));
+  assert.ok(order.every((at) => at !== -1), JSON.stringify(order));
+  assert.deepEqual(order, order.toSorted((a, b) => a - b));
+  assert.doesNotMatch(ruleBlock, /### 検証手法: Quint/u);
+
+  const mbt = section("#### 検証候補: MBTで再受諾の拒否を確かめる");
+  assert.match(mbt, /計画の対象（AIの推測）: 依頼の受諾待ち・受諾済みの状態と受諾の操作/u);
+  assert.match(mbt, /確かめたことになる観測: 受諾済みの依頼への受諾がすべて拒否されること/u);
+  assert.match(mbt, /モデルと実装の対応: モデルの受諾操作をAPIの受諾要求に/u);
+  assert.match(mbt, /被覆目標: 受諾済みからの再受諾と/u);
+  assert.match(mbt, /\*\*保証しないこと\*\*: 保存先の同時実行制御が正しいことは保証しない/u);
+  const alloy = section("#### 検証候補: ALLOYで再受諾の拒否を確かめる");
+  assert.match(alloy, /計画時の探索範囲: 依頼3件・受諾者3人まで/u);
+  assert.doesNotMatch(alloy, /実際に探索した範囲/u);
+  const declined = section("#### 検証候補: 再受諾の拒否にQuintは使わない");
+  assert.match(declined, /判断: 不採用/u);
+  assert.match(declined, /検証手法: Quint/u);
+  assert.match(declined, /理由: 再受諾の拒否は1件の依頼の状態だけで決まり/u);
+  const tested = section("### 既存テスト: 再受諾を拒否するテスト");
+  assert.match(tested, /検証手法: Alloy/u);
+  assert.match(tested, /検証結果: 形式モデルで反例あり/u);
+  assert.match(tested, /実際に探索した範囲: 依頼3件・受諾者3人まで/u);
+  assert.doesNotMatch(tested, /計画時の探索範囲/u);
+  assert.match(tested, /反例: ` 依頼1件に受諾2件 `/u);
+
+  // The TIA note appears only when a merge or delete is proposed.
+  const tia = /TIA（変更時に先に実行するテストの選択）の選外は、統合・削除の理由になりません/u;
+  assert.doesNotMatch(file, tia);
+  for (const decision of ["MERGE", "DELETE"]) {
+    const withChange = validateDocument(
+      v4((d) => {
+        d.verificationCandidates[1].decision = decision;
+      })
+    );
+    assert.equal(artifacts(withChange)["verification.md"].match(new RegExp(tia, "gu"))?.length, 1, decision);
+  }
+});
+
+test("計画の任意項目は、あれば空でない文字列に限る", () => {
+  const withQuint = (extra) =>
+    v4((d) => {
+      d.verificationCandidates.push(methodCandidate("QUINT", { plan: plan(extra) }));
+    });
+  assert.doesNotThrow(() => validateDocument(withQuint({ scope: "最大10手順" })));
+  for (const extra of [{ scope: " " }, { mapping: "" }, { coverage: 3 }]) {
+    assert.throws(
+      () => validateDocument(withQuint(extra)),
+      /計画の項目は空でない文字列で指定してください/u,
+      JSON.stringify(extra)
+    );
   }
 });
