@@ -73,6 +73,8 @@ export const verificationOf = (doc) =>
   Object.fromEntries(VERIFICATION_KEYS.map((key) => [key, doc[key] ?? []]));
 const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const text = (v) => typeof v === "string";
+// Object.hasOwn stringifies its key, so ["PROPERTY"] would otherwise pass.
+const oneOf = (labels, v) => text(v) && Object.hasOwn(labels, v);
 const nonempty = (v) => text(v) && v.trim().length > 0;
 const commitId = (v) => text(v) && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/iu.test(v);
 const id = (v) => text(v) && /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/u.test(v);
@@ -102,7 +104,7 @@ const evidence = (items) => {
   }
 };
 const provenance = (data) => {
-  need(object(data) && Object.hasOwn(ORIGINS, data.origin), "確度が不正です");
+  need(object(data) && oneOf(ORIGINS, data.origin), "確度が不正です");
   evidence(data.evidence);
   need(
     data.origin !== "code" || data.evidence.length > 0,
@@ -283,7 +285,7 @@ const elementIds = (doc, view) =>
 const validateRule = (rule, doc) => {
   need(
     object(rule) &&
-      Object.hasOwn(RULE_KINDS, rule.kind) &&
+      oneOf(RULE_KINDS, rule.kind) &&
       nonempty(rule.statement) &&
       views.includes(rule.model),
     "業務ルールの形式が不正です"
@@ -299,14 +301,14 @@ const validateRule = (rule, doc) => {
 };
 const validateBoundary = (boundary) => {
   need(
-    object(boundary) && Object.hasOwn(BOUNDARIES, boundary.kind),
+    object(boundary) && oneOf(BOUNDARIES, boundary.kind),
     "検証の境界が不正です"
   );
   provenance(boundary);
 };
 const validateResult = (result) => {
   need(
-    object(result) && Object.hasOwn(RESULTS, result.status),
+    object(result) && oneOf(RESULTS, result.status),
     "検証結果の区分が不正です"
   );
   // Only an actual run is a result; reading a test or not running it is not.
@@ -359,7 +361,7 @@ const validateExistingTest = (item, rules) => {
 // Unknown methods are rejected so a newer method never round-trips undisplayed.
 const validateMethod = (method) =>
   need(
-    method === undefined || Object.hasOwn(METHODS, method),
+    method === undefined || oneOf(METHODS, method),
     "検証手法が不正です"
   );
 const nonemptyLines = (v) => Array.isArray(v) && v.length > 0 && v.every(nonempty);
@@ -386,7 +388,7 @@ const validateCandidate = (item, rules, tests) => {
   need(
     object(item) &&
       nonempty(item.title) &&
-      Object.hasOwn(DECISIONS, item.decision) &&
+      oneOf(DECISIONS, item.decision) &&
       (item.tests === undefined || Array.isArray(item.tests)),
     "検証候補の形式が不正です"
   );

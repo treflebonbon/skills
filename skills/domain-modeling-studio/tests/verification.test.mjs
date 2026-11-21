@@ -899,3 +899,40 @@ test("生成物は業務ルールから代表例・性質・seed・反例を辿�
   assert.match(unknowns, /未合意の性質: 実装の式を写した性質を保留する（コードで確認）/u);
   assert.doesNotMatch(unknowns, /未合意の性質: 受諾の回数を変えても/u);
 });
+
+test("列挙値は文字列だけを受け付け、配列に包んだ値で検査をすり抜けさせない", () => {
+  for (const [mutate, message] of [
+    [
+      (d) => {
+        d.verificationCandidates.push(propertyCandidate({ method: ["PROPERTY"] }));
+      },
+      /検証手法が不正です/u,
+    ],
+    [
+      (d) => {
+        d.existingTests[0].method = ["PROPERTY"];
+      },
+      /検証手法が不正です/u,
+    ],
+    [
+      (d) => {
+        d.rules[0].origin = ["code"];
+      },
+      /確度が不正/u,
+    ],
+    [
+      (d) => {
+        d.verificationCandidates[0].decision = ["HOLD"];
+      },
+      /検証候補の形式/u,
+    ],
+    [
+      (d) => {
+        d.existingTests[0].result = { status: ["READ"] };
+      },
+      /検証結果の区分/u,
+    ],
+  ]) {
+    assert.throws(() => validateDocument(v4(mutate)), message);
+  }
+});
