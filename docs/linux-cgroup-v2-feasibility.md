@@ -4,7 +4,7 @@
 
 ## 測定器
 
-[`development/probe-linux-cgroup.py`](../development/probe-linux-cgroup.py) を非 root で動かす。公開ログには `[DEBUG-cgroup]` に続く JSON 行だけを出す。
+[`development/probe-linux-cgroup.py`](https://github.com/treflebonbon/skills/blob/068eb511065586e7c5d6a9f336089c9e4082bff5/development/probe-linux-cgroup.py) を非 root で動かす。公開ログには `[DEBUG-cgroup]` に続く JSON 行だけを出す。これまでの診断と同じく、測定器・そのテスト・workflow の `probe-cgroup` mode は main に残さない。ここにあるリンクは run が固定した commit `068eb51` を指す。
 
 - **方式の選択（`select`／`run` 共通）**: 準備 PID namespace と同じ argv の `unshare` を実際に実行し、成功すれば userns を選ぶ。失敗すれば、自身の cgroup の下に準備用 cgroup を作り、離脱した孫を含む準備を入れて `cgroup.kill` で空にできるかを実際に試す。どちらも成立しなければ拒否する。`apparmor_restrict_unprivileged_userns` の値は前提として記録するだけで、判定には使わない。
 - **拒否（`select MARKER`）**: 拒否したときは準備の開始に当たる MARKER を作らず、終了コード3を返す。workflow は委譲の無い job の cgroup でこれを実行し、終了コード3と MARKER が無いことを要求する。
@@ -15,7 +15,7 @@
 
 ## 実行条件
 
-`linux-process-proof.yml` を `mode=probe-cgroup` で dispatch する。source と workflow を同じ SHA に固定し、Nix の準備・44 ケース・集約は実行しない。artifact 名は `cgroup-probe-<run>-<attempt>-<arch>`。
+[`068eb51` の `linux-process-proof.yml`](https://github.com/treflebonbon/skills/blob/068eb511065586e7c5d6a9f336089c9e4082bff5/.github/workflows/linux-process-proof.yml) を `mode=probe-cgroup` で dispatch した。source と workflow を同じ SHA に固定し、Nix の準備・44 ケース・集約は実行しない。artifact 名は `cgroup-probe-<run>-<attempt>-<arch>`。
 
 1. job の cgroup、linger、`user@UID.service`、user bus の有無を記録する。
 2. 委譲の無い job の cgroup で `select` を実行し、拒否を確認する。PR #87 の診断どおり userns が失敗することを前提にしている。userns が成立した場合はこの step が失敗し、runner での拒否経路は未観測として記録する。テスト用の上書きで失敗させることはしない。
