@@ -180,6 +180,37 @@ class SpritePilotTest(unittest.TestCase):
         self.assertFalse((self.root / "mock-name").exists())
         self.assertFalse((self.root / ".git/orca-sprites-pilot-state.json").exists())
 
+    def test_default_base_stays_on_the_approved_sha_after_the_branch_moves(self):
+        repo = self.root / "public"
+        git = ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid"]
+        subprocess.run(["git", "init", "-q", "-b", "main", repo], check=True)
+        commit = lambda message: subprocess.run(
+            [*git, "-C", repo, "commit", "--quiet", "--allow-empty", "-m", message], check=True)
+        head = lambda path, ref: subprocess.run(
+            ["git", "-C", path, "rev-parse", ref], capture_output=True, text=True, check=True).stdout.strip()
+        commit("approved")
+        approved = head(repo, "HEAD")
+        self.config.write_text(json.dumps({"org": "fixture-org", "ref": "refs/heads/main", "sha": approved}))
+        stub = self.root / "stub-bin"
+        stub.mkdir()
+        (stub / "curl").write_text("#!/bin/sh\nexit 22\n")
+        (stub / "curl").chmod(0o700)
+        home = self.root / "remote-home"
+        home.mkdir()
+        self.invoke("create", env={
+            "ORCA_REPO_REF_HEAD": approved,
+            "FIXTURE_GIT_MIRROR": repo.as_uri(),
+            "FIXTURE_REMOTE_HOME": str(home),
+            "PATH": f"{stub}:{os.environ['PATH']}",
+        })
+        clone = home / "skills"
+        commit("unapproved")
+        # Orca refreshes a remote-tracking default base this way before creating a workspace.
+        subprocess.run(["git", "-C", clone, "fetch", "--quiet", "--no-tags", repo,
+                        "+refs/heads/main:refs/remotes/origin/main"], check=True)
+        self.assertEqual(head(clone, "refs/remotes/origin/main"), head(repo, "HEAD"))
+        self.assertEqual(head(clone, "refs/remotes/origin/HEAD"), approved)
+
     def test_ambiguous_creation_failure_keeps_the_trial_identity_for_recovery(self):
         result = self.invoke("create", env={"FIXTURE_CREATE_ERROR": "1"})
         self.assertEqual(result.returncode, 1)

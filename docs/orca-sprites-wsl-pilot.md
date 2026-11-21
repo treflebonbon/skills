@@ -2,7 +2,7 @@
 
 初回検証ではこのリポジトリの専用ローカルコピーを Orca に登録し、その主チェックアウトで `Fly.io Sprites pilot via WSL` を選びます。Orca 1.4.265 と、認証済みの `Ubuntu-24.04` WSL ディストリビューションを使用します。
 
-Orca 1.4.265 では、設定の「実験的機能 → クラウド VM」を有効にしないと、作成画面の実行先に「ワークスペースごとの環境」とレシピが出ません。作成前に `orca vm recipe doctor sprites-wsl-pilot --repo-path <専用コピーの UNC パス>` で `recipe.exists` が pass になることを確認します。作成画面ではプロジェクトに専用コピー、実行先に「ワークスペースごとの環境」の `Fly.io Sprites pilot via WSL`、作成元に `orca-sprites-pilot.json` の `ref` に対応する `origin/<ブランチ名>` を選びます。Orca 1.4.265 はこの選択を Sprite 側へ渡さず、Sprite 側の Orca は `origin/HEAD` からワークスペースを作ります。そのため作成スクリプトが `origin/HEAD` を承認済みブランチに向けます。Windows ではこの選択とワークスペースの右クリックメニューに前面操作が必要です。
+Orca 1.4.265 では、設定の「実験的機能 → クラウド VM」を有効にしないと、作成画面の実行先に「ワークスペースごとの環境」とレシピが出ません。作成前に `orca vm recipe doctor sprites-wsl-pilot --repo-path <専用コピーの UNC パス>` で `recipe.exists` が pass になることを確認します。作成画面ではプロジェクトに専用コピー、実行先に「ワークスペースごとの環境」の `Fly.io Sprites pilot via WSL`、作成元に `orca-sprites-pilot.json` の `ref` に対応する `origin/<ブランチ名>` を選びます。Orca 1.4.265 はこの選択を Sprite 側へ渡さず、Sprite 側の Orca は `origin/HEAD` からワークスペースを作ります。Orca は `origin/HEAD` がリモート追跡ブランチを指すと作成前に取得し直すため、作成スクリプトは `origin/HEAD` を承認済み SHA に固定したローカルブランチ `orca-approved-base` に向けます。Windows ではこの選択とワークスペースの右クリックメニューに前面操作が必要です。
 
 作成後の環境チェックは、Sprite に Git の書き込み認証情報を渡さないため push の試行で FAIL になります。「このまま開く」で接続を続けます。
 
