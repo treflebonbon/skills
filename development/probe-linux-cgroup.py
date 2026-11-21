@@ -182,13 +182,13 @@ def assert_contained(cg, inside, outside=()):
             raise Failed("outside-before-kill", f"pid {pid} state {state(pid)}")
 
 
-def wait_empty(cg, pids, t0):
+def wait_empty(cg, pids, t0, limit_ns=DEADLINE_NS):
     """populated 0 かつ記録した全 PID が消滅またはゾンビになった単調時刻を返す。"""
     while True:
         now = time.monotonic_ns()
         if not populated(cg) and all(gone(pid) for pid in pids):
             return now, []
-        if now - t0 > DEADLINE_NS:
+        if now - t0 > limit_ns:
             return None, sorted(procs(cg) | {pid for pid in pids if not gone(pid)})
         time.sleep(0.001)
 
@@ -200,12 +200,18 @@ def teardown(cg, pids, children):
             write(cg + "/cgroup.kill", "1")
         except OSError:
             pass
-        wait_empty(cg, [], time.monotonic_ns() - DEADLINE_NS + 2_000_000_000)
+        wait_empty(cg, [], time.monotonic_ns(), 2_000_000_000)
     for pid in pids:
         if not gone(pid):
-            os.kill(pid, signal.SIGKILL)
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
     for pid in children:
-        os.waitpid(pid, 0)
+        try:
+            os.waitpid(pid, 0)
+        except ChildProcessError:
+            pass
     try:
         os.rmdir(cg)
         return "ok"

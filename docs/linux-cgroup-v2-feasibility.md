@@ -18,7 +18,7 @@
 `linux-process-proof.yml` を `mode=probe-cgroup` で dispatch する。source と workflow を同じ SHA に固定し、Nix の準備・44 ケース・集約は実行しない。artifact 名は `cgroup-probe-<run>-<attempt>-<arch>`。
 
 1. job の cgroup、linger、`user@UID.service`、user bus の有無を記録する。
-2. 委譲の無い job の cgroup で `select` を実行し、拒否を確認する。
+2. 委譲の無い job の cgroup で `select` を実行し、拒否を確認する。PR #87 の診断どおり userns が失敗することを前提にしている。userns が成立した場合はこの step が失敗し、runner での拒否経路は未観測として記録する。テスト用の上書きで失敗させることはしない。
 3. ログインホストが既定で持つユーザーセッション状態として、`sudo loginctl enable-linger` だけを再現する。AppArmor・sysctl・sudoers は変えない。
 4. `systemd-run --user --scope -p Delegate=yes` と、`systemd-run --user --wait --pipe --collect -p Delegate=yes`（transient service）の両方で `run` を実行する。job の cgroup から user の subtree へ移せない場合に備え、どちらか一方の失敗で他方の測定を止めない。
 
