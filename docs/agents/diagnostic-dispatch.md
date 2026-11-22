@@ -8,4 +8,6 @@ GitHub runner で一度だけ測る診断（可否確認・再現・最小化）
 4. **証跡を記録する。** `docs/evidence/<topic>/<run>-<attempt>/` に、README、`run.json`（公開 run metadata）、`observations.json`（公開ログの該当行）を置く。README は、確認したこと・前提条件・示さないことを分けて書く。
 5. **測定器を main から外す。** 測定器・そのテスト・診断 mode を削除し、文書からは run が固定した commit の blob を参照する。
 
+runner から GitHub API を読む step には、その job だけに `actions: read` を与え、job token で読む。GitHub-hosted runner の IP は認証なしの上限（1時間60回）を他の利用者と共有しており、正式実証の集約は2回この上限で未達になった（[run 45012162020](../evidence/linux-process-proof/45012162020-1/README.md)）。
+
 `.github/workflows/` への書込みは自動判定で拒否される。workflow は scratchpad に全文を書いて actionlint にかけ、人に `! cp <scratchpad の全文> .github/workflows/<file>` を渡す。戻すときも同じで、`! git checkout <main の SHA> -- .github/workflows/<file>` を渡す。

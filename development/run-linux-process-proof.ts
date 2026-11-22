@@ -1061,6 +1061,8 @@ async function aggregate(root: string, raw: string, out: string) {
     verdict.reasons.map((reason) => `- ${reason.replaceAll("\n", " ")}`).join("\n") +
     "\n\n#33 は OPEN、#82 は #33 待ち、macOS 移行は保留。JSON と要約は人が確認したうえで Git 管理へ移す。\n";
   fs.writeFileSync(join(out, "summary.md"), summary);
+  // step summary と artifact は認証なしでは読めないため、判定と理由を公開ログにも残す。
+  console.log(summary);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
   if (!verdict.verified) process.exitCode = 1;
 }
