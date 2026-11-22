@@ -1,0 +1,2762 @@
+{
+  "schema": "linux-process-proof-cohort/v1",
+  "sourceSha": "c6947cda6fc5dada4e021cfc87034133393da8cb",
+  "workflowSha": "f28d4a6d3d880d2e239d72884aa425e0c5e07b2a",
+  "runId": "44976819303",
+  "attempt": 1,
+  "jobs": [
+    {
+      "schema": "linux-process-proof-job/v1",
+      "arch": "x64",
+      "trials": [
+        {
+          "repetition": 1,
+          "exitCode": 0,
+          "counts": {
+            "pass": 45,
+            "fail": 0,
+            "skip": 0,
+            "todo": 0
+          },
+          "cases": [
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-group の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-group の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-session の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-session の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-ignored の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-ignored の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-before-ready-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-before-ready-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-complete-hang-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-complete-hang-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "launcher の process group 全体への SIGKILL でも全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の systemd-run-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の systemd-run-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-after で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-after で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-after で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-after で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の prepare-exec-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の prepare-exec-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "watchdog を無効にした対照では launcher の SIGKILL 後に離脱子孫の残存を検出する"
+            },
+            {
+              "status": "pass",
+              "name": "子孫が cgroup の移動で準備用 cgroup から抜け出せるかを観測する"
+            },
+            {
+              "status": "pass",
+              "name": "user manager に届かない環境では準備を始めずに拒否し、環境を戻した同じ実行体は動く"
+            },
+            {
+              "status": "pass",
+              "name": "旧 Python corpus の PID・FD・signal・argv・env 契約を候補でも満たす"
+            },
+            {
+              "status": "pass",
+              "name": "旧 corpus の exec 拒否を候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "正常な準備には5秒上限を設けず、5.2秒後に同じ launcher PID で target を実行する"
+            },
+            {
+              "status": "pass",
+              "name": "準備失敗・不正 frame・完了 frame 後の非ゼロ終了では target を実行しない"
+            },
+            {
+              "status": "pass",
+              "name": "wrapper 入力の ARG_MAX で旧方式の受理範囲を独立対照と比較する"
+            },
+            {
+              "status": "pass",
+              "name": "元 launcher の frame 上限の直前は通り、上限では候補も同じ診断で拒否する"
+            },
+            {
+              "status": "pass",
+              "name": "準備子の UID/GID/groups と proc PID は対照に一致する"
+            },
+            {
+              "status": "pass",
+              "name": "補助 group だけで許可される読み書きを候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "補助 group 非所属時の読み書き拒否を候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の input で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の interrupt で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の terminate で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の timeout で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の準備中の SIGTERM でも離脱子孫を終了し target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の準備中の SIGKILL でも離脱子孫を終了し target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "実 Nix・shellHook を現行 prepare_environment caller から実行し候補と比較する"
+            }
+          ],
+          "observation": {
+            "boundary": "process-namespace",
+            "platform": "linux",
+            "kernel": "7.0.0-1014-aws",
+            "arch": "x64",
+            "bun": "1.4.4",
+            "build": {
+              "unshare": "/usr/bin/unshare",
+              "unshareHash": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c",
+              "version": "unshare from util-linux 2.39.3",
+              "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+              "launcherSourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+              "observerSourceHash": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+              "entrySourceHash": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+              "preparationSourceHash": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+              "runnerSourceHash": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+              "systemdRun": "/usr/bin/systemd-run",
+              "corpusRevision": "f8598e7c516f8a64fec04596207f0907d0407132",
+              "builds": [
+                {
+                  "source": "bun-process-namespace-observer.c",
+                  "variant": "observer",
+                  "sourceHash": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+                  "binaryHash": "513dc55be44ce610ddc4d013f29c5f7a77bbec96e0fa53510ceab1ad079b2dbc"
+                },
+                {
+                  "source": "bun-process-pidfds.c",
+                  "variant": "pidfds",
+                  "sourceHash": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+                  "binaryHash": "7131d74eb60c92d540df646269a740c19853d076804a86c21a1e9d798828358d"
+                },
+                {
+                  "source": "bun-exec-launcher.c",
+                  "variant": "baseline",
+                  "sourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+                  "binaryHash": "67c8eec0a59f7451fac7f17fd0b901d9e1a5af223438eac10adf2bcc3fea5035"
+                },
+                {
+                  "source": "bun-exec-pid-namespace.c",
+                  "variant": "launcher",
+                  "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+                  "binaryHash": "dfbbadc2b8b31d6e4e1f73160c555348cd9d5a161f6e38ef022663c2210c249f"
+                },
+                {
+                  "source": "bun-exec-pid-namespace.c",
+                  "variant": "without-proc",
+                  "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+                  "binaryHash": "ba65b08e917fdfeee13194eb120691a2f9e1b573fdd112f21f2e531d7f04c5ab"
+                },
+                {
+                  "source": "bun-exec-namespace-delay.c",
+                  "variant": "delay.so",
+                  "sourceHash": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+                  "binaryHash": "efbcd780f082864951a3c18716d8a8131d9b86d0bca5c54d1b0787db6664858f"
+                }
+              ]
+            },
+            "containment": "cgroup",
+            "records": [
+              {
+                "cgroupEscape": {
+                  "scope": "/user.slice/user-1001.slice/user@1001.service/app.slice/run-r2b38f3efa8af4dc1949ca54c2471be8b.scope",
+                  "escapee": {
+                    "pid": 4652,
+                    "own": "0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-r2b38f3efa8af4dc1949ca54c2471be8b.scope",
+                    "moved": "0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-r6755e1d5e3df4275a22085bccc2332e7.scope"
+                  },
+                  "leftScope": true,
+                  "survivedLauncherKill": false,
+                  "countedInVerdict": false
+                }
+              },
+              {
+                "refusal": {
+                  "status": 69,
+                  "stderr": "Failed to connect to bus: No medium found\nlauncher: containment unavailable\n",
+                  "allowed": 37
+                }
+              },
+              {
+                "realCaller": {
+                  "nixStdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
+                  "nixBash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+                  "nixVersion": "nix (Nix) 2.34.6",
+                  "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+                  "flakeHash": "67942a48b5651065e7d68deca132103f31cac974351e94db28f33553bfb71488",
+                  "bashHash": "80b557096c168920d1e77d7c064c92ee66b862d1f38be7efbe7bf254558d1c04",
+                  "observations": [
+                    {
+                      "binary": "baseline",
+                      "status": 37,
+                      "stderr": "devshell-env: ready; /home/runner/work/_temp/linux-proof/temporary-1-NQLxLY/bun-process-namespace-pUReif/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":5309,\"ppid\":4233,\"uid\":1001,\"euid\":1001,\"gid\":1001,\"egid\":1001,\"groups\":[4,100,116,999,1001],\"procSelf\":\"5309\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                    },
+                    {
+                      "binary": "candidate",
+                      "status": 37,
+                      "stderr": "devshell-env: ready; /home/runner/work/_temp/linux-proof/temporary-1-NQLxLY/bun-process-namespace-pUReif/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":5490,\"ppid\":4233,\"uid\":1001,\"euid\":1001,\"gid\":1001,\"egid\":1001,\"groups\":[4,100,116,999,1001],\"procSelf\":\"5490\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                    }
+                  ]
+                }
+              }
+            ],
+            "verification": "see-test-results",
+            "realCallerRequested": true,
+            "adoption": "not-decided",
+            "macos": "held",
+            "issue33": "open",
+            "issue82": "blocked-by-33",
+            "recordsOmitted": 42
+          }
+        },
+        {
+          "repetition": 2,
+          "exitCode": 0,
+          "counts": {
+            "pass": 45,
+            "fail": 0,
+            "skip": 0,
+            "todo": 0
+          },
+          "cases": [
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-group の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-group の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-session の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-session の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-ignored の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-ignored の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-before-ready-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-before-ready-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-complete-hang-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-complete-hang-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "launcher の process group 全体への SIGKILL でも全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の systemd-run-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の systemd-run-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-after で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-after で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-after で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-after で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の prepare-exec-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の prepare-exec-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "watchdog を無効にした対照では launcher の SIGKILL 後に離脱子孫の残存を検出する"
+            },
+            {
+              "status": "pass",
+              "name": "子孫が cgroup の移動で準備用 cgroup から抜け出せるかを観測する"
+            },
+            {
+              "status": "pass",
+              "name": "user manager に届かない環境では準備を始めずに拒否し、環境を戻した同じ実行体は動く"
+            },
+            {
+              "status": "pass",
+              "name": "旧 Python corpus の PID・FD・signal・argv・env 契約を候補でも満たす"
+            },
+            {
+              "status": "pass",
+              "name": "旧 corpus の exec 拒否を候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "正常な準備には5秒上限を設けず、5.2秒後に同じ launcher PID で target を実行する"
+            },
+            {
+              "status": "pass",
+              "name": "準備失敗・不正 frame・完了 frame 後の非ゼロ終了では target を実行しない"
+            },
+            {
+              "status": "pass",
+              "name": "wrapper 入力の ARG_MAX で旧方式の受理範囲を独立対照と比較する"
+            },
+            {
+              "status": "pass",
+              "name": "元 launcher の frame 上限の直前は通り、上限では候補も同じ診断で拒否する"
+            },
+            {
+              "status": "pass",
+              "name": "準備子の UID/GID/groups と proc PID は対照に一致する"
+            },
+            {
+              "status": "pass",
+              "name": "補助 group だけで許可される読み書きを候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "補助 group 非所属時の読み書き拒否を候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の input で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の interrupt で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の terminate で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の timeout で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の準備中の SIGTERM でも離脱子孫を終了し target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の準備中の SIGKILL でも離脱子孫を終了し target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "実 Nix・shellHook を現行 prepare_environment caller から実行し候補と比較する"
+            }
+          ],
+          "observation": {
+            "boundary": "process-namespace",
+            "platform": "linux",
+            "kernel": "7.0.0-1014-aws",
+            "arch": "x64",
+            "bun": "1.4.4",
+            "build": {
+              "unshare": "/usr/bin/unshare",
+              "unshareHash": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c",
+              "version": "unshare from util-linux 2.39.3",
+              "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+              "launcherSourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+              "observerSourceHash": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+              "entrySourceHash": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+              "preparationSourceHash": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+              "runnerSourceHash": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+              "systemdRun": "/usr/bin/systemd-run",
+              "corpusRevision": "f8598e7c516f8a64fec04596207f0907d0407132",
+              "builds": [
+                {
+                  "source": "bun-process-namespace-observer.c",
+                  "variant": "observer",
+                  "sourceHash": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+                  "binaryHash": "513dc55be44ce610ddc4d013f29c5f7a77bbec96e0fa53510ceab1ad079b2dbc"
+                },
+                {
+                  "source": "bun-process-pidfds.c",
+                  "variant": "pidfds",
+                  "sourceHash": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+                  "binaryHash": "7131d74eb60c92d540df646269a740c19853d076804a86c21a1e9d798828358d"
+                },
+                {
+                  "source": "bun-exec-launcher.c",
+                  "variant": "baseline",
+                  "sourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+                  "binaryHash": "67c8eec0a59f7451fac7f17fd0b901d9e1a5af223438eac10adf2bcc3fea5035"
+                },
+                {
+                  "source": "bun-exec-pid-namespace.c",
+                  "variant": "launcher",
+                  "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+                  "binaryHash": "dfbbadc2b8b31d6e4e1f73160c555348cd9d5a161f6e38ef022663c2210c249f"
+                },
+                {
+                  "source": "bun-exec-pid-namespace.c",
+                  "variant": "without-proc",
+                  "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+                  "binaryHash": "ba65b08e917fdfeee13194eb120691a2f9e1b573fdd112f21f2e531d7f04c5ab"
+                },
+                {
+                  "source": "bun-exec-namespace-delay.c",
+                  "variant": "delay.so",
+                  "sourceHash": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+                  "binaryHash": "ab8de43f993d1dd1877b8ca0e53dac5ed4a8191322e4d78768033fef7091dedd"
+                }
+              ]
+            },
+            "containment": "cgroup",
+            "records": [
+              {
+                "cgroupEscape": {
+                  "scope": "/user.slice/user-1001.slice/user@1001.service/app.slice/run-rcd1e9296a2d14e769f12d9bf85f7cb05.scope",
+                  "escapee": {
+                    "pid": 5956,
+                    "own": "0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-rcd1e9296a2d14e769f12d9bf85f7cb05.scope",
+                    "moved": "0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-r099c846af6784f0cb4133df23c49af0a.scope"
+                  },
+                  "leftScope": true,
+                  "survivedLauncherKill": false,
+                  "countedInVerdict": false
+                }
+              },
+              {
+                "refusal": {
+                  "status": 69,
+                  "stderr": "Failed to connect to bus: No medium found\nlauncher: containment unavailable\n",
+                  "allowed": 37
+                }
+              },
+              {
+                "realCaller": {
+                  "nixStdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
+                  "nixBash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+                  "nixVersion": "nix (Nix) 2.34.6",
+                  "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+                  "flakeHash": "67942a48b5651065e7d68deca132103f31cac974351e94db28f33553bfb71488",
+                  "bashHash": "80b557096c168920d1e77d7c064c92ee66b862d1f38be7efbe7bf254558d1c04",
+                  "observations": [
+                    {
+                      "binary": "baseline",
+                      "status": 37,
+                      "stderr": "devshell-env: ready; /home/runner/work/_temp/linux-proof/temporary-2-vKFMTM/bun-process-namespace-3xGy6U/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":6612,\"ppid\":5535,\"uid\":1001,\"euid\":1001,\"gid\":1001,\"egid\":1001,\"groups\":[4,100,116,999,1001],\"procSelf\":\"6612\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                    },
+                    {
+                      "binary": "candidate",
+                      "status": 37,
+                      "stderr": "devshell-env: ready; /home/runner/work/_temp/linux-proof/temporary-2-vKFMTM/bun-process-namespace-3xGy6U/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":6644,\"ppid\":5535,\"uid\":1001,\"euid\":1001,\"gid\":1001,\"egid\":1001,\"groups\":[4,100,116,999,1001],\"procSelf\":\"6644\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                    }
+                  ]
+                }
+              }
+            ],
+            "verification": "see-test-results",
+            "realCallerRequested": true,
+            "adoption": "not-decided",
+            "macos": "held",
+            "issue33": "open",
+            "issue82": "blocked-by-33",
+            "recordsOmitted": 42
+          }
+        },
+        {
+          "repetition": 3,
+          "exitCode": 0,
+          "counts": {
+            "pass": 45,
+            "fail": 0,
+            "skip": 0,
+            "todo": 0
+          },
+          "cases": [
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-group の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-group の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-session の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-session の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-ignored の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-ignored の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-before-ready-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-before-ready-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-complete-hang-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-complete-hang-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "launcher の process group 全体への SIGKILL でも全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の systemd-run-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の systemd-run-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-after で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-after で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-after で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-after で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の prepare-exec-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の prepare-exec-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "watchdog を無効にした対照では launcher の SIGKILL 後に離脱子孫の残存を検出する"
+            },
+            {
+              "status": "pass",
+              "name": "子孫が cgroup の移動で準備用 cgroup から抜け出せるかを観測する"
+            },
+            {
+              "status": "pass",
+              "name": "user manager に届かない環境では準備を始めずに拒否し、環境を戻した同じ実行体は動く"
+            },
+            {
+              "status": "pass",
+              "name": "旧 Python corpus の PID・FD・signal・argv・env 契約を候補でも満たす"
+            },
+            {
+              "status": "pass",
+              "name": "旧 corpus の exec 拒否を候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "正常な準備には5秒上限を設けず、5.2秒後に同じ launcher PID で target を実行する"
+            },
+            {
+              "status": "pass",
+              "name": "準備失敗・不正 frame・完了 frame 後の非ゼロ終了では target を実行しない"
+            },
+            {
+              "status": "pass",
+              "name": "wrapper 入力の ARG_MAX で旧方式の受理範囲を独立対照と比較する"
+            },
+            {
+              "status": "pass",
+              "name": "元 launcher の frame 上限の直前は通り、上限では候補も同じ診断で拒否する"
+            },
+            {
+              "status": "pass",
+              "name": "準備子の UID/GID/groups と proc PID は対照に一致する"
+            },
+            {
+              "status": "pass",
+              "name": "補助 group だけで許可される読み書きを候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "補助 group 非所属時の読み書き拒否を候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の input で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の interrupt で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の terminate で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の timeout で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の準備中の SIGTERM でも離脱子孫を終了し target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の準備中の SIGKILL でも離脱子孫を終了し target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "実 Nix・shellHook を現行 prepare_environment caller から実行し候補と比較する"
+            }
+          ],
+          "observation": {
+            "boundary": "process-namespace",
+            "platform": "linux",
+            "kernel": "7.0.0-1014-aws",
+            "arch": "x64",
+            "bun": "1.4.4",
+            "build": {
+              "unshare": "/usr/bin/unshare",
+              "unshareHash": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c",
+              "version": "unshare from util-linux 2.39.3",
+              "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+              "launcherSourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+              "observerSourceHash": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+              "entrySourceHash": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+              "preparationSourceHash": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+              "runnerSourceHash": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+              "systemdRun": "/usr/bin/systemd-run",
+              "corpusRevision": "f8598e7c516f8a64fec04596207f0907d0407132",
+              "builds": [
+                {
+                  "source": "bun-process-namespace-observer.c",
+                  "variant": "observer",
+                  "sourceHash": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+                  "binaryHash": "513dc55be44ce610ddc4d013f29c5f7a77bbec96e0fa53510ceab1ad079b2dbc"
+                },
+                {
+                  "source": "bun-process-pidfds.c",
+                  "variant": "pidfds",
+                  "sourceHash": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+                  "binaryHash": "7131d74eb60c92d540df646269a740c19853d076804a86c21a1e9d798828358d"
+                },
+                {
+                  "source": "bun-exec-launcher.c",
+                  "variant": "baseline",
+                  "sourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+                  "binaryHash": "67c8eec0a59f7451fac7f17fd0b901d9e1a5af223438eac10adf2bcc3fea5035"
+                },
+                {
+                  "source": "bun-exec-pid-namespace.c",
+                  "variant": "launcher",
+                  "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+                  "binaryHash": "dfbbadc2b8b31d6e4e1f73160c555348cd9d5a161f6e38ef022663c2210c249f"
+                },
+                {
+                  "source": "bun-exec-pid-namespace.c",
+                  "variant": "without-proc",
+                  "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+                  "binaryHash": "ba65b08e917fdfeee13194eb120691a2f9e1b573fdd112f21f2e531d7f04c5ab"
+                },
+                {
+                  "source": "bun-exec-namespace-delay.c",
+                  "variant": "delay.so",
+                  "sourceHash": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+                  "binaryHash": "7c316382afacb9fd3c4cacef5a57daba838303e5caf32b725784a934321aab46"
+                }
+              ]
+            },
+            "containment": "cgroup",
+            "records": [
+              {
+                "cgroupEscape": {
+                  "scope": "/user.slice/user-1001.slice/user@1001.service/app.slice/run-rff9b366039074ff388a5ad18c56f6a49.scope",
+                  "escapee": {
+                    "pid": 7105,
+                    "own": "0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-rff9b366039074ff388a5ad18c56f6a49.scope",
+                    "moved": "0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-r2ed103765fbe44cd835c11c7fc4ef795.scope"
+                  },
+                  "leftScope": true,
+                  "survivedLauncherKill": false,
+                  "countedInVerdict": false
+                }
+              },
+              {
+                "refusal": {
+                  "status": 69,
+                  "stderr": "Failed to connect to bus: No medium found\nlauncher: containment unavailable\n",
+                  "allowed": 37
+                }
+              },
+              {
+                "realCaller": {
+                  "nixStdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
+                  "nixBash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+                  "nixVersion": "nix (Nix) 2.34.6",
+                  "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+                  "flakeHash": "67942a48b5651065e7d68deca132103f31cac974351e94db28f33553bfb71488",
+                  "bashHash": "80b557096c168920d1e77d7c064c92ee66b862d1f38be7efbe7bf254558d1c04",
+                  "observations": [
+                    {
+                      "binary": "baseline",
+                      "status": 37,
+                      "stderr": "devshell-env: ready; /home/runner/work/_temp/linux-proof/temporary-3-6Gxc0J/bun-process-namespace-bbTzsq/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":7761,\"ppid\":6687,\"uid\":1001,\"euid\":1001,\"gid\":1001,\"egid\":1001,\"groups\":[4,100,116,999,1001],\"procSelf\":\"7761\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                    },
+                    {
+                      "binary": "candidate",
+                      "status": 37,
+                      "stderr": "devshell-env: ready; /home/runner/work/_temp/linux-proof/temporary-3-6Gxc0J/bun-process-namespace-bbTzsq/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":7793,\"ppid\":6687,\"uid\":1001,\"euid\":1001,\"gid\":1001,\"egid\":1001,\"groups\":[4,100,116,999,1001],\"procSelf\":\"7793\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                    }
+                  ]
+                }
+              }
+            ],
+            "verification": "see-test-results",
+            "realCallerRequested": true,
+            "adoption": "not-decided",
+            "macos": "held",
+            "issue33": "open",
+            "issue82": "blocked-by-33",
+            "recordsOmitted": 42
+          }
+        }
+      ],
+      "sourceSha": "c6947cda6fc5dada4e021cfc87034133393da8cb",
+      "workflowSha": "f28d4a6d3d880d2e239d72884aa425e0c5e07b2a",
+      "runId": "44976819303",
+      "attempt": 1,
+      "sources": {
+        "development/linux-process-proof-cases.json": "2115f90b7ed62b8758f411ceabc790d10b2cbbaf2c6906b3820eac7766c61975",
+        "lib/bun/bunfig.toml": "64685d48c66b066850d1a78ab41c170ea217e84acf8aaa4f6fe6b7349648c070",
+        "lib/bun/cli-path.ts": "f058948b035092a728bcd8a57bf2c2fa53f8333106fc523f6283b8d84bf13db0",
+        "lib/bun/coordination-json.ts": "32454d49fc3ceb63b6e39d4cdc7b8e6de98f9f334c545f411708e026634c3e0f",
+        "lib/bun/gh-review-thread.ts": "a89a07053bc6c42c3ed8706f46c6a7e5f6f16e41953c75d51b36f02f2920ee12",
+        "lib/bun/orca-send.ts": "5836b9e1a4dfcc35017eb73aed609abfa44bb62f596814305a63d9820d2152a2",
+        "lib/bun/orca-worker-readiness.ts": "a6a1258a2b7cd4432c6a025ffcf2d3120e7db31aacb2b869d82377c30eb4c818",
+        "lib/bun/run": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+        "lib/bun/serve-local.ts": "d766a03b278c3547e8d4eec69ae228c9a1e3fcacc2d5a3d43a4a416da0bbcd8b",
+        "lib/bun/strict-json.ts": "4d14a1305ae707c30a36d9acab9627a09105b479db85349bbe4ade9de33870d0",
+        "lib/bun/tsconfig.json": "66e3b8f1d08faaa895715154da26f2698c0af9dddb8c43ae2b382e16ef5e3fe1",
+        "lib/bun/vendor/casefold.LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+        "lib/bun/vendor/casefold.json": "233bb4581cca5ac020ee75fff73ad4e5792f9166e940318fbfdf4d969192c430",
+        "lib/bun/vendor/decimal.LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+        "lib/bun/vendor/decimal.json": "10a08b669b4aaf0c3969143d7f88bc3888e55212e4bffc751c1b8b1da71699e8",
+        "lib/python/treflebonbon_skills/__init__.py": "4c931ca391290d71a01aade9e3f3b249b7afc5b5143fdddf27dbeca9e5bfcfe1",
+        "lib/python/treflebonbon_skills/codex_reviewer.py": "84a40d9499cca63e78dbf5f1a3af50c2f91c6919eef0ab15dbcde8ecb402a775",
+        "lib/python/treflebonbon_skills/devshell_environment.py": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+        "lib/python/treflebonbon_skills/git_context.py": "986e2a6143cc467e760b7e931c93d3ab9126a6eda214192a372736502491de43",
+        "tests/bun/browser-fixtures.test.ts": "1dcf5e054b91382ec3ba11b580908cb8f7b7e442a02ef04bd378282d095cc92a",
+        "tests/bun/coordination-json.test.ts": "ee1feb00605a286488799eb28cb0b08cfafc5fd301d92597fdfe2e56484c7b04",
+        "tests/bun/gh-review-thread.test.ts": "b8a06c8b224403b5a9bd7dec68afa3b667cae5024d46c9bc4e2c4195e8a080d3",
+        "tests/bun/linux-process-proof.test.ts": "7555af16e652fb5273056e4ef9b55cffb875da1ef00534092c9a5cf3b2ef5bc2",
+        "tests/bun/namespace.test.ts": "05463a0aaec31a84bb135ce161f90536907a2b20f4b7a8a25197f5d2ded7b8c8",
+        "tests/bun/nix-runtime.test.ts": "34a4cfd555a66ec2561a2ffe9b72164b0a264f30cfd416298b4b12299f3f37db",
+        "tests/bun/orca-send.test.ts": "a4cd2b013cffd6c1f950b107054f5d767c779fda43908cf7dabf92ce88f7b58f",
+        "tests/bun/orca-worker-readiness.test.ts": "9385103a94aacbfb55567b6fe66b63f7332f0be83d25fc8e718d6ff497a73aba",
+        "tests/bun/package-contract-fixtures.test.ts": "55ce9779a5b29931377409dc8ce1883ce68ef0d4e92f7bacc9580c3a28fa7896",
+        "tests/bun/package-contract.test.ts": "6f1d71ff8a61540542e9091109d8caca1bc96eadfcc2b43f90552d2948f19570",
+        "tests/bun/plugin-session-process.test.ts": "8e22988b2e05d7b0cc2b2117603ded5b7428a19fcb1f3d77ac8a3533e91aa106",
+        "tests/bun/plugin-sessions.test.ts": "bd3dc1f65e88c9a83326393ca597eaa83cf3efe895e6889c606d08b248d0b602",
+        "tests/bun/plugin-smoke.test.ts": "52395afd52b12e6d071b9012b9ab4d51b22a5345c08bd8d713a52b97e518f83a",
+        "tests/bun/process-lock.test.ts": "53cfe60dc6f182c58ea674f1a5d870407c5e803249c6748411a7b9bd530af0f1",
+        "tests/bun/process-namespace.test.ts": "c35ed42b65d101cbedfc4a7a029fda50f1680392239e75137f41735d9393f9c2",
+        "tests/bun/process-state.test.ts": "c976d6585d48d72ba16f9a2b86204458f0b3aea176b30e2c578337991e7c1583",
+        "tests/bun/product-guide-collect.test.ts": "74bf12436dedb74bf6c2be4f6fee10b26672a95358a2cdc6b2258612950a7497",
+        "tests/bun/product-guide.test.ts": "cadf289d302b8250e7f5cb1a64822bf776851b83fb39f15bdf504fe41789488f",
+        "tests/bun/public-skills.test.ts": "ca2d6908974c5b5549caa62100a14f09ceb14d1dd56fac944ccf9060051ad92f",
+        "tests/bun/serve-local.test.ts": "eb0f112487855270a35270f0eb8b22c536d51a49132bea102dd5a4381807af24",
+        "tests/cli/__init__.py": "e579565af1f3a040cb9f5b582b8b9c7ec0160875699575a89dd88dff78b0a7da",
+        "tests/cli/fixtures/fake-gh": "11c7097dce8d601ce0ccf22a11ea735365c7a8f08add93a9d52c619cbbc50e2a",
+        "tests/cli/gh-review-thread.bats": "cfe8622ec7a14f7b811dfa05d6c6af5c83a70d2ce8338d68dc8a0deda3ec4438",
+        "tests/cli/git-push-topic.bats": "84757f6f502a70ea8ab99816e23c84cf2b794e3922d171ef1060f79df3e76f2e",
+        "tests/cli/orca-send.bats": "c7d9b7af5ac9d9867b4dbf4fbeb5176557e9ddf3e3753fb48b30fe768e0706f8",
+        "tests/cli/orca-worker-readiness.bats": "786133e813de0fa25ff021ddcfc1fd9f1aa6d58e69878791547e1c01601eccf1",
+        "tests/cli/test_codex_reviewer.py": "6dac260cd18be60d95975ceb6d8de64a77ffcf74d69d7fd5524740201fa695a1",
+        "tests/cli/test_docstring_report.py": "d2d458826cad44d2a4a0f4b79c0ad3e0b3de7d18ab75c65a39d04ace50774d14",
+        "tests/cli/test_git_context.py": "8124e67cd62b663a8edca433f93d4fd3cfeb8dd5af7f2928f01d3f2df518e134",
+        "tests/cli/test_python_launcher_payload_immutability.py": "a1a356713a676f9cf53b1dc3c5e68938255cb390264fa942db31e407bb635d08",
+        "tests/domain-modeling-studio.bats": "6bdf1d0c3f21e413c54eafa99385f84b17f6aeea915579068804c9c1981ac7e2",
+        "tests/fixtures/bun-exec-delayed-group.c": "dba438e31a8832c6b789371259fb2cc5bfd13eb093124be584c8cc8967905a88",
+        "tests/fixtures/bun-exec-entry.sh": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+        "tests/fixtures/bun-exec-launcher.c": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+        "tests/fixtures/bun-exec-namespace-delay.c": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+        "tests/fixtures/bun-exec-pid-namespace.c": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+        "tests/fixtures/bun-exec-prepare.ts": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+        "tests/fixtures/bun-exec-python.json": "b827d223fda4840af27ea9e23b3c393e89db62bf3e8b88db1b5020f2a7f0e6a2",
+        "tests/fixtures/bun-namespace.ts": "cafd9ba5bf74f554770614210762d326ba77540dad1ec1dfddc12e43995edcde",
+        "tests/fixtures/bun-nix-runtime.ts": "80426763914822d369de60b344cf83119d7c27717b61aa0bc72bd5b9849f3949",
+        "tests/fixtures/bun-process-lock-python.json": "2c1b105a39ccf0836c8aef8d9c3617e640f368af0c766af85278af2c711d4125",
+        "tests/fixtures/bun-process-lock.ts": "3df970a569ff09116e0c25c908317c6a193e0e404dcad95d4588cd2cf9052916",
+        "tests/fixtures/bun-process-namespace-observer.c": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+        "tests/fixtures/bun-process-observer.c": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+        "tests/fixtures/bun-process-pidfds.c": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+        "tests/fixtures/gh-review-checks.json": "81001f66051b252e5a49d73f125d3bcc24533205f2682e15b12ce7d4dea990d6",
+        "tests/fixtures/gh-review-thread-python.json": "c82947bb8597c413dca48d8ecb832dd16c93e1838c6a033bcfb7c76a7757c858",
+        "tests/fixtures/loopback-python.json": "67457a33c0bcd6484a22c700f4e5caafc20aa933144812213eae368e515edeb7",
+        "tests/fixtures/orca-send-python.json": "584600b3a89e5b8dba66f4772b690612e62e13f68a818478006378a228f5b890",
+        "tests/fixtures/orca-worker-readiness-python.json": "5e8a4d03d0c78a43dab1a22d78bf56c4862968d55bab9d19e755191fd43dc6c2",
+        "tests/fixtures/plugin-sessions-python.json": "7bb906b9c7d357ca85b1fd27260b22468380c615ba942c14869075817232d28b",
+        "tests/fixtures/plugin-smoke-python.json": "eb019ab18df4be7d41149b80dea076fa8a501f43a345fa6d32a60e7e32ab9bb3",
+        "tests/fixtures/product-guide-model.json": "454575c8ee02a60119d5f387971b6096e5c5ab65e3a594240fe4ee74dbf45431",
+        "tests/fixtures/quality-python.json": "a8e54fe7453aced765b1e9a0c21d580a7b1f011ee8fb8609bc211a20c9ce2b65",
+        "tests/fixtures/raw-codex/config.toml": "305b7c778dcaa7bbf15a4cadfeab1f8abe014ea8ba4095241e8ac5d81c1f515c",
+        "tests/fixtures/raw-codex/github-push.py": "b53946c944c30b7ac315d378f5393dbb24eab8d8c5575d70ee7f24333b5cdbcf",
+        "tests/fixtures/raw-codex/nixpkgs-revision": "52cad5a07f3c81459d12b35976c106adc7a978a6040dc444656f9427e61bb58e",
+        "tests/fixtures/secret-isolation/worktree-task.py": "77986f552d5734ca495a4bdd4cf97fa3596896fea2026fc5885cb8d3231738af",
+        "tests/fixtures/sprite-info-v0.0.1-rc48.txt": "4effa1363cca82c6e9940d1f8d0a5569b823c78c94c09704c21854ce9f7c8dc9",
+        "tests/helpers/codex-config-reader.py": "5ae8ccec771aa99978bf8f6cccae88f05deb21d03d52e62bb7afd5a3bd08dc45",
+        "tests/helpers/fake-raw-codex-app-server.py": "c000a0a32922d0bf2f0d17ccd87a71eb2f265b078b5744005247483f1ba6a418",
+        "tests/helpers/linux-namespace-fixture.ts": "e1c0420a817957cfed2250825dd0abff5bb0986a3706fa199fb203c5c3805154",
+        "tests/helpers/process-state.ts": "ad490150c0d250a03fb39b7b347709ac54093243e1a332caa2cac267a6ea1e69",
+        "tests/helpers/raw-codex-gateway-lifecycle.py": "5a534f523319c5ca5186d38581afabf0feee1f15d75b275781bb4680f4ddbde9",
+        "tests/helpers/raw-codex-handoff.py": "0ec5388930b2a6ec76db8da22dda4b531aa536b06e3f1a73452c485c8c485917",
+        "tests/helpers/raw-codex.bash": "39336cc8f653953f7bc6bec4d3ba394345e8d813607db8b8bd2d7d9a328b894e",
+        "tests/helpers/rop-typescript-evidence.test.ts": "c99f7adee987fdb94df65947aa8181e5c24821106f57888d361336a6aec026f0",
+        "tests/md-claude-review.bats": "231c3d2be5aec3b28d86a9a632c83846424b2baee69be93f57cf93f2ffa228e6",
+        "tests/raw-codex/devshell-env.bats": "d6a8cd1834572219f2071db6cdc8a48187afeb7b64e124a05484ab328dff02ca",
+        "tests/raw-codex/gateway-lifecycle.bats": "4525381552c701a71f965e81b8a09e06f1572350df837691d5eeb142c58d8698",
+        "tests/raw-codex/isolated-github.bats": "f3590914067cf2993368f4309aa2e460de149b0cf138768e1ec1bf353804c664",
+        "tests/raw-codex/raw-codex-handoff.bats": "f03529f558c94af0ea45d68a7e27300b67fa2f42a3a4efb8c5267afeb47f8212",
+        "tests/raw-codex/raw-codex-integration.bats": "0dca8965c2388d8518cb6648193f103b96fa7d6b3142d420b99fe400a6280e82",
+        "tests/raw-codex/raw-codex-services.bats": "85c0798a5237e53e748969154a9b739b33f4d6c5778d512f831d6dc44d22f334",
+        "tests/raw-codex/raw-managed-profile.bats": "8d966d643e1836f7b67405fa6b01c44e41453b6b7ea360e77d406f3cd109eae9",
+        "tests/raw-codex/secret-isolation-gateway.bats": "2b2e730fa2cd1af8caa97346c3da947aa9463eca9ae1b2f564d1f85562595467",
+        "tests/raw-codex/secret-isolation-worktree.bats": "8b56c0209b2d8e74adf35f291571d0fb618e9ae39bc27b3a00891a3a4577406d",
+        "tests/test_orca_sprites_pilot.py": "de3667462cd39084f8a19f3701500946a307e3c5aa9326e63371fe450f199067",
+        "tests/test_raw_codex_package.py": "ec8f8d851baed4513fc9e0500de7fe87a761b50addcbb7c243e96a29a41e38ff",
+        "tests/worktree-gc-fanout.bats": "b4c0d9a880e507fd1622c0c9b3c82a40863313093937bd472ee9e22bc7bfc935",
+        "tests/worktree-gc.bats": "1cd6a3c94e860cacc4a1c2ba388733cfb0f7ad1fcbdd34b21d47010bb257a746",
+        "tests/worktree_gc_test_helper.bash": "a4a9886bb1164c7e391dbbf201c4de6a9c4fee7293a4ac0bd82f4cbb5eee7aad"
+      },
+      "controllerHash": "49687e39a147cf04f4669f25a2fb8e1c43e9a839ce754cb1298565d52976b6d5",
+      "preflight": {
+        "verified": true,
+        "errors": [],
+        "platform": "linux",
+        "arch": "x64",
+        "kernel": "7.0.0-1014-aws",
+        "imageOS": "ubuntu24",
+        "imageVersion": "20261116.133.1",
+        "tools": {
+          "cc": {
+            "path": "/usr/bin/x86_64-linux-gnu-gcc-13",
+            "hash": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26",
+            "version": "x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+          },
+          "unshare": {
+            "path": "/usr/bin/unshare",
+            "hash": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c",
+            "version": "unshare from util-linux 2.39.3"
+          },
+          "systemd-run": {
+            "path": "/usr/bin/systemd-run",
+            "hash": "de28cc5757d3789efa5f6fed5659893410469f68b42175d4531f5b34d3a09e16",
+            "version": "systemd 255 (255.4-1ubuntu8.18)"
+          },
+          "nix": {
+            "path": "/nix/store/3km45gzvnpin7xddlm9gpj5fac4wvjvn-nix-2.34.6/bin/nix",
+            "hash": "8293bf7cf93ca9e75961b6acbc3be59830dbc9259b7fd7fbb18756c49d7340b7",
+            "version": "nix (Nix) 2.34.6"
+          },
+          "nix-build": {
+            "path": "/nix/store/3km45gzvnpin7xddlm9gpj5fac4wvjvn-nix-2.34.6/bin/nix",
+            "hash": "8293bf7cf93ca9e75961b6acbc3be59830dbc9259b7fd7fbb18756c49d7340b7",
+            "version": "nix (Nix) 2.34.6"
+          },
+          "nix-store": {
+            "path": "/nix/store/3km45gzvnpin7xddlm9gpj5fac4wvjvn-nix-2.34.6/bin/nix",
+            "hash": "8293bf7cf93ca9e75961b6acbc3be59830dbc9259b7fd7fbb18756c49d7340b7",
+            "version": "nix (Nix) 2.34.6"
+          },
+          "setpriv": {
+            "path": "/usr/bin/setpriv",
+            "hash": "62ec0120791f3afcfb689fed52384ec2b0accc6e118a6b9a1d6fcfa7450aaf37",
+            "version": "setpriv from util-linux 2.39.3"
+          },
+          "bun": {
+            "path": "/home/runner/.bun/bin/bun",
+            "hash": "10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235",
+            "version": "1.4.4"
+          },
+          "sudo": {
+            "path": "/usr/bin/sudo",
+            "hash": "6ae6665cc51295ea8aaba94a3377dafa563f950aafc6296c0704fb33401a31ff",
+            "version": "Sudo version 1.9.15p5"
+          },
+          "python3": {
+            "path": "/usr/bin/python3.12",
+            "hash": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f",
+            "version": "Python 3.12.3"
+          },
+          "git": {
+            "path": "/usr/bin/git",
+            "hash": "08ca4d2ee4d8915e86f1faaa52603752507c57af1d16d451dec9992bc9b6d801",
+            "version": "git version 2.56.1"
+          },
+          "bash": {
+            "path": "/usr/bin/bash",
+            "hash": "bc5945feb8bd26203ebfafea5ce1878bb2e32cb8fb50ab7ae395cfb1e1aaaef1",
+            "version": "GNU bash, version 5.2.21(1)-release (x86_64-pc-linux-gnu)"
+          }
+        },
+        "contexts": {
+          "/proc/self/status": {
+            "value": "Name:\tbun\nUmask:\t0022\nState:\tR (running)\nTgid:\t4166\nNgid:\t0\nPid:\t4166\nPPid:\t4165\nTracerPid:\t0\nUid:\t1001\t1001\t1001\t1001\nGid:\t1001\t1001\t1001\t1001\nFDSize:\t1024\nGroups:\t4 100 116 999 1001 \nNStgid:\t4166\nNSpid:\t4166\nNSpgid:\t1929\nNSsid:\t1929\nKthread:\t0\nVmPeak:\t10598328 kB\nVmSize:\t 6637092 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t  152408 kB\nVmRSS:\t  152408 kB\nRssAnon:\t  123276 kB\nRssFile:\t   29132 kB\nRssShmem:\t       0 kB\nVmData:\t 6332748 kB\nVmStk:\t     136 kB\nVmExe:\t   79832 kB\nVmLib:\t    2268 kB\nVmPTE:\t     560 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t12\nSigQ:\t0/55514\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000001001000\nSigCgt:\t00000001600004f8\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\tf\nCpus_allowed_list:\t0-3\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t124\nnonvoluntary_ctxt_switches:\t2\nx86_Thread_features:\t\nx86_Thread_features_locked:\t\n"
+          },
+          "/proc/self/uid_map": {
+            "value": "         0          0 4294967295\n"
+          },
+          "/proc/self/gid_map": {
+            "value": "         0          0 4294967295\n"
+          },
+          "/proc/self/attr/current": {
+            "value": "unconfined\n"
+          },
+          "/sys/kernel/security/lsm": {
+            "value": "lockdown,capability,landlock,yama,apparmor,ima,evm"
+          },
+          "/sys/module/apparmor/parameters/enabled": {
+            "value": "Y\n"
+          },
+          "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+            "value": "1\n"
+          },
+          "/proc/sys/kernel/unprivileged_userns_clone": {
+            "value": "1\n"
+          },
+          "/proc/sys/user/max_user_namespaces": {
+            "value": "55514\n"
+          }
+        },
+        "namespaces": {
+          "user": "user:[4026531837]",
+          "pid": "pid:[4026531836]",
+          "mnt": "mnt:[4026531832]"
+        },
+        "probe": {
+          "path": "/usr/bin/unshare",
+          "argv": [
+            "--user",
+            "--map-current-user",
+            "--pid",
+            "--fork",
+            "--kill-child=SIGKILL",
+            "--mount-proc",
+            "--",
+            "/usr/bin/true"
+          ],
+          "pid": 4214,
+          "startedAt": "2026-11-22T02:36:16.586Z",
+          "endedAt": "2026-11-22T02:36:16.589Z",
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outputTruncated": false,
+          "processObservation": {
+            "status": "process-exited-before-sample",
+            "pid": 4214,
+            "startTicks": "36839"
+          },
+          "audit": {
+            "reader": {
+              "path": "/usr/bin/journalctl",
+              "hash": "0b08431236d5c8249b42994c00b401b3c093dee837e0465a53658057820d05b7",
+              "version": {
+                "status": "recorded",
+                "argv": [
+                  "--version"
+                ],
+                "value": "systemd 255 (255.4-1ubuntu8.18)"
+              }
+            },
+            "window": {
+              "since": "2026-11-22T02:36:15.586Z",
+              "until": "2026-11-22T02:36:17.589Z"
+            },
+            "command": {
+              "path": "/usr/bin/sudo",
+              "argv": [
+                "-n",
+                "--",
+                "/usr/bin/journalctl",
+                "--dmesg",
+                "--since",
+                "2026-11-22T02:36:15.586Z",
+                "--until",
+                "2026-11-22T02:36:17.589Z",
+                "--grep=(^|[^[:alnum:]_])pid=4214([^[:alnum:]_]|$)",
+                "--output=json",
+                "--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE",
+                "--no-pager",
+                "--lines=101"
+              ]
+            },
+            "status": "matched",
+            "readStatus": "matched",
+            "recordCount": 1,
+            "events": [
+              {
+                "timestamp": "2026-11-22T02:36:16.589Z",
+                "messagePid": 4214,
+                "message": "audit: type=1400 audit(1795314976.585:130): apparmor=\"AUDIT\" operation=\"userns_create\" class=\"namespace\" info=\"Userns create - transitioning profile\" profile=\"unconfined\" pid=4214 comm=\"unshare\" requested=\"userns_create\" target=\"unprivileged_userns\" execpath=\"/usr/bin/unshare\"",
+                "messageTruncated": false
+              }
+            ]
+          }
+        },
+        "containment": "cgroup",
+        "session": {
+          "XDG_RUNTIME_DIR": "/run/user/1001",
+          "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1001/bus",
+          "bus": true,
+          "linger": {
+            "status": 0,
+            "signal": null,
+            "stdout": "yes\n",
+            "stderr": ""
+          },
+          "userManager": {
+            "status": 0,
+            "signal": null,
+            "stdout": "active\n",
+            "stderr": ""
+          }
+        },
+        "environment": {
+          "PATH": "/home/runner/.bun/bin:/home/runner/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+          "HOME": "/home/runner",
+          "NIX_REMOTE": "daemon",
+          "PROCESS_PROOF_NIX_BASH": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+          "PROCESS_PROOF_NIX_STDENV": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
+          "PROCESS_PROOF_GROUP_FILE": "/home/runner/work/_temp/group-proof.EUMOuK/data",
+          "PROCESS_PROOF_GROUP_GID": "30001"
+        },
+        "uid": 1001,
+        "euid": 1001,
+        "gid": 1001,
+        "groups": [
+          4,
+          100,
+          116,
+          999,
+          1001
+        ],
+        "bun": "1.4.4",
+        "nix": {
+          "mode": "multi-user",
+          "remote": "daemon",
+          "sandbox": true,
+          "buildUsersGroup": "nixbld",
+          "daemon": {
+            "status": 0,
+            "signal": null,
+            "stdout": "{\"trusted\":false,\"url\":\"daemon\",\"version\":\"2.34.6\"}\n",
+            "stderr": "warning: 'ping' is a deprecated alias for 'info'\nwarning: ignoring the client-specified setting 'store', because it is a restricted setting and you are not a trusted user\n"
+          },
+          "bash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+          "stdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux"
+        },
+        "group": {
+          "path": "/home/runner/work/_temp/group-proof.EUMOuK/data",
+          "ownerUid": 0,
+          "gid": 30001,
+          "mode": 48,
+          "dev": "64512",
+          "ino": "1069430"
+        }
+      },
+      "sourcesAfter": {
+        "development/linux-process-proof-cases.json": "2115f90b7ed62b8758f411ceabc790d10b2cbbaf2c6906b3820eac7766c61975",
+        "lib/bun/bunfig.toml": "64685d48c66b066850d1a78ab41c170ea217e84acf8aaa4f6fe6b7349648c070",
+        "lib/bun/cli-path.ts": "f058948b035092a728bcd8a57bf2c2fa53f8333106fc523f6283b8d84bf13db0",
+        "lib/bun/coordination-json.ts": "32454d49fc3ceb63b6e39d4cdc7b8e6de98f9f334c545f411708e026634c3e0f",
+        "lib/bun/gh-review-thread.ts": "a89a07053bc6c42c3ed8706f46c6a7e5f6f16e41953c75d51b36f02f2920ee12",
+        "lib/bun/orca-send.ts": "5836b9e1a4dfcc35017eb73aed609abfa44bb62f596814305a63d9820d2152a2",
+        "lib/bun/orca-worker-readiness.ts": "a6a1258a2b7cd4432c6a025ffcf2d3120e7db31aacb2b869d82377c30eb4c818",
+        "lib/bun/run": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+        "lib/bun/serve-local.ts": "d766a03b278c3547e8d4eec69ae228c9a1e3fcacc2d5a3d43a4a416da0bbcd8b",
+        "lib/bun/strict-json.ts": "4d14a1305ae707c30a36d9acab9627a09105b479db85349bbe4ade9de33870d0",
+        "lib/bun/tsconfig.json": "66e3b8f1d08faaa895715154da26f2698c0af9dddb8c43ae2b382e16ef5e3fe1",
+        "lib/bun/vendor/casefold.LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+        "lib/bun/vendor/casefold.json": "233bb4581cca5ac020ee75fff73ad4e5792f9166e940318fbfdf4d969192c430",
+        "lib/bun/vendor/decimal.LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+        "lib/bun/vendor/decimal.json": "10a08b669b4aaf0c3969143d7f88bc3888e55212e4bffc751c1b8b1da71699e8",
+        "lib/python/treflebonbon_skills/__init__.py": "4c931ca391290d71a01aade9e3f3b249b7afc5b5143fdddf27dbeca9e5bfcfe1",
+        "lib/python/treflebonbon_skills/codex_reviewer.py": "84a40d9499cca63e78dbf5f1a3af50c2f91c6919eef0ab15dbcde8ecb402a775",
+        "lib/python/treflebonbon_skills/devshell_environment.py": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+        "lib/python/treflebonbon_skills/git_context.py": "986e2a6143cc467e760b7e931c93d3ab9126a6eda214192a372736502491de43",
+        "tests/bun/browser-fixtures.test.ts": "1dcf5e054b91382ec3ba11b580908cb8f7b7e442a02ef04bd378282d095cc92a",
+        "tests/bun/coordination-json.test.ts": "ee1feb00605a286488799eb28cb0b08cfafc5fd301d92597fdfe2e56484c7b04",
+        "tests/bun/gh-review-thread.test.ts": "b8a06c8b224403b5a9bd7dec68afa3b667cae5024d46c9bc4e2c4195e8a080d3",
+        "tests/bun/linux-process-proof.test.ts": "7555af16e652fb5273056e4ef9b55cffb875da1ef00534092c9a5cf3b2ef5bc2",
+        "tests/bun/namespace.test.ts": "05463a0aaec31a84bb135ce161f90536907a2b20f4b7a8a25197f5d2ded7b8c8",
+        "tests/bun/nix-runtime.test.ts": "34a4cfd555a66ec2561a2ffe9b72164b0a264f30cfd416298b4b12299f3f37db",
+        "tests/bun/orca-send.test.ts": "a4cd2b013cffd6c1f950b107054f5d767c779fda43908cf7dabf92ce88f7b58f",
+        "tests/bun/orca-worker-readiness.test.ts": "9385103a94aacbfb55567b6fe66b63f7332f0be83d25fc8e718d6ff497a73aba",
+        "tests/bun/package-contract-fixtures.test.ts": "55ce9779a5b29931377409dc8ce1883ce68ef0d4e92f7bacc9580c3a28fa7896",
+        "tests/bun/package-contract.test.ts": "6f1d71ff8a61540542e9091109d8caca1bc96eadfcc2b43f90552d2948f19570",
+        "tests/bun/plugin-session-process.test.ts": "8e22988b2e05d7b0cc2b2117603ded5b7428a19fcb1f3d77ac8a3533e91aa106",
+        "tests/bun/plugin-sessions.test.ts": "bd3dc1f65e88c9a83326393ca597eaa83cf3efe895e6889c606d08b248d0b602",
+        "tests/bun/plugin-smoke.test.ts": "52395afd52b12e6d071b9012b9ab4d51b22a5345c08bd8d713a52b97e518f83a",
+        "tests/bun/process-lock.test.ts": "53cfe60dc6f182c58ea674f1a5d870407c5e803249c6748411a7b9bd530af0f1",
+        "tests/bun/process-namespace.test.ts": "c35ed42b65d101cbedfc4a7a029fda50f1680392239e75137f41735d9393f9c2",
+        "tests/bun/process-state.test.ts": "c976d6585d48d72ba16f9a2b86204458f0b3aea176b30e2c578337991e7c1583",
+        "tests/bun/product-guide-collect.test.ts": "74bf12436dedb74bf6c2be4f6fee10b26672a95358a2cdc6b2258612950a7497",
+        "tests/bun/product-guide.test.ts": "cadf289d302b8250e7f5cb1a64822bf776851b83fb39f15bdf504fe41789488f",
+        "tests/bun/public-skills.test.ts": "ca2d6908974c5b5549caa62100a14f09ceb14d1dd56fac944ccf9060051ad92f",
+        "tests/bun/serve-local.test.ts": "eb0f112487855270a35270f0eb8b22c536d51a49132bea102dd5a4381807af24",
+        "tests/cli/__init__.py": "e579565af1f3a040cb9f5b582b8b9c7ec0160875699575a89dd88dff78b0a7da",
+        "tests/cli/fixtures/fake-gh": "11c7097dce8d601ce0ccf22a11ea735365c7a8f08add93a9d52c619cbbc50e2a",
+        "tests/cli/gh-review-thread.bats": "cfe8622ec7a14f7b811dfa05d6c6af5c83a70d2ce8338d68dc8a0deda3ec4438",
+        "tests/cli/git-push-topic.bats": "84757f6f502a70ea8ab99816e23c84cf2b794e3922d171ef1060f79df3e76f2e",
+        "tests/cli/orca-send.bats": "c7d9b7af5ac9d9867b4dbf4fbeb5176557e9ddf3e3753fb48b30fe768e0706f8",
+        "tests/cli/orca-worker-readiness.bats": "786133e813de0fa25ff021ddcfc1fd9f1aa6d58e69878791547e1c01601eccf1",
+        "tests/cli/test_codex_reviewer.py": "6dac260cd18be60d95975ceb6d8de64a77ffcf74d69d7fd5524740201fa695a1",
+        "tests/cli/test_docstring_report.py": "d2d458826cad44d2a4a0f4b79c0ad3e0b3de7d18ab75c65a39d04ace50774d14",
+        "tests/cli/test_git_context.py": "8124e67cd62b663a8edca433f93d4fd3cfeb8dd5af7f2928f01d3f2df518e134",
+        "tests/cli/test_python_launcher_payload_immutability.py": "a1a356713a676f9cf53b1dc3c5e68938255cb390264fa942db31e407bb635d08",
+        "tests/domain-modeling-studio.bats": "6bdf1d0c3f21e413c54eafa99385f84b17f6aeea915579068804c9c1981ac7e2",
+        "tests/fixtures/bun-exec-delayed-group.c": "dba438e31a8832c6b789371259fb2cc5bfd13eb093124be584c8cc8967905a88",
+        "tests/fixtures/bun-exec-entry.sh": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+        "tests/fixtures/bun-exec-launcher.c": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+        "tests/fixtures/bun-exec-namespace-delay.c": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+        "tests/fixtures/bun-exec-pid-namespace.c": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+        "tests/fixtures/bun-exec-prepare.ts": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+        "tests/fixtures/bun-exec-python.json": "b827d223fda4840af27ea9e23b3c393e89db62bf3e8b88db1b5020f2a7f0e6a2",
+        "tests/fixtures/bun-namespace.ts": "cafd9ba5bf74f554770614210762d326ba77540dad1ec1dfddc12e43995edcde",
+        "tests/fixtures/bun-nix-runtime.ts": "80426763914822d369de60b344cf83119d7c27717b61aa0bc72bd5b9849f3949",
+        "tests/fixtures/bun-process-lock-python.json": "2c1b105a39ccf0836c8aef8d9c3617e640f368af0c766af85278af2c711d4125",
+        "tests/fixtures/bun-process-lock.ts": "3df970a569ff09116e0c25c908317c6a193e0e404dcad95d4588cd2cf9052916",
+        "tests/fixtures/bun-process-namespace-observer.c": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+        "tests/fixtures/bun-process-observer.c": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+        "tests/fixtures/bun-process-pidfds.c": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+        "tests/fixtures/gh-review-checks.json": "81001f66051b252e5a49d73f125d3bcc24533205f2682e15b12ce7d4dea990d6",
+        "tests/fixtures/gh-review-thread-python.json": "c82947bb8597c413dca48d8ecb832dd16c93e1838c6a033bcfb7c76a7757c858",
+        "tests/fixtures/loopback-python.json": "67457a33c0bcd6484a22c700f4e5caafc20aa933144812213eae368e515edeb7",
+        "tests/fixtures/orca-send-python.json": "584600b3a89e5b8dba66f4772b690612e62e13f68a818478006378a228f5b890",
+        "tests/fixtures/orca-worker-readiness-python.json": "5e8a4d03d0c78a43dab1a22d78bf56c4862968d55bab9d19e755191fd43dc6c2",
+        "tests/fixtures/plugin-sessions-python.json": "7bb906b9c7d357ca85b1fd27260b22468380c615ba942c14869075817232d28b",
+        "tests/fixtures/plugin-smoke-python.json": "eb019ab18df4be7d41149b80dea076fa8a501f43a345fa6d32a60e7e32ab9bb3",
+        "tests/fixtures/product-guide-model.json": "454575c8ee02a60119d5f387971b6096e5c5ab65e3a594240fe4ee74dbf45431",
+        "tests/fixtures/quality-python.json": "a8e54fe7453aced765b1e9a0c21d580a7b1f011ee8fb8609bc211a20c9ce2b65",
+        "tests/fixtures/raw-codex/config.toml": "305b7c778dcaa7bbf15a4cadfeab1f8abe014ea8ba4095241e8ac5d81c1f515c",
+        "tests/fixtures/raw-codex/github-push.py": "b53946c944c30b7ac315d378f5393dbb24eab8d8c5575d70ee7f24333b5cdbcf",
+        "tests/fixtures/raw-codex/nixpkgs-revision": "52cad5a07f3c81459d12b35976c106adc7a978a6040dc444656f9427e61bb58e",
+        "tests/fixtures/secret-isolation/worktree-task.py": "77986f552d5734ca495a4bdd4cf97fa3596896fea2026fc5885cb8d3231738af",
+        "tests/fixtures/sprite-info-v0.0.1-rc48.txt": "4effa1363cca82c6e9940d1f8d0a5569b823c78c94c09704c21854ce9f7c8dc9",
+        "tests/helpers/codex-config-reader.py": "5ae8ccec771aa99978bf8f6cccae88f05deb21d03d52e62bb7afd5a3bd08dc45",
+        "tests/helpers/fake-raw-codex-app-server.py": "c000a0a32922d0bf2f0d17ccd87a71eb2f265b078b5744005247483f1ba6a418",
+        "tests/helpers/linux-namespace-fixture.ts": "e1c0420a817957cfed2250825dd0abff5bb0986a3706fa199fb203c5c3805154",
+        "tests/helpers/process-state.ts": "ad490150c0d250a03fb39b7b347709ac54093243e1a332caa2cac267a6ea1e69",
+        "tests/helpers/raw-codex-gateway-lifecycle.py": "5a534f523319c5ca5186d38581afabf0feee1f15d75b275781bb4680f4ddbde9",
+        "tests/helpers/raw-codex-handoff.py": "0ec5388930b2a6ec76db8da22dda4b531aa536b06e3f1a73452c485c8c485917",
+        "tests/helpers/raw-codex.bash": "39336cc8f653953f7bc6bec4d3ba394345e8d813607db8b8bd2d7d9a328b894e",
+        "tests/helpers/rop-typescript-evidence.test.ts": "c99f7adee987fdb94df65947aa8181e5c24821106f57888d361336a6aec026f0",
+        "tests/md-claude-review.bats": "231c3d2be5aec3b28d86a9a632c83846424b2baee69be93f57cf93f2ffa228e6",
+        "tests/raw-codex/devshell-env.bats": "d6a8cd1834572219f2071db6cdc8a48187afeb7b64e124a05484ab328dff02ca",
+        "tests/raw-codex/gateway-lifecycle.bats": "4525381552c701a71f965e81b8a09e06f1572350df837691d5eeb142c58d8698",
+        "tests/raw-codex/isolated-github.bats": "f3590914067cf2993368f4309aa2e460de149b0cf138768e1ec1bf353804c664",
+        "tests/raw-codex/raw-codex-handoff.bats": "f03529f558c94af0ea45d68a7e27300b67fa2f42a3a4efb8c5267afeb47f8212",
+        "tests/raw-codex/raw-codex-integration.bats": "0dca8965c2388d8518cb6648193f103b96fa7d6b3142d420b99fe400a6280e82",
+        "tests/raw-codex/raw-codex-services.bats": "85c0798a5237e53e748969154a9b739b33f4d6c5778d512f831d6dc44d22f334",
+        "tests/raw-codex/raw-managed-profile.bats": "8d966d643e1836f7b67405fa6b01c44e41453b6b7ea360e77d406f3cd109eae9",
+        "tests/raw-codex/secret-isolation-gateway.bats": "2b2e730fa2cd1af8caa97346c3da947aa9463eca9ae1b2f564d1f85562595467",
+        "tests/raw-codex/secret-isolation-worktree.bats": "8b56c0209b2d8e74adf35f291571d0fb618e9ae39bc27b3a00891a3a4577406d",
+        "tests/test_orca_sprites_pilot.py": "de3667462cd39084f8a19f3701500946a307e3c5aa9326e63371fe450f199067",
+        "tests/test_raw_codex_package.py": "ec8f8d851baed4513fc9e0500de7fe87a761b50addcbb7c243e96a29a41e38ff",
+        "tests/worktree-gc-fanout.bats": "b4c0d9a880e507fd1622c0c9b3c82a40863313093937bd472ee9e22bc7bfc935",
+        "tests/worktree-gc.bats": "1cd6a3c94e860cacc4a1c2ba388733cfb0f7ad1fcbdd34b21d47010bb257a746",
+        "tests/worktree_gc_test_helper.bash": "a4a9886bb1164c7e391dbbf201c4de6a9c4fee7293a4ac0bd82f4cbb5eee7aad"
+      },
+      "callerAfter": {
+        "status": {
+          "value": "Name:\tbun\nUmask:\t0022\nState:\tR (running)\nTgid:\t4166\nNgid:\t0\nPid:\t4166\nPPid:\t4165\nTracerPid:\t0\nUid:\t1001\t1001\t1001\t1001\nGid:\t1001\t1001\t1001\t1001\nFDSize:\t1024\nGroups:\t4 100 116 999 1001 \nNStgid:\t4166\nNSpid:\t4166\nNSpgid:\t1929\nNSsid:\t1929\nKthread:\t0\nVmPeak:\t10598328 kB\nVmSize:\t 6637092 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t  154128 kB\nVmRSS:\t   49828 kB\nRssAnon:\t   18328 kB\nRssFile:\t   31500 kB\nRssShmem:\t       0 kB\nVmData:\t 6332748 kB\nVmStk:\t     136 kB\nVmExe:\t   79832 kB\nVmLib:\t    2268 kB\nVmPTE:\t     368 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t8\nSigQ:\t0/55514\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000001001000\nSigCgt:\t00000001600004f8\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\tf\nCpus_allowed_list:\t0-3\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t298\nnonvoluntary_ctxt_switches:\t5\nx86_Thread_features:\t\nx86_Thread_features_locked:\t\n"
+        },
+        "uidMap": {
+          "value": "         0          0 4294967295\n"
+        },
+        "gidMap": {
+          "value": "         0          0 4294967295\n"
+        },
+        "namespaces": {
+          "user": "user:[4026531837]",
+          "pid": "pid:[4026531836]",
+          "mnt": "mnt:[4026531832]"
+        }
+      }
+    },
+    {
+      "schema": "linux-process-proof-job/v1",
+      "arch": "arm64",
+      "trials": [
+        {
+          "repetition": 1,
+          "exitCode": 0,
+          "counts": {
+            "pass": 45,
+            "fail": 0,
+            "skip": 0,
+            "todo": 0
+          },
+          "cases": [
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-group の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-group の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-session の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-session の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-ignored の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-ignored の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-before-ready-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-before-ready-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-complete-hang-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-complete-hang-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "launcher の process group 全体への SIGKILL でも全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の systemd-run-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の systemd-run-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-after で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-after で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-after で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-after で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の prepare-exec-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の prepare-exec-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "watchdog を無効にした対照では launcher の SIGKILL 後に離脱子孫の残存を検出する"
+            },
+            {
+              "status": "pass",
+              "name": "子孫が cgroup の移動で準備用 cgroup から抜け出せるかを観測する"
+            },
+            {
+              "status": "pass",
+              "name": "user manager に届かない環境では準備を始めずに拒否し、環境を戻した同じ実行体は動く"
+            },
+            {
+              "status": "pass",
+              "name": "旧 Python corpus の PID・FD・signal・argv・env 契約を候補でも満たす"
+            },
+            {
+              "status": "pass",
+              "name": "旧 corpus の exec 拒否を候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "正常な準備には5秒上限を設けず、5.2秒後に同じ launcher PID で target を実行する"
+            },
+            {
+              "status": "pass",
+              "name": "準備失敗・不正 frame・完了 frame 後の非ゼロ終了では target を実行しない"
+            },
+            {
+              "status": "pass",
+              "name": "wrapper 入力の ARG_MAX で旧方式の受理範囲を独立対照と比較する"
+            },
+            {
+              "status": "pass",
+              "name": "元 launcher の frame 上限の直前は通り、上限では候補も同じ診断で拒否する"
+            },
+            {
+              "status": "pass",
+              "name": "準備子の UID/GID/groups と proc PID は対照に一致する"
+            },
+            {
+              "status": "pass",
+              "name": "補助 group だけで許可される読み書きを候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "補助 group 非所属時の読み書き拒否を候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の input で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の interrupt で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の terminate で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の timeout で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の準備中の SIGTERM でも離脱子孫を終了し target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の準備中の SIGKILL でも離脱子孫を終了し target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "実 Nix・shellHook を現行 prepare_environment caller から実行し候補と比較する"
+            }
+          ],
+          "observation": {
+            "boundary": "process-namespace",
+            "platform": "linux",
+            "kernel": "7.0.0-1017-azure",
+            "arch": "arm64",
+            "bun": "1.4.4",
+            "build": {
+              "unshare": "/usr/bin/unshare",
+              "unshareHash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+              "version": "unshare from util-linux 2.39.3",
+              "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+              "launcherSourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+              "observerSourceHash": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+              "entrySourceHash": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+              "preparationSourceHash": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+              "runnerSourceHash": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+              "systemdRun": "/usr/bin/systemd-run",
+              "corpusRevision": "f8598e7c516f8a64fec04596207f0907d0407132",
+              "builds": [
+                {
+                  "source": "bun-process-namespace-observer.c",
+                  "variant": "observer",
+                  "sourceHash": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+                  "binaryHash": "9b085fd5161b637f11a5ce81675d17442651dbc413fad19963a3d73c2503a370"
+                },
+                {
+                  "source": "bun-process-pidfds.c",
+                  "variant": "pidfds",
+                  "sourceHash": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+                  "binaryHash": "ac240b9e392ceb2a4bc5f32e92272989d52d25869c687011276761863fbae437"
+                },
+                {
+                  "source": "bun-exec-launcher.c",
+                  "variant": "baseline",
+                  "sourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+                  "binaryHash": "2d85521cd9a85eba20837c4bb9a13421c7814a67bcdb283b150172a4c16cb60f"
+                },
+                {
+                  "source": "bun-exec-pid-namespace.c",
+                  "variant": "launcher",
+                  "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+                  "binaryHash": "5be15422e89844720fadb2e0b6c6334746557a30d946848aae91ce1b0edaa7f2"
+                },
+                {
+                  "source": "bun-exec-pid-namespace.c",
+                  "variant": "without-proc",
+                  "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+                  "binaryHash": "efd3d5488d5ffc0eb0ce24ddfc3915d65e9c3efc86d519528b4d212636f9addb"
+                },
+                {
+                  "source": "bun-exec-namespace-delay.c",
+                  "variant": "delay.so",
+                  "sourceHash": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+                  "binaryHash": "d379a141c6bb8c3b1003b526bcb25d9314f9d79cfb88ded0d7fcf50b8b3f0705"
+                }
+              ]
+            },
+            "containment": "cgroup",
+            "records": [
+              {
+                "cgroupEscape": {
+                  "scope": "/user.slice/user-1001.slice/user@1001.service/app.slice/run-r6539052757f34deda546e70348b4315b.scope",
+                  "escapee": {
+                    "pid": 4671,
+                    "own": "0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-r6539052757f34deda546e70348b4315b.scope",
+                    "moved": "0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-r539b16e61fa0497bb43d2636001e9b87.scope"
+                  },
+                  "leftScope": true,
+                  "survivedLauncherKill": false,
+                  "countedInVerdict": false
+                }
+              },
+              {
+                "refusal": {
+                  "status": 69,
+                  "stderr": "Failed to connect to bus: No medium found\nlauncher: containment unavailable\n",
+                  "allowed": 37
+                }
+              },
+              {
+                "realCaller": {
+                  "nixStdenv": "/nix/store/33x3cyc63b5v4wwavz2hlxj60rzh6fq2-stdenv-linux",
+                  "nixBash": "/nix/store/wgxz9zr5a70v52nkqinbarf56f1c5jsi-bash-interactive-5.3p15",
+                  "nixVersion": "nix (Nix) 2.34.6",
+                  "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+                  "flakeHash": "41f012ad4d778ee30602fd30d67c4a40daa7bf961e0d1dbe5210fb3b9f10085b",
+                  "bashHash": "8595a7265bb975ac465ccc0b5d53e8ffa93356683de7c4230335903ed9dd9433",
+                  "observations": [
+                    {
+                      "binary": "baseline",
+                      "status": 37,
+                      "stderr": "devshell-env: ready; /home/runner/work/_temp/linux-proof/temporary-1-Vai8kA/bun-process-namespace-tCkpm6/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":5321,\"ppid\":4253,\"uid\":1001,\"euid\":1001,\"gid\":1001,\"egid\":1001,\"groups\":[4,100,117,999,1001],\"procSelf\":\"5321\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                    },
+                    {
+                      "binary": "candidate",
+                      "status": 37,
+                      "stderr": "devshell-env: ready; /home/runner/work/_temp/linux-proof/temporary-1-Vai8kA/bun-process-namespace-tCkpm6/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":5501,\"ppid\":4253,\"uid\":1001,\"euid\":1001,\"gid\":1001,\"egid\":1001,\"groups\":[4,100,117,999,1001],\"procSelf\":\"5501\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                    }
+                  ]
+                }
+              }
+            ],
+            "verification": "see-test-results",
+            "realCallerRequested": true,
+            "adoption": "not-decided",
+            "macos": "held",
+            "issue33": "open",
+            "issue82": "blocked-by-33",
+            "recordsOmitted": 42
+          }
+        },
+        {
+          "repetition": 2,
+          "exitCode": 0,
+          "counts": {
+            "pass": 45,
+            "fail": 0,
+            "skip": 0,
+            "todo": 0
+          },
+          "cases": [
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-group の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-group の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-session の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-session の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-ignored の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-ignored の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-before-ready-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-before-ready-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-complete-hang-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-complete-hang-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "launcher の process group 全体への SIGKILL でも全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の systemd-run-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の systemd-run-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-after で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-after で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-after で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-after で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の prepare-exec-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の prepare-exec-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "watchdog を無効にした対照では launcher の SIGKILL 後に離脱子孫の残存を検出する"
+            },
+            {
+              "status": "pass",
+              "name": "子孫が cgroup の移動で準備用 cgroup から抜け出せるかを観測する"
+            },
+            {
+              "status": "pass",
+              "name": "user manager に届かない環境では準備を始めずに拒否し、環境を戻した同じ実行体は動く"
+            },
+            {
+              "status": "pass",
+              "name": "旧 Python corpus の PID・FD・signal・argv・env 契約を候補でも満たす"
+            },
+            {
+              "status": "pass",
+              "name": "旧 corpus の exec 拒否を候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "正常な準備には5秒上限を設けず、5.2秒後に同じ launcher PID で target を実行する"
+            },
+            {
+              "status": "pass",
+              "name": "準備失敗・不正 frame・完了 frame 後の非ゼロ終了では target を実行しない"
+            },
+            {
+              "status": "pass",
+              "name": "wrapper 入力の ARG_MAX で旧方式の受理範囲を独立対照と比較する"
+            },
+            {
+              "status": "pass",
+              "name": "元 launcher の frame 上限の直前は通り、上限では候補も同じ診断で拒否する"
+            },
+            {
+              "status": "pass",
+              "name": "準備子の UID/GID/groups と proc PID は対照に一致する"
+            },
+            {
+              "status": "pass",
+              "name": "補助 group だけで許可される読み書きを候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "補助 group 非所属時の読み書き拒否を候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の input で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の interrupt で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の terminate で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の timeout で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の準備中の SIGTERM でも離脱子孫を終了し target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の準備中の SIGKILL でも離脱子孫を終了し target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "実 Nix・shellHook を現行 prepare_environment caller から実行し候補と比較する"
+            }
+          ],
+          "observation": {
+            "boundary": "process-namespace",
+            "platform": "linux",
+            "kernel": "7.0.0-1017-azure",
+            "arch": "arm64",
+            "bun": "1.4.4",
+            "build": {
+              "unshare": "/usr/bin/unshare",
+              "unshareHash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+              "version": "unshare from util-linux 2.39.3",
+              "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+              "launcherSourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+              "observerSourceHash": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+              "entrySourceHash": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+              "preparationSourceHash": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+              "runnerSourceHash": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+              "systemdRun": "/usr/bin/systemd-run",
+              "corpusRevision": "f8598e7c516f8a64fec04596207f0907d0407132",
+              "builds": [
+                {
+                  "source": "bun-process-namespace-observer.c",
+                  "variant": "observer",
+                  "sourceHash": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+                  "binaryHash": "9b085fd5161b637f11a5ce81675d17442651dbc413fad19963a3d73c2503a370"
+                },
+                {
+                  "source": "bun-process-pidfds.c",
+                  "variant": "pidfds",
+                  "sourceHash": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+                  "binaryHash": "ac240b9e392ceb2a4bc5f32e92272989d52d25869c687011276761863fbae437"
+                },
+                {
+                  "source": "bun-exec-launcher.c",
+                  "variant": "baseline",
+                  "sourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+                  "binaryHash": "2d85521cd9a85eba20837c4bb9a13421c7814a67bcdb283b150172a4c16cb60f"
+                },
+                {
+                  "source": "bun-exec-pid-namespace.c",
+                  "variant": "launcher",
+                  "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+                  "binaryHash": "5be15422e89844720fadb2e0b6c6334746557a30d946848aae91ce1b0edaa7f2"
+                },
+                {
+                  "source": "bun-exec-pid-namespace.c",
+                  "variant": "without-proc",
+                  "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+                  "binaryHash": "efd3d5488d5ffc0eb0ce24ddfc3915d65e9c3efc86d519528b4d212636f9addb"
+                },
+                {
+                  "source": "bun-exec-namespace-delay.c",
+                  "variant": "delay.so",
+                  "sourceHash": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+                  "binaryHash": "b89e8933bb6e2acdc8fada1952b3195fb1fc629061aa56d89fd589bfa1614d1e"
+                }
+              ]
+            },
+            "containment": "cgroup",
+            "records": [
+              {
+                "cgroupEscape": {
+                  "scope": "/user.slice/user-1001.slice/user@1001.service/app.slice/run-r501439039deb4b7eacad66cdb2dd0ab7.scope",
+                  "escapee": {
+                    "pid": 5963,
+                    "own": "0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-r501439039deb4b7eacad66cdb2dd0ab7.scope",
+                    "moved": "0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-r8f9d329a6411451f8092984afacbbce7.scope"
+                  },
+                  "leftScope": true,
+                  "survivedLauncherKill": false,
+                  "countedInVerdict": false
+                }
+              },
+              {
+                "refusal": {
+                  "status": 69,
+                  "stderr": "Failed to connect to bus: No medium found\nlauncher: containment unavailable\n",
+                  "allowed": 37
+                }
+              },
+              {
+                "realCaller": {
+                  "nixStdenv": "/nix/store/33x3cyc63b5v4wwavz2hlxj60rzh6fq2-stdenv-linux",
+                  "nixBash": "/nix/store/wgxz9zr5a70v52nkqinbarf56f1c5jsi-bash-interactive-5.3p15",
+                  "nixVersion": "nix (Nix) 2.34.6",
+                  "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+                  "flakeHash": "41f012ad4d778ee30602fd30d67c4a40daa7bf961e0d1dbe5210fb3b9f10085b",
+                  "bashHash": "8595a7265bb975ac465ccc0b5d53e8ffa93356683de7c4230335903ed9dd9433",
+                  "observations": [
+                    {
+                      "binary": "baseline",
+                      "status": 37,
+                      "stderr": "devshell-env: ready; /home/runner/work/_temp/linux-proof/temporary-2-yGxrkZ/bun-process-namespace-W3RuHq/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":6591,\"ppid\":5543,\"uid\":1001,\"euid\":1001,\"gid\":1001,\"egid\":1001,\"groups\":[4,100,117,999,1001],\"procSelf\":\"6591\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                    },
+                    {
+                      "binary": "candidate",
+                      "status": 37,
+                      "stderr": "devshell-env: ready; /home/runner/work/_temp/linux-proof/temporary-2-yGxrkZ/bun-process-namespace-W3RuHq/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":6622,\"ppid\":5543,\"uid\":1001,\"euid\":1001,\"gid\":1001,\"egid\":1001,\"groups\":[4,100,117,999,1001],\"procSelf\":\"6622\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                    }
+                  ]
+                }
+              }
+            ],
+            "verification": "see-test-results",
+            "realCallerRequested": true,
+            "adoption": "not-decided",
+            "macos": "held",
+            "issue33": "open",
+            "issue82": "blocked-by-33",
+            "recordsOmitted": 42
+          }
+        },
+        {
+          "repetition": 3,
+          "exitCode": 0,
+          "counts": {
+            "pass": 45,
+            "fail": 0,
+            "skip": 0,
+            "todo": 0
+          },
+          "cases": [
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-group の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-group の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-session の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-detached-session の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-ignored の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-stubborn-ignored の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-before-ready-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-before-ready-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-complete-hang-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "選ばれた方式は prep-complete-hang-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "launcher の process group 全体への SIGKILL でも全所有子孫を5秒以内に終了する"
+            },
+            {
+              "status": "pass",
+              "name": "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の systemd-run-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の systemd-run-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-after で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の scope-after で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-after で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の watchdog-after で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の prepare-exec-before で SIGTERM を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "cgroup 経路の prepare-exec-before で SIGKILL を受けても準備子を残さない"
+            },
+            {
+              "status": "pass",
+              "name": "watchdog を無効にした対照では launcher の SIGKILL 後に離脱子孫の残存を検出する"
+            },
+            {
+              "status": "pass",
+              "name": "子孫が cgroup の移動で準備用 cgroup から抜け出せるかを観測する"
+            },
+            {
+              "status": "pass",
+              "name": "user manager に届かない環境では準備を始めずに拒否し、環境を戻した同じ実行体は動く"
+            },
+            {
+              "status": "pass",
+              "name": "旧 Python corpus の PID・FD・signal・argv・env 契約を候補でも満たす"
+            },
+            {
+              "status": "pass",
+              "name": "旧 corpus の exec 拒否を候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "正常な準備には5秒上限を設けず、5.2秒後に同じ launcher PID で target を実行する"
+            },
+            {
+              "status": "pass",
+              "name": "準備失敗・不正 frame・完了 frame 後の非ゼロ終了では target を実行しない"
+            },
+            {
+              "status": "pass",
+              "name": "wrapper 入力の ARG_MAX で旧方式の受理範囲を独立対照と比較する"
+            },
+            {
+              "status": "pass",
+              "name": "元 launcher の frame 上限の直前は通り、上限では候補も同じ診断で拒否する"
+            },
+            {
+              "status": "pass",
+              "name": "準備子の UID/GID/groups と proc PID は対照に一致する"
+            },
+            {
+              "status": "pass",
+              "name": "補助 group だけで許可される読み書きを候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "補助 group 非所属時の読み書き拒否を候補でも維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の input で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の interrupt で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の terminate で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の timeout で target の PID・TTY・foreground group と終了状態を維持する"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の準備中の SIGTERM でも離脱子孫を終了し target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "実 PTY の準備中の SIGKILL でも離脱子孫を終了し target を起動しない"
+            },
+            {
+              "status": "pass",
+              "name": "実 Nix・shellHook を現行 prepare_environment caller から実行し候補と比較する"
+            }
+          ],
+          "observation": {
+            "boundary": "process-namespace",
+            "platform": "linux",
+            "kernel": "7.0.0-1017-azure",
+            "arch": "arm64",
+            "bun": "1.4.4",
+            "build": {
+              "unshare": "/usr/bin/unshare",
+              "unshareHash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+              "version": "unshare from util-linux 2.39.3",
+              "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+              "launcherSourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+              "observerSourceHash": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+              "entrySourceHash": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+              "preparationSourceHash": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+              "runnerSourceHash": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+              "systemdRun": "/usr/bin/systemd-run",
+              "corpusRevision": "f8598e7c516f8a64fec04596207f0907d0407132",
+              "builds": [
+                {
+                  "source": "bun-process-namespace-observer.c",
+                  "variant": "observer",
+                  "sourceHash": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+                  "binaryHash": "9b085fd5161b637f11a5ce81675d17442651dbc413fad19963a3d73c2503a370"
+                },
+                {
+                  "source": "bun-process-pidfds.c",
+                  "variant": "pidfds",
+                  "sourceHash": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+                  "binaryHash": "ac240b9e392ceb2a4bc5f32e92272989d52d25869c687011276761863fbae437"
+                },
+                {
+                  "source": "bun-exec-launcher.c",
+                  "variant": "baseline",
+                  "sourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+                  "binaryHash": "2d85521cd9a85eba20837c4bb9a13421c7814a67bcdb283b150172a4c16cb60f"
+                },
+                {
+                  "source": "bun-exec-pid-namespace.c",
+                  "variant": "launcher",
+                  "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+                  "binaryHash": "5be15422e89844720fadb2e0b6c6334746557a30d946848aae91ce1b0edaa7f2"
+                },
+                {
+                  "source": "bun-exec-pid-namespace.c",
+                  "variant": "without-proc",
+                  "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+                  "binaryHash": "efd3d5488d5ffc0eb0ce24ddfc3915d65e9c3efc86d519528b4d212636f9addb"
+                },
+                {
+                  "source": "bun-exec-namespace-delay.c",
+                  "variant": "delay.so",
+                  "sourceHash": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+                  "binaryHash": "bf8dee09cd45b63faa3ba3edd278e44d0d849c08c86d506aadef007112a5645b"
+                }
+              ]
+            },
+            "containment": "cgroup",
+            "records": [
+              {
+                "cgroupEscape": {
+                  "scope": "/user.slice/user-1001.slice/user@1001.service/app.slice/run-r7281b28337ce456991d081e75a47ea20.scope",
+                  "escapee": {
+                    "pid": 7079,
+                    "own": "0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-r7281b28337ce456991d081e75a47ea20.scope",
+                    "moved": "0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-r043b68a0bc9749a69be46d82391fe773.scope"
+                  },
+                  "leftScope": true,
+                  "survivedLauncherKill": false,
+                  "countedInVerdict": false
+                }
+              },
+              {
+                "refusal": {
+                  "status": 69,
+                  "stderr": "Failed to connect to bus: No medium found\nlauncher: containment unavailable\n",
+                  "allowed": 37
+                }
+              },
+              {
+                "realCaller": {
+                  "nixStdenv": "/nix/store/33x3cyc63b5v4wwavz2hlxj60rzh6fq2-stdenv-linux",
+                  "nixBash": "/nix/store/wgxz9zr5a70v52nkqinbarf56f1c5jsi-bash-interactive-5.3p15",
+                  "nixVersion": "nix (Nix) 2.34.6",
+                  "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+                  "flakeHash": "41f012ad4d778ee30602fd30d67c4a40daa7bf961e0d1dbe5210fb3b9f10085b",
+                  "bashHash": "8595a7265bb975ac465ccc0b5d53e8ffa93356683de7c4230335903ed9dd9433",
+                  "observations": [
+                    {
+                      "binary": "baseline",
+                      "status": 37,
+                      "stderr": "devshell-env: ready; /home/runner/work/_temp/linux-proof/temporary-3-3YaBZ8/bun-process-namespace-FFppO4/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":7705,\"ppid\":6663,\"uid\":1001,\"euid\":1001,\"gid\":1001,\"egid\":1001,\"groups\":[4,100,117,999,1001],\"procSelf\":\"7705\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                    },
+                    {
+                      "binary": "candidate",
+                      "status": 37,
+                      "stderr": "devshell-env: ready; /home/runner/work/_temp/linux-proof/temporary-3-3YaBZ8/bun-process-namespace-FFppO4/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":7736,\"ppid\":6663,\"uid\":1001,\"euid\":1001,\"gid\":1001,\"egid\":1001,\"groups\":[4,100,117,999,1001],\"procSelf\":\"7736\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                    }
+                  ]
+                }
+              }
+            ],
+            "verification": "see-test-results",
+            "realCallerRequested": true,
+            "adoption": "not-decided",
+            "macos": "held",
+            "issue33": "open",
+            "issue82": "blocked-by-33",
+            "recordsOmitted": 42
+          }
+        }
+      ],
+      "sourceSha": "c6947cda6fc5dada4e021cfc87034133393da8cb",
+      "workflowSha": "f28d4a6d3d880d2e239d72884aa425e0c5e07b2a",
+      "runId": "44976819303",
+      "attempt": 1,
+      "sources": {
+        "development/linux-process-proof-cases.json": "2115f90b7ed62b8758f411ceabc790d10b2cbbaf2c6906b3820eac7766c61975",
+        "lib/bun/bunfig.toml": "64685d48c66b066850d1a78ab41c170ea217e84acf8aaa4f6fe6b7349648c070",
+        "lib/bun/cli-path.ts": "f058948b035092a728bcd8a57bf2c2fa53f8333106fc523f6283b8d84bf13db0",
+        "lib/bun/coordination-json.ts": "32454d49fc3ceb63b6e39d4cdc7b8e6de98f9f334c545f411708e026634c3e0f",
+        "lib/bun/gh-review-thread.ts": "a89a07053bc6c42c3ed8706f46c6a7e5f6f16e41953c75d51b36f02f2920ee12",
+        "lib/bun/orca-send.ts": "5836b9e1a4dfcc35017eb73aed609abfa44bb62f596814305a63d9820d2152a2",
+        "lib/bun/orca-worker-readiness.ts": "a6a1258a2b7cd4432c6a025ffcf2d3120e7db31aacb2b869d82377c30eb4c818",
+        "lib/bun/run": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+        "lib/bun/serve-local.ts": "d766a03b278c3547e8d4eec69ae228c9a1e3fcacc2d5a3d43a4a416da0bbcd8b",
+        "lib/bun/strict-json.ts": "4d14a1305ae707c30a36d9acab9627a09105b479db85349bbe4ade9de33870d0",
+        "lib/bun/tsconfig.json": "66e3b8f1d08faaa895715154da26f2698c0af9dddb8c43ae2b382e16ef5e3fe1",
+        "lib/bun/vendor/casefold.LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+        "lib/bun/vendor/casefold.json": "233bb4581cca5ac020ee75fff73ad4e5792f9166e940318fbfdf4d969192c430",
+        "lib/bun/vendor/decimal.LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+        "lib/bun/vendor/decimal.json": "10a08b669b4aaf0c3969143d7f88bc3888e55212e4bffc751c1b8b1da71699e8",
+        "lib/python/treflebonbon_skills/__init__.py": "4c931ca391290d71a01aade9e3f3b249b7afc5b5143fdddf27dbeca9e5bfcfe1",
+        "lib/python/treflebonbon_skills/codex_reviewer.py": "84a40d9499cca63e78dbf5f1a3af50c2f91c6919eef0ab15dbcde8ecb402a775",
+        "lib/python/treflebonbon_skills/devshell_environment.py": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+        "lib/python/treflebonbon_skills/git_context.py": "986e2a6143cc467e760b7e931c93d3ab9126a6eda214192a372736502491de43",
+        "tests/bun/browser-fixtures.test.ts": "1dcf5e054b91382ec3ba11b580908cb8f7b7e442a02ef04bd378282d095cc92a",
+        "tests/bun/coordination-json.test.ts": "ee1feb00605a286488799eb28cb0b08cfafc5fd301d92597fdfe2e56484c7b04",
+        "tests/bun/gh-review-thread.test.ts": "b8a06c8b224403b5a9bd7dec68afa3b667cae5024d46c9bc4e2c4195e8a080d3",
+        "tests/bun/linux-process-proof.test.ts": "7555af16e652fb5273056e4ef9b55cffb875da1ef00534092c9a5cf3b2ef5bc2",
+        "tests/bun/namespace.test.ts": "05463a0aaec31a84bb135ce161f90536907a2b20f4b7a8a25197f5d2ded7b8c8",
+        "tests/bun/nix-runtime.test.ts": "34a4cfd555a66ec2561a2ffe9b72164b0a264f30cfd416298b4b12299f3f37db",
+        "tests/bun/orca-send.test.ts": "a4cd2b013cffd6c1f950b107054f5d767c779fda43908cf7dabf92ce88f7b58f",
+        "tests/bun/orca-worker-readiness.test.ts": "9385103a94aacbfb55567b6fe66b63f7332f0be83d25fc8e718d6ff497a73aba",
+        "tests/bun/package-contract-fixtures.test.ts": "55ce9779a5b29931377409dc8ce1883ce68ef0d4e92f7bacc9580c3a28fa7896",
+        "tests/bun/package-contract.test.ts": "6f1d71ff8a61540542e9091109d8caca1bc96eadfcc2b43f90552d2948f19570",
+        "tests/bun/plugin-session-process.test.ts": "8e22988b2e05d7b0cc2b2117603ded5b7428a19fcb1f3d77ac8a3533e91aa106",
+        "tests/bun/plugin-sessions.test.ts": "bd3dc1f65e88c9a83326393ca597eaa83cf3efe895e6889c606d08b248d0b602",
+        "tests/bun/plugin-smoke.test.ts": "52395afd52b12e6d071b9012b9ab4d51b22a5345c08bd8d713a52b97e518f83a",
+        "tests/bun/process-lock.test.ts": "53cfe60dc6f182c58ea674f1a5d870407c5e803249c6748411a7b9bd530af0f1",
+        "tests/bun/process-namespace.test.ts": "c35ed42b65d101cbedfc4a7a029fda50f1680392239e75137f41735d9393f9c2",
+        "tests/bun/process-state.test.ts": "c976d6585d48d72ba16f9a2b86204458f0b3aea176b30e2c578337991e7c1583",
+        "tests/bun/product-guide-collect.test.ts": "74bf12436dedb74bf6c2be4f6fee10b26672a95358a2cdc6b2258612950a7497",
+        "tests/bun/product-guide.test.ts": "cadf289d302b8250e7f5cb1a64822bf776851b83fb39f15bdf504fe41789488f",
+        "tests/bun/public-skills.test.ts": "ca2d6908974c5b5549caa62100a14f09ceb14d1dd56fac944ccf9060051ad92f",
+        "tests/bun/serve-local.test.ts": "eb0f112487855270a35270f0eb8b22c536d51a49132bea102dd5a4381807af24",
+        "tests/cli/__init__.py": "e579565af1f3a040cb9f5b582b8b9c7ec0160875699575a89dd88dff78b0a7da",
+        "tests/cli/fixtures/fake-gh": "11c7097dce8d601ce0ccf22a11ea735365c7a8f08add93a9d52c619cbbc50e2a",
+        "tests/cli/gh-review-thread.bats": "cfe8622ec7a14f7b811dfa05d6c6af5c83a70d2ce8338d68dc8a0deda3ec4438",
+        "tests/cli/git-push-topic.bats": "84757f6f502a70ea8ab99816e23c84cf2b794e3922d171ef1060f79df3e76f2e",
+        "tests/cli/orca-send.bats": "c7d9b7af5ac9d9867b4dbf4fbeb5176557e9ddf3e3753fb48b30fe768e0706f8",
+        "tests/cli/orca-worker-readiness.bats": "786133e813de0fa25ff021ddcfc1fd9f1aa6d58e69878791547e1c01601eccf1",
+        "tests/cli/test_codex_reviewer.py": "6dac260cd18be60d95975ceb6d8de64a77ffcf74d69d7fd5524740201fa695a1",
+        "tests/cli/test_docstring_report.py": "d2d458826cad44d2a4a0f4b79c0ad3e0b3de7d18ab75c65a39d04ace50774d14",
+        "tests/cli/test_git_context.py": "8124e67cd62b663a8edca433f93d4fd3cfeb8dd5af7f2928f01d3f2df518e134",
+        "tests/cli/test_python_launcher_payload_immutability.py": "a1a356713a676f9cf53b1dc3c5e68938255cb390264fa942db31e407bb635d08",
+        "tests/domain-modeling-studio.bats": "6bdf1d0c3f21e413c54eafa99385f84b17f6aeea915579068804c9c1981ac7e2",
+        "tests/fixtures/bun-exec-delayed-group.c": "dba438e31a8832c6b789371259fb2cc5bfd13eb093124be584c8cc8967905a88",
+        "tests/fixtures/bun-exec-entry.sh": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+        "tests/fixtures/bun-exec-launcher.c": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+        "tests/fixtures/bun-exec-namespace-delay.c": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+        "tests/fixtures/bun-exec-pid-namespace.c": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+        "tests/fixtures/bun-exec-prepare.ts": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+        "tests/fixtures/bun-exec-python.json": "b827d223fda4840af27ea9e23b3c393e89db62bf3e8b88db1b5020f2a7f0e6a2",
+        "tests/fixtures/bun-namespace.ts": "cafd9ba5bf74f554770614210762d326ba77540dad1ec1dfddc12e43995edcde",
+        "tests/fixtures/bun-nix-runtime.ts": "80426763914822d369de60b344cf83119d7c27717b61aa0bc72bd5b9849f3949",
+        "tests/fixtures/bun-process-lock-python.json": "2c1b105a39ccf0836c8aef8d9c3617e640f368af0c766af85278af2c711d4125",
+        "tests/fixtures/bun-process-lock.ts": "3df970a569ff09116e0c25c908317c6a193e0e404dcad95d4588cd2cf9052916",
+        "tests/fixtures/bun-process-namespace-observer.c": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+        "tests/fixtures/bun-process-observer.c": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+        "tests/fixtures/bun-process-pidfds.c": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+        "tests/fixtures/gh-review-checks.json": "81001f66051b252e5a49d73f125d3bcc24533205f2682e15b12ce7d4dea990d6",
+        "tests/fixtures/gh-review-thread-python.json": "c82947bb8597c413dca48d8ecb832dd16c93e1838c6a033bcfb7c76a7757c858",
+        "tests/fixtures/loopback-python.json": "67457a33c0bcd6484a22c700f4e5caafc20aa933144812213eae368e515edeb7",
+        "tests/fixtures/orca-send-python.json": "584600b3a89e5b8dba66f4772b690612e62e13f68a818478006378a228f5b890",
+        "tests/fixtures/orca-worker-readiness-python.json": "5e8a4d03d0c78a43dab1a22d78bf56c4862968d55bab9d19e755191fd43dc6c2",
+        "tests/fixtures/plugin-sessions-python.json": "7bb906b9c7d357ca85b1fd27260b22468380c615ba942c14869075817232d28b",
+        "tests/fixtures/plugin-smoke-python.json": "eb019ab18df4be7d41149b80dea076fa8a501f43a345fa6d32a60e7e32ab9bb3",
+        "tests/fixtures/product-guide-model.json": "454575c8ee02a60119d5f387971b6096e5c5ab65e3a594240fe4ee74dbf45431",
+        "tests/fixtures/quality-python.json": "a8e54fe7453aced765b1e9a0c21d580a7b1f011ee8fb8609bc211a20c9ce2b65",
+        "tests/fixtures/raw-codex/config.toml": "305b7c778dcaa7bbf15a4cadfeab1f8abe014ea8ba4095241e8ac5d81c1f515c",
+        "tests/fixtures/raw-codex/github-push.py": "b53946c944c30b7ac315d378f5393dbb24eab8d8c5575d70ee7f24333b5cdbcf",
+        "tests/fixtures/raw-codex/nixpkgs-revision": "52cad5a07f3c81459d12b35976c106adc7a978a6040dc444656f9427e61bb58e",
+        "tests/fixtures/secret-isolation/worktree-task.py": "77986f552d5734ca495a4bdd4cf97fa3596896fea2026fc5885cb8d3231738af",
+        "tests/fixtures/sprite-info-v0.0.1-rc48.txt": "4effa1363cca82c6e9940d1f8d0a5569b823c78c94c09704c21854ce9f7c8dc9",
+        "tests/helpers/codex-config-reader.py": "5ae8ccec771aa99978bf8f6cccae88f05deb21d03d52e62bb7afd5a3bd08dc45",
+        "tests/helpers/fake-raw-codex-app-server.py": "c000a0a32922d0bf2f0d17ccd87a71eb2f265b078b5744005247483f1ba6a418",
+        "tests/helpers/linux-namespace-fixture.ts": "e1c0420a817957cfed2250825dd0abff5bb0986a3706fa199fb203c5c3805154",
+        "tests/helpers/process-state.ts": "ad490150c0d250a03fb39b7b347709ac54093243e1a332caa2cac267a6ea1e69",
+        "tests/helpers/raw-codex-gateway-lifecycle.py": "5a534f523319c5ca5186d38581afabf0feee1f15d75b275781bb4680f4ddbde9",
+        "tests/helpers/raw-codex-handoff.py": "0ec5388930b2a6ec76db8da22dda4b531aa536b06e3f1a73452c485c8c485917",
+        "tests/helpers/raw-codex.bash": "39336cc8f653953f7bc6bec4d3ba394345e8d813607db8b8bd2d7d9a328b894e",
+        "tests/helpers/rop-typescript-evidence.test.ts": "c99f7adee987fdb94df65947aa8181e5c24821106f57888d361336a6aec026f0",
+        "tests/md-claude-review.bats": "231c3d2be5aec3b28d86a9a632c83846424b2baee69be93f57cf93f2ffa228e6",
+        "tests/raw-codex/devshell-env.bats": "d6a8cd1834572219f2071db6cdc8a48187afeb7b64e124a05484ab328dff02ca",
+        "tests/raw-codex/gateway-lifecycle.bats": "4525381552c701a71f965e81b8a09e06f1572350df837691d5eeb142c58d8698",
+        "tests/raw-codex/isolated-github.bats": "f3590914067cf2993368f4309aa2e460de149b0cf138768e1ec1bf353804c664",
+        "tests/raw-codex/raw-codex-handoff.bats": "f03529f558c94af0ea45d68a7e27300b67fa2f42a3a4efb8c5267afeb47f8212",
+        "tests/raw-codex/raw-codex-integration.bats": "0dca8965c2388d8518cb6648193f103b96fa7d6b3142d420b99fe400a6280e82",
+        "tests/raw-codex/raw-codex-services.bats": "85c0798a5237e53e748969154a9b739b33f4d6c5778d512f831d6dc44d22f334",
+        "tests/raw-codex/raw-managed-profile.bats": "8d966d643e1836f7b67405fa6b01c44e41453b6b7ea360e77d406f3cd109eae9",
+        "tests/raw-codex/secret-isolation-gateway.bats": "2b2e730fa2cd1af8caa97346c3da947aa9463eca9ae1b2f564d1f85562595467",
+        "tests/raw-codex/secret-isolation-worktree.bats": "8b56c0209b2d8e74adf35f291571d0fb618e9ae39bc27b3a00891a3a4577406d",
+        "tests/test_orca_sprites_pilot.py": "de3667462cd39084f8a19f3701500946a307e3c5aa9326e63371fe450f199067",
+        "tests/test_raw_codex_package.py": "ec8f8d851baed4513fc9e0500de7fe87a761b50addcbb7c243e96a29a41e38ff",
+        "tests/worktree-gc-fanout.bats": "b4c0d9a880e507fd1622c0c9b3c82a40863313093937bd472ee9e22bc7bfc935",
+        "tests/worktree-gc.bats": "1cd6a3c94e860cacc4a1c2ba388733cfb0f7ad1fcbdd34b21d47010bb257a746",
+        "tests/worktree_gc_test_helper.bash": "a4a9886bb1164c7e391dbbf201c4de6a9c4fee7293a4ac0bd82f4cbb5eee7aad"
+      },
+      "controllerHash": "49687e39a147cf04f4669f25a2fb8e1c43e9a839ce754cb1298565d52976b6d5",
+      "preflight": {
+        "verified": true,
+        "errors": [],
+        "platform": "linux",
+        "arch": "arm64",
+        "kernel": "7.0.0-1017-azure",
+        "imageOS": "ubuntu24-arm64",
+        "imageVersion": "20261116.188.1",
+        "tools": {
+          "cc": {
+            "path": "/usr/bin/aarch64-linux-gnu-gcc-13",
+            "hash": "a20520ee21543f243d40636a9181a142c45ecd989de31ab86b99a8ea5ada870d",
+            "version": "aarch64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+          },
+          "unshare": {
+            "path": "/usr/bin/unshare",
+            "hash": "e0c145c3d4c06686544b1362ed64da819539166a5e1e6fd96093aea4d2539b6a",
+            "version": "unshare from util-linux 2.39.3"
+          },
+          "systemd-run": {
+            "path": "/usr/bin/systemd-run",
+            "hash": "a555e627c1cd232bf0d6f2ef8c81b70cf690b9f8f3810234291191cef38485fd",
+            "version": "systemd 255 (255.4-1ubuntu8.18)"
+          },
+          "nix": {
+            "path": "/nix/store/ryr7lng2ippsrqlf7vh03f9ramad33id-nix-2.34.6/bin/nix",
+            "hash": "d183e83922b12bd2b0d76a40c10aa10cd5ac066037f3b394013401184cafb2dd",
+            "version": "nix (Nix) 2.34.6"
+          },
+          "nix-build": {
+            "path": "/nix/store/ryr7lng2ippsrqlf7vh03f9ramad33id-nix-2.34.6/bin/nix",
+            "hash": "d183e83922b12bd2b0d76a40c10aa10cd5ac066037f3b394013401184cafb2dd",
+            "version": "nix (Nix) 2.34.6"
+          },
+          "nix-store": {
+            "path": "/nix/store/ryr7lng2ippsrqlf7vh03f9ramad33id-nix-2.34.6/bin/nix",
+            "hash": "d183e83922b12bd2b0d76a40c10aa10cd5ac066037f3b394013401184cafb2dd",
+            "version": "nix (Nix) 2.34.6"
+          },
+          "setpriv": {
+            "path": "/usr/bin/setpriv",
+            "hash": "9922bc8da40cd9f1024beae714aee76c2b7d2abac563391235f32e30141d35da",
+            "version": "setpriv from util-linux 2.39.3"
+          },
+          "bun": {
+            "path": "/home/runner/.bun/bin/bun",
+            "hash": "354c2b049c716aca07b2e5cddb887928ac58950675d1258bb6312083917793b6",
+            "version": "1.4.4"
+          },
+          "sudo": {
+            "path": "/usr/bin/sudo",
+            "hash": "0a6e94862dad3a28e5e2e73aeb41bb23c829f19817dbdc8caab8cb3bc561cb67",
+            "version": "Sudo version 1.9.15p5"
+          },
+          "python3": {
+            "path": "/usr/bin/python3.12",
+            "hash": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "version": "Python 3.12.3"
+          },
+          "git": {
+            "path": "/usr/bin/git",
+            "hash": "d97f40df79a102f9b0449f9e6e1455e783770417f7776377a77902cdea8c4b19",
+            "version": "git version 2.56.1"
+          },
+          "bash": {
+            "path": "/usr/bin/bash",
+            "hash": "af955ef55333c8fc9c5aa50df91ad1a629d9a79a9afa125cd5e9629585f78015",
+            "version": "GNU bash, version 5.2.21(1)-release (aarch64-unknown-linux-gnu)"
+          }
+        },
+        "contexts": {
+          "/proc/self/status": {
+            "value": "Name:\tbun\nUmask:\t0022\nState:\tR (running)\nTgid:\t4185\nNgid:\t0\nPid:\t4185\nPPid:\t4184\nTracerPid:\t0\nUid:\t1001\t1001\t1001\t1001\nGid:\t1001\t1001\t1001\t1001\nFDSize:\t1024\nGroups:\t4 100 117 999 1001 \nNStgid:\t4185\nNSpid:\t4185\nNSpgid:\t1917\nNSsid:\t1917\nKthread:\t0\nVmPeak:\t10075636 kB\nVmSize:\t 6115060 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t  153932 kB\nVmRSS:\t  153932 kB\nRssAnon:\t  129712 kB\nRssFile:\t   24220 kB\nRssShmem:\t       0 kB\nVmData:\t 5810552 kB\nVmStk:\t     136 kB\nVmExe:\t   81920 kB\nVmLib:\t    2344 kB\nVmPTE:\t     588 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffff\nThreads:\t12\nSigQ:\t0/58304\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000001001000\nSigCgt:\t00000001600004f8\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tunknown\nCpus_allowed:\tf\nCpus_allowed_list:\t0-3\nMems_allowed:\t00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t118\nnonvoluntary_ctxt_switches:\t18\n"
+          },
+          "/proc/self/uid_map": {
+            "value": "         0          0 4294967295\n"
+          },
+          "/proc/self/gid_map": {
+            "value": "         0          0 4294967295\n"
+          },
+          "/proc/self/attr/current": {
+            "value": "unconfined\n"
+          },
+          "/sys/kernel/security/lsm": {
+            "value": "lockdown,capability,landlock,yama,apparmor,ima,evm"
+          },
+          "/sys/module/apparmor/parameters/enabled": {
+            "value": "Y\n"
+          },
+          "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+            "value": "1\n"
+          },
+          "/proc/sys/kernel/unprivileged_userns_clone": {
+            "value": "1\n"
+          },
+          "/proc/sys/user/max_user_namespaces": {
+            "value": "58304\n"
+          }
+        },
+        "namespaces": {
+          "user": "user:[4026531837]",
+          "pid": "pid:[4026531836]",
+          "mnt": "mnt:[4026531832]"
+        },
+        "probe": {
+          "path": "/usr/bin/unshare",
+          "argv": [
+            "--user",
+            "--map-current-user",
+            "--pid",
+            "--fork",
+            "--kill-child=SIGKILL",
+            "--mount-proc",
+            "--",
+            "/usr/bin/true"
+          ],
+          "pid": 4234,
+          "startedAt": "2026-11-22T02:36:15.658Z",
+          "endedAt": "2026-11-22T02:36:15.663Z",
+          "status": 1,
+          "signal": null,
+          "stdout": "",
+          "stderr": "unshare: write failed /proc/self/uid_map: Operation not permitted\n",
+          "outputTruncated": false,
+          "processObservation": {
+            "status": "process-exited-before-sample",
+            "pid": 4234,
+            "startTicks": "30296"
+          },
+          "audit": {
+            "reader": {
+              "path": "/usr/bin/journalctl",
+              "hash": "5b26f3b172aa9fd840e7938a8910499953e0ac0c261dd0c6e872fad24d9d14d8",
+              "version": {
+                "status": "recorded",
+                "argv": [
+                  "--version"
+                ],
+                "value": "systemd 255 (255.4-1ubuntu8.18)"
+              }
+            },
+            "window": {
+              "since": "2026-11-22T02:36:14.658Z",
+              "until": "2026-11-22T02:36:16.663Z"
+            },
+            "command": {
+              "path": "/usr/bin/sudo",
+              "argv": [
+                "-n",
+                "--",
+                "/usr/bin/journalctl",
+                "--dmesg",
+                "--since",
+                "2026-11-22T02:36:14.658Z",
+                "--until",
+                "2026-11-22T02:36:16.663Z",
+                "--grep=(^|[^[:alnum:]_])pid=4234([^[:alnum:]_]|$)",
+                "--output=json",
+                "--output-fields=__REALTIME_TIMESTAMP,_PID,MESSAGE",
+                "--no-pager",
+                "--lines=101"
+              ]
+            },
+            "status": "matched",
+            "readStatus": "matched",
+            "recordCount": 1,
+            "events": [
+              {
+                "timestamp": "2026-11-22T02:36:15.660Z",
+                "messagePid": 4234,
+                "message": "audit: type=1400 audit(1795314975.658:128): apparmor=\"AUDIT\" operation=\"userns_create\" class=\"namespace\" info=\"Userns create - transitioning profile\" profile=\"unconfined\" pid=4234 comm=\"unshare\" requested=\"userns_create\" target=\"unprivileged_userns\" execpath=\"/usr/bin/unshare\"",
+                "messageTruncated": false
+              }
+            ]
+          }
+        },
+        "containment": "cgroup",
+        "session": {
+          "XDG_RUNTIME_DIR": "/run/user/1001",
+          "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1001/bus",
+          "bus": true,
+          "linger": {
+            "status": 0,
+            "signal": null,
+            "stdout": "yes\n",
+            "stderr": ""
+          },
+          "userManager": {
+            "status": 0,
+            "signal": null,
+            "stdout": "active\n",
+            "stderr": ""
+          }
+        },
+        "environment": {
+          "PATH": "/home/runner/.bun/bin:/home/runner/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+          "HOME": "/home/runner",
+          "NIX_REMOTE": "daemon",
+          "PROCESS_PROOF_NIX_BASH": "/nix/store/wgxz9zr5a70v52nkqinbarf56f1c5jsi-bash-interactive-5.3p15",
+          "PROCESS_PROOF_NIX_STDENV": "/nix/store/33x3cyc63b5v4wwavz2hlxj60rzh6fq2-stdenv-linux",
+          "PROCESS_PROOF_GROUP_FILE": "/home/runner/work/_temp/group-proof.kEAIMb/data",
+          "PROCESS_PROOF_GROUP_GID": "30001"
+        },
+        "uid": 1001,
+        "euid": 1001,
+        "gid": 1001,
+        "groups": [
+          4,
+          100,
+          117,
+          999,
+          1001
+        ],
+        "bun": "1.4.4",
+        "nix": {
+          "mode": "multi-user",
+          "remote": "daemon",
+          "sandbox": true,
+          "buildUsersGroup": "nixbld",
+          "daemon": {
+            "status": 0,
+            "signal": null,
+            "stdout": "{\"trusted\":false,\"url\":\"daemon\",\"version\":\"2.34.6\"}\n",
+            "stderr": "warning: 'ping' is a deprecated alias for 'info'\nwarning: ignoring the client-specified setting 'store', because it is a restricted setting and you are not a trusted user\n"
+          },
+          "bash": "/nix/store/wgxz9zr5a70v52nkqinbarf56f1c5jsi-bash-interactive-5.3p15",
+          "stdenv": "/nix/store/33x3cyc63b5v4wwavz2hlxj60rzh6fq2-stdenv-linux"
+        },
+        "group": {
+          "path": "/home/runner/work/_temp/group-proof.kEAIMb/data",
+          "ownerUid": 0,
+          "gid": 30001,
+          "mode": 48,
+          "dev": "2049",
+          "ino": "6044646"
+        }
+      },
+      "sourcesAfter": {
+        "development/linux-process-proof-cases.json": "2115f90b7ed62b8758f411ceabc790d10b2cbbaf2c6906b3820eac7766c61975",
+        "lib/bun/bunfig.toml": "64685d48c66b066850d1a78ab41c170ea217e84acf8aaa4f6fe6b7349648c070",
+        "lib/bun/cli-path.ts": "f058948b035092a728bcd8a57bf2c2fa53f8333106fc523f6283b8d84bf13db0",
+        "lib/bun/coordination-json.ts": "32454d49fc3ceb63b6e39d4cdc7b8e6de98f9f334c545f411708e026634c3e0f",
+        "lib/bun/gh-review-thread.ts": "a89a07053bc6c42c3ed8706f46c6a7e5f6f16e41953c75d51b36f02f2920ee12",
+        "lib/bun/orca-send.ts": "5836b9e1a4dfcc35017eb73aed609abfa44bb62f596814305a63d9820d2152a2",
+        "lib/bun/orca-worker-readiness.ts": "a6a1258a2b7cd4432c6a025ffcf2d3120e7db31aacb2b869d82377c30eb4c818",
+        "lib/bun/run": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+        "lib/bun/serve-local.ts": "d766a03b278c3547e8d4eec69ae228c9a1e3fcacc2d5a3d43a4a416da0bbcd8b",
+        "lib/bun/strict-json.ts": "4d14a1305ae707c30a36d9acab9627a09105b479db85349bbe4ade9de33870d0",
+        "lib/bun/tsconfig.json": "66e3b8f1d08faaa895715154da26f2698c0af9dddb8c43ae2b382e16ef5e3fe1",
+        "lib/bun/vendor/casefold.LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+        "lib/bun/vendor/casefold.json": "233bb4581cca5ac020ee75fff73ad4e5792f9166e940318fbfdf4d969192c430",
+        "lib/bun/vendor/decimal.LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+        "lib/bun/vendor/decimal.json": "10a08b669b4aaf0c3969143d7f88bc3888e55212e4bffc751c1b8b1da71699e8",
+        "lib/python/treflebonbon_skills/__init__.py": "4c931ca391290d71a01aade9e3f3b249b7afc5b5143fdddf27dbeca9e5bfcfe1",
+        "lib/python/treflebonbon_skills/codex_reviewer.py": "84a40d9499cca63e78dbf5f1a3af50c2f91c6919eef0ab15dbcde8ecb402a775",
+        "lib/python/treflebonbon_skills/devshell_environment.py": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+        "lib/python/treflebonbon_skills/git_context.py": "986e2a6143cc467e760b7e931c93d3ab9126a6eda214192a372736502491de43",
+        "tests/bun/browser-fixtures.test.ts": "1dcf5e054b91382ec3ba11b580908cb8f7b7e442a02ef04bd378282d095cc92a",
+        "tests/bun/coordination-json.test.ts": "ee1feb00605a286488799eb28cb0b08cfafc5fd301d92597fdfe2e56484c7b04",
+        "tests/bun/gh-review-thread.test.ts": "b8a06c8b224403b5a9bd7dec68afa3b667cae5024d46c9bc4e2c4195e8a080d3",
+        "tests/bun/linux-process-proof.test.ts": "7555af16e652fb5273056e4ef9b55cffb875da1ef00534092c9a5cf3b2ef5bc2",
+        "tests/bun/namespace.test.ts": "05463a0aaec31a84bb135ce161f90536907a2b20f4b7a8a25197f5d2ded7b8c8",
+        "tests/bun/nix-runtime.test.ts": "34a4cfd555a66ec2561a2ffe9b72164b0a264f30cfd416298b4b12299f3f37db",
+        "tests/bun/orca-send.test.ts": "a4cd2b013cffd6c1f950b107054f5d767c779fda43908cf7dabf92ce88f7b58f",
+        "tests/bun/orca-worker-readiness.test.ts": "9385103a94aacbfb55567b6fe66b63f7332f0be83d25fc8e718d6ff497a73aba",
+        "tests/bun/package-contract-fixtures.test.ts": "55ce9779a5b29931377409dc8ce1883ce68ef0d4e92f7bacc9580c3a28fa7896",
+        "tests/bun/package-contract.test.ts": "6f1d71ff8a61540542e9091109d8caca1bc96eadfcc2b43f90552d2948f19570",
+        "tests/bun/plugin-session-process.test.ts": "8e22988b2e05d7b0cc2b2117603ded5b7428a19fcb1f3d77ac8a3533e91aa106",
+        "tests/bun/plugin-sessions.test.ts": "bd3dc1f65e88c9a83326393ca597eaa83cf3efe895e6889c606d08b248d0b602",
+        "tests/bun/plugin-smoke.test.ts": "52395afd52b12e6d071b9012b9ab4d51b22a5345c08bd8d713a52b97e518f83a",
+        "tests/bun/process-lock.test.ts": "53cfe60dc6f182c58ea674f1a5d870407c5e803249c6748411a7b9bd530af0f1",
+        "tests/bun/process-namespace.test.ts": "c35ed42b65d101cbedfc4a7a029fda50f1680392239e75137f41735d9393f9c2",
+        "tests/bun/process-state.test.ts": "c976d6585d48d72ba16f9a2b86204458f0b3aea176b30e2c578337991e7c1583",
+        "tests/bun/product-guide-collect.test.ts": "74bf12436dedb74bf6c2be4f6fee10b26672a95358a2cdc6b2258612950a7497",
+        "tests/bun/product-guide.test.ts": "cadf289d302b8250e7f5cb1a64822bf776851b83fb39f15bdf504fe41789488f",
+        "tests/bun/public-skills.test.ts": "ca2d6908974c5b5549caa62100a14f09ceb14d1dd56fac944ccf9060051ad92f",
+        "tests/bun/serve-local.test.ts": "eb0f112487855270a35270f0eb8b22c536d51a49132bea102dd5a4381807af24",
+        "tests/cli/__init__.py": "e579565af1f3a040cb9f5b582b8b9c7ec0160875699575a89dd88dff78b0a7da",
+        "tests/cli/fixtures/fake-gh": "11c7097dce8d601ce0ccf22a11ea735365c7a8f08add93a9d52c619cbbc50e2a",
+        "tests/cli/gh-review-thread.bats": "cfe8622ec7a14f7b811dfa05d6c6af5c83a70d2ce8338d68dc8a0deda3ec4438",
+        "tests/cli/git-push-topic.bats": "84757f6f502a70ea8ab99816e23c84cf2b794e3922d171ef1060f79df3e76f2e",
+        "tests/cli/orca-send.bats": "c7d9b7af5ac9d9867b4dbf4fbeb5176557e9ddf3e3753fb48b30fe768e0706f8",
+        "tests/cli/orca-worker-readiness.bats": "786133e813de0fa25ff021ddcfc1fd9f1aa6d58e69878791547e1c01601eccf1",
+        "tests/cli/test_codex_reviewer.py": "6dac260cd18be60d95975ceb6d8de64a77ffcf74d69d7fd5524740201fa695a1",
+        "tests/cli/test_docstring_report.py": "d2d458826cad44d2a4a0f4b79c0ad3e0b3de7d18ab75c65a39d04ace50774d14",
+        "tests/cli/test_git_context.py": "8124e67cd62b663a8edca433f93d4fd3cfeb8dd5af7f2928f01d3f2df518e134",
+        "tests/cli/test_python_launcher_payload_immutability.py": "a1a356713a676f9cf53b1dc3c5e68938255cb390264fa942db31e407bb635d08",
+        "tests/domain-modeling-studio.bats": "6bdf1d0c3f21e413c54eafa99385f84b17f6aeea915579068804c9c1981ac7e2",
+        "tests/fixtures/bun-exec-delayed-group.c": "dba438e31a8832c6b789371259fb2cc5bfd13eb093124be584c8cc8967905a88",
+        "tests/fixtures/bun-exec-entry.sh": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+        "tests/fixtures/bun-exec-launcher.c": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+        "tests/fixtures/bun-exec-namespace-delay.c": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+        "tests/fixtures/bun-exec-pid-namespace.c": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+        "tests/fixtures/bun-exec-prepare.ts": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+        "tests/fixtures/bun-exec-python.json": "b827d223fda4840af27ea9e23b3c393e89db62bf3e8b88db1b5020f2a7f0e6a2",
+        "tests/fixtures/bun-namespace.ts": "cafd9ba5bf74f554770614210762d326ba77540dad1ec1dfddc12e43995edcde",
+        "tests/fixtures/bun-nix-runtime.ts": "80426763914822d369de60b344cf83119d7c27717b61aa0bc72bd5b9849f3949",
+        "tests/fixtures/bun-process-lock-python.json": "2c1b105a39ccf0836c8aef8d9c3617e640f368af0c766af85278af2c711d4125",
+        "tests/fixtures/bun-process-lock.ts": "3df970a569ff09116e0c25c908317c6a193e0e404dcad95d4588cd2cf9052916",
+        "tests/fixtures/bun-process-namespace-observer.c": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+        "tests/fixtures/bun-process-observer.c": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+        "tests/fixtures/bun-process-pidfds.c": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+        "tests/fixtures/gh-review-checks.json": "81001f66051b252e5a49d73f125d3bcc24533205f2682e15b12ce7d4dea990d6",
+        "tests/fixtures/gh-review-thread-python.json": "c82947bb8597c413dca48d8ecb832dd16c93e1838c6a033bcfb7c76a7757c858",
+        "tests/fixtures/loopback-python.json": "67457a33c0bcd6484a22c700f4e5caafc20aa933144812213eae368e515edeb7",
+        "tests/fixtures/orca-send-python.json": "584600b3a89e5b8dba66f4772b690612e62e13f68a818478006378a228f5b890",
+        "tests/fixtures/orca-worker-readiness-python.json": "5e8a4d03d0c78a43dab1a22d78bf56c4862968d55bab9d19e755191fd43dc6c2",
+        "tests/fixtures/plugin-sessions-python.json": "7bb906b9c7d357ca85b1fd27260b22468380c615ba942c14869075817232d28b",
+        "tests/fixtures/plugin-smoke-python.json": "eb019ab18df4be7d41149b80dea076fa8a501f43a345fa6d32a60e7e32ab9bb3",
+        "tests/fixtures/product-guide-model.json": "454575c8ee02a60119d5f387971b6096e5c5ab65e3a594240fe4ee74dbf45431",
+        "tests/fixtures/quality-python.json": "a8e54fe7453aced765b1e9a0c21d580a7b1f011ee8fb8609bc211a20c9ce2b65",
+        "tests/fixtures/raw-codex/config.toml": "305b7c778dcaa7bbf15a4cadfeab1f8abe014ea8ba4095241e8ac5d81c1f515c",
+        "tests/fixtures/raw-codex/github-push.py": "b53946c944c30b7ac315d378f5393dbb24eab8d8c5575d70ee7f24333b5cdbcf",
+        "tests/fixtures/raw-codex/nixpkgs-revision": "52cad5a07f3c81459d12b35976c106adc7a978a6040dc444656f9427e61bb58e",
+        "tests/fixtures/secret-isolation/worktree-task.py": "77986f552d5734ca495a4bdd4cf97fa3596896fea2026fc5885cb8d3231738af",
+        "tests/fixtures/sprite-info-v0.0.1-rc48.txt": "4effa1363cca82c6e9940d1f8d0a5569b823c78c94c09704c21854ce9f7c8dc9",
+        "tests/helpers/codex-config-reader.py": "5ae8ccec771aa99978bf8f6cccae88f05deb21d03d52e62bb7afd5a3bd08dc45",
+        "tests/helpers/fake-raw-codex-app-server.py": "c000a0a32922d0bf2f0d17ccd87a71eb2f265b078b5744005247483f1ba6a418",
+        "tests/helpers/linux-namespace-fixture.ts": "e1c0420a817957cfed2250825dd0abff5bb0986a3706fa199fb203c5c3805154",
+        "tests/helpers/process-state.ts": "ad490150c0d250a03fb39b7b347709ac54093243e1a332caa2cac267a6ea1e69",
+        "tests/helpers/raw-codex-gateway-lifecycle.py": "5a534f523319c5ca5186d38581afabf0feee1f15d75b275781bb4680f4ddbde9",
+        "tests/helpers/raw-codex-handoff.py": "0ec5388930b2a6ec76db8da22dda4b531aa536b06e3f1a73452c485c8c485917",
+        "tests/helpers/raw-codex.bash": "39336cc8f653953f7bc6bec4d3ba394345e8d813607db8b8bd2d7d9a328b894e",
+        "tests/helpers/rop-typescript-evidence.test.ts": "c99f7adee987fdb94df65947aa8181e5c24821106f57888d361336a6aec026f0",
+        "tests/md-claude-review.bats": "231c3d2be5aec3b28d86a9a632c83846424b2baee69be93f57cf93f2ffa228e6",
+        "tests/raw-codex/devshell-env.bats": "d6a8cd1834572219f2071db6cdc8a48187afeb7b64e124a05484ab328dff02ca",
+        "tests/raw-codex/gateway-lifecycle.bats": "4525381552c701a71f965e81b8a09e06f1572350df837691d5eeb142c58d8698",
+        "tests/raw-codex/isolated-github.bats": "f3590914067cf2993368f4309aa2e460de149b0cf138768e1ec1bf353804c664",
+        "tests/raw-codex/raw-codex-handoff.bats": "f03529f558c94af0ea45d68a7e27300b67fa2f42a3a4efb8c5267afeb47f8212",
+        "tests/raw-codex/raw-codex-integration.bats": "0dca8965c2388d8518cb6648193f103b96fa7d6b3142d420b99fe400a6280e82",
+        "tests/raw-codex/raw-codex-services.bats": "85c0798a5237e53e748969154a9b739b33f4d6c5778d512f831d6dc44d22f334",
+        "tests/raw-codex/raw-managed-profile.bats": "8d966d643e1836f7b67405fa6b01c44e41453b6b7ea360e77d406f3cd109eae9",
+        "tests/raw-codex/secret-isolation-gateway.bats": "2b2e730fa2cd1af8caa97346c3da947aa9463eca9ae1b2f564d1f85562595467",
+        "tests/raw-codex/secret-isolation-worktree.bats": "8b56c0209b2d8e74adf35f291571d0fb618e9ae39bc27b3a00891a3a4577406d",
+        "tests/test_orca_sprites_pilot.py": "de3667462cd39084f8a19f3701500946a307e3c5aa9326e63371fe450f199067",
+        "tests/test_raw_codex_package.py": "ec8f8d851baed4513fc9e0500de7fe87a761b50addcbb7c243e96a29a41e38ff",
+        "tests/worktree-gc-fanout.bats": "b4c0d9a880e507fd1622c0c9b3c82a40863313093937bd472ee9e22bc7bfc935",
+        "tests/worktree-gc.bats": "1cd6a3c94e860cacc4a1c2ba388733cfb0f7ad1fcbdd34b21d47010bb257a746",
+        "tests/worktree_gc_test_helper.bash": "a4a9886bb1164c7e391dbbf201c4de6a9c4fee7293a4ac0bd82f4cbb5eee7aad"
+      },
+      "callerAfter": {
+        "status": {
+          "value": "Name:\tbun\nUmask:\t0022\nState:\tR (running)\nTgid:\t4185\nNgid:\t0\nPid:\t4185\nPPid:\t4184\nTracerPid:\t0\nUid:\t1001\t1001\t1001\t1001\nGid:\t1001\t1001\t1001\t1001\nFDSize:\t1024\nGroups:\t4 100 117 999 1001 \nNStgid:\t4185\nNSpid:\t4185\nNSpgid:\t1917\nNSsid:\t1917\nKthread:\t0\nVmPeak:\t10075636 kB\nVmSize:\t 6115060 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t  156048 kB\nVmRSS:\t   43636 kB\nRssAnon:\t   17432 kB\nRssFile:\t   26204 kB\nRssShmem:\t       0 kB\nVmData:\t 5810552 kB\nVmStk:\t     136 kB\nVmExe:\t   81920 kB\nVmLib:\t    2344 kB\nVmPTE:\t     384 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffff\nThreads:\t8\nSigQ:\t0/58304\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000001001000\nSigCgt:\t00000001600004f8\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tunknown\nCpus_allowed:\tf\nCpus_allowed_list:\t0-3\nMems_allowed:\t00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t294\nnonvoluntary_ctxt_switches:\t21\n"
+        },
+        "uidMap": {
+          "value": "         0          0 4294967295\n"
+        },
+        "gidMap": {
+          "value": "         0          0 4294967295\n"
+        },
+        "namespaces": {
+          "user": "user:[4026531837]",
+          "pid": "pid:[4026531836]",
+          "mnt": "mnt:[4026531832]"
+        }
+      }
+    }
+  ],
+  "historyComplete": false
+}
