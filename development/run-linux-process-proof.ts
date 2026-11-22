@@ -1020,7 +1020,15 @@ async function aggregate(root: string, raw: string, out: string) {
     const metadata = await collectMetadata(
       async (path) => {
         const response = await fetch(`https://api.github.com/repos/treflebonbon/skills${path}`, {
-          headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+          headers: {
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            // runner の共有 IP では認証なしの上限（60回/時）を他の利用者と分け合うため、
+            // 集約 job だけに与えた actions: read の job token で同じ read API を読む。
+            ...(process.env.GITHUB_TOKEN
+              ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
+              : {}),
+          },
           signal: AbortSignal.timeout(30_000),
         });
         if (!response.ok) {

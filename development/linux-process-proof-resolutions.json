@@ -8,6 +8,14 @@
       "classification": "environment",
       "reason": "集約 job の公開 metadata API が HTTP 403 を返し、artifact と同じ SHA の履歴を照合できなかった。両 architecture の試験本体は3回とも全件成功しており、候補・harness の不一致は観測されていない。403 の原因（認証なし API の rate limit など）は記録が無く未確定。",
       "evidence": "docs/evidence/linux-process-proof/44976819303-1/README.md"
+    },
+    {
+      "runId": "45012162020",
+      "attempt": 1,
+      "sourceSha": "c6947cda6fc5dada4e021cfc87034133393da8cb",
+      "classification": "environment",
+      "reason": "集約 job の公開 metadata API が HTTP 403（API rate limit exceeded、x-ratelimit-limit=60、remaining=0）を返し、artifact と同じ SHA の履歴を照合できなかった。GitHub-hosted runner で共有される IP の認証なしの上限である。両 architecture の試験本体は3回とも全件成功した。",
+      "evidence": "docs/evidence/linux-process-proof/45012162020-1/README.md"
     }
   ]
 }

@@ -54,6 +54,7 @@ runner では、[既存計画](bun-process-linux-proof-plan.md)の Q3〜Q10（�
 
 - job ごとに選ばれた方式を記録し、その方式のケース一覧と照合する。
 - runner が cgroup 以外を選んだ組は、cgroup 経路の実証としては未達にする。
+- 集約 job は、その job だけに与えた `actions: read` の job token（読取り専用・run 限定）で公開 metadata API を読む。既存計画の「認証なし read API を使い、認証権限は追加しない」から 2026-11-22 に変更した。runner の共有 IP では認証なしの上限（1時間60回）を他の利用者と分け合い、2回の run が上限で未達になったためである。repository 設定と secret は変えない。
 
 WSL2 では、対象の SHA を固定し、手元で全件を3回連続して実行する。skip 0・失敗 0 を求める。証跡は `docs/evidence/wsl2-host-adaptive/<日付>-<SHA短縮>/` に置く。中身は、runner と同じ bundle の形式から GitHub 固有の項目を除いた要約、`job.json` 相当、ケースごとの結果である。補助 group の2件に必要な sudo の準備（試験用 group と他者所有 file の作成、`setpriv`）と後片付けは、人が `! sudo …` で実行する。共有の OS 設定（sysctl・AppArmor）は変えない。
 
@@ -66,7 +67,7 @@ macOS、他の distro、linger が既定で無効なホストで委譲を得る�
 | 分岐 | ホスト | 結果 |
 | --- | --- | --- |
 | PID namespace | 手元の WSL2 x64 | **成功**。2026-11-21、`c6947cd` を固定して全47件を3回連続で実行し、3回とも skip 0・失敗 0（[証跡](evidence/wsl2-host-adaptive/2026-11-21-c6947cd/README.md)） |
-| cgroup v2 | GitHub runner x64／arm64 | **未達（証跡不足）**。2026-11-22 の [run 44976819303 / attempt 1](evidence/linux-process-proof/44976819303-1/README.md) で、両構成とも cgroup が選ばれ、45件×3回が全件成功した。集約 job が公開 metadata API の HTTP 403 で artifact・履歴を照合できず、成功には数えない |
+| cgroup v2 | GitHub runner x64／arm64 | **未達（証跡不足）**。2026-11-22 の [run 44976819303 / attempt 1](evidence/linux-process-proof/44976819303-1/README.md) と [run 45012162020 / attempt 1](evidence/linux-process-proof/45012162020-1/README.md) で、両構成とも cgroup が選ばれ、45件×3回が全件成功した。集約 job が公開 metadata API の認証なし rate limit で artifact・履歴を照合できず、どちらも成功には数えない |
 | 拒否 | GitHub runner x64／arm64 | 同じ run の拒否ケースが3回とも成功（終了コード 69、正常な対照は 37）。認定は cgroup と同じ扱いで未達 |
 
 WSL2 の成功は runner の結果に読み替えない。#33 は未完了のまま。
