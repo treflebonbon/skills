@@ -136,6 +136,7 @@ function cohort() {
       expiresAt: "2027-02-14T00:00:00Z",
     })),
     historyComplete: true,
+    historyCutoff: "2026-11-16T00:00:00Z",
     history: [] as unknown[],
   };
 }
@@ -395,6 +396,21 @@ test("artifact の実保存期間が90日に足りない場合は証跡不足に
   );
 });
 
+test("artifact の保存期間は run の開始から数え、試験の後に作られた artifact も受け入れる", () => {
+  // GitHub は run の開始時刻から保存期限を数えるため、試験に数分かかると作成時刻からは90日に満たない。
+  const input = cohort();
+  for (const artifact of input.artifacts) {
+    artifact.createdAt = "2026-11-16T00:02:00Z";
+    artifact.expiresAt = "2027-02-14T00:00:02Z";
+  }
+  expect(verifyCohort(input, manifest)).toEqual({ verified: true, reasons: [] });
+  const missing = cohort();
+  delete (missing as Partial<typeof missing>).historyCutoff;
+  expect(verifyCohort(missing, manifest).reasons).toContain(
+    "x64: artifact の同一性・保存期間を確認できません",
+  );
+});
+
 test("片方の artifact が欠ける場合は測定成功でも認定しない", () => {
   const input = cohort();
   input.artifacts.pop();
@@ -471,12 +487,13 @@ test("public API の最終成功だけで過去の失敗 attempt を隠さない
 });
 
 test("artifact API から同じ attempt の実 metadata だけを残す", async () => {
+  // artifact は run の開始（01:00）の後に作られ、保存期限は開始から90日になる。
   const artifacts = cohort().artifacts.map((artifact) => ({
     name: `linux-proof-42-1-${artifact.arch}`,
     id: Number(artifact.id),
     digest: `sha256:${artifact.digest}`,
-    created_at: artifact.createdAt,
-    expires_at: artifact.expiresAt,
+    created_at: "2026-11-16T01:02:00Z",
+    expires_at: "2027-02-14T01:00:00Z",
     expired: false,
   }));
   artifacts.push({ ...artifacts[0]!, name: "linux-proof-42-2-x64", id: 3 });

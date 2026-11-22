@@ -324,7 +324,10 @@ export function verifyCohort(input: unknown, manifest: unknown): Verdict {
       typeof artifact.expiresAt !== "string" ||
       !Number.isFinite(Date.parse(artifact.createdAt)) ||
       !Number.isFinite(Date.parse(artifact.expiresAt)) ||
-      Date.parse(artifact.expiresAt) - Date.parse(artifact.createdAt) < 90 * 86400_000 - 60_000
+      typeof input.historyCutoff !== "string" ||
+      !Number.isFinite(Date.parse(input.historyCutoff)) ||
+      // GitHub は保存期限を run の開始時刻から数える。作成時刻から数えると試験の所要時間分だけ足りなくなる。
+      Date.parse(artifact.expiresAt) - Date.parse(input.historyCutoff) < 90 * 86400_000 - 60_000
     )
       reasons.push(`${arch}: artifact の同一性・保存期間を確認できません`);
   }

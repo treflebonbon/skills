@@ -67,7 +67,7 @@ macOS、他の distro、linger が既定で無効なホストで委譲を得る�
 | 分岐 | ホスト | 結果 |
 | --- | --- | --- |
 | PID namespace | 手元の WSL2 x64 | **成功**。2026-11-21、`c6947cd` を固定して全47件を3回連続で実行し、3回とも skip 0・失敗 0（[証跡](evidence/wsl2-host-adaptive/2026-11-21-c6947cd/README.md)） |
-| cgroup v2 | GitHub runner x64／arm64 | **未達（証跡不足）**。2026-11-22 の [run 44976819303 / attempt 1](evidence/linux-process-proof/44976819303-1/README.md) と [run 45012162020 / attempt 1](evidence/linux-process-proof/45012162020-1/README.md) で、両構成とも cgroup が選ばれ、45件×3回が全件成功した。集約 job が公開 metadata API の認証なし rate limit で artifact・履歴を照合できず、どちらも成功には数えない |
+| cgroup v2 | GitHub runner x64／arm64 | **未達（証跡不足）**。2026-11-22 の [run 44976819303 / attempt 1](evidence/linux-process-proof/44976819303-1/README.md) と [run 45012162020 / attempt 1](evidence/linux-process-proof/45012162020-1/README.md) で、両構成とも cgroup が選ばれ、45件×3回が全件成功した。集約 job が公開 metadata API の認証なし rate limit で artifact・履歴を照合できず、どちらも成功には数えない。job token を使った [run 45021161575 / attempt 1](evidence/linux-process-proof/45021161575-1/README.md) も試験は全件成功したが、artifact の保存期間を作成時刻から数える集約側の欠陥で未達になった。欠陥を直した新しい source SHA で再測定する |
 | 拒否 | GitHub runner x64／arm64 | 同じ run の拒否ケースが3回とも成功（終了コード 69、正常な対照は 37）。認定は cgroup と同じ扱いで未達 |
 
 WSL2 の成功は runner の結果に読み替えない。#33 は未完了のまま。
