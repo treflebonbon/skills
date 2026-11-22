@@ -1,6 +1,6 @@
 # ホストに応じて方式を選ぶ正式実証の計画
 
-状態: 計画確定・未実装。2026-11-21 の設計対話で Q1〜Q10 の回答と全体の共有理解を確認した。
+状態: 実証済み（必要範囲の Linux）。2026-11-21 の設計対話で Q1〜Q10 の回答と全体の共有理解を確認した。2026-11-22 までに、runner の cgroup 経路・拒否と、WSL2 の namespace 経路の正式実証が成功した（[結果](#結果)）。
 
 [ADR 0005](adr/0005-linux-host-adaptive-preparation-containment.md) の**方式の選択**（PID namespace／cgroup v2／拒否）を、必要範囲の Linux ホストで正式に実証する計画。[cgroup v2 の可否確認](linux-cgroup-v2-feasibility.md)の結果を根拠に進める。この実証が成功しても、macOS が残る限り [#33](https://github.com/treflebonbon/skills/issues/33) は未完了で、[#82](https://github.com/treflebonbon/skills/issues/82) は依存待ちのままとする。
 
@@ -67,7 +67,9 @@ macOS、他の distro、linger が既定で無効なホストで委譲を得る�
 | 分岐 | ホスト | 結果 |
 | --- | --- | --- |
 | PID namespace | 手元の WSL2 x64 | **成功**。2026-11-21、`c6947cd` を固定して全47件を3回連続で実行し、3回とも skip 0・失敗 0（[証跡](evidence/wsl2-host-adaptive/2026-11-21-c6947cd/README.md)） |
-| cgroup v2 | GitHub runner x64／arm64 | **未達（証跡不足）**。2026-11-22 の [run 44976819303 / attempt 1](evidence/linux-process-proof/44976819303-1/README.md) と [run 45012162020 / attempt 1](evidence/linux-process-proof/45012162020-1/README.md) で、両構成とも cgroup が選ばれ、45件×3回が全件成功した。集約 job が公開 metadata API の認証なし rate limit で artifact・履歴を照合できず、どちらも成功には数えない。job token を使った [run 45021161575 / attempt 1](evidence/linux-process-proof/45021161575-1/README.md) も試験は全件成功したが、artifact の保存期間を作成時刻から数える集約側の欠陥で未達になった。欠陥を直した新しい source SHA で再測定する |
-| 拒否 | GitHub runner x64／arm64 | 同じ run の拒否ケースが3回とも成功（終了コード 69、正常な対照は 37）。認定は cgroup と同じ扱いで未達 |
+| cgroup v2 | GitHub runner x64／arm64 | **成功**。2026-11-22 の [run 45022533684 / attempt 1](evidence/linux-process-proof/45022533684-1/README.md)（source／workflow `76b591a`）で、両構成とも cgroup が選ばれ、全45件を3回ずつ実行して skip 0・失敗 0。集約の全条件を満たした |
+| 拒否 | GitHub runner x64／arm64 | **成功**。同じ run の拒否ケースが3回とも成功（終了コード 69 で準備を始めず、環境を戻した対照は 37） |
 
-WSL2 の成功は runner の結果に読み替えない。#33 は未完了のまま。
+source `c6947cd` の3回の run（[44976819303](evidence/linux-process-proof/44976819303-1/README.md)、[45012162020](evidence/linux-process-proof/45012162020-1/README.md)、[45021161575](evidence/linux-process-proof/45021161575-1/README.md)）も試験本体は全件成功したが、集約で未達になった。前の2回は認証なし API の rate limit（環境起因として解決記録あり）、3回目は artifact の保存期間を作成時刻から数える集約側の欠陥による。欠陥を直したため、Q10 に従い新しい source SHA で再測定した。`c6947cd` と `76b591a` の差は集約の検証ロジック・その単体試験・解決記録・workflow だけで、launcher・正式実証の試験・manifest は同一である。
+
+WSL2 と runner の結果は分けて記録し、互いに読み替えない。macOS が残るため #33 は未完了のままで、#82 は依存待ちのまま。
