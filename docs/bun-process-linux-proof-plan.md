@@ -1,5 +1,7 @@
 # 通常 Linux x64／arm64 の追加実証計画
 
+> runner で namespace 経路を実証する部分は、[ホストに応じて方式を選ぶ正式実証の計画](linux-host-adaptive-proof-plan.md)で置き換えた。Q3〜Q10 の条件は、新しい計画が引き継いでいる。
+
 状態: 計画確定・追加実証は未達。2026-11-16 に Q1〜Q10 の回答と、Claude Opus のレビュー反映後の計画全体の共有理解を確認した。専用 workflow と証跡収集を実装し、同日の [run 43869813149 / attempt 1](evidence/linux-process-proof/43869813149-1/README.md) は両構成とも前提検査で停止した。試験本体は未実行。 2026-11-17 の [run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) も namespace の前提未達で停止し、両構成とも試験本体0件だった。
 
 ## 目的と引継ぎ
