@@ -1023,7 +1023,14 @@ async function aggregate(root: string, raw: string, out: string) {
           headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
           signal: AbortSignal.timeout(30_000),
         });
-        if (!response.ok) throw new Error(`public metadata API: HTTP ${response.status}`);
+        if (!response.ok) {
+          // 403 などの原因（rate limit か権限か）を後で確定できるよう、header と本文の先頭を残す。
+          const limit = ["x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset"]
+            .map((name) => `${name}=${response.headers.get(name)}`)
+            .join(" ");
+          const body = (await response.text()).slice(0, 300).replaceAll("\n", " ");
+          throw new Error(`public metadata API: HTTP ${response.status} ${path} ${limit} ${body}`);
+        }
         return (await response.json()) as Record<string, unknown>;
       },
       current,
