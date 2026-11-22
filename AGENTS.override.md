@@ -11,3 +11,7 @@ Issue は GitHub Issues（`treflebonbon/skills`、`gh` CLI）で管理する。�
 ### Domain docs
 
 single-context（ルートの `GLOSSARY.md` と `docs/adr/`）。詳細は `docs/agents/domain.md`。
+
+### 診断用 dispatch
+
+GitHub runner で一度だけ測る診断（可否確認・再現・最小化）や、workflow の変更を含む作業は、先に `docs/agents/diagnostic-dispatch.md` を読む。
