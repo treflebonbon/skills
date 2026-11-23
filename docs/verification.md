@@ -63,6 +63,8 @@ npm run lint
 npm run lint:sh
 ```
 
+ローカルの `npm test` では、実証 CLI が checkout の SHA を照合します。実行中は同じ worktree の `HEAD` と追跡対象ファイルを固定し、その worktree でのコミットや checkout は検証の終了後に行います。特定のコミットの検証結果として記録する場合は、開始時と終了時の `git rev-parse HEAD` が対象 SHA と一致することを確認します。
+
 `lint:sh` が検査するのは、`shfmt` が `bin/` のシェルスクリプトと `lib/bun/run`、`development/plugin-sessions`、`tests/cli/git-push-topic.bats`、`shellcheck` が `bin/` のシェルスクリプトと `lib/bun/run`、`development/plugin-sessions` です（`-S warning` 以上。info と style は見ません）。対象のファイルを commit するときは、pre-commit hook が実行します。CI では走りません。
 
 report と質問シートの loopback 配信、旧 HTTP corpus、専用 root と process の開始終了は [配信の移行記録](bun-loopback-proof.md)と `tests/bun/serve-local.test.ts` で確認します。
