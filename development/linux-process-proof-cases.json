@@ -15,7 +15,6 @@
       "選ばれた方式は prep-complete-hang-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する",
       "選ばれた方式は prep-complete-hang-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する",
       "launcher の process group 全体への SIGKILL でも全所有子孫を5秒以内に終了する",
-      "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない",
       "旧 Python corpus の PID・FD・signal・argv・env 契約を候補でも満たす",
       "旧 corpus の exec 拒否を候補でも維持する",
       "正常な準備には5秒上限を設けず、5.2秒後に同じ launcher PID で target を実行する",
@@ -34,6 +33,7 @@
       "実 Nix・shellHook を現行 prepare_environment caller から実行し候補と比較する"
     ],
     "namespace": [
+      "namespace 経路で監視役が終了した後、launcher への SIGTERM で準備子孫を残さない",
       "unshare の namespace-before で SIGTERM を受けても準備子を残さない",
       "unshare の namespace-before で SIGKILL を受けても準備子を残さない",
       "unshare の pidfd-before で SIGTERM を受けても準備子を残さない",
@@ -53,6 +53,7 @@
       "mount-proc なしの launcher では準備子の proc PID の不整合を検出する"
     ],
     "cgroup": [
+      "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない",
       "cgroup 経路の systemd-run-before で SIGTERM を受けても準備子を残さない",
       "cgroup 経路の systemd-run-before で SIGKILL を受けても準備子を残さない",
       "cgroup 経路の scope-before で SIGTERM を受けても準備子を残さない",
@@ -71,8 +72,6 @@
   },
   "observations": {
     "namespace": [],
-    "cgroup": [
-      "子孫が cgroup の移動で準備用 cgroup から抜け出せるかを観測する"
-    ]
+    "cgroup": ["子孫が cgroup の移動で準備用 cgroup から抜け出せるかを観測する"]
   }
 }

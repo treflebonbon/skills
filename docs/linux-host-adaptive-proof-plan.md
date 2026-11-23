@@ -44,9 +44,9 @@ probe は成功したのに本番の `unshare` が失敗した場合は、cgroup
 
 | 区分 | ケース |
 | --- | --- |
-| 共通 | 離脱・頑固な準備の12件（SIGTERM／SIGKILL）、旧 corpus 2件、正常な準備に5秒上限を設けない1件、準備失敗1件、ARG_MAX 1件、frame 上限1件、UID/GID/groups の一致1件、補助 group 2件、実 PTY 6件、実 Nix caller 1件、launcher の process group 全体への SIGKILL 1件、準備中に watchdog だけが死んだ場合1件（namespace では対照として扱う） |
-| namespace 専用 | `unshare` の各段階14件、pidfd 検査を無効にした対照、namespace 拒否、`mount-proc` なしの不整合の検出 |
-| cgroup 専用 | `systemd-run` の起動前、scope の登録前、登録後で準備の exec 前、watchdog の起動前、起動後の各段階で launcher が SIGTERM／SIGKILL を受けても準備子を残さないこと。watchdog を無効にした対照で残存を検出する1件。user manager に届かないときの拒否1件（正常な対照付き）。cgroup の移動で抜け出せるかの観測1件（合否には数えない） |
+| 共通 | 離脱・頑固な準備の12件（SIGTERM／SIGKILL）、旧 corpus 2件、正常な準備に5秒上限を設けない1件、準備失敗1件、ARG_MAX 1件、frame 上限1件、UID/GID/groups の一致1件、補助 group 2件、実 PTY 6件、実 Nix caller 1件、launcher の process group 全体への SIGKILL 1件 |
+| namespace 専用 | `unshare` の各段階14件、pidfd 検査を無効にした対照、namespace 拒否、`mount-proc` なしの不整合の検出。準備 group の監視役が終了した後、launcher への SIGTERM で子孫を残さないこと |
+| cgroup 専用 | watchdog だけが終了した場合に準備子孫を残さず target を起動しないこと。 `systemd-run` の起動前、scope の登録前、登録後で準備の exec 前、watchdog の起動前、起動後の各段階で launcher が SIGTERM／SIGKILL を受けても準備子を残さないこと。watchdog を無効にした対照で残存を検出する1件。user manager に届かないときの拒否1件（正常な対照付き）。cgroup の移動で抜け出せるかの観測1件（合否には数えない） |
 
 ## 合格の判定（Q4・Q9）
 
@@ -70,6 +70,6 @@ macOS、他の distro、linger が既定で無効なホストで委譲を得る�
 | cgroup v2 | GitHub runner x64／arm64 | **成功**。2026-11-22 の [run 45022533684 / attempt 1](evidence/linux-process-proof/45022533684-1/README.md)（source／workflow `76b591a`）で、両構成とも cgroup が選ばれ、全45件を3回ずつ実行して skip 0・失敗 0。集約の全条件を満たした |
 | 拒否 | GitHub runner x64／arm64 | **成功**。同じ run の拒否ケースが3回とも成功（終了コード 69 で準備を始めず、環境を戻した対照は 37） |
 
-source `c6947cd` の3回の run（[44976819303](evidence/linux-process-proof/44976819303-1/README.md)、[45012162020](evidence/linux-process-proof/45012162020-1/README.md)、[45021161575](evidence/linux-process-proof/45021161575-1/README.md)）も試験本体は全件成功したが、集約で未達になった。前の2回は認証なし API の rate limit（環境起因として解決記録あり）、3回目は artifact の保存期間を作成時刻から数える集約側の欠陥による。欠陥を直したため、Q10 に従い新しい source SHA で再測定した。`c6947cd` と `76b591a` の差は集約の検証ロジック・その単体試験・解決記録・workflow だけで、launcher・正式実証の試験・manifest は同一である。
+source `c6947cd` の3回の run（[44976819303](evidence/linux-process-proof/44976819303-1/README.md)、[45012162020](evidence/linux-process-proof/45012162020-1/README.md)、[45021161575](evidence/linux-process-proof/45021161575-1/README.md)）も試験本体は全件成功したが、集約で未達になった。前の2回は認証なし API の rate limit（環境起因として解決記録あり）、3回目は artifact の作成時刻を起点にした保存期間の検査で未達になった。後続の検証ロジックでは run 開始時刻を起点にし、Q10 に従い新しい source SHA で再測定した。`c6947cd` と `76b591a` の差は集約の検証ロジック・その単体試験・解決記録・workflow だけで、launcher・正式実証の試験・manifest は同一である。
 
 WSL2 と runner の結果は分けて記録し、互いに読み替えない。macOS が残るため #33 は未完了のままで、#82 は依存待ちのまま。

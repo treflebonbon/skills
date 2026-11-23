@@ -209,6 +209,15 @@ test("抜け出しの観測ケースは失敗しても合否に数えず、必�
   ]);
 });
 
+test("観測ケースが未実行なら全件 pass の集計でも拒否する", () => {
+  const input = cohort();
+  const trial = input.jobs[0]!.trials[0]!;
+  trial.cases.find((item) => item.name === manifest.observations.cgroup[0])!.status = "skip";
+  expect(verifyCohort(input, manifest).reasons).toEqual([
+    "x64/1: 観測 case に pass または fail が必要です",
+  ]);
+});
+
 test("3区分を持たない manifest や区分の重なりを期待一覧として受け入れない", () => {
   for (const invalid of [
     { schema: "linux-process-proof-cases/v1", cases: ["終了保証"] },

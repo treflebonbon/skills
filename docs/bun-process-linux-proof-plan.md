@@ -57,6 +57,8 @@ architecture ごと・実行ごとの bundle を作る。判定要約と検査�
 
 生ログ・補助ファイルの bundle は GitHub Actions artifact に90日保存し、要約・必要な JSON は Git に残す。実際の保存期限も記録し、期限後は原ログを再取得できない前提とする。
 
+保存期間の起点は対象 attempt の run 開始時刻（`run_started_at`）とする。集約では記録された保存期限（`expires_at`）との差が90日以上であることを確認し、60秒の不足までを許容する。この起点は 2026-11-23 のレビュー対応で明記した。
+
 設定上限や upload 失敗で必要な保存ができなければ証跡不足として報告する。repository や組織の設定は自動変更しない。public repository の保持期間には最大90日と設定上限が適用される。[GitHub の保持期間設定](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository)を参照。
 
 ## 確定した Nix と closure の準備（Q6）

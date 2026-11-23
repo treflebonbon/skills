@@ -15,10 +15,11 @@
 /* 方式を選ぶ候補だけが差し替える。旧方式の対照では何もしない。 */
 #ifndef PROOF_HOOKS
 #define PROOF_INTERRUPT()
-#define PROOF_FINISH()
-#define PROOF_BEFORE_PREPARATION()
+#define PROOF_FINISH() 0
+#define PROOF_BEFORE_PREPARATION(mask) 0
 #define PROOF_AFTER_PREPARATION() 0
 #define PROOF_READ read
+#define PROOF_AWAIT_PREPARATION() 0
 #endif
 static pid_t preparation;
 static volatile sig_atomic_t guardian;
@@ -33,9 +34,9 @@ static void interrupt(int number) {
   errno = saved_errno;
 }
 
-static void finish_preparation(void) {
-  PROOF_FINISH();
-  if (guardian <= 1) return;
+static int finish_preparation(void) {
+  int failed = PROOF_FINISH();
+  if (guardian <= 1) return failed;
   pid_t owned_guardian = guardian;
   guardian = 0;
   kill(-owned_guardian, SIGKILL);
@@ -44,6 +45,7 @@ static void finish_preparation(void) {
     while (waitpid(preparation, NULL, 0) < 0 && errno == EINTR) {}
     preparation = 0;
   }
+  return failed;
 }
 
 static void invalid(void) {
@@ -161,7 +163,15 @@ int main(int argc, char **argv) {
   command[1] = "run";
   for (int i = 2; i < argc; i++) command[i] = argv[i];
   pid_t launcher = getpid();
-  PROOF_BEFORE_PREPARATION();
+  char *buffer = NULL;
+  size_t capacity = 4096, size = 0;
+  int status = 0;
+  int failed = PROOF_BEFORE_PREPARATION(&original_mask);
+  if (failed || interrupted) {
+    close(frame[0]);
+    close(frame[1]);
+    goto finished;
+  }
   preparation = fork();
   if (preparation < 0) invalid();
   if (!preparation) {
@@ -184,11 +194,10 @@ int main(int argc, char **argv) {
   }
   int descriptor = frame[0];
   if (sigprocmask(SIG_SETMASK, &original_mask, NULL) < 0) invalid();
-  size_t capacity = 4096, size = 0;
-  char *buffer = malloc(capacity);
+  buffer = malloc(capacity);
   if (!buffer) invalid();
-  int failed = PROOF_AFTER_PREPARATION();
-  while (!interrupted) {
+  failed = PROOF_AFTER_PREPARATION();
+  while (!failed && !interrupted) {
     if (size == capacity) {
       /* fixture の入力を有限にする。製品の ARG_MAX 契約は別途判断する。 */
       if (capacity == 16 * 1024 * 1024) { failed = 1; break; }
@@ -207,17 +216,19 @@ int main(int argc, char **argv) {
     size += (size_t)length;
   }
   close(descriptor);
+  if (!failed && !interrupted) failed = PROOF_AWAIT_PREPARATION();
   if (failed || interrupted) {
     kill(-guardian, SIGKILL);
     PROOF_INTERRUPT();
   }
-  int status;
   while (waitpid(preparation, &status, 0) < 0) {
     if (errno != EINTR) invalid();
   }
   preparation = 0;
-  finish_preparation();
+finished:
+  if (finish_preparation() && !failed) failed = 1;
   close(control[1]);
+  if (sigprocmask(SIG_SETMASK, &original_mask, NULL) < 0) invalid();
   if (sigaction(SIGCHLD, &saved_chld, NULL) < 0) invalid();
   for (int i = 0; i < 3; i++) {
     if (sigaction(signals[i], &saved[i], NULL) < 0) invalid();
@@ -226,6 +237,8 @@ int main(int argc, char **argv) {
     raise(interrupted);
     _exit(128 + interrupted);
   }
+  // 方式選択 hook は理由を出力済みの拒否コードも返せる。
+  if (failed > 1) return failed;
   if (failed || !WIFEXITED(status) || WEXITSTATUS(status)) invalid();
 
   char *cursor = buffer, *end = buffer + size;

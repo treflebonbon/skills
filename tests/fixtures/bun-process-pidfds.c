@@ -26,7 +26,24 @@ int main(int argc, char **argv) {
   puts("ready");
   fflush(stdout);
   int command;
-  while ((command = getchar()) == '?') {
+  while ((command = getchar()) == '?' || command == '!') {
+    if (command == '!') {
+      char line[32], *end;
+      if (!fgets(line, sizeof(line), stdin)) { status = 91; goto cleanup; }
+      long index = strtol(line, &end, 10);
+      if (end == line || *end != '\n' || index < 0 || index >= argc - 1) {
+        status = 91;
+        goto cleanup;
+      }
+      if (syscall(SYS_pidfd_send_signal, fds[index].fd, SIGKILL, NULL, 0) < 0) {
+        perror("pidfd_send_signal");
+        status = 90;
+        goto cleanup;
+      }
+      puts("sent");
+      fflush(stdout);
+      continue;
+    }
     if (poll(fds, (nfds_t)argc - 1, 0) < 0) { status = 90; goto cleanup; }
     putchar('[');
     int comma = 0;

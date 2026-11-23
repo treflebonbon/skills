@@ -204,6 +204,10 @@ async function pin(pids: number[]) {
     throw error;
   }
   return {
+    async kill(pid: number) {
+      child.stdin.write(`!${pids.indexOf(pid)}\n`);
+      expect(await next()).toBe("sent");
+    },
     async terminated(): Promise<number[]> {
       child.stdin.write("?");
       return JSON.parse(await next());
@@ -251,6 +255,7 @@ function killCgroup(path: string | undefined) {
 
 type Interruption = {
   stage?: string;
+  closeFrame?: boolean;
   hiddenParentDeath?: boolean;
   hiddenLauncherDeath?: boolean;
   /** launcher だけ・launcher の process group 全体・監視役だけ、のどれへ signal を送るか。 */
@@ -262,6 +267,7 @@ async function interruption(
   signal: "SIGTERM" | "SIGKILL",
   {
     stage,
+    closeFrame = false,
     hiddenParentDeath = false,
     hiddenLauncherDeath = false,
     target = "launcher",
@@ -278,6 +284,7 @@ async function interruption(
       PROCESS_PROOF_DETACH_INIT: "1",
       PROCESS_PROOF_OBSERVE: observed,
       ...(stage ? { PROCESS_PROOF_GATE: stage } : {}),
+      ...(closeFrame ? { PROCESS_PROOF_CLOSE_FRAME: "1" } : {}),
       ...(hiddenParentDeath ? { PROCESS_PROOF_HIDE_PARENT_DEATH: "1" } : {}),
       ...(hiddenLauncherDeath ? { PROCESS_PROOF_HIDE_LAUNCHER_DEATH: "1" } : {}),
     },
@@ -312,6 +319,7 @@ async function interruption(
     }
     const pids = descendants(child.pid!);
     expect(pids.length).toBeGreaterThanOrEqual(stage ? 2 : mode === "prep-hang" ? 3 : 5);
+    owned = await pin(pids);
     const identities = pids.map((pid) => ({
       pid,
       executable: fs.readlinkSync(`/proc/${pid}/exe`),
@@ -323,7 +331,6 @@ async function interruption(
     }));
     const selected = observation(observed);
     expect(selected.containment).toBe(containment!);
-    owned = await pin(pids);
     let helper: number | undefined;
     if (target === "helper") {
       // cgroup では scope 外の watchdog、namespace では準備 group の監視役を対照として止める。
@@ -339,9 +346,32 @@ async function interruption(
             );
       expect(pids).toContain(helper!);
     }
+    if (closeFrame) {
+      const frame = stderr.match(/^prep-frame-closed:(pipe:\[\d+\])$/m)?.[1];
+      expect(frame).toBeDefined();
+      const directory = `/proc/${child.pid}/fd`;
+      // launcher が EOF を処理して frame の読み取り側を閉じた後に watchdog を止める。
+      await until(() =>
+        fs.readdirSync(directory).every((fd) => {
+          try {
+            return fs.readlinkSync(join(directory, fd)) !== frame;
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+            return true;
+          }
+        }),
+      );
+    }
+    const detachedPids = hiddenLauncherDeath
+      ? [...stderr.matchAll(/^prep-detached:(\d+):/gm)].map((match) => Number(match[1]))
+      : [];
+    if (hiddenLauncherDeath) {
+      expect(detachedPids).toHaveLength(2);
+      for (const pid of detachedPids) expect(pids).toContain(pid);
+    }
     const started = performance.now();
     if (target === "group") process.kill(-child.pid!, "SIGKILL");
-    else if (helper) process.kill(helper, "SIGKILL");
+    else if (helper) await owned.kill(helper);
     else child.kill(signal);
     let launcherOutcome: unknown;
     if (helper && containment === "namespace") {
@@ -352,6 +382,8 @@ async function interruption(
       child.kill("SIGTERM");
     }
     const [status, exitSignal] = await within(ended);
+    if (helper && containment === "namespace")
+      expect([status, exitSignal]).toEqual([null, "SIGTERM"]);
     if (helper && containment === "cgroup") {
       expect([status, exitSignal]).toEqual([1, null]);
       launcherOutcome = { status, signal: exitSignal };
@@ -389,7 +421,7 @@ async function interruption(
       const terminated = await owned.terminated();
       // watchdog が cgroup.kill を書かなければ、離脱した子孫と watchdog 自身が残る。
       expect(terminated).not.toContain(Number(selected.watchdog));
-      expect(terminated.length).toBeLessThan(pids.length);
+      expect(detachedPids.some((pid) => !terminated.includes(pid))).toBe(true);
       controlParentsTerminatedBeforeRelease = terminated;
     } else {
       await until(async () => (await owned!.terminated()).length === pids.length, 4_500);
@@ -410,6 +442,7 @@ async function interruption(
       mode,
       signal,
       stage,
+      closeFrame,
       target,
       hiddenParentDeath,
       hiddenLauncherDeath,
@@ -422,20 +455,15 @@ async function interruption(
       terminated: await owned.terminated(),
     });
   } finally {
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
-    await within(ended);
-    gate.end("R");
-    // 対照で残した子孫と watchdog を後始末する。
-    killCgroup(observation(observed).cgroup);
-    const watchdog = Number(observation(observed).watchdog);
-    if (watchdog > 1)
-      try {
-        process.kill(watchdog, "SIGKILL");
-      } catch {}
-    await owned?.close();
-    unrelated.kill("SIGKILL");
-    await within(unrelatedEnded);
-    await within(drained);
+    try {
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+      await within(ended);
+      gate.end("R");
+      killCgroup(observation(observed).cgroup);
+    } finally {
+      unrelated.kill("SIGKILL");
+      await Promise.all([owned?.close(), within(unrelatedEnded), within(drained)]);
+    }
   }
 }
 
@@ -465,9 +493,19 @@ proof(
 );
 
 proof(
-  "common",
-  "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない",
+  "namespace",
+  "namespace 経路で監視役が終了した後、launcher への SIGTERM で準備子孫を残さない",
   () => interruption("prep-detached-session", "SIGKILL", { target: "helper" }),
+  15_000,
+);
+
+proof(
+  "cgroup",
+  "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない",
+  async () => {
+    await interruption("prep-detached-session", "SIGKILL", { target: "helper" });
+    await interruption("prep-detached-session", "SIGKILL", { target: "helper", closeFrame: true });
+  },
   15_000,
 );
 
@@ -556,7 +594,7 @@ proof(
     child.stderr!.on("data", (data) => {
       stderr += data;
     });
-    let escapee: { pid: number; own: string; moved: string } | undefined;
+    let owned: Awaited<ReturnType<typeof pin>> | undefined;
     try {
       await until(() => stderr.includes("prep-ready:"), 8_000).catch((error) => {
         throw new Error(`${error}\n${stderr}`);
@@ -564,40 +602,36 @@ proof(
       const reported: { pid: number; own: string; moved: string } = JSON.parse(
         /^escape:(.*)$/m.exec(stderr)![1]!,
       );
-      escapee = reported;
       const scope = observation(observed).cgroup!;
-      const pids = descendants(child.pid!).filter((pid) => pid !== reported.pid);
-      const owned = await pin(pids);
-      try {
-        child.kill("SIGKILL");
-        await within(ended);
-        await until(async () => (await owned.terminated()).length === pids.length, 4_500);
-        await Bun.sleep(5_100);
-        const survived =
-          fs.existsSync(`/proc/${reported.pid}`) &&
-          !/^\S+ \S+ Z /.test(
-            fs.readFileSync(`/proc/${reported.pid}/stat`, "utf8").replace(/\(.*\)/, "x"),
-          );
-        records.push({
-          cgroupEscape: {
-            scope,
-            escapee: reported,
-            leftScope: reported.moved !== reported.own,
-            survivedLauncherKill: survived,
-            countedInVerdict: false,
-          },
-        });
-      } finally {
-        await owned.close();
-      }
-    } finally {
-      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+      const pids = descendants(child.pid!);
+      expect(pids).toContain(reported.pid);
+      owned = await pin(pids);
+      const remaining = pids.filter((pid) => pid !== reported.pid);
+      child.kill("SIGKILL");
       await within(ended);
-      killCgroup(observation(observed).cgroup);
-      if (escapee)
-        try {
-          process.kill(escapee.pid, "SIGKILL");
-        } catch {}
+      await until(async () => {
+        const terminated = await owned!.terminated();
+        return remaining.every((pid) => terminated.includes(pid));
+      }, 4_500);
+      await Bun.sleep(5_100);
+      const survived = !(await owned.terminated()).includes(reported.pid);
+      records.push({
+        cgroupEscape: {
+          scope,
+          escapee: reported,
+          leftScope: reported.moved !== reported.own,
+          survivedLauncherKill: survived,
+          countedInVerdict: false,
+        },
+      });
+    } finally {
+      try {
+        if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+        await within(ended);
+        killCgroup(observation(observed).cgroup);
+      } finally {
+        await owned?.close();
+      }
     }
   },
   30_000,
@@ -682,6 +716,7 @@ proof(
 
 proof("common", "旧 Python corpus の PID・FD・signal・argv・env 契約を候補でも満たす", () => {
   for (const item of corpus.cases) {
+    const observed = observationPath();
     const result = spawnSync(
       observer,
       [
@@ -704,12 +739,19 @@ proof("common", "旧 Python corpus の PID・FD・signal・argv・env 契約を�
       {
         encoding: "utf8",
         timeout: 5_000,
-        env: { ...process.env, PROCESS_PROOF_MARKER: "literal🙂", GIT_PROOF_MARKER: "remove" },
+        env: {
+          ...process.env,
+          PROCESS_PROOF_MARKER: "literal🙂",
+          GIT_PROOF_MARKER: "remove",
+          PROCESS_PROOF_OBSERVE: observed,
+        },
       },
     );
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(item.expected.exitCode);
     expect(result.signal).toBe(item.expected.signal);
+    const selected = observation(observed).containment;
+    expect(selected).toBe(containment!);
     const [seed, target] = result.stdout
       .trim()
       .split("\n")
@@ -732,6 +774,7 @@ proof("common", "旧 Python corpus の PID・FD・signal・argv・env 契約を�
     expect(after.gid).toBe(before.gid);
     records.push({
       corpus: item.flags + "/" + item.mask,
+      containment: selected,
       seed,
       target,
       contexts: [before, after],
@@ -744,10 +787,14 @@ proof("common", "旧 corpus の exec 拒否を候補でも維持する", () => {
     const path = join(root, `error-${item.name}`);
     if (item.name === "directory") fs.mkdirSync(path);
     else if (item.content !== null) fs.writeFileSync(path, item.content, { mode: item.mode! });
-    const result = execute(launcher, "reviewer", path);
+    const observed = observationPath();
+    const result = execute(launcher, "reviewer", path, [], { PROCESS_PROOF_OBSERVE: observed });
     expect(result.status).toBe(item.expected.exitCode);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain(`exec-error:${item.expected.code}`);
+    const selected = observation(observed).containment;
+    expect(selected).toBe(containment!);
+    records.push({ corpus: item.name, containment: selected });
   }
   expect(execute(launcher).status).toBe(37);
 });
@@ -800,52 +847,59 @@ proof(
   "common",
   "wrapper 入力の ARG_MAX で旧方式の受理範囲を独立対照と比較する",
   () => {
-    const run = (binary: string, count: number, tail = 0) => {
-      const result = spawnSync(
-        observer,
-        ["exec-input", entry, runner, prepare, binary, observer, String(count), String(tail)],
-        { encoding: "utf8", timeout: 10_000, maxBuffer: 8 * 1024 * 1024 },
-      );
-      expect(result.error).toBeUndefined();
-      if (result.status !== 37) {
-        expect(result.status).toBe(1);
-        expect(result.stderr).toMatch(/Argument list too long|exec-error:E2BIG/);
+    for (const environmentEntries of containment === "cgroup" ? [0, 16] : [0]) {
+      const padding = "e".repeat(64 * 1024);
+      const env = { ...process.env };
+      for (let index = 0; index < environmentEntries; index++)
+        env[`PROOF_ARG_MAX_${index}`] = padding;
+      const run = (binary: string, count: number, tail = 0) => {
+        const result = spawnSync(
+          observer,
+          ["exec-input", entry, runner, prepare, binary, observer, String(count), String(tail)],
+          { encoding: "utf8", timeout: 10_000, maxBuffer: 8 * 1024 * 1024, env },
+        );
+        expect(result.error).toBeUndefined();
+        if (result.status !== 37) {
+          expect(result.status).toBe(1);
+          expect(result.stderr).toMatch(/Argument list too long|exec-error:E2BIG/);
+        }
+        return result;
+      };
+      let low = 0,
+        high = 8192;
+      expect(run(baseline, low).status).toBe(37);
+      expect(run(baseline, high).status).toBe(1);
+      while (low + 1 < high) {
+        const middle = Math.floor((low + high) / 2);
+        if (run(baseline, middle).status === 37) low = middle;
+        else high = middle;
       }
-      return result;
-    };
-    let low = 0,
-      high = 8192;
-    expect(run(baseline, low).status).toBe(37);
-    expect(run(baseline, high).status).toBe(1);
-    while (low + 1 < high) {
-      const middle = Math.floor((low + high) / 2);
-      if (run(baseline, middle).status === 37) low = middle;
-      else high = middle;
+      let tail = 0,
+        // 引数1個分の文字列と pointer より広げ、拒否を実測してから探索する。
+        rejectedTail = 2048;
+      expect(run(baseline, low, rejectedTail).status).toBe(1);
+      while (tail + 1 < rejectedTail) {
+        const middle = Math.floor((tail + rejectedTail) / 2);
+        if (run(baseline, low, middle).status === 37) tail = middle;
+        else rejectedTail = middle;
+      }
+      const accepted = run(launcher, low, tail),
+        rejected = run(launcher, low, rejectedTail);
+      expect(accepted.status).toBe(37);
+      expect(rejected.status).toBe(1);
+      expect(rejected.stderr).toMatch(/Argument list too long|exec-error:E2BIG/);
+      records.push({
+        argumentLimit: {
+          environmentEntries,
+          bytesPerArgument: 1024,
+          baselineMaxCount: low,
+          candidateMaxAccepted: low,
+          acceptedTailBytes: tail,
+          rejectedTailBytes: rejectedTail,
+          candidateDiagnostic: rejected.stderr,
+        },
+      });
     }
-    let tail = 0,
-      // 引数1個分の文字列と pointer より広げ、拒否を実測してから探索する。
-      rejectedTail = 2048;
-    expect(run(baseline, low, rejectedTail).status).toBe(1);
-    while (tail + 1 < rejectedTail) {
-      const middle = Math.floor((tail + rejectedTail) / 2);
-      if (run(baseline, low, middle).status === 37) tail = middle;
-      else rejectedTail = middle;
-    }
-    const accepted = run(launcher, low, tail),
-      rejected = run(launcher, low, rejectedTail);
-    expect(accepted.status).toBe(37);
-    expect(rejected.status).toBe(1);
-    expect(rejected.stderr).toMatch(/Argument list too long|exec-error:E2BIG/);
-    records.push({
-      argumentLimit: {
-        bytesPerArgument: 1024,
-        baselineMaxCount: low,
-        candidateMaxAccepted: low,
-        acceptedTailBytes: tail,
-        rejectedTailBytes: rejectedTail,
-        candidateDiagnostic: rejected.stderr,
-      },
-    });
   },
   60_000,
 );

@@ -18,18 +18,20 @@
 #include <unistd.h>
 
 static int namespace_execv(const char *, char *const []);
-static void adaptive_select(void);
+static int adaptive_select(const sigset_t *);
 static int adaptive_start(void);
 static ssize_t adaptive_read(int, void *, size_t);
-static void adaptive_kill(void);
-static void adaptive_finish(void);
+static int adaptive_await_preparation(void);
+static int adaptive_kill(void);
+static int adaptive_finish(void);
 int launcher_main(int, char **);
 #define PROOF_HOOKS
 #define PROOF_INTERRUPT() adaptive_kill()
 #define PROOF_FINISH() adaptive_finish()
-#define PROOF_BEFORE_PREPARATION() adaptive_select()
+#define PROOF_BEFORE_PREPARATION(mask) adaptive_select(mask)
 #define PROOF_AFTER_PREPARATION() adaptive_start()
 #define PROOF_READ adaptive_read
+#define PROOF_AWAIT_PREPARATION() adaptive_await_preparation()
 #define execv namespace_execv
 #define main launcher_main
 #include "bun-exec-launcher.c"
@@ -48,7 +50,7 @@ static const char *const namespace_prefix[] = {PROCESS_PROOF_UNSHARE, "--user", 
 #define NAMESPACE_PREFIX (sizeof(namespace_prefix) / sizeof(namespace_prefix[0]))
 
 static enum { NAMESPACE, CGROUP } containment;
-static char self[4096];
+static char self[4096], scope_path[sizeof(self) + 64];
 static int report_pipe[2] = {-1, -1}, go_pipe[2] = {-1, -1};
 static volatile sig_atomic_t kill_descriptor = -1;
 static int alive = -1, watchdog_descriptor = -1;
@@ -68,7 +70,7 @@ static void observe(const char *format, ...) {
 }
 
 /* 選択はキャッシュしない。probe の出力は launcher の stderr へ混ぜない。 */
-static void adaptive_select(void) {
+static int adaptive_select(const sigset_t *original_mask) {
   ssize_t length = readlink("/proc/self/exe", self, sizeof(self) - 1);
   if (length < 0) invalid();
   self[length] = 0;
@@ -84,15 +86,24 @@ static void adaptive_select(void) {
     execv(command[0], (char *const *)command);
     _exit(127);
   }
+  int descriptor = pidfd_open(probe, 0);
+  struct pollfd entry = {.fd = descriptor, .events = POLLIN};
+  const struct timespec timeout = {.tv_sec = 10};
+  int ready = descriptor < 0 ? -1 : ppoll(&entry, 1, &timeout, original_mask);
+  if (descriptor >= 0) close(descriptor);
+  if (ready <= 0 || interrupted) kill(probe, SIGKILL);
   int status;
   while (waitpid(probe, &status, 0) < 0)
-    if (errno != EINTR) invalid();
+    if (errno != EINTR) return 1;
+  if (ready == 0) fputs("launcher: containment probe timed out\n", stderr);
+  if (ready <= 0 || interrupted) return 1;
   containment = WIFEXITED(status) && !WEXITSTATUS(status) ? NAMESPACE : CGROUP;
   observe("containment=%s\n", containment == NAMESPACE ? "namespace" : "cgroup");
   if (containment == CGROUP) {
     make_pipe(report_pipe);
     make_pipe(go_pipe);
   }
+  return 0;
 }
 
 static int write_field(int descriptor, const char *value) {
@@ -126,7 +137,19 @@ static int cgroup_execv(const char *path, char *const argv[]) {
   if (fcntl(report_pipe[1], F_SETFD, 0) < 0 || fcntl(go_pipe[0], F_SETFD, 0) < 0) return -1;
   char *command[] = {PROCESS_PROOF_SYSTEMD_RUN, "--user", "--scope", "--quiet", "--collect", "-p",
                      "Delegate=yes", "--", self, GATE_ARGUMENT, report, go, arguments, NULL};
-  return execv(command[0], command);
+  // user bus の接続情報と実証用の preload だけを中継の exec に渡す。
+  const char *const keys[] = {"XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS",
+                              "LD_PRELOAD", "PROCESS_PROOF_GATE"};
+  char *scope_environment[sizeof(keys) / sizeof(keys[0]) + 1] = {0};
+  size_t count_env = 0;
+  for (size_t key = 0; key < sizeof(keys) / sizeof(keys[0]); key++) {
+    for (size_t i = 0; environ[i]; i++) {
+      if (!same_key(environ[i], keys[key], strlen(keys[key]))) continue;
+      scope_environment[count_env++] = environ[i];
+      break;
+    }
+  }
+  return execve(command[0], command, scope_environment);
 }
 
 /* 準備子の中で呼ばれる。probe が成功した後に本番の unshare が失敗しても cgroup へは移らない。 */
@@ -231,9 +254,25 @@ static void watch_launcher(int control, int ready, int target) {
 static int fail_start(void) {
   if (go_pipe[1] >= 0) close(go_pipe[1]);
   go_pipe[1] = -1;
-  kill(-guardian, SIGKILL);
-  adaptive_kill();
   return 1;
+}
+
+static int refuse_containment(void) {
+  fail_start();
+  observe("containment=refused\n");
+  fputs("launcher: containment unavailable\n", stderr);
+  return REFUSED_STATUS;
+}
+
+static ssize_t write_control(int descriptor, const char *byte) {
+  struct sigaction ignore = {.sa_handler = SIG_IGN}, saved;
+  sigemptyset(&ignore.sa_mask);
+  if (sigaction(SIGPIPE, &ignore, &saved) < 0) return -1;
+  ssize_t written = write(descriptor, byte, 1);
+  int saved_errno = errno;
+  if (sigaction(SIGPIPE, &saved, NULL) < 0) return -1;
+  errno = saved_errno;
+  return written;
 }
 
 /* signal を戻した後に呼ばれる。準備は watchdog が cgroup.kill を持つまで始まらない。 */
@@ -252,22 +291,13 @@ static int adaptive_start(void) {
   close(report_pipe[0]);
   if (interrupted) return fail_start();
   char *newline = memchr(line, '\n', size);
-  if (!newline) {
-    /* systemd-run が scope を作れなかった。準備は G を受けていないので始まっていない。 */
-    close(go_pipe[1]);
-    go_pipe[1] = -1;
-    while (waitpid(preparation, NULL, 0) < 0 && errno == EINTR) {}
-    preparation = 0;
-    finish_preparation();
-    observe("containment=refused\n");
-    fputs("launcher: containment unavailable\n", stderr);
-    exit(REFUSED_STATUS);
-  }
+  if (!newline) return refuse_containment();
   *newline = 0;
-  char path[sizeof(line) + 64];
-  snprintf(path, sizeof(path), "/sys/fs/cgroup%s/cgroup.kill", line);
+  snprintf(scope_path, sizeof(scope_path), "/sys/fs/cgroup%s", line);
+  char path[sizeof(scope_path) + sizeof("/cgroup.kill")];
+  snprintf(path, sizeof(path), "%s/cgroup.kill", scope_path);
   int target = open(path, O_WRONLY | O_CLOEXEC);
-  if (target < 0) return fail_start();
+  if (target < 0) return refuse_containment();
   kill_descriptor = target;
   if (interrupted) return fail_start();
   int control[2], ready[2];
@@ -290,51 +320,75 @@ static int adaptive_start(void) {
   watchdog_descriptor = pidfd_open(watchdog, 0);
   if (watchdog_descriptor < 0 || interrupted) return fail_start();
   observe("cgroup=%s watchdog=%ld\n", line, (long)watchdog);
-  if (write(go_pipe[1], "G", 1) != 1) return fail_start();
+  if (write_control(go_pipe[1], "G") != 1) return fail_start();
   close(go_pipe[1]);
   go_pipe[1] = -1;
   return 0;
 }
 
-/* watchdog だけが死んだら、launcher が自分で準備用 cgroup を kill して target を起動しない。 */
-static ssize_t adaptive_read(int descriptor, void *buffer, size_t size) {
-  if (watchdog_descriptor < 0) return read(descriptor, buffer, size);
+/* watchdog が死んだ場合は準備失敗として launcher 側の後始末に進む。 */
+static int poll_with_watchdog(int descriptor) {
   struct pollfd entries[2] = {{.fd = descriptor, .events = POLLIN},
                               {.fd = watchdog_descriptor, .events = POLLIN}};
   if (poll(entries, 2, -1) < 0) return -1;
   if (entries[1].revents) {
-    adaptive_kill();
     errno = ECHILD;
     return -1;
   }
+  return 0;
+}
+
+static ssize_t adaptive_read(int descriptor, void *buffer, size_t size) {
+  if (watchdog_descriptor >= 0 && poll_with_watchdog(descriptor) < 0) return -1;
   return read(descriptor, buffer, size);
 }
 
-/* signal handler からも呼ぶため、開いておいた fd への write だけを行う。 */
-static void adaptive_kill(void) {
-  if (kill_descriptor >= 0 && write(kill_descriptor, "1", 1) < 0) {}
+/* frame の EOF 後も準備プロセスが終了するまで watchdog を監視する。 */
+static int adaptive_await_preparation(void) {
+  if (watchdog_descriptor < 0) return 0;
+  int descriptor = pidfd_open(preparation, 0);
+  if (descriptor < 0) return 1;
+  int result;
+  do {
+    result = poll_with_watchdog(descriptor);
+  } while (result < 0 && errno == EINTR && !interrupted);
+  close(descriptor);
+  return result < 0;
 }
 
-/* 終了・失敗・中断のどの経路でも残りを kill し、exec の前に watchdog を解除して回収する。 */
-static void adaptive_finish(void) {
-  adaptive_kill();
+/* signal handler からも呼ぶため、開いておいた fd への write だけを行う。 */
+static int adaptive_kill(void) {
+  if (kill_descriptor < 0) return 0;
+  ssize_t written;
+  do {
+    written = write(kill_descriptor, "1", 1);
+  } while (written < 0 && errno == EINTR);
+  return written != 1;
+}
+
+/* 終了要求が失敗したら control を閉じ、watchdog に再試行させる。 */
+static int adaptive_finish(void) {
+  int failed = adaptive_kill();
   if (alive >= 0) {
-    struct sigaction ignore, saved;
-    memset(&ignore, 0, sizeof(ignore));
-    sigemptyset(&ignore.sa_mask);
-    ignore.sa_handler = SIG_IGN;
-    if (sigaction(SIGPIPE, &ignore, &saved) == 0) {
-      if (write(alive, "D", 1) < 0) {}
-      sigaction(SIGPIPE, &saved, NULL);
-    }
+    if (!failed) write_control(alive, "D");
     close(alive);
     alive = -1;
-    while (waitpid(watchdog, NULL, 0) < 0 && errno == EINTR) {}
+    int status;
+    pid_t reaped;
+    do {
+      reaped = waitpid(watchdog, &status, 0);
+    } while (reaped < 0 && errno == EINTR);
+    if (reaped == watchdog && WIFEXITED(status) && WEXITSTATUS(status) == 0) failed = 0;
   }
+  // systemd が空になった scope を回収済みなら、追加の終了要求は不要。
+  struct stat scope;
+  if (failed && stat(scope_path, &scope) < 0 && errno == ENOENT) failed = 0;
+  if (failed) fputs("launcher: cgroup cleanup failed\n", stderr);
   if (watchdog_descriptor >= 0) close(watchdog_descriptor);
   watchdog_descriptor = -1;
   if (kill_descriptor >= 0) close(kill_descriptor);
   kill_descriptor = -1;
+  return failed;
 }
 
 int main(int argc, char **argv) {

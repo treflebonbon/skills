@@ -70,7 +70,8 @@ int pidfd_open(pid_t pid, unsigned int flags) {
   gate("pidfd-before");
   int result = original(pid, flags);
   gate("pidfd-after");
-  if (executable(PROCESS_PROOF_LAUNCHER)) pause_at("watchdog-after", 1);
+  // watchdog は ready を書く前に独自の session を作る。
+  if (executable(PROCESS_PROOF_LAUNCHER) && getsid(pid) == pid) pause_at("watchdog-after", 1);
   return result;
 }
 
@@ -95,10 +96,10 @@ int poll(struct pollfd *fds, nfds_t count, int timeout) {
     dprintf(2, "namespace-hidden-parent-death\n");
     return 0;
   }
-  // 独自 session の watchdog だけが launcher の死亡を見落とす対照。
+  // 5秒の判定窓を越えて通知を保留し、観測前に試験が失敗しても watchdog を残さない。
   if (getenv("PROCESS_PROOF_HIDE_LAUNCHER_DEATH") && count == 1 && getsid(0) == getpid() &&
       executable(PROCESS_PROOF_LAUNCHER))
-    for (;;) pause();
+    original(NULL, 0, 10000);
   return result;
 }
 
@@ -108,10 +109,15 @@ int execvp(const char *path, char *const argv[]) {
   return original(path, argv);
 }
 
+int execve(const char *path, char *const argv[], char *const envp[]) {
+  int (*original)(const char *, char *const [], char *const []) = dlsym(RTLD_NEXT, "execve");
+  if (!strcmp(path, PROCESS_PROOF_SYSTEMD_RUN)) pause_at("systemd-run-before", 0);
+  return original(path, argv, envp);
+}
+
 int execv(const char *path, char *const argv[]) {
   int (*original)(const char *, char *const []) = dlsym(RTLD_NEXT, "execv");
-  if (!strcmp(path, PROCESS_PROOF_SYSTEMD_RUN)) pause_at("systemd-run-before", 0);
-  else if (strcmp(path, PROCESS_PROOF_UNSHARE) && executable(PROCESS_PROOF_LAUNCHER))
+  if (strcmp(path, PROCESS_PROOF_UNSHARE) && executable(PROCESS_PROOF_LAUNCHER))
     pause_at("prepare-exec-before", 0);
   return original(path, argv);
 }
@@ -126,7 +132,7 @@ int connect(int descriptor, const struct sockaddr *address, socklen_t length) {
 int open(const char *path, int flags, ...) {
   int (*original)(const char *, int, ...) = dlsym(RTLD_NEXT, "open");
   mode_t mode = 0;
-  if (flags & (O_CREAT | O_TMPFILE)) {
+  if ((flags & O_CREAT) || (flags & O_TMPFILE) == O_TMPFILE) {
     va_list arguments;
     va_start(arguments, flags);
     mode = va_arg(arguments, mode_t);

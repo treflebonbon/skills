@@ -203,6 +203,13 @@ function verifyTrials(
       !required.every((name) => status.get(name) === "pass")
     )
       reasons.push(`${label}/${trial.repetition}: 期待 case の全件成功を確認できません`);
+    if (
+      !observed.every((name) => {
+        const result = status.get(name);
+        return result === "pass" || result === "fail";
+      })
+    )
+      reasons.push(`${label}/${trial.repetition}: 観測 case に pass または fail が必要です`);
     // 観測ケースの結果は合否に数えないが、集計と終了状態はその失敗分だけを許す。
     const observedFailures = observed.filter((name) => status.get(name) === "fail").length;
     const counts = trial.counts;
@@ -326,7 +333,7 @@ export function verifyCohort(input: unknown, manifest: unknown): Verdict {
       !Number.isFinite(Date.parse(artifact.expiresAt)) ||
       typeof input.historyCutoff !== "string" ||
       !Number.isFinite(Date.parse(input.historyCutoff)) ||
-      // GitHub は保存期限を run の開始時刻から数える。作成時刻から数えると試験の所要時間分だけ足りなくなる。
+      // Q5 の保存期間は対象 attempt の run 開始時刻（historyCutoff）から数える。
       Date.parse(artifact.expiresAt) - Date.parse(input.historyCutoff) < 90 * 86400_000 - 60_000
     )
       reasons.push(`${arch}: artifact の同一性・保存期間を確認できません`);

@@ -29,8 +29,27 @@
 
 ## 記録の範囲
 
-- `job.json` は、controller が出力した job から、各試験の観測 JSON の `records` を実 caller の1件だけに絞ったものである。省いた件数は `trials[].observation.recordsOmitted` にある。ケースの結果・集計・終了状態・build の source/binary hash・前提検査は省いていない。要約後の `job.json` に `verifyLocal` を適用しても、同じ判定（成功）になる。
+- `job.json` は、controller が出力した job から、各試験の観測 JSON の `records` を実 caller の1件だけに絞ったものである。省いた件数は `trials[].observation.recordsOmitted` にある。ケースの結果・集計・終了状態・build の source/binary hash・前提検査は省いていない。保存した `job.json` からも次の手順で同じ判定を再現できる。
 - raw log・build した実行体・一時領域は保存していない。log の SHA-256 は `trials[].logHash` にある。
+
+## 保存した記録から再判定する
+
+リポジトリのルートで、`job.json` を controller と同じ形式で包み、記録した source SHA の manifest を使う。
+
+```bash
+bun -e '
+  import { verifyLocal } from "./development/linux-process-proof.ts";
+  const job = await Bun.file("docs/evidence/wsl2-host-adaptive/2026-11-21-c6947cd/job.json").json();
+  const manifest = Bun.spawnSync(["git", "show", `${job.sourceSha}:development/linux-process-proof-cases.json`]);
+  if (manifest.exitCode !== 0) throw new Error(manifest.stderr.toString());
+  const verdict = verifyLocal(
+    { schema: "linux-process-proof-local/v1", host: "wsl2", sourceSha: job.sourceSha, job },
+    JSON.parse(manifest.stdout.toString()),
+  );
+  console.log(JSON.stringify(verdict));
+  if (!verdict.verified) process.exitCode = 1;
+'
+```
 
 ## 示さないこと
 

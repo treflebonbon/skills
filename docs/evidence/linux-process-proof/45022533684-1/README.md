@@ -37,7 +37,7 @@
 同じ試験コードの source `c6947cd` で3回 dispatch し、3回とも試験本体は全件成功したが、集約で未達になった。
 
 - [run 44976819303](../44976819303-1/README.md) と [run 45012162020](../45012162020-1/README.md): 公開 metadata API の認証なし rate limit。集約 job に `actions: read` の job token を与えて解消した。
-- [run 45021161575](../45021161575-1/README.md): artifact の保存期間を作成時刻から数える集約側の欠陥。run の開始から数えるよう直し、Q10 に従って新しい source SHA（この run）で再測定した。
+- [run 45021161575](../45021161575-1/README.md): artifact の作成時刻を起点にした保存期間の検査で未達。後続の検証ロジックでは run の開始から数え、Q10 に従って新しい source SHA（この run）で再測定した。
 
 `c6947cd` と `76b591a` の差は、集約の検証ロジック・その単体試験・解決記録・workflow だけで、launcher・正式実証の試験・manifest は同一である。[WSL2 の namespace 経路の実証](../../wsl2-host-adaptive/2026-11-21-c6947cd/README.md)は `c6947cd` で行った。runner と WSL2 の結果は分けて記録し、互いに読み替えない。
 
