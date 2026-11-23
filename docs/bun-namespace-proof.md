@@ -1,6 +1,6 @@
 # Bun と OS ツールによる namespace の実証
 
-[#34](https://github.com/treflebonbon/skills/issues/34) の実証用 fixture と記録。Linux / WSL2 x86_64 では、`unshare` で user / network namespace を作ってから Bun を起動し、準備後に `setpriv` で capability を落とす候補が成立した。本番 orchestrator は変更していない。通常 Linux と aarch64 は未確認で、対応範囲全体での採用は未確定。#34 の完了や後続の依存解除の根拠にはしない。
+[#34](https://github.com/treflebonbon/skills/issues/34) の実証用 fixture と記録。Linux / WSL2 x86_64 では、`unshare` で user / network namespace を作ってから Bun を起動し、準備後に `setpriv` で capability を落とす候補が成立した。本番 orchestrator は変更していない。Ubuntu 24.04 x86_64 の既定設定では旧版と候補が準備段階で停止した。対応範囲全体での採用は未確定。#34 の完了や後続の依存解除の根拠にはしない。
 
 ## 比較対象と観測境界
 
@@ -61,7 +61,7 @@ bubblewrap の内部の mapping は、準備段階の mapping と異なる。途
 | `ip`                        | iproute2 6.1.0、libbpf 1.3.0                              |
 | bubblewrap                  | 0.12.0                                                    |
 | 比較元 Python               | 3.14.7、`os.unshare` 対応版                               |
-| 通常 Linux x86_64 / aarch64 | 未確認                                                    |
+| 通常 Linux x86_64 / aarch64 | x86_64 は下記を参照。aarch64 は未確認                     |
 | WSL2 aarch64                | 未確認                                                    |
 | macOS                       | raw isolation の対象外                                    |
 
@@ -79,9 +79,29 @@ python3 -B /home/ubuntu/ghq/github.com/treflebonbon/dotfiles/scripts/verificatio
 
 通常の `npm run test:bun` は共有 namespace での拒否を検査し、実 namespace の12件は明示 opt-in まで skip する。既存の3環境 CI は raw isolation を起動しない。この skip は OS 対応の証拠に数えない。opt-in の検証で必要なツールや権限がなければテストを失敗させ、成功へ置き換えない。
 
+## Ubuntu 24.04 x86_64 の追加実測
+
+2026-11-23 に `41f7703b2a475653ebacb1de822d8fabb52d5aa3` の候補と同じ `unshare` 引数を使い、旧 Python 入口と比較した。旧入口の SHA-256 は上の比較元と一致した。同じ source の WSL2 x86_64 では既存の実 namespace テスト13件が通った。
+
+[Ubuntu 24.04 Server の公式 cloud image](https://cloud-images.ubuntu.com/releases/noble/release-20261017/)（SHA-256 `04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94`）を QEMU の検証用 VM で起動した。仮想 NIC の外部転送は無効。ゲストは Ubuntu 24.04.5 LTS、kernel `6.8.0-147-generic`、util-linux `2.39.3-9ubuntu6.6`、Python `3.12.3`。測定は UID/GID 1000、AppArmor label `unconfined` で実行した。イメージ既定の AppArmor `4.0.1really4.0.1-0ubuntu0.24.04.9` が有効で、`kernel.apparmor_restrict_unprivileged_userns=1` だった。
+
+`/usr/bin/unshare` と `/usr/bin/python3` を使用した。コマンドの末尾には `/bin/sh -c '/usr/bin/printf "target_started=yes\n"'` を渡し、target の出力と終了状態を観測した。
+
+| 実行                                                  | 終了状態 | 観測                                                                       |
+| ----------------------------------------------------- | -------- | -------------------------------------------------------------------------- |
+| 親から target を直接起動                              | 0        | target 起動                                                                |
+| `unshare --user`                                      | 0        | target 起動                                                                |
+| `unshare --user --map-current-user`                   | 1        | `/proc/self/uid_map` の書き込みが `Operation not permitted`。target 未起動 |
+| `unshare --user --map-current-user --net --keep-caps` | 1        | 同じ UID map 書き込みの拒否。target 未起動                                 |
+| `python3 codex-namespace.py`                          | 1        | 既存の private network setup エラー。target 未起動                         |
+
+旧入口の `main()` を `runpy` から呼んだ追加観測では、`/proc/self/setgroups` への書き込みが `PermissionError`（errno 13）で停止した。ゲストの監査ログには、`unshare` と `python3` について `unprivileged_userns` profile が `CAP_SYS_ADMIN` を拒否した記録があった。Ubuntu の既定 profile が user namespace 内の capability を制限するという説明と整合する。 [Ubuntu 24.04 のリリースノート](https://documentation.ubuntu.com/release-notes/24.04/)
+
+この VM では、旧入口と候補のどちらも準備段階で停止した。候補の Bun 起動、private sysctl・loopback・capability の設定、bubblewrap の受入はこの環境では未実測。raw 隔離には rootless user/network namespace が使える環境が必要になる。 [raw Codex の必要な環境](raw-codex-isolation.md#必要な環境)
+
 ## 残る判断
 
-WSL2 x86_64 の合成境界では、追加 native helper なしの候補が成立した。通常 Linux / aarch64 と配布先の実効 policy、Nix closure に入れる OS ツールと版の固定は未確認であり、#35 と後続の移植時に確認する。#34 は open を維持し、対応範囲での採用判断を `ready-for-human` として残す。
+WSL2 x86_64 の合成境界では、追加 native helper なしの候補が成立した。通常 Linux では Ubuntu 24.04 x86_64 の拒否を確認した。旧版が動作する通常 Linux と aarch64 での比較、配布先の実効 policy、Nix closure に入れる OS ツールと版の固定が残る。#34 は open を維持し、対応範囲での採用判断を `ready-for-human` として残す。
 
 fixture の bubblewrap は保護済み filesystem を読み取り専用で再公開する合成構成であり、raw orchestrator の秘密情報の選別や完全な filesystem / PID / gateway 設計の受入ではない。複数段階の Bun 親子 process を使うため、同一 PID への置換や FD・signal の互換性は #33 の判断を引き継ぐ。通常利用向けの entry と製品の方式は未採用。
 
