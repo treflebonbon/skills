@@ -82,6 +82,23 @@ const readOwner = async (filename = ownerFile) => {
   }
 };
 
+const ownerStatus = (owner) => {
+  if (!owner) return null;
+  const { boot, pid, start } = owner.caller;
+  return {
+    browserPid: owner.browserPid,
+    caller: { boot, pid, start },
+    endpoint: owner.endpoint,
+    id: owner.id,
+    mode: owner.mode,
+    phase: owner.phase,
+    profile: owner.profile,
+    role: owner.role,
+    version: owner.version,
+    workspace: owner.workspace,
+  };
+};
+
 const writeOwner = async (owner) => {
   const temporary = `${ownerFile}.${randomUUID()}`;
   await fs.writeFile(temporary, `${JSON.stringify(owner)}\n`, {
@@ -578,9 +595,9 @@ const main = () => {
             )
             .map((name) => readOwner(path.join(root, name)))
         );
-        return JSON.stringify(owners.length ? owners : null);
+        return JSON.stringify(owners.length ? owners.map(ownerStatus) : null);
       }
-      return JSON.stringify(owner);
+      return JSON.stringify(ownerStatus(owner));
     }
     if (command === "check") {
       if (
