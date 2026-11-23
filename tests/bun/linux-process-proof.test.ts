@@ -218,6 +218,13 @@ test("観測ケースが未実行なら全件 pass の集計でも拒否する",
   ]);
 });
 
+test("正常なケースに不正な行が混じった反復を拒否する", () => {
+  const input = cohort();
+  const cases: unknown[] = input.jobs[0]!.trials[0]!.cases;
+  cases.push(null);
+  expect(verifyCohort(input, manifest).reasons).toEqual(["x64/1: case 行の形式が不正です"]);
+});
+
 test("3区分を持たない manifest や区分の重なりを期待一覧として受け入れない", () => {
   for (const invalid of [
     { schema: "linux-process-proof-cases/v1", cases: ["終了保証"] },

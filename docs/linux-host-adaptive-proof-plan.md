@@ -54,7 +54,7 @@ runner では、[既存計画](bun-process-linux-proof-plan.md)の Q3〜Q10（�
 
 - job ごとに選ばれた方式を記録し、その方式のケース一覧と照合する。
 - runner が cgroup 以外を選んだ組は、cgroup 経路の実証としては未達にする。
-- 集約 job は、その job だけに与えた `actions: read` の job token（読取り専用・run 限定）で公開 metadata API を読む。既存計画の「認証なし read API を使い、認証権限は追加しない」から 2026-11-22 に変更した。runner の共有 IP では認証なしの上限（1時間60回）を他の利用者と分け合い、2回の run が上限で未達になったためである。repository 設定と secret は変えない。
+- 集約 job に `actions: read` を与え、workflow が属する repository に権限が限定された job token で公開 metadata API を読む。token は job の終了時か有効期間の満了時に失効する。既存計画の「認証なし read API を使い、認証権限は追加しない」から 2026-11-22 に変更した。runner の共有 IP では認証なしの上限（1時間60回）を他の利用者と分け合い、2回の run が上限で未達になったためである。repository 設定と secret は変えない。[GitHub の `GITHUB_TOKEN` 仕様](https://docs.github.com/en/actions/concepts/security/github_token)
 
 WSL2 では、対象の SHA を固定し、手元で全件を3回連続して実行する。skip 0・失敗 0 を求める。証跡は `docs/evidence/wsl2-host-adaptive/<日付>-<SHA短縮>/` に置く。中身は、runner と同じ bundle の形式から GitHub 固有の項目を除いた要約、`job.json` 相当、ケースごとの結果である。補助 group の2件に必要な sudo の準備（試験用 group と他者所有 file の作成、`setpriv`）と後片付けは、人が `! sudo …` で実行する。共有の OS 設定（sysctl・AppArmor）は変えない。
 

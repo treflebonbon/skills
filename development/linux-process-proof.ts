@@ -195,7 +195,11 @@ function verifyTrials(
       reasons.push(`${label}: 反復の記録が不正です`);
       continue;
     }
-    const cases = (Array.isArray(trial.cases) ? trial.cases : []).filter(object);
+    const cases = trial.cases;
+    if (!Array.isArray(cases) || !cases.every(object)) {
+      reasons.push(`${label}/${trial.repetition}: case 行の形式が不正です`);
+      continue;
+    }
     const status = new Map(cases.map((item) => [item.name, item.status]));
     if (
       cases.length !== status.size ||

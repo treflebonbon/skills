@@ -570,16 +570,17 @@ proof(
       escapePrepare,
       `
       import { readFileSync } from "node:fs";
-      const own = readFileSync("/proc/self/cgroup", "utf8");
+      const own = readFileSync("/proc/self/cgroup", "utf8").trim();
       const child = Bun.spawn([${JSON.stringify(systemdRun)}, "--user", "--scope", "--quiet", "--collect", "--", "sleep", "30"], { stdout: "ignore", stderr: "inherit" });
       const start = performance.now();
-      let moved = own;
+      let moved = "";
       while (performance.now() - start < 3000) {
-        try { moved = readFileSync("/proc/" + child.pid + "/cgroup", "utf8"); } catch {}
-        if (moved !== own && moved.trim()) break;
+        if (child.exitCode !== null || child.signalCode !== null) break;
+        try { moved = readFileSync("/proc/" + child.pid + "/cgroup", "utf8").trim(); } catch {}
+        if (moved && moved !== own) break;
         await Bun.sleep(10);
       }
-      console.error("escape:" + JSON.stringify({ pid: child.pid, own: own.trim(), moved: moved.trim() }));
+      console.error("escape:" + JSON.stringify({ pid: child.pid, own, moved }));
       console.error("prep-ready:" + process.pid);
       setInterval(() => {}, 1000);
     `,
@@ -595,6 +596,7 @@ proof(
       stderr += data;
     });
     let owned: Awaited<ReturnType<typeof pin>> | undefined;
+    let observationStage = "準備の起動";
     try {
       await until(() => stderr.includes("prep-ready:"), 8_000).catch((error) => {
         throw new Error(`${error}\n${stderr}`);
@@ -602,11 +604,14 @@ proof(
       const reported: { pid: number; own: string; moved: string } = JSON.parse(
         /^escape:(.*)$/m.exec(stderr)![1]!,
       );
+      observationStage = "離脱用プロセスの捕捉";
       const scope = observation(observed).cgroup!;
       const pids = descendants(child.pid!);
-      expect(pids).toContain(reported.pid);
+      if (!pids.includes(reported.pid) || !reported.moved)
+        throw new Error(`離脱用プロセスの PID または cgroup を確認できません。\n${stderr}`);
       owned = await pin(pids);
       const remaining = pids.filter((pid) => pid !== reported.pid);
+      observationStage = "launcher 終了後の生存確認";
       child.kill("SIGKILL");
       await within(ended);
       await until(async () => {
@@ -617,6 +622,7 @@ proof(
       const survived = !(await owned.terminated()).includes(reported.pid);
       records.push({
         cgroupEscape: {
+          status: "observed",
           scope,
           escapee: reported,
           leftScope: reported.moved !== reported.own,
@@ -624,6 +630,16 @@ proof(
           countedInVerdict: false,
         },
       });
+    } catch (error) {
+      records.push({
+        cgroupEscape: {
+          status: "unobserved",
+          stage: observationStage,
+          reason: error instanceof Error ? error.message : String(error),
+          countedInVerdict: false,
+        },
+      });
+      throw error;
     } finally {
       try {
         if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");

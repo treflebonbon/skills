@@ -96,8 +96,8 @@ static int adaptive_select(const sigset_t *original_mask) {
   while (waitpid(probe, &status, 0) < 0)
     if (errno != EINTR) return 1;
   if (ready == 0) fputs("launcher: containment probe timed out\n", stderr);
-  if (ready <= 0 || interrupted) return 1;
-  containment = WIFEXITED(status) && !WEXITSTATUS(status) ? NAMESPACE : CGROUP;
+  if (ready < 0 || interrupted) return 1;
+  containment = ready > 0 && WIFEXITED(status) && !WEXITSTATUS(status) ? NAMESPACE : CGROUP;
   observe("containment=%s\n", containment == NAMESPACE ? "namespace" : "cgroup");
   if (containment == CGROUP) {
     make_pipe(report_pipe);
