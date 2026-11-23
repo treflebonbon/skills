@@ -52,7 +52,7 @@ unshare: write failed /proc/self/uid_map: Operation not permitted
 ## 保存した証跡
 
 - [run.json](run.json): `gh run view` で確認した run、job、step の終了状態。
-- [preflight.json](preflight.json): 各 raw `job.json` から source / workflow / run / attempt、controller hash、空の `trials`、前提検査、エラーを抽出。元ファイルの artifact 名、サイズ、SHA-256を併記した。完全な source hash 一覧は raw artifact に残る。
+- [preflight.json](preflight.json): 各 raw `job.json` から source / workflow / run / attempt、controller hash、空の `trials`、前提検査、エラーを抽出。固定 Nix store path のハッシュを含む接頭部は architecture ごとのプレースホルダーで表す。元ファイルの artifact 名、サイズ、SHA-256を併記した。元のパスと完全な source hash 一覧は raw artifact に残る。
 - [cohort.json](cohort.json)、[verdict.json](verdict.json)、[workflow-summary.md](workflow-summary.md): 集約 artifact の内容を保存した。
 
 `preflight.verified: false` のため集約は試験 job として受理せず、`cohort.jobs` は空になった。job 不足・反復不足や包括的な証跡エラーを、artifact 消失や source 不一致の証拠とは扱わない。

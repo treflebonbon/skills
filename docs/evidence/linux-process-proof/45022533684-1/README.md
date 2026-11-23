@@ -43,6 +43,8 @@
 
 ## 記録の範囲
 
+`cohort.json` では固定 Nix store path のハッシュを含む接頭部を architecture ごとのプレースホルダーで表す。
+
 `cohort.json` は、判定 artifact の cohort から、観測 JSON の `records` を実 caller・拒否・抜け出しの観測に絞ったものである。省いた件数は `trials[].observation.recordsOmitted` にある。ケースの結果・集計・終了状態・前提検査・artifact・履歴は省いていない。要約後の `cohort.json` に `verifyCohort` を適用しても、同じ判定（成功）になる。
 
 ## 示さないこと

@@ -47,9 +47,10 @@ test("package 契約は旧 corpus の12拒否と正常な配布物を区別し�
           timeout: 30_000,
         },
       );
+    const storePathTest = "test_release_source_contains_no_fixed_nix_store_paths";
     const valid = run();
     expect(valid.status, valid.stderr).toBe(0);
-    expect(valid.stderr).toContain("18 pass");
+    expect(valid.stderr).toContain("(pass) " + storePathTest);
     const reasons: Record<string, string> = {
       "manifest-version": ".claude-plugin/plugin.json version",
       "marketplace-policy": "Codex policy",
@@ -64,18 +65,24 @@ test("package 契約は旧 corpus の12拒否と正常な配布物を区別し�
       "explicit-invocation": "pr-screenshots explicit invocation",
       "quality-node": "quality entry",
     };
-    const dangling = resolve(payload, "README.md"),
-      readme = fs.readFileSync(dangling);
+    const readmePath = resolve(payload, "README.md"),
+      readme = fs.readFileSync(readmePath);
     try {
-      fs.appendFileSync(dangling, "\n" + ["orca", "peer", "refactor"].join("-") + "\n");
+      fs.appendFileSync(readmePath, `\n/nix/store/${"0".repeat(32)}-fixture\n`);
+      const fixedPath = run(storePathTest);
+      expect(fixedPath.status, fixedPath.stderr).toBe(1);
+      expect(fixedPath.stderr).toContain("error: README.md");
+      fs.writeFileSync(readmePath, readme);
+
+      fs.appendFileSync(readmePath, "\n" + ["orca", "peer", "refactor"].join("-") + "\n");
       const rejected = run("test_no_dangling_references_to_removed_parts");
       expect(rejected.status, rejected.stderr).toBe(1);
       expect(rejected.stderr).toContain("dangling reference in README.md");
-      fs.writeFileSync(dangling, readme);
+      fs.writeFileSync(readmePath, readme);
       const control = run("test_no_dangling_references_to_removed_parts");
       expect(control.status, control.stderr).toBe(0);
     } finally {
-      fs.writeFileSync(dangling, readme);
+      fs.writeFileSync(readmePath, readme);
     }
     const removedPath = "docs/" + ["orca", "peer", "refactor"].join("-") + ".md";
     const git = (...args: string[]) => {

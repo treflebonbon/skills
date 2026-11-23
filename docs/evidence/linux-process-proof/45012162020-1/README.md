@@ -36,6 +36,8 @@ public metadata API: HTTP 403 /actions/runs/45012162020 x-ratelimit-limit=60 x-r
 
 ## 記録の範囲
 
+`cohort.json` では固定 Nix store path のハッシュを含む接頭部を architecture ごとのプレースホルダーで表す。
+
 `cohort.json` は判定 artifact の cohort から、観測 JSON の `records` を実 caller・拒否・抜け出しの観測に絞ったものである。省いた件数は `trials[].observation.recordsOmitted` にある。
 
 ## 示さないこと
