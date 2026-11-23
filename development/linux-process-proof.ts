@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+
 type ObjectValue = Record<string, unknown>;
 export type Verdict = { verified: boolean; reasons: string[] };
 
@@ -93,21 +95,197 @@ export function parseTrial(log: string, exitCode: number | null, repetition: num
   };
 }
 
-export function verifyCohort(input: unknown, manifest: unknown): Verdict {
-  const reasons: string[] = [];
+export type Containment = "namespace" | "cgroup";
+export const namespaceProbe = [
+  "--user",
+  "--map-current-user",
+  "--pid",
+  "--fork",
+  "--kill-child=SIGKILL",
+  "--mount-proc",
+  "--",
+  "/usr/bin/true",
+];
+export const cgroupProbe = [
+  "--user",
+  "--scope",
+  "--quiet",
+  "--collect",
+  "-p",
+  "Delegate=yes",
+  "--",
+  "/usr/bin/true",
+];
+
+/** launcher と同じ順に実際に試して方式を選ぶ。sysctl などの設定値からは推定しない。 */
+export function selectContainment(env: NodeJS.ProcessEnv = process.env): Containment | "refused" {
+  const succeeds = (command: string, args: string[]) =>
+    spawnSync(command, args, { env, stdio: "ignore", timeout: 10_000 }).status === 0;
+  if (succeeds("unshare", namespaceProbe)) return "namespace";
+  if (succeeds("systemd-run", cgroupProbe)) return "cgroup";
+  return "refused";
+}
+type Manifest = {
+  required: Record<Containment, string[]>;
+  observed: Record<Containment, string[]>;
+};
+const names = (value: unknown): value is string[] =>
+  Array.isArray(value) &&
+  value.every((name) => typeof name === "string" && name.length > 0) &&
+  new Set(value).size === value.length;
+
+function readManifest(manifest: unknown): Manifest | undefined {
   if (
     !object(manifest) ||
-    manifest.schema !== "linux-process-proof-cases/v1" ||
-    !Array.isArray(manifest.cases)
+    manifest.schema !== "linux-process-proof-cases/v2" ||
+    !object(manifest.cases) ||
+    !object(manifest.observations)
   )
-    return { verified: false, reasons: ["期待 case manifest が不正です"] };
+    return;
+  const { common, namespace, cgroup } = manifest.cases;
+  const observations = manifest.observations;
   if (
-    manifest.cases.length === 0 ||
-    !manifest.cases.every((name) => typeof name === "string" && name.length > 0) ||
-    new Set(manifest.cases).size !== manifest.cases.length
+    !names(common) ||
+    common.length === 0 ||
+    !names(namespace) ||
+    !names(cgroup) ||
+    !names(observations.namespace) ||
+    !names(observations.cgroup)
   )
-    return { verified: false, reasons: ["期待 case manifest が不正です"] };
-  const expected = [...manifest.cases].sort();
+    return;
+  const all = [
+    ...common,
+    ...namespace,
+    ...cgroup,
+    ...observations.namespace,
+    ...observations.cgroup,
+  ];
+  // 観測は方式ごとに重ならないため、同じ名前が別区分にあれば manifest を不正にする。
+  if (new Set(all).size !== all.length) return;
+  return {
+    required: { namespace: [...common, ...namespace], cgroup: [...common, ...cgroup] },
+    observed: { namespace: observations.namespace, cgroup: observations.cgroup },
+  };
+}
+
+/** 1 job の反復3回を、選ばれた方式のケース一覧と照合する。 */
+function verifyTrials(
+  label: string,
+  job: ObjectValue,
+  manifest: Manifest,
+  expected: Containment,
+  reasons: string[],
+) {
+  const containment = object(job.preflight) ? job.preflight.containment : undefined;
+  if (containment !== expected) {
+    reasons.push(`${label}: 選ばれた方式 ${String(containment)} は ${expected} の実証に数えません`);
+    return;
+  }
+  const required = manifest.required[expected];
+  const observed = manifest.observed[expected];
+  const expectedNames = JSON.stringify([...required, ...observed].sort());
+  if (!Array.isArray(job.trials)) {
+    reasons.push(`${label}: 反復1・2・3が必要です`);
+    return;
+  }
+  const repetitions = job.trials.map((trial) => (object(trial) ? trial.repetition : null)).sort();
+  if (JSON.stringify(repetitions) !== "[1,2,3]") reasons.push(`${label}: 反復1・2・3が必要です`);
+  for (const trial of job.trials) {
+    if (!object(trial)) {
+      reasons.push(`${label}: 反復の記録が不正です`);
+      continue;
+    }
+    const cases = trial.cases;
+    if (!Array.isArray(cases) || !cases.every(object)) {
+      reasons.push(`${label}/${trial.repetition}: case 行の形式が不正です`);
+      continue;
+    }
+    const status = new Map(cases.map((item) => [item.name, item.status]));
+    if (
+      cases.length !== status.size ||
+      JSON.stringify([...status.keys()].sort()) !== expectedNames ||
+      !required.every((name) => status.get(name) === "pass")
+    )
+      reasons.push(`${label}/${trial.repetition}: 期待 case の全件成功を確認できません`);
+    if (
+      !observed.every((name) => {
+        const result = status.get(name);
+        return result === "pass" || result === "fail";
+      })
+    )
+      reasons.push(`${label}/${trial.repetition}: 観測 case に pass または fail が必要です`);
+    // 観測ケースの結果は合否に数えないが、集計と終了状態はその失敗分だけを許す。
+    const observedFailures = observed.filter((name) => status.get(name) === "fail").length;
+    const counts = trial.counts;
+    if (
+      trial.exitCode !== (observedFailures ? 1 : 0) ||
+      !object(counts) ||
+      counts.pass !== required.length + observed.length - observedFailures ||
+      counts.fail !== observedFailures ||
+      counts.skip !== 0 ||
+      counts.todo !== 0
+    )
+      reasons.push(`${label}/${trial.repetition}: 終了状態・試験集計が成功条件を満たしません`);
+    const observation = trial.observation;
+    const caller =
+      object(observation) && Array.isArray(observation.records)
+        ? observation.records.find((record) => object(record) && object(record.realCaller))
+            ?.realCaller
+        : undefined;
+    const observations =
+      object(caller) && Array.isArray(caller.observations) ? caller.observations : [];
+    if (
+      !object(observation) ||
+      observation.boundary !== "process-namespace" ||
+      observation.arch !== job.arch ||
+      observation.realCallerRequested !== true ||
+      !["baseline", "candidate"].every((binary) =>
+        observations.some(
+          (item: unknown) =>
+            object(item) &&
+            item.binary === binary &&
+            item.status === 37 &&
+            typeof item.stderr === "string" &&
+            item.stderr.includes('real-caller:{"hook": "hook-ok"}'),
+        ),
+      )
+    )
+      reasons.push(`${label}/${trial.repetition}: 実 caller の実行を確認できません`);
+    if (!object(observation) || observation.containment !== expected)
+      reasons.push(`${label}/${trial.repetition}: 試験が使った方式が ${expected} ではありません`);
+  }
+}
+
+/** 手元の WSL2 での3回連続実行を、GitHub 固有の項目（run・artifact・履歴）を要求せずに判定する。 */
+export function verifyLocal(input: unknown, manifest: unknown): Verdict {
+  const expected = readManifest(manifest);
+  if (!expected) return { verified: false, reasons: ["期待 case manifest が不正です"] };
+  if (
+    !object(input) ||
+    input.schema !== "linux-process-proof-local/v1" ||
+    input.host !== "wsl2" ||
+    !sha(input.sourceSha) ||
+    !object(input.job)
+  )
+    return { verified: false, reasons: ["手元実行の記録が不正です"] };
+  const reasons: string[] = [];
+  const job = input.job;
+  if (job.sourceSha !== input.sourceSha) reasons.push("wsl2: source SHA が一致しません");
+  if (
+    job.arch !== "x64" ||
+    !object(job.preflight) ||
+    job.preflight.verified !== true ||
+    !validGroupCredentials(job.preflight)
+  )
+    reasons.push("wsl2: 資格情報・補助 group fixture の必須観測が不正です");
+  verifyTrials("wsl2", job, expected, "namespace", reasons);
+  return { verified: reasons.length === 0, reasons };
+}
+
+export function verifyCohort(input: unknown, manifest: unknown): Verdict {
+  const reasons: string[] = [];
+  const expected = readManifest(manifest);
+  if (!expected) return { verified: false, reasons: ["期待 case manifest が不正です"] };
   if (
     !object(input) ||
     input.schema !== "linux-process-proof-cohort/v1" ||
@@ -123,72 +301,22 @@ export function verifyCohort(input: unknown, manifest: unknown): Verdict {
   for (const arch of ["x64", "arm64"]) {
     const jobs = input.jobs.filter((job) => object(job) && job.arch === arch);
     const job = jobs[0];
-    if (jobs.length !== 1 || !object(job)) reasons.push(`${arch}: job が1件必要です`);
-    else if (job.runId !== input.runId || job.attempt !== input.attempt)
-      reasons.push(`${arch}: run/attempt が一組と一致しません`);
-    if (object(job) && (job.sourceSha !== input.sourceSha || job.workflowSha !== input.workflowSha))
-      reasons.push(`${arch}: source/workflow SHA が一致しません`);
-    if (
-      object(job) &&
-      (!object(job.preflight) ||
-        job.preflight.verified !== true ||
-        !validGroupCredentials(job.preflight))
-    )
-      reasons.push(`${arch}: 資格情報・補助 group fixture の必須観測が不正です`);
-    if (!object(job) || !Array.isArray(job.trials)) {
-      reasons.push(`${arch}: 反復1・2・3が必要です`);
+    if (jobs.length !== 1 || !object(job)) {
+      reasons.push(`${arch}: job が1件必要です`);
       continue;
     }
-    const repetitions = job.trials.map((trial) => (object(trial) ? trial.repetition : null)).sort();
-    if (JSON.stringify(repetitions) !== "[1,2,3]") reasons.push(`${arch}: 反復1・2・3が必要です`);
-    for (const trial of job.trials) {
-      if (!object(trial)) {
-        reasons.push(`${arch}: 反復の記録が不正です`);
-        continue;
-      }
-      const cases = Array.isArray(trial.cases) ? trial.cases : [];
-      const names = cases.map((item) => (object(item) ? item.name : null)).sort();
-      if (
-        JSON.stringify(names) !== JSON.stringify(expected) ||
-        !cases.every((item) => object(item) && item.status === "pass")
-      )
-        reasons.push(`${arch}/${trial.repetition}: 期待 case の全件成功を確認できません`);
-      const counts = trial.counts;
-      if (
-        trial.exitCode !== 0 ||
-        !object(counts) ||
-        counts.pass !== expected.length ||
-        counts.fail !== 0 ||
-        counts.skip !== 0 ||
-        counts.todo !== 0
-      )
-        reasons.push(`${arch}/${trial.repetition}: 終了状態・試験集計が成功条件を満たしません`);
-      const observation = trial.observation;
-      const caller =
-        object(observation) && Array.isArray(observation.records)
-          ? observation.records.find((record) => object(record) && object(record.realCaller))
-              ?.realCaller
-          : undefined;
-      const observations =
-        object(caller) && Array.isArray(caller.observations) ? caller.observations : [];
-      if (
-        !object(observation) ||
-        observation.boundary !== "process-namespace" ||
-        observation.arch !== arch ||
-        observation.realCallerRequested !== true ||
-        !["baseline", "namespace"].every((binary) =>
-          observations.some(
-            (item: unknown) =>
-              object(item) &&
-              item.binary === binary &&
-              item.status === 37 &&
-              typeof item.stderr === "string" &&
-              item.stderr.includes('real-caller:{"hook": "hook-ok"}'),
-          ),
-        )
-      )
-        reasons.push(`${arch}/${trial.repetition}: 実 caller の実行を確認できません`);
-    }
+    if (job.runId !== input.runId || job.attempt !== input.attempt)
+      reasons.push(`${arch}: run/attempt が一組と一致しません`);
+    if (job.sourceSha !== input.sourceSha || job.workflowSha !== input.workflowSha)
+      reasons.push(`${arch}: source/workflow SHA が一致しません`);
+    if (
+      !object(job.preflight) ||
+      job.preflight.verified !== true ||
+      !validGroupCredentials(job.preflight)
+    )
+      reasons.push(`${arch}: 資格情報・補助 group fixture の必須観測が不正です`);
+    // runner は既定のままでは userns が使えないため、cgroup 経路の実証だけを数える。
+    verifyTrials(arch, job, expected, "cgroup", reasons);
   }
   for (const arch of ["x64", "arm64"]) {
     const artifacts = Array.isArray(input.artifacts)
@@ -207,7 +335,10 @@ export function verifyCohort(input: unknown, manifest: unknown): Verdict {
       typeof artifact.expiresAt !== "string" ||
       !Number.isFinite(Date.parse(artifact.createdAt)) ||
       !Number.isFinite(Date.parse(artifact.expiresAt)) ||
-      Date.parse(artifact.expiresAt) - Date.parse(artifact.createdAt) < 90 * 86400_000 - 60_000
+      typeof input.historyCutoff !== "string" ||
+      !Number.isFinite(Date.parse(input.historyCutoff)) ||
+      // Q5 の保存期間は対象 attempt の run 開始時刻（historyCutoff）から数える。
+      Date.parse(artifact.expiresAt) - Date.parse(input.historyCutoff) < 90 * 86400_000 - 60_000
     )
       reasons.push(`${arch}: artifact の同一性・保存期間を確認できません`);
   }

@@ -4,7 +4,14 @@ import { createHash } from "node:crypto";
 import { arch, release } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseTrial, verifyCohort, validGroupCredentials } from "./linux-process-proof.ts";
+import {
+  namespaceProbe as probeArgs,
+  parseTrial,
+  selectContainment,
+  verifyCohort,
+  verifyLocal,
+  validGroupCredentials,
+} from "./linux-process-proof.ts";
 import { collectMetadata } from "./linux-process-proof-metadata.ts";
 import resolutions from "./linux-process-proof-resolutions.json";
 
@@ -12,6 +19,7 @@ const control = fileURLToPath(new URL("..", import.meta.url));
 const proofTools = [
   "cc",
   "unshare",
+  "systemd-run",
   "nix",
   "nix-build",
   "nix-store",
@@ -43,16 +51,6 @@ function command(command: string, args: string[], cwd: string, env = process.env
   };
 }
 
-const probeArgs = [
-  "--user",
-  "--map-current-user",
-  "--pid",
-  "--fork",
-  "--kill-child=SIGKILL",
-  "--mount-proc",
-  "--",
-  "/usr/bin/true",
-];
 const probeOutputLimit = 32 * 1024 * 1024;
 function inspectProbeProcess(pid: number, expectedExecutable: string, expectedStartTicks?: string) {
   const proc = "/proc/" + pid;
@@ -528,9 +526,33 @@ function validRunnerImage(architecture: string, imageOS: unknown) {
     (architecture === "arm64" && imageOS === "ubuntu24-arm64")
   );
 }
-const namespacePreflightError = "同じ条件の namespace 前提検査が失敗しました。拒否原因は未確定です";
+/**
+ * cgroup 経路は user manager に届く必要がある。runner の job 環境には user bus の場所が無いため、
+ * linger で起動済みの user bus があれば、その場所を試行と前提検査へ明示的に渡す。
+ */
+function exportUserSession() {
+  const uid = process.getuid!();
+  const runtime = process.env.XDG_RUNTIME_DIR ?? `/run/user/${uid}`;
+  if (fs.existsSync(`${runtime}/bus`)) {
+    process.env.XDG_RUNTIME_DIR = runtime;
+    process.env.DBUS_SESSION_BUS_ADDRESS ??= `unix:path=${runtime}/bus`;
+  }
+  const user = checked("id", ["-un"], control);
+  return {
+    XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR,
+    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS,
+    bus: fs.existsSync(`${runtime}/bus`),
+    linger: command("loginctl", ["show-user", user, "--property=Linger", "--value"], control),
+    userManager: command("systemctl", ["is-active", `user@${uid}.service`], control),
+  };
+}
 
-async function preflight(root: string, onProgress?: (state: Record<string, unknown>) => void) {
+async function preflight(
+  root: string,
+  onProgress?: (state: Record<string, unknown>) => void,
+  local = false,
+) {
+  const session = exportUserSession();
   const tools = Object.fromEntries(
     proofTools.map((name) => {
       const selected = name === "bash" ? "/bin/bash" : Bun.which(name);
@@ -558,6 +580,8 @@ async function preflight(root: string, onProgress?: (state: Record<string, unkno
   const namespaces = Object.fromEntries(
     ["user", "pid", "mnt"].map((name) => [name, fs.readlinkSync(`/proc/self/ns/${name}`)]),
   );
+  // 方式の選択は launcher と同じ順に実際に試す。下の namespace probe は選択の根拠として記録する。
+  const containment = selectContainment();
   const probe = await namespaceProbe(tools.unshare!.path, root);
   const audit =
     probe.status === 0
@@ -573,6 +597,8 @@ async function preflight(root: string, onProgress?: (state: Record<string, unkno
     contexts,
     namespaces,
     probe: { ...probe, audit },
+    containment,
+    session,
     environment: {
       PATH: process.env.PATH,
       HOME: process.env.HOME,
@@ -629,17 +655,23 @@ async function preflight(root: string, onProgress?: (state: Record<string, unkno
   )
     errors.push("OS・architecture・Bun・非root 条件が不一致です");
   if (
-    !validRunnerImage(arch(), process.env.ImageOS) ||
-    !process.env.ImageVersion ||
-    !/^VERSION_ID="24\.04"$/m.test(fs.readFileSync("/etc/os-release", "utf8"))
+    !local &&
+    (!validRunnerImage(arch(), process.env.ImageOS) ||
+      !process.env.ImageVersion ||
+      !/^VERSION_ID="24\.04"$/m.test(fs.readFileSync("/etc/os-release", "utf8")))
   )
     errors.push("Ubuntu VM image が不一致です");
-  if (probe.status !== 0 || probe.error) errors.push(namespacePreflightError);
+  if (local && !/microsoft-standard-WSL2/.test(release()))
+    errors.push("手元実行は WSL2 kernel だけを対象にします");
+  if (observed.containment === "refused")
+    errors.push("namespace も委譲 scope も使えないため準備を始められません");
+  // 手元の WSL2 は既存の Nix をそのまま使い、runner で導入した版・remote・build user 設定は求めない。
   if (
-    tools.nix!.version !== "nix (Nix) 2.34.6" ||
-    nix.remote !== "daemon" ||
+    (!local &&
+      (tools.nix!.version !== "nix (Nix) 2.34.6" ||
+        nix.remote !== "daemon" ||
+        nix.buildUsersGroup !== "nixbld")) ||
     nix.sandbox !== true ||
-    nix.buildUsersGroup !== "nixbld" ||
     nix.daemon.status !== 0 ||
     !nix.bash?.startsWith("/nix/store/") ||
     !nix.stdenv?.startsWith("/nix/store/")
@@ -669,21 +701,48 @@ async function preflight(root: string, onProgress?: (state: Record<string, unkno
   };
 }
 
-async function run(root: string, out: string) {
+/** 手元の WSL2 では対象 SHA を checkout の HEAD に固定し、未 commit の変更があれば始めない。 */
+function localIdentity(root: string, out: string) {
+  if (checked("git", ["status", "--porcelain", "--untracked-files=no"], root))
+    throw new Error("対象 checkout に未 commit の変更があるため SHA を固定できません");
+  process.env.PROOF_ARCH = arch();
+  const revision = fs.readFileSync(join(root, "tests/fixtures/raw-codex/nixpkgs-revision"), "utf8");
+  for (const name of ["bash", "stdenv"]) {
+    const key = `PROCESS_PROOF_NIX_${name.toUpperCase()}`;
+    process.env[key] ??= checked(
+      "nix-build",
+      [
+        join(control, "development/linux-process-proof.nix"),
+        ...["--argstr", "system", `${arch() === "arm64" ? "aarch64" : "x86_64"}-linux`],
+        ...["--argstr", "revision", revision.trim(), "-A", name],
+        ...["--out-link", join(out, `nix-${name}`)],
+      ],
+      root,
+    );
+  }
+  return { sourceSha: checked("git", ["rev-parse", "HEAD"], root) };
+}
+
+async function run(root: string, out: string, local = false) {
   fs.mkdirSync(out, { recursive: true });
   const job: Record<string, unknown> = {
-    schema: "linux-process-proof-job/v1",
+    schema: local ? "linux-process-proof-local-job/v1" : "linux-process-proof-job/v1",
     arch: process.env.PROOF_ARCH,
     trials: [],
   };
   try {
-    Object.assign(job, identity(root));
+    Object.assign(job, local ? localIdentity(root, out) : identity(root));
+    job.arch = process.env.PROOF_ARCH;
     job.sources = sources(root);
     job.controllerHash = hash(fileURLToPath(import.meta.url));
     try {
-      job.preflight = await preflight(root, (observed) => {
-        job.preflight = observed;
-      });
+      job.preflight = await preflight(
+        root,
+        (observed) => {
+          job.preflight = observed;
+        },
+        local,
+      );
     } catch (error) {
       if (job.preflight)
         job.preflight = {
@@ -708,12 +767,19 @@ async function run(root: string, out: string) {
         NO_COLOR: "1",
         PROCESS_PROOF_PID_NAMESPACE: "1",
         PROCESS_PROOF_RETAIN_TEMP: "1",
+        ...(process.env.XDG_RUNTIME_DIR
+          ? {
+              XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR,
+              DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS,
+            }
+          : {}),
       };
       const result = command(
         process.execPath,
         ["test", join(root, "tests/bun/process-namespace.test.ts")],
         root,
-        { ...process.env, ...environment },
+        // CLAUDECODE があると bun test は case ごとの行を出さず、判定に必要な case 名を取れない。
+        { ...process.env, CLAUDECODE: undefined, ...environment },
       );
       fs.writeFileSync(join(out, logName), result.stdout + result.stderr);
       let trial: unknown;
@@ -747,6 +813,29 @@ async function run(root: string, out: string) {
     job.error = String(error);
   }
   write(join(out, "job.json"), job);
+  if (local) {
+    // runner と同じ判定ロジックで、GitHub 固有の run・artifact・履歴だけを要求しない。
+    const input = {
+      schema: "linux-process-proof-local/v1",
+      host: "wsl2",
+      sourceSha: job.sourceSha,
+      job,
+    };
+    const verdict = verifyLocal(
+      input,
+      json(join(root, "development/linux-process-proof-cases.json")),
+    );
+    if (job.error) verdict.reasons.push(String(job.error));
+    verdict.verified = verdict.reasons.length === 0;
+    write(join(out, "verdict.json"), verdict);
+    fs.writeFileSync(
+      join(out, "summary.md"),
+      `# WSL2 の正式実証（namespace 経路）\n\n判定: ${verdict.verified ? "成功" : "成功条件未達"}\n\nsource: ${String(job.sourceSha)}\nkernel: ${release()}\n\n` +
+        verdict.reasons.map((reason) => `- ${reason.replaceAll("\n", " ")}`).join("\n") +
+        "\n\nrunner の結果とは別に記録し、互いに読み替えない。#33 は OPEN、#82 は #33 待ち。\n",
+    );
+    if (!verdict.verified) process.exitCode = 1;
+  }
   if (job.error) throw new Error(String(job.error));
 }
 
@@ -782,7 +871,7 @@ export function readProofJob(root: string, directory: string, architecture: stri
     !environment.imageVersion ||
     typeof environment.kernel !== "string" ||
     !environment.kernel ||
-    environment.probe?.status !== 0 ||
+    typeof environment.containment !== "string" ||
     environment.nix?.mode !== "multi-user" ||
     environment.nix.remote !== "daemon" ||
     environment.nix.sandbox !== true ||
@@ -931,10 +1020,25 @@ async function aggregate(root: string, raw: string, out: string) {
     const metadata = await collectMetadata(
       async (path) => {
         const response = await fetch(`https://api.github.com/repos/treflebonbon/skills${path}`, {
-          headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+          headers: {
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            // runner の共有 IP では認証なしの上限（60回/時）を他の利用者と分け合うため、
+            // 集約 job だけに与えた actions: read の job token で同じ read API を読む。
+            ...(process.env.GITHUB_TOKEN
+              ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
+              : {}),
+          },
           signal: AbortSignal.timeout(30_000),
         });
-        if (!response.ok) throw new Error(`public metadata API: HTTP ${response.status}`);
+        if (!response.ok) {
+          // 403 などの原因（rate limit か権限か）を後で確定できるよう、header と本文の先頭を残す。
+          const limit = ["x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset"]
+            .map((name) => `${name}=${response.headers.get(name)}`)
+            .join(" ");
+          const body = (await response.text()).slice(0, 300).replaceAll("\n", " ");
+          throw new Error(`public metadata API: HTTP ${response.status} ${path} ${limit} ${body}`);
+        }
         return (await response.json()) as Record<string, unknown>;
       },
       current,
@@ -957,6 +1061,8 @@ async function aggregate(root: string, raw: string, out: string) {
     verdict.reasons.map((reason) => `- ${reason.replaceAll("\n", " ")}`).join("\n") +
     "\n\n#33 は OPEN、#82 は #33 待ち、macOS 移行は保留。JSON と要約は人が確認したうえで Git 管理へ移す。\n";
   fs.writeFileSync(join(out, "summary.md"), summary);
+  // step summary と artifact は認証なしでは読めないため、判定と理由を公開ログにも残す。
+  console.log(summary);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
   if (!verdict.verified) process.exitCode = 1;
 }
@@ -965,8 +1071,9 @@ if (import.meta.main) {
   const [mode, source, directory, output] = process.argv.slice(2);
   try {
     if (!source || !directory)
-      throw new Error("run SOURCE OUTPUT / aggregate SOURCE RAW OUTPUT が必要です");
+      throw new Error("run|local SOURCE OUTPUT / aggregate SOURCE RAW OUTPUT が必要です");
     if (mode === "run") await run(resolve(source), resolve(directory));
+    else if (mode === "local") await run(resolve(source), resolve(directory), true);
     else if (mode === "aggregate" && output)
       await aggregate(resolve(source), resolve(directory), resolve(output));
     else throw new Error("不明な実行方式です");

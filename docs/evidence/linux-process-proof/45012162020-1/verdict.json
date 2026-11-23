@@ -1,0 +1,9 @@
+{
+  "verified": false,
+  "reasons": [
+    "x64: artifact の同一性・保存期間を確認できません",
+    "arm64: artifact の同一性・保存期間を確認できません",
+    "同じ SHA の失敗履歴を確認できません",
+    "metadata: Error: public metadata API: HTTP 403 /actions/runs/45012162020 x-ratelimit-limit=60 x-ratelimit-remaining=0 x-ratelimit-reset=1795344012 {\"message\":\"API rate limit exceeded for 3.42.157.50. (But here's the good news: Authenticated requests get a higher rate limit. Check out the documentation for more details.)\",\"documentation_url\":\"https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting\"} "
+  ]
+}

@@ -6,7 +6,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   parseTrial,
+  selectContainment,
   verifyCohort,
+  verifyLocal,
   groupsInNamespace,
 } from "../../development/linux-process-proof.ts";
 import acceptedCases from "../../development/linux-process-proof-cases.json";
@@ -17,7 +19,11 @@ import { createFixtureInterpreter } from "../helpers/linux-namespace-fixture";
 
 const sourceSha = "a".repeat(40);
 const workflowSha = "b".repeat(40);
-const manifest = { schema: "linux-process-proof-cases/v1", cases: ["終了保証", "実 caller"] };
+const manifest = {
+  schema: "linux-process-proof-cases/v2",
+  cases: { common: ["終了保証", "実 caller"], namespace: ["unshare 段階"], cgroup: ["scope 段階"] },
+  observations: { namespace: [], cgroup: ["抜け出し観測"] },
+};
 
 test("namespace の補助 GID は観測 map と設定された overflow GID に従う", () => {
   expect(groupsInNamespace([1001, 2000], [[1001, 1001, 1]], 65534)).toEqual([1001, 65534]);
@@ -84,6 +90,7 @@ function cohort() {
       attempt: 1,
       preflight: {
         verified: true,
+        containment: "cgroup",
         uid: 1000,
         euid: 1000,
         gid: 1000,
@@ -93,21 +100,24 @@ function cohort() {
       trials: [1, 2, 3].map((repetition) => ({
         repetition,
         exitCode: 0,
-        counts: { pass: 2, fail: 0, skip: 0, todo: 0 },
+        counts: { pass: 4, fail: 0, skip: 0, todo: 0 },
         cases: [
           { name: "終了保証", status: "pass" },
           { name: "実 caller", status: "pass" },
+          { name: "scope 段階", status: "pass" },
+          { name: "抜け出し観測", status: "pass" },
         ],
         observation: {
           boundary: "process-namespace",
           arch,
+          containment: "cgroup",
           realCallerRequested: true,
           records: [
             {
               realCaller: {
                 observations: [
                   { binary: "baseline", status: 37, stderr: 'real-caller:{"hook": "hook-ok"}' },
-                  { binary: "namespace", status: 37, stderr: 'real-caller:{"hook": "hook-ok"}' },
+                  { binary: "candidate", status: 37, stderr: 'real-caller:{"hook": "hook-ok"}' },
                 ],
               },
             },
@@ -126,12 +136,166 @@ function cohort() {
       expiresAt: "2027-02-14T00:00:00Z",
     })),
     historyComplete: true,
+    historyCutoff: "2026-11-16T00:00:00Z",
     history: [] as unknown[],
   };
 }
 
 test("同じ run・attempt の両 architecture が各3回成功した一組を認定する", () => {
   expect(verifyCohort(cohort(), manifest)).toEqual({ verified: true, reasons: [] });
+});
+
+test("runner が cgroup 以外を選んだ組は、そのケースが全件成功でも cgroup の実証に数えない", () => {
+  const input = cohort();
+  for (const job of input.jobs) {
+    job.preflight.containment = "namespace";
+    for (const trial of job.trials) {
+      trial.observation.containment = "namespace";
+      trial.cases = [
+        { name: "終了保証", status: "pass" },
+        { name: "実 caller", status: "pass" },
+        { name: "unshare 段階", status: "pass" },
+      ];
+      trial.counts.pass = 3;
+    }
+  }
+  const verdict = verifyCohort(input, manifest);
+  expect(verdict.verified).toBe(false);
+  expect(verdict.reasons).toContain("x64: 選ばれた方式 namespace は cgroup の実証に数えません");
+  expect(verdict.reasons).toContain("arm64: 選ばれた方式 namespace は cgroup の実証に数えません");
+});
+
+test("実行したケースが「共通＋選ばれた方式専用」と一致しない組を拒否する", () => {
+  const input = cohort();
+  input.jobs[0]!.trials[0]!.cases[2] = { name: "unshare 段階", status: "pass" };
+  expect(verifyCohort(input, manifest).reasons).toContain(
+    "x64/1: 期待 case の全件成功を確認できません",
+  );
+  const missing = cohort();
+  missing.jobs[0]!.trials[0]!.cases.pop();
+  missing.jobs[0]!.trials[0]!.counts.pass = 3;
+  expect(verifyCohort(missing, manifest).reasons).toContain(
+    "x64/1: 期待 case の全件成功を確認できません",
+  );
+  const mixed = cohort();
+  mixed.jobs[1]!.trials[2]!.observation.containment = "namespace";
+  expect(verifyCohort(mixed, manifest).reasons).toEqual([
+    "arm64/3: 試験が使った方式が cgroup ではありません",
+  ]);
+});
+
+test("抜け出しの観測ケースは失敗しても合否に数えず、必須ケースの失敗は拒否する", () => {
+  const observed = cohort();
+  for (const trial of observed.jobs[0]!.trials) {
+    trial.cases[3]!.status = "fail";
+    trial.counts = { pass: 3, fail: 1, skip: 0, todo: 0 };
+    trial.exitCode = 1;
+  }
+  expect(verifyCohort(observed, manifest)).toEqual({ verified: true, reasons: [] });
+  const hidden = cohort();
+  hidden.jobs[0]!.trials[0]!.cases[3]!.status = "fail";
+  hidden.jobs[0]!.trials[0]!.counts = { pass: 3, fail: 1, skip: 0, todo: 0 };
+  expect(verifyCohort(hidden, manifest).reasons).toEqual([
+    "x64/1: 終了状態・試験集計が成功条件を満たしません",
+  ]);
+  const required = cohort();
+  const trial = required.jobs[0]!.trials[0]!;
+  trial.cases[2]!.status = "fail";
+  trial.counts = { pass: 3, fail: 1, skip: 0, todo: 0 };
+  trial.exitCode = 1;
+  expect(verifyCohort(required, manifest).reasons).toEqual([
+    "x64/1: 期待 case の全件成功を確認できません",
+    "x64/1: 終了状態・試験集計が成功条件を満たしません",
+  ]);
+});
+
+test("観測ケースが未実行なら全件 pass の集計でも拒否する", () => {
+  const input = cohort();
+  const trial = input.jobs[0]!.trials[0]!;
+  trial.cases.find((item) => item.name === manifest.observations.cgroup[0])!.status = "skip";
+  expect(verifyCohort(input, manifest).reasons).toEqual([
+    "x64/1: 観測 case に pass または fail が必要です",
+  ]);
+});
+
+test("正常なケースに不正な行が混じった反復を拒否する", () => {
+  const input = cohort();
+  const cases: unknown[] = input.jobs[0]!.trials[0]!.cases;
+  cases.push(null);
+  expect(verifyCohort(input, manifest).reasons).toEqual(["x64/1: case 行の形式が不正です"]);
+});
+
+test("3区分を持たない manifest や区分の重なりを期待一覧として受け入れない", () => {
+  for (const invalid of [
+    { schema: "linux-process-proof-cases/v1", cases: ["終了保証"] },
+    { ...manifest, cases: { ...manifest.cases, cgroup: undefined } },
+    { ...manifest, cases: { ...manifest.cases, cgroup: ["終了保証"] } },
+    { ...manifest, observations: { namespace: [], cgroup: ["scope 段階"] } },
+    { ...manifest, cases: { ...manifest.cases, common: [] } },
+  ])
+    expect(verifyCohort(cohort(), invalid)).toEqual({
+      verified: false,
+      reasons: ["期待 case manifest が不正です"],
+    });
+});
+
+function local() {
+  const job = cohort().jobs[0]!;
+  const { runId: _run, attempt: _attempt, workflowSha: _workflow, ...rest } = job;
+  rest.preflight.containment = "namespace";
+  for (const trial of rest.trials) {
+    trial.observation.containment = "namespace";
+    trial.cases[2] = { name: "unshare 段階", status: "pass" };
+    trial.cases.pop();
+    trial.counts.pass = 3;
+  }
+  return { schema: "linux-process-proof-local/v1", host: "wsl2", sourceSha, job: rest };
+}
+
+test("WSL2 の3回連続実行は GitHub 固有の項目なしに namespace 経路として認定する", () => {
+  expect(verifyLocal(local(), manifest)).toEqual({ verified: true, reasons: [] });
+});
+
+test("WSL2 では namespace 以外の方式・SHA の不一致・反復の欠落を認定しない", () => {
+  const cgroup = { ...local(), job: cohort().jobs[0]! };
+  expect(verifyLocal(cgroup, manifest).reasons).toContain(
+    "wsl2: 選ばれた方式 cgroup は namespace の実証に数えません",
+  );
+  const moved = local();
+  moved.job.sourceSha = "c".repeat(40);
+  expect(verifyLocal(moved, manifest).reasons).toContain("wsl2: source SHA が一致しません");
+  const short = local();
+  short.job.trials.pop();
+  expect(verifyLocal(short, manifest).reasons).toContain("wsl2: 反復1・2・3が必要です");
+  const credentials = local();
+  credentials.job.preflight.verified = false;
+  expect(verifyLocal(credentials, manifest).reasons).toContain(
+    "wsl2: 資格情報・補助 group fixture の必須観測が不正です",
+  );
+  expect(verifyLocal({ ...local(), host: "x64" }, manifest)).toEqual({
+    verified: false,
+    reasons: ["手元実行の記録が不正です"],
+  });
+});
+
+test("方式は unshare probe・systemd-run の順に実際に試し、どちらも失敗すれば拒否する", () => {
+  const bin = fs.mkdtempSync(join(tmpdir(), "containment-select-"));
+  const tool = (name: string, status: number) => {
+    fs.writeFileSync(join(bin, name), `#!/bin/sh\nexit ${status}\n`);
+    fs.chmodSync(join(bin, name), 0o755);
+  };
+  try {
+    const env = { PATH: bin };
+    tool("unshare", 0);
+    tool("systemd-run", 0);
+    expect(selectContainment(env)).toBe("namespace");
+    tool("unshare", 1);
+    expect(selectContainment(env)).toBe("cgroup");
+    tool("systemd-run", 1);
+    expect(selectContainment(env)).toBe("refused");
+  } finally {
+    fs.rmSync(bin, { recursive: true, force: true });
+  }
 });
 
 test("primary GID・補助 group・fixture の必須証跡が欠けた一組を拒否する", () => {
@@ -248,6 +412,21 @@ test("artifact の実保存期間が90日に足りない場合は証跡不足に
   );
 });
 
+test("artifact の保存期間は run の開始から数え、試験の後に作られた artifact も受け入れる", () => {
+  // GitHub は run の開始時刻から保存期限を数えるため、試験に数分かかると作成時刻からは90日に満たない。
+  const input = cohort();
+  for (const artifact of input.artifacts) {
+    artifact.createdAt = "2026-11-16T00:02:00Z";
+    artifact.expiresAt = "2027-02-14T00:00:02Z";
+  }
+  expect(verifyCohort(input, manifest)).toEqual({ verified: true, reasons: [] });
+  const missing = cohort();
+  delete (missing as Partial<typeof missing>).historyCutoff;
+  expect(verifyCohort(missing, manifest).reasons).toContain(
+    "x64: artifact の同一性・保存期間を確認できません",
+  );
+});
+
 test("片方の artifact が欠ける場合は測定成功でも認定しない", () => {
   const input = cohort();
   input.artifacts.pop();
@@ -258,7 +437,7 @@ test("片方の artifact が欠ける場合は測定成功でも認定しない"
 
 test("Bun の case と集計を観測 JSON と一緒に採取する", () => {
   const observation = cohort().jobs[0]!.trials[0]!.observation;
-  const log = `(pass) 終了保証 [1.00ms]\n(pass) 実 caller [2.00ms]\n${JSON.stringify(observation)}\n 2 pass\n 0 fail\n`;
+  const log = `(pass) 終了保証 [1.00ms]\n(pass) 実 caller [2.00ms]\n(pass) scope 段階\n(pass) 抜け出し観測 [3.00s]\n${JSON.stringify(observation)}\n 4 pass\n 0 fail\n`;
   expect(parseTrial(log, 0, 1)).toEqual(cohort().jobs[0]!.trials[0]);
 });
 
@@ -324,12 +503,13 @@ test("public API の最終成功だけで過去の失敗 attempt を隠さない
 });
 
 test("artifact API から同じ attempt の実 metadata だけを残す", async () => {
+  // artifact は run の開始（01:00）の後に作られ、保存期限は開始から90日になる。
   const artifacts = cohort().artifacts.map((artifact) => ({
     name: `linux-proof-42-1-${artifact.arch}`,
     id: Number(artifact.id),
     digest: `sha256:${artifact.digest}`,
-    created_at: artifact.createdAt,
-    expires_at: artifact.expiresAt,
+    created_at: "2026-11-16T01:02:00Z",
+    expires_at: "2027-02-14T01:00:00Z",
     expired: false,
   }));
   artifacts.push({ ...artifacts[0]!, name: "linux-proof-42-2-x64", id: 3 });
@@ -568,7 +748,7 @@ test("現在の attempt 開始後の待機 run と後続 attempt を過去の失
   ).rejects.toThrow("履歴の開始日時を確認できません");
 });
 
-test("独立した manifest の全 case が対象 test file に存在する", () => {
+test("3区分の manifest の全 case が対象 test file に登録される", () => {
   const result = spawnSync(
     process.execPath,
     ["test", fileURLToPath(new URL("./process-namespace.test.ts", import.meta.url))],
@@ -586,8 +766,16 @@ test("独立した manifest の全 case が対象 test file に存在する", ()
   );
   expect(result.status).toBe(0);
   const trial = parseTrial(result.stdout + result.stderr, result.status, 1);
-  expect(trial.cases.map((item) => item.name).sort()).toEqual([...acceptedCases.cases].sort());
-  expect(trial.counts.skip).toBe(acceptedCases.cases.length);
+  // 無効時は3区分と観測の全ケースを skip として登録するため、一覧の過不足を1回で照合できる。
+  const all = [
+    ...Object.values(acceptedCases.cases).flat(),
+    ...Object.values(acceptedCases.observations).flat(),
+  ];
+  expect(trial.cases.map((item) => item.name).sort()).toEqual(all.sort());
+  expect(trial.counts.skip).toBe(all.length);
+  expect(verifyCohort(cohort(), acceptedCases).reasons).not.toContain(
+    "期待 case manifest が不正です",
+  );
 });
 
 test("bundle の raw log・binary・closure の欠落や改変を成功にしない", () => {
@@ -639,6 +827,7 @@ test("bundle の raw log・binary・closure の欠落や改変を成功にしな
           [
             "cc",
             "unshare",
+            "systemd-run",
             "nix",
             "nix-build",
             "nix-store",
@@ -701,7 +890,7 @@ test("bundle の raw log・binary・closure の欠落や改変を成功にしな
         };
       });
       const observation = { ...cohort().jobs[0]!.trials[0]!.observation, build: { builds } };
-      const log = `(pass) 終了保証 [1.00ms]\n(pass) 実 caller [2.00ms]\n${JSON.stringify(observation)}\n 2 pass\n 0 fail\n`;
+      const log = `(pass) 終了保証 [1.00ms]\n(pass) 実 caller [2.00ms]\n(pass) scope 段階\n(pass) 抜け出し観測 [3.00s]\n${JSON.stringify(observation)}\n 4 pass\n 0 fail\n`;
       const name = `trial-${repetition}.log`;
       fs.writeFileSync(join(directory, name), log);
       job.trials.push({
@@ -864,7 +1053,15 @@ test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"
         fs.chmodSync(path, 0o755);
         return path;
       };
-      for (const name of ["cc", "nix-build", "nix-store", "setpriv", "bun", "python3"])
+      for (const name of [
+        "cc",
+        "systemd-run",
+        "nix-build",
+        "nix-store",
+        "setpriv",
+        "bun",
+        "python3",
+      ])
         executable(name, 'process.stdout.write("fixture version\\n");');
       executable(
         "unshare",

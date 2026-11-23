@@ -1,0 +1,7 @@
+{
+  "verified": false,
+  "reasons": [
+    "x64: artifact の同一性・保存期間を確認できません",
+    "arm64: artifact の同一性・保存期間を確認できません"
+  ]
+}

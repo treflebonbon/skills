@@ -1,3 +1,5 @@
+import { closeSync, readlinkSync } from "node:fs";
+
 const [requestedMode, executable, ...arguments_] = process.argv.slice(2);
 if (!executable) throw new Error("実証用 executable が必要です");
 function holdPreparation() {
@@ -7,7 +9,13 @@ function holdPreparation() {
   const command = detached
     ? [executable!, "hold-detached", requestedMode!.slice("prep-detached-".length)]
     : [executable!, "hold", disposition];
-  Bun.spawn(command, { stdout: "inherit", stderr: "inherit" });
+  const closeFrame = process.env.PROCESS_PROOF_CLOSE_FRAME === "1";
+  Bun.spawn(command, { stdout: closeFrame ? "ignore" : "inherit", stderr: "inherit" });
+  if (closeFrame) {
+    const frame = readlinkSync("/proc/self/fd/1");
+    closeSync(1);
+    console.error(`prep-frame-closed:${frame}`);
+  }
   const event = requestedMode!.startsWith("prep-before-ready-") ? "prep-started" : "prep-ready";
   console.error(`${event}:${process.pid}`);
   setInterval(() => {}, 1_000);

@@ -1,5 +1,7 @@
 # 通常 Linux x64／arm64 の追加実証計画
 
+> runner で namespace 経路を実証する部分は、[ホストに応じて方式を選ぶ正式実証の計画](linux-host-adaptive-proof-plan.md)で置き換えた。Q3〜Q10 の条件は、新しい計画が引き継いでいる。
+
 状態: 計画確定・追加実証は未達。2026-11-16 に Q1〜Q10 の回答と、Claude Opus のレビュー反映後の計画全体の共有理解を確認した。専用 workflow と証跡収集を実装し、同日の [run 43869813149 / attempt 1](evidence/linux-process-proof/43869813149-1/README.md) は両構成とも前提検査で停止した。試験本体は未実行。 2026-11-17 の [run 44049468642 / attempt 1](evidence/linux-process-proof/44049468642-1/README.md) も namespace の前提未達で停止し、両構成とも試験本体0件だった。
 
 ## 目的と引継ぎ
@@ -54,6 +56,8 @@ architecture ごと・実行ごとの bundle を作る。判定要約と検査�
 ## 確定した保存先と保持期間（Q5）
 
 生ログ・補助ファイルの bundle は GitHub Actions artifact に90日保存し、要約・必要な JSON は Git に残す。実際の保存期限も記録し、期限後は原ログを再取得できない前提とする。
+
+保存期間の起点は対象 attempt の run 開始時刻（`run_started_at`）とする。集約では記録された保存期限（`expires_at`）との差が90日以上であることを確認し、60秒の不足までを許容する。この起点は 2026-11-23 のレビュー対応で明記した。
 
 設定上限や upload 失敗で必要な保存ができなければ証跡不足として報告する。repository や組織の設定は自動変更しない。public repository の保持期間には最大90日と設定上限が適用される。[GitHub の保持期間設定](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository)を参照。
 

@@ -1,0 +1,1337 @@
+{
+  "schema": "linux-process-proof-local-job/v1",
+  "arch": "x64",
+  "trials": [
+    {
+      "repetition": 1,
+      "exitCode": 0,
+      "counts": {
+        "pass": 47,
+        "fail": 0,
+        "skip": 0,
+        "todo": 0
+      },
+      "cases": [
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-detached-group の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-detached-group の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-detached-session の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-detached-session の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-stubborn-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-stubborn-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-stubborn-ignored の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-stubborn-ignored の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-before-ready-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-before-ready-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-complete-hang-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-complete-hang-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "launcher の process group 全体への SIGKILL でも全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の namespace-before で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の namespace-before で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の pidfd-before で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の pidfd-before で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の pidfd-after で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の pidfd-after で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の fork-before で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の fork-before で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の fork-child で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の fork-child で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の parent-check で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の parent-check で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の exec-before で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の exec-before で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "親死亡の pidfd 検査を無効にした対照では登録前 race の残存を検出する"
+        },
+        {
+          "status": "pass",
+          "name": "probe 成功後に本番の unshare が拒否されたら cgroup へ移らず target を実行せず、同じ実行体の正常対照は動く"
+        },
+        {
+          "status": "pass",
+          "name": "旧 Python corpus の PID・FD・signal・argv・env 契約を候補でも満たす"
+        },
+        {
+          "status": "pass",
+          "name": "旧 corpus の exec 拒否を候補でも維持する"
+        },
+        {
+          "status": "pass",
+          "name": "正常な準備には5秒上限を設けず、5.2秒後に同じ launcher PID で target を実行する"
+        },
+        {
+          "status": "pass",
+          "name": "準備失敗・不正 frame・完了 frame 後の非ゼロ終了では target を実行しない"
+        },
+        {
+          "status": "pass",
+          "name": "wrapper 入力の ARG_MAX で旧方式の受理範囲を独立対照と比較する"
+        },
+        {
+          "status": "pass",
+          "name": "元 launcher の frame 上限の直前は通り、上限では候補も同じ診断で拒否する"
+        },
+        {
+          "status": "pass",
+          "name": "準備子の UID/GID/groups と proc PID は対照に一致する"
+        },
+        {
+          "status": "pass",
+          "name": "mount-proc なしの launcher では準備子の proc PID の不整合を検出する"
+        },
+        {
+          "status": "pass",
+          "name": "補助 group だけで許可される読み書きを候補でも維持する"
+        },
+        {
+          "status": "pass",
+          "name": "補助 group 非所属時の読み書き拒否を候補でも維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の input で target の PID・TTY・foreground group と終了状態を維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の interrupt で target の PID・TTY・foreground group と終了状態を維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の terminate で target の PID・TTY・foreground group と終了状態を維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の timeout で target の PID・TTY・foreground group と終了状態を維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の準備中の SIGTERM でも離脱子孫を終了し target を起動しない"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の準備中の SIGKILL でも離脱子孫を終了し target を起動しない"
+        },
+        {
+          "status": "pass",
+          "name": "実 Nix・shellHook を現行 prepare_environment caller から実行し候補と比較する"
+        }
+      ],
+      "observation": {
+        "boundary": "process-namespace",
+        "platform": "linux",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2",
+        "arch": "x64",
+        "bun": "1.4.4",
+        "build": {
+          "unshare": "/usr/bin/unshare",
+          "unshareHash": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c",
+          "version": "unshare from util-linux 2.39.3",
+          "compiler": "gcc (GCC) 15.3.0",
+          "launcherSourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+          "observerSourceHash": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+          "entrySourceHash": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+          "preparationSourceHash": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+          "runnerSourceHash": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+          "systemdRun": "/usr/bin/systemd-run",
+          "corpusRevision": "f8598e7c516f8a64fec04596207f0907d0407132",
+          "builds": [
+            {
+              "source": "bun-process-namespace-observer.c",
+              "variant": "observer",
+              "sourceHash": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+              "binaryHash": "d3b7c294ed0038907fb06137d95de0a7abb115c051ddfb5a3da0229456754aab"
+            },
+            {
+              "source": "bun-process-pidfds.c",
+              "variant": "pidfds",
+              "sourceHash": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+              "binaryHash": "bdcbb4b65218dcdef989b288b9473ee72a9c753e0152af806b37b21020a56da7"
+            },
+            {
+              "source": "bun-exec-launcher.c",
+              "variant": "baseline",
+              "sourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+              "binaryHash": "cad7106b7b729ff0cb7bd7a322b21cf68e52f6238dae7c003ced54e2b7b71e7b"
+            },
+            {
+              "source": "bun-exec-pid-namespace.c",
+              "variant": "launcher",
+              "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+              "binaryHash": "f8a0f4d3cf03a031f616c9b721fb3e8cbedaa4c348c03980bf204105ad427e7d"
+            },
+            {
+              "source": "bun-exec-pid-namespace.c",
+              "variant": "without-proc",
+              "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+              "binaryHash": "45e2cb9eb4e0b09e54df0fcfaf145beda93d9b651ca8c870110321d2fdea1192"
+            },
+            {
+              "source": "bun-exec-namespace-delay.c",
+              "variant": "delay.so",
+              "sourceHash": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+              "binaryHash": "2c6a58d5423f5d5b04fee22783e7ee8b295ef82ea6fdc9e4789782833c243e70"
+            }
+          ]
+        },
+        "containment": "namespace",
+        "records": [
+          {
+            "realCaller": {
+              "nixStdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
+              "nixBash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+              "nixVersion": "nix (Nix) 2.34.6",
+              "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+              "flakeHash": "67942a48b5651065e7d68deca132103f31cac974351e94db28f33553bfb71488",
+              "bashHash": "80b557096c168920d1e77d7c064c92ee66b862d1f38be7efbe7bf254558d1c04",
+              "observations": [
+                {
+                  "binary": "baseline",
+                  "status": 37,
+                  "stderr": "devshell-env: ready; /tmp/nix-shell.Wkg7FR/claude-1000/-home-ubuntu-orca-workspaces-skills-linux-cgroup-v2-fallback/1b0dc1e4-6b16-4e18-8244-febdf663c3ac/scratchpad/wsl2-proof/out/temporary-1-iQobK3/bun-process-namespace-IS99SL/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":3230472,\"ppid\":3225250,\"uid\":1000,\"euid\":1000,\"gid\":1000,\"egid\":1000,\"groups\":[4,24,27,30,46,100,989,993,1000],\"procSelf\":\"3230472\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                },
+                {
+                  "binary": "candidate",
+                  "status": 37,
+                  "stderr": "devshell-env: ready; /tmp/nix-shell.Wkg7FR/claude-1000/-home-ubuntu-orca-workspaces-skills-linux-cgroup-v2-fallback/1b0dc1e4-6b16-4e18-8244-febdf663c3ac/scratchpad/wsl2-proof/out/temporary-1-iQobK3/bun-process-namespace-IS99SL/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":3230516,\"ppid\":3225250,\"uid\":1000,\"euid\":1000,\"gid\":1000,\"egid\":1000,\"groups\":[4,24,27,30,46,100,989,993,1000],\"procSelf\":\"3230516\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                }
+              ]
+            }
+          }
+        ],
+        "verification": "see-test-results",
+        "realCallerRequested": true,
+        "adoption": "not-decided",
+        "macos": "held",
+        "issue33": "open",
+        "issue82": "blocked-by-33",
+        "recordsOmitted": 45
+      },
+      "environment": {
+        "PATH": "/mnt/c/Users/t_watanabe/AppData/Roaming/orca/wsl-managed-cli/e58401f50a7d926da1ce:/nix/store/2k477y1msi1wy81mccpfg3j8va6sh0vh-nodejs-slim-24.22.1/bin:/nix/store/wzcrn43h3xkbwzj2bid8lvbfjhsnqx2b-cloudflare-cli-1.0.0-beta.31/bin:/nix/store/8kv32k4ay16gi2q7j5y6qv5v5ald8phv-typescript-language-server-5.3.0/bin:/nix/store/wxcql5naq4k6qinpnv6xyh2sii6cm8qw-typescript-5.9.3/bin:/nix/store/5kch0g07ii0z2f51153pz793f3bk6acd-python3-3.14.7/bin:/nix/store/gdzijr54z7kh9jajpncw3nn2v6545ks7-uv-0.11.21/bin:/nix/store/zjmwcyva2jwli0d6vhvnvigg45m6743k-ty-0.0.38/bin:/nix/store/k0yjvdmnmgl3sd2002kwsxd46j2kqrsq-ruff-0.15.14/bin:/nix/store/0m78sw4631vp4b3awfi0cr5laj0375qa-bun-1.4.4/bin:/nix/store/yk8ykgjw8pfj25mw4s3hswls5y0k9iwg-oxfmt-0.45.0/bin:/nix/store/p3g5gmn0qafj5xn2yrqxdqh00pdj426y-shfmt-3.13.1/bin:/nix/store/zi5fbs9c41nh9sclp55bzl3jf5y5rjir-oxlint-1.65.0/bin:/nix/store/2z706bksw0z627hv3m8klf1nppv84rgz-tombi-0.10.4/bin:/nix/store/75sj7vvcjcadl14v6z4bcz2c6pb39njj-markdownlint-cli2-0.21.0/bin:/nix/store/a9q9cb9wmi9nm7ym2pnzj2fvawgw9fjs-starship-1.25.1/bin:/nix/store/l3nkkksy5ka5dnrp7y71rwpajj9zb96i-zoxide-0.9.9/bin:/nix/store/mws6a0zch1zx3143wnj9ls25rvjdzdrf-atuin-18.15.2/bin:/nix/store/95rwy6j31482ra293ifh328caspnl825-eza-0.23.4/bin:/nix/store/18wwww4lniqzx72yfga536wrv70aggpw-bat-0.26.1/bin:/nix/store/c4z02zzkg9s7v3x07hvkr4rmsd18d6z7-hexyl-0.17.0/bin:/nix/store/64g3rjnzshg5y2hfsm3zn8dr05mhh47z-fd-10.4.2/bin:/nix/store/jmxrpp9mj5l669s0y4f4rfdh10ln51xj-ripgrep-15.1.0/bin:/nix/store/25bsvdym9czrn0ys7my6s3fp21cppp30-fzf-0.72.0/bin:/nix/store/dqs7rckdigl213vvj4f5d67cfzcc44s9-jq-1.8.2-bin/bin:/nix/store/acfiq2qw0zh0spas671zmhylqhla1yn3-sd-1.1.0/bin:/nix/store/dmv5z5gasfrxpcmgj9ibssl6xkmiqjfv-shellcheck-0.11.0-bin/bin:/nix/store/nv7alwg77k9p5961zvijn60k7kscli76-direnv-2.37.1/bin:/nix/store/yc17ralrvc9zgyyd96kibncxm67a397v-nh-4.4.2/bin:/nix/store/gsyp77bqg04r83xh3gc2c6c8ndm7jf1g-zsh-5.9.1/bin:/nix/store/9prp39x2ljwzgwl3w712832zjq30224a-nb-7.25.4/bin:/nix/store/yqdhh83g4351yx8bq34sdz4mkmk0s68a-wsl-xdg-open-0.1.0/bin:/nix/store/q3v93b5pf9kyy3ci7n5jy1b4w9a59w93-neovim-0.12.4/bin:/nix/store/16scclaazx45d1j63m2vv1wg8q4cckxr-tmux-3.7b/bin:/nix/store/a89wg1agxlq8bxmyvd33das8x68fzqhq-tree-sitter-0.26.8/bin:/nix/store/pphp3krih1kan1f5abx8032glqw27fp0-lua-language-server-3.18.1/bin:/nix/store/2m0d472x4kl993iladlimmzaw507da46-gh-2.102.0/bin:/nix/store/ssksh0y8sknlxjhg4cr2adw2z943nd47-lazygit-0.61.1/bin:/nix/store/xz145m4acbpxsc1w9kykh55r70nvimg5-gitleaks-8.30.1/bin:/nix/store/k6p5g2k3bwyyzvznz52vjg6ii54na196-kubectl-1.36.3/bin:/nix/store/2b4rwni33v5m1rxmjprh20fdqrcif8w4-kubernetes-helm-3.20.2/bin:/nix/store/s37xn5ag3n6c18l1bz47bvd0fj8qfcnn-kustomize-5.8.1/bin:/nix/store/g1f8vx9i6lfdlhvxyjwqas5y3mmmxv2n-skaffold-2.19.0/bin:/nix/store/zvrh31s72z2r2qwdf32ridaafkd992d9-k9s-0.51.0/bin:/nix/store/cr6g453z1cbfxar81x4f9m0p8cqnimgz-flyctl-0.4.52/bin:/nix/store/26nf6ymnmziwapz1zibhc9xk7hhwdlla-devpod-0.6.15/bin:/nix/store/ajvjk7qx159gp2x5jwpcgfzknbz647v3-hadolint-2.14.0/bin:/nix/store/figyvziz6dxyr2xxm0zb49ixvdb7y5iy-actionlint-1.7.12/bin:/nix/store/c6f208zihx5ml342y54vsg6nqfbgb83m-ghalint-1.5.6/bin:/nix/store/r7mpghp26h2rhm1ql7brwmfx2p8z3hbj-pinact-3.9.2/bin:/nix/store/2ipfv0mqnfs6zhkbmfwzgpg2jibjw8p2-bats-with-libraries-1.12.0/bin:/nix/store/v6gx58zw1b63ql1g2pygxf64j3s19zsj-k6-2.0.0/bin:/nix/store/mm84blmnxagc88222zdyqc19zy34xjsr-marp-cli-4.4.0/bin:/nix/store/pa2r7dksspckrfzb1gr1wlr62dvnfkwz-claude-code-2.1.328/bin:/nix/store/8jn3cr5ifk0pklllj3vmgm0bmgwdqrw8-codex-0.170.0/bin:/nix/store/nnnh2ks97pxsv3cswhmvir8vzi0gc63m-bubblewrap-0.12.0/bin:/nix/store/54d8j97xfbiyr06kmcx2n8snkiicfdz3-herdr-0.9.5/bin:/nix/store/sg6b7kdn0chw7q5mfxsj341clwc6f4qk-copilot-cli-1.0.114/bin:/nix/store/3yhdi2jsp3h49k121b6rgv1aiq7i11b3-antigravity-cli-1.5.12/bin:/nix/store/73ckhdy5x1xzpm0jrii9yxcs9c0z4hww-code-review-graph-2.4.0/bin:/nix/store/pq63sq4s7y8w39n5z23jbkk86zp8awbr-python3.14-mcp-1.29.0/bin:/nix/store/gzr0kz6kh4vs6f496v41aqqrlm30v1rp-python3.14-idna-3.20/bin:/nix/store/bya4ansy58az5133kryqp2cvrxbnz8qy-python3-3.14.10/bin:/nix/store/mx6j0a2bw0mb9wli3hqvj838clnmi0zz-python3.14-httpx-0.28.1/bin:/nix/store/bg6l7d62alyrjk2v035kabfz12a4v379-python3.14-jsonschema-4.26.0/bin:/nix/store/iz7h6y4bgkgmlrkp8crbshgxflqmgksg-python3.14-jsonpath-ng-1.8.0/bin:/nix/store/li8xsjwrfsss0dzzfx1faqnxhx1pmija-python3.14-python-dotenv-1.2.4/bin:/nix/store/f5g7wiyiy9b14pwb9wd5fjcsr6dj95s4-python3.14-uvicorn-0.51.0/bin:/nix/store/9q7lgf8lq3pmrd2dwr2lh577kzj3chw1-python3.14-fastmcp-slim-3.4.7/bin:/nix/store/s5n65nxjaz0f8g0n90hc4pn8718sdyi6-python3.14-markdown-it-py-4.2.0/bin:/nix/store/njfif2yiszjvm3sh41dyiw1qx38xplac-python3.14-pygments-2.21.0/bin:/nix/store/pk8q69mbhhmc1lc7aipc020yslr1a11m-python3.14-email-validator-2.3.0/bin:/nix/store/8pw5psvvgi3qy2dv4y4f8am2bi4ghf7j-python3.14-cffi-2.1.1/bin:/nix/store/bkdqdbr1bfnmy8jg9qfh1kni1jcgrf23-python3.14-keyring-25.7.0/bin:/nix/store/0z4f8gmmrr7l9q3x2nd92nfkmd3nwsbn-python3.14-cyclopts-5.4.0/bin:/nix/store/giil4p020b1xhw8lsqg9h5z8kwrq4b84-python3.14-watchfiles-1.3.0/bin:/nix/store/83vlpliyyhrv4g2j4cfmgcf58bqv1666-python3.14-websockets-17.0.1/bin:/nix/store/6qzwjxrm5cjx3as72ih1k7drwans6v7j-python3.14-watchdog-6.0.0/bin:/nix/store/6q73k9wjvhg11vj0laskby174zc5y8l7-ast-grep-0.42.1/bin:/nix/store/q0ggai1hcq6gywga3341i916sxhm0kv3-design-md-0.4.0/bin:/nix/store/r80pgd3b8qpdrwf649n8s5n6kn7wh0ny-impeccable-0.1.27/bin:/nix/store/l03n8w6r1m96fqvbwjb59q0cgzfikljv-playwright-cli-0.1.25/bin:/nix/store/mnap7wwfyj04a66v6sx8yb28qg5d7a67-defuddle-0.19.3/bin:/nix/store/9jq9g54a1sq15nn4rxrwq8xs5jnlkl5f-python3.13-markitdown-0.1.7/bin:/nix/store/jy00n3jp5xj8s40n1fbldmkcr5n7avxc-python3-3.13.15/bin:/nix/store/hh00dy0r736kvapa30a3cq7l83xb0cma-python3.13-charset-normalizer-3.4.7/bin:/nix/store/dmnyx4gl8b0b7ybgjmybv1mqa3a68w83-python3.13-magika-1.0.2/bin:/nix/store/vqq4ms2n4fk4w0ib9cdqhccjj8jfabrv-python3.13-numpy-2.4.4/bin:/nix/store/di2ylqszhss5s7shlkmcalp1k0fsy3wh-python3.13-onnxruntime-1.24.4/bin:/nix/store/vd73q6h945a7czh11vcw3sjm9ylb254j-python3.13-coloredlogs-15.0.1/bin:/nix/store/sq6j0rwh645yzpjn3434nz3wbj5y0583-python3.13-humanfriendly-10.0/bin:/nix/store/x8cmilsady9bhh5kh9fg7ws6b88fgaps-python3.13-python-dotenv-1.2.2/bin:/nix/store/6l2kgwdpa133q4mdic7v033zlzg38aj4-python3.13-tabulate-0.10.0/bin:/nix/store/l56v04yfk9av2d487bvsl2mhp8ygflz6-python3.13-tqdm-4.67.1/bin:/nix/store/c91b69vgk64samvpazhh1r5zv1yc8xix-python3.13-mammoth-1.12.0/bin:/nix/store/ynmwjgqfq1bmhsvg7994zq44f2jl98lk-python3.13-markdownify-1.2.2/bin:/nix/store/3v63sx85nx0ky1qqhy17ndirbw1vbxys-python3.13-pdfminer-six-20260107/bin:/nix/store/76ypywvvs4i1ib1p1anxnqw60m98s6rn-python3.13-pdfplumber-0.11.9/bin:/nix/store/3v4vj3w55cs8rgmcp7bcwr8x4srz5nxd-python3.13-pypdfium2-5.7.0/bin:/nix/store/2wpcnwrxrx1ck9lqyrl47rsb5acdcbnr-python3.13-xlsxwriter-3.2.9/bin:/nix/store/890r3r2hkdcvaamfvfxxc3m5l8hr3nc1-python3.13-speechrecognition-3.16.1/bin:/nix/store/fic59kxfy2f92idwzqm6phwrdnxgfv2j-python3.13-xlrd-2.0.2/bin:/nix/store/z7vqibzjvr40f485j15j6l8fnmcn8j3j-python3.13-youtube-transcript-api-1.2.4/bin:/nix/store/g3g1qkf8p32gliks6vx5fh86lxiwzrch-waza-0.41.0/bin:/nix/store/b57d3rsdby4w5pf67hs20y5ddp3kkach-apm-0.35.0/bin:/nix/store/lb41b0anx1f98y9y5s9mdv97gjgsq740-python3-3.14.7/bin:/nix/store/jmhnpxhyik89xg7rqi4shg73rxhfwasd-git-minimal-2.55.0/bin:/nix/store/aiwm8xqln02cbryvp9ilj6ykflrpmg0f-python3.14-llm-0.31.1/bin:/nix/store/5w5s4965dcmmi5z8mwh8y786gh8gdixp-python3.14-numpy-2.5.2/bin:/nix/store/3wfkjzcjdnxjy4nic8k6g8nr35brmpy4-python3.14-idna-3.18/bin:/nix/store/c1mi1l25nb3ri6m85jx8n0b29m10xqkj-python3.14-distro-1.9.0/bin:/nix/store/q30xa56nmlgz3h9cllifws4yic79jxww-python3.14-httpx-0.28.1/bin:/nix/store/fdzrpfafy3kda4j5ypcs7mzgc0z2aksz-python3.14-tqdm-4.68.4/bin:/nix/store/ljy6z6bzrpja4wffmh9yk5gmdma2n9cn-python3.14-pip-26.1.2/bin:/nix/store/z0445saanpac1n9d95aaap0i1ljxw5i0-python3.14-python-ulid-3.1.0/bin:/nix/store/97z4i8jsw7dzrxdraj21aad0bdkp7k8a-python3.14-sqlite-utils-4.2.1/bin:/nix/store/f9pg2siyxrjggn886zgrmwsgymrv133j-python3.14-tabulate-0.10.0/bin:/nix/store/9qz7dnr5pha2nz1x9hxp28fd0895pdbx-python3.14-cffi-2.1.0/bin:/nix/store/5sy15nk1s1ip12s7f71s7ymff77vk25s-python3.14-charset-normalizer-3.4.9/bin:/nix/store/fyhsd2di1ndbvwc29z5laqpcf95d35bm-python3.14-markdown-it-py-4.2.0/bin:/nix/store/lyj2hffm8hc3pv009mrmjkfdv5jsspxg-python3.14-pygments-2.20.0/bin:/nix/store/bxwqp1mz5wfn3qqi0ffasf1cj9f5dip9-python3.14-rich-click-1.9.9/bin:/nix/store/8xpscjfwi3h3jjih8gv7cw89brlnrhwp-python3.14-watchdog-6.0.0/bin:/nix/store/hhb6scq2lziy3cn0q8h6cw7kbwqwzqxf-python3.14-websockets-16.1/bin:/nix/store/3s182123rvgcibr7dsp2k9m6fdclddpg-act-0.2.88/bin:/nix/store/rkldw0s3szbf2n7w7hzd5d6ggwwk7afy-cocogitto-7.0.0/bin:/nix/store/wd19ylrrahpml0j904c5k1zzhnjsn3b7-lefthook-2.1.5/bin:/nix/store/sg9pynb5rh1n19cxwrxvs6v7cchbfqb6-go-task-3.48.0/bin:/nix/store/pddfs32zgslzi0ib7ik2qfv7n4lj3i8j-dive-0.13.1/bin:/nix/store/sy8xa2r5dk51i1259jlw38s90syr7xcx-atlas-1.2.0/bin:/nix/store/srasw7xdphshvl9h3y1pflddanm0jg27-tbls-1.94.5/bin:/nix/store/1zwn2wkjfvsk536ld9851vqqfmcbwfl3-ghq-1.9.4/bin:/nix/store/9aa5kvkxqasg3ym22brka88jgsj452x2-overmind-2.5.1/bin:/nix/store/7h3xzz9x6ag3xyx4mqzbs3wbb3j33yxi-graphviz-12.2.1/bin:/nix/store/m8p2pyd0lks5mbgda32w22m99xnk6rr5-gws-0.22.5/bin:/nix/store/dxvlx2iajwlrlwqj9rbbq1dlyy1wmbvf-gwq-0.1.2/bin:/nix/store/vzxysd7zvkxfqd932kc548qi408bcgqx-sprite-0.0.1-rc48/bin:/nix/store/xdnaya02qicjfdczyjqwy2yl04b8x3pw-patchelf-0.15.2/bin:/nix/store/dy6j7267wrgjlr2z748sbx83zj16vs3c-gcc-wrapper-15.3.0/bin:/nix/store/s2f0mfx0iiap9yxmlfvq0psn26jsbind-gcc-15.3.0/bin:/nix/store/kgd806ssw99qaxwiislhfx5dwnc8k893-glibc-2.42-100-bin/bin:/nix/store/bhv6xyvqw6gjs3j488gi1z6wdv18bdpa-coreutils-9.11/bin:/nix/store/2gjbrb8nwqf1225n3zhca56s2rxrqqhx-binutils-wrapper-2.46/bin:/nix/store/g2i5zxslx9msaqjy14hdp2af064i9pbv-binutils-2.46/bin:/nix/store/bhv6xyvqw6gjs3j488gi1z6wdv18bdpa-coreutils-9.11/bin:/nix/store/nl0wq6d4bpjrxmlax141liq0qr9z87gn-findutils-4.10.0/bin:/nix/store/aqq53g5lgr9n9hxzmbblpfzds5z067ca-diffutils-3.12/bin:/nix/store/0s17nja4n8b63by0nlg1m31mxn2bq1g1-gnused-4.10/bin:/nix/store/cqhgy07rpxdwk9kd2qlc3cw4s9ajzm9f-gnugrep-3.12/bin:/nix/store/xbqis14s3fvckwlayc6vxvglws1v2mcw-gawk-5.4.1/bin:/nix/store/rc7c5al4hdcv0dc42g1jabx2r68l45jq-gnutar-1.35/bin:/nix/store/k1z3ys65nbrdc60975wajrj4xjwaqqm4-gzip-1.14/bin:/nix/store/a7501p1w90nhbln9259viwql8m4mnbx5-bzip2-1.0.8-bin/bin:/nix/store/q5wf35q7dabb5m8mszqjn3d55ff5c1pl-gnumake-4.4.1/bin:/nix/store/jnyfsf2mp08d1xyz2m72ic2vz2kcx0sd-bash-5.3p9/bin:/nix/store/2dcxwfz9n8xpzrnrfgnl0yz7dw0f60gz-patch-2.8/bin:/nix/store/fr31df17rksfki6nv00xq4s5apvqpyhw-xz-5.8.4-bin/bin:/nix/store/24ppwxxymwv6p22ag41mk4vvb79cmr0k-file-5.47/bin:/home/ubuntu/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/Users/t_watanabe/AppData/Local/Programs/orca/resources/bin:/mnt/c/Users/t_watanabe/.volta/bin:/mnt/c/Users/t_watanabe/.asdf/shims:/mnt/c/Users/t_watanabe/.local/share/mise/shims:/mnt/c/Users/t_watanabe/AppData/Local/Programs/OpenAI/Codex/bin:/mnt/c/Users/t_watanabe/AppData/Local/agy/bin:/mnt/c/Users/t_watanabe/AppData/Roaming/npm:/mnt/c/Users/t_watanabe/AppData/Local/pnpm:/mnt/c/Users/t_watanabe/AppData/Local/Yarn/bin:/mnt/c/Users/t_watanabe/.bun/bin:/mnt/c/Users/t_watanabe/AppData/Roaming/fnm/aliases/default:/mnt/c/Users/t_watanabe/.fnm/aliases/default:/mnt/c/Windows/system32:/mnt/c/Windows:/mnt/c/Windows/System32/Wbem:/mnt/c/Windows/System32/WindowsPowerShell/v1.0/:/mnt/c/Windows/System32/OpenSSH/:/mnt/c/Program Files/dotnet/:/mnt/c/Program Files/Tailscale/:/mnt/c/Program Files/WezTerm:/mnt/c/Program Files/GitHub CLI/:/mnt/c/Program Files/Git/cmd:/mnt/c/Program Files/WSL/:/mnt/c/Users/t_watanabe/.local/bin:/mnt/c/Users/t_watanabe/AppData/Local/Microsoft/WindowsApps:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Microsoft VS Code/bin:/mnt/c/Users/t_watanabe/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Ollama:/mnt/c/Users/t_watanabe/AppData/Local/Microsoft/WinGet/Packages/GitHub.Copilot_Microsoft.Winget.Source_8wekyb3d8bbwe:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Orca/resources/bin:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Microsoft VS Code/bin/copilot-shim:/mnt/c/Users/t_watanabe/AppData/Local/PowerToys/DSCModules/:/mnt/c/Users/t_watanabe/AppData/Local/PowerToys/bin/:/mnt/c/Users/t_watanabe/AppData/Local/Programs/herdr-app:/mnt/c/Users/t_watanabe/AppData/Local/Programs/herdr-core:/snap/bin",
+        "HOME": "/home/ubuntu",
+        "TMPDIR": "/tmp/nix-shell.Wkg7FR/claude-1000/-home-ubuntu-orca-workspaces-skills-linux-cgroup-v2-fallback/1b0dc1e4-6b16-4e18-8244-febdf663c3ac/scratchpad/wsl2-proof/out/temporary-1-iQobK3",
+        "NO_COLOR": "1",
+        "PROCESS_PROOF_PID_NAMESPACE": "1",
+        "PROCESS_PROOF_RETAIN_TEMP": "1",
+        "XDG_RUNTIME_DIR": "/run/user/1000",
+        "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus"
+      },
+      "temporary": "temporary-1-iQobK3",
+      "log": "trial-1.log",
+      "logHash": "a610f89538b4ad90ce6ad8713cc1ea83f90a7130d324940048160c92a647c1f6",
+      "signal": null
+    },
+    {
+      "repetition": 2,
+      "exitCode": 0,
+      "counts": {
+        "pass": 47,
+        "fail": 0,
+        "skip": 0,
+        "todo": 0
+      },
+      "cases": [
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-detached-group の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-detached-group の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-detached-session の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-detached-session の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-stubborn-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-stubborn-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-stubborn-ignored の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-stubborn-ignored の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-before-ready-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-before-ready-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-complete-hang-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-complete-hang-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "launcher の process group 全体への SIGKILL でも全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の namespace-before で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の namespace-before で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の pidfd-before で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の pidfd-before で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の pidfd-after で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の pidfd-after で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の fork-before で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の fork-before で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の fork-child で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の fork-child で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の parent-check で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の parent-check で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の exec-before で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の exec-before で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "親死亡の pidfd 検査を無効にした対照では登録前 race の残存を検出する"
+        },
+        {
+          "status": "pass",
+          "name": "probe 成功後に本番の unshare が拒否されたら cgroup へ移らず target を実行せず、同じ実行体の正常対照は動く"
+        },
+        {
+          "status": "pass",
+          "name": "旧 Python corpus の PID・FD・signal・argv・env 契約を候補でも満たす"
+        },
+        {
+          "status": "pass",
+          "name": "旧 corpus の exec 拒否を候補でも維持する"
+        },
+        {
+          "status": "pass",
+          "name": "正常な準備には5秒上限を設けず、5.2秒後に同じ launcher PID で target を実行する"
+        },
+        {
+          "status": "pass",
+          "name": "準備失敗・不正 frame・完了 frame 後の非ゼロ終了では target を実行しない"
+        },
+        {
+          "status": "pass",
+          "name": "wrapper 入力の ARG_MAX で旧方式の受理範囲を独立対照と比較する"
+        },
+        {
+          "status": "pass",
+          "name": "元 launcher の frame 上限の直前は通り、上限では候補も同じ診断で拒否する"
+        },
+        {
+          "status": "pass",
+          "name": "準備子の UID/GID/groups と proc PID は対照に一致する"
+        },
+        {
+          "status": "pass",
+          "name": "mount-proc なしの launcher では準備子の proc PID の不整合を検出する"
+        },
+        {
+          "status": "pass",
+          "name": "補助 group だけで許可される読み書きを候補でも維持する"
+        },
+        {
+          "status": "pass",
+          "name": "補助 group 非所属時の読み書き拒否を候補でも維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の input で target の PID・TTY・foreground group と終了状態を維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の interrupt で target の PID・TTY・foreground group と終了状態を維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の terminate で target の PID・TTY・foreground group と終了状態を維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の timeout で target の PID・TTY・foreground group と終了状態を維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の準備中の SIGTERM でも離脱子孫を終了し target を起動しない"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の準備中の SIGKILL でも離脱子孫を終了し target を起動しない"
+        },
+        {
+          "status": "pass",
+          "name": "実 Nix・shellHook を現行 prepare_environment caller から実行し候補と比較する"
+        }
+      ],
+      "observation": {
+        "boundary": "process-namespace",
+        "platform": "linux",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2",
+        "arch": "x64",
+        "bun": "1.4.4",
+        "build": {
+          "unshare": "/usr/bin/unshare",
+          "unshareHash": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c",
+          "version": "unshare from util-linux 2.39.3",
+          "compiler": "gcc (GCC) 15.3.0",
+          "launcherSourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+          "observerSourceHash": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+          "entrySourceHash": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+          "preparationSourceHash": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+          "runnerSourceHash": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+          "systemdRun": "/usr/bin/systemd-run",
+          "corpusRevision": "f8598e7c516f8a64fec04596207f0907d0407132",
+          "builds": [
+            {
+              "source": "bun-process-namespace-observer.c",
+              "variant": "observer",
+              "sourceHash": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+              "binaryHash": "d3b7c294ed0038907fb06137d95de0a7abb115c051ddfb5a3da0229456754aab"
+            },
+            {
+              "source": "bun-process-pidfds.c",
+              "variant": "pidfds",
+              "sourceHash": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+              "binaryHash": "bdcbb4b65218dcdef989b288b9473ee72a9c753e0152af806b37b21020a56da7"
+            },
+            {
+              "source": "bun-exec-launcher.c",
+              "variant": "baseline",
+              "sourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+              "binaryHash": "cad7106b7b729ff0cb7bd7a322b21cf68e52f6238dae7c003ced54e2b7b71e7b"
+            },
+            {
+              "source": "bun-exec-pid-namespace.c",
+              "variant": "launcher",
+              "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+              "binaryHash": "f8a0f4d3cf03a031f616c9b721fb3e8cbedaa4c348c03980bf204105ad427e7d"
+            },
+            {
+              "source": "bun-exec-pid-namespace.c",
+              "variant": "without-proc",
+              "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+              "binaryHash": "45e2cb9eb4e0b09e54df0fcfaf145beda93d9b651ca8c870110321d2fdea1192"
+            },
+            {
+              "source": "bun-exec-namespace-delay.c",
+              "variant": "delay.so",
+              "sourceHash": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+              "binaryHash": "2920010f1c0d94eda8227e2adc95e215123d2b4be549055f0c7a987a2709a0c9"
+            }
+          ]
+        },
+        "containment": "namespace",
+        "records": [
+          {
+            "realCaller": {
+              "nixStdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
+              "nixBash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+              "nixVersion": "nix (Nix) 2.34.6",
+              "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+              "flakeHash": "67942a48b5651065e7d68deca132103f31cac974351e94db28f33553bfb71488",
+              "bashHash": "80b557096c168920d1e77d7c064c92ee66b862d1f38be7efbe7bf254558d1c04",
+              "observations": [
+                {
+                  "binary": "baseline",
+                  "status": 37,
+                  "stderr": "devshell-env: ready; /tmp/nix-shell.Wkg7FR/claude-1000/-home-ubuntu-orca-workspaces-skills-linux-cgroup-v2-fallback/1b0dc1e4-6b16-4e18-8244-febdf663c3ac/scratchpad/wsl2-proof/out/temporary-2-KexY3u/bun-process-namespace-uvZVSP/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":3233492,\"ppid\":3230591,\"uid\":1000,\"euid\":1000,\"gid\":1000,\"egid\":1000,\"groups\":[4,24,27,30,46,100,989,993,1000],\"procSelf\":\"3233492\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                },
+                {
+                  "binary": "candidate",
+                  "status": 37,
+                  "stderr": "devshell-env: ready; /tmp/nix-shell.Wkg7FR/claude-1000/-home-ubuntu-orca-workspaces-skills-linux-cgroup-v2-fallback/1b0dc1e4-6b16-4e18-8244-febdf663c3ac/scratchpad/wsl2-proof/out/temporary-2-KexY3u/bun-process-namespace-uvZVSP/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":3233612,\"ppid\":3230591,\"uid\":1000,\"euid\":1000,\"gid\":1000,\"egid\":1000,\"groups\":[4,24,27,30,46,100,989,993,1000],\"procSelf\":\"3233612\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                }
+              ]
+            }
+          }
+        ],
+        "verification": "see-test-results",
+        "realCallerRequested": true,
+        "adoption": "not-decided",
+        "macos": "held",
+        "issue33": "open",
+        "issue82": "blocked-by-33",
+        "recordsOmitted": 45
+      },
+      "environment": {
+        "PATH": "/mnt/c/Users/t_watanabe/AppData/Roaming/orca/wsl-managed-cli/e58401f50a7d926da1ce:/nix/store/2k477y1msi1wy81mccpfg3j8va6sh0vh-nodejs-slim-24.22.1/bin:/nix/store/wzcrn43h3xkbwzj2bid8lvbfjhsnqx2b-cloudflare-cli-1.0.0-beta.31/bin:/nix/store/8kv32k4ay16gi2q7j5y6qv5v5ald8phv-typescript-language-server-5.3.0/bin:/nix/store/wxcql5naq4k6qinpnv6xyh2sii6cm8qw-typescript-5.9.3/bin:/nix/store/5kch0g07ii0z2f51153pz793f3bk6acd-python3-3.14.7/bin:/nix/store/gdzijr54z7kh9jajpncw3nn2v6545ks7-uv-0.11.21/bin:/nix/store/zjmwcyva2jwli0d6vhvnvigg45m6743k-ty-0.0.38/bin:/nix/store/k0yjvdmnmgl3sd2002kwsxd46j2kqrsq-ruff-0.15.14/bin:/nix/store/0m78sw4631vp4b3awfi0cr5laj0375qa-bun-1.4.4/bin:/nix/store/yk8ykgjw8pfj25mw4s3hswls5y0k9iwg-oxfmt-0.45.0/bin:/nix/store/p3g5gmn0qafj5xn2yrqxdqh00pdj426y-shfmt-3.13.1/bin:/nix/store/zi5fbs9c41nh9sclp55bzl3jf5y5rjir-oxlint-1.65.0/bin:/nix/store/2z706bksw0z627hv3m8klf1nppv84rgz-tombi-0.10.4/bin:/nix/store/75sj7vvcjcadl14v6z4bcz2c6pb39njj-markdownlint-cli2-0.21.0/bin:/nix/store/a9q9cb9wmi9nm7ym2pnzj2fvawgw9fjs-starship-1.25.1/bin:/nix/store/l3nkkksy5ka5dnrp7y71rwpajj9zb96i-zoxide-0.9.9/bin:/nix/store/mws6a0zch1zx3143wnj9ls25rvjdzdrf-atuin-18.15.2/bin:/nix/store/95rwy6j31482ra293ifh328caspnl825-eza-0.23.4/bin:/nix/store/18wwww4lniqzx72yfga536wrv70aggpw-bat-0.26.1/bin:/nix/store/c4z02zzkg9s7v3x07hvkr4rmsd18d6z7-hexyl-0.17.0/bin:/nix/store/64g3rjnzshg5y2hfsm3zn8dr05mhh47z-fd-10.4.2/bin:/nix/store/jmxrpp9mj5l669s0y4f4rfdh10ln51xj-ripgrep-15.1.0/bin:/nix/store/25bsvdym9czrn0ys7my6s3fp21cppp30-fzf-0.72.0/bin:/nix/store/dqs7rckdigl213vvj4f5d67cfzcc44s9-jq-1.8.2-bin/bin:/nix/store/acfiq2qw0zh0spas671zmhylqhla1yn3-sd-1.1.0/bin:/nix/store/dmv5z5gasfrxpcmgj9ibssl6xkmiqjfv-shellcheck-0.11.0-bin/bin:/nix/store/nv7alwg77k9p5961zvijn60k7kscli76-direnv-2.37.1/bin:/nix/store/yc17ralrvc9zgyyd96kibncxm67a397v-nh-4.4.2/bin:/nix/store/gsyp77bqg04r83xh3gc2c6c8ndm7jf1g-zsh-5.9.1/bin:/nix/store/9prp39x2ljwzgwl3w712832zjq30224a-nb-7.25.4/bin:/nix/store/yqdhh83g4351yx8bq34sdz4mkmk0s68a-wsl-xdg-open-0.1.0/bin:/nix/store/q3v93b5pf9kyy3ci7n5jy1b4w9a59w93-neovim-0.12.4/bin:/nix/store/16scclaazx45d1j63m2vv1wg8q4cckxr-tmux-3.7b/bin:/nix/store/a89wg1agxlq8bxmyvd33das8x68fzqhq-tree-sitter-0.26.8/bin:/nix/store/pphp3krih1kan1f5abx8032glqw27fp0-lua-language-server-3.18.1/bin:/nix/store/2m0d472x4kl993iladlimmzaw507da46-gh-2.102.0/bin:/nix/store/ssksh0y8sknlxjhg4cr2adw2z943nd47-lazygit-0.61.1/bin:/nix/store/xz145m4acbpxsc1w9kykh55r70nvimg5-gitleaks-8.30.1/bin:/nix/store/k6p5g2k3bwyyzvznz52vjg6ii54na196-kubectl-1.36.3/bin:/nix/store/2b4rwni33v5m1rxmjprh20fdqrcif8w4-kubernetes-helm-3.20.2/bin:/nix/store/s37xn5ag3n6c18l1bz47bvd0fj8qfcnn-kustomize-5.8.1/bin:/nix/store/g1f8vx9i6lfdlhvxyjwqas5y3mmmxv2n-skaffold-2.19.0/bin:/nix/store/zvrh31s72z2r2qwdf32ridaafkd992d9-k9s-0.51.0/bin:/nix/store/cr6g453z1cbfxar81x4f9m0p8cqnimgz-flyctl-0.4.52/bin:/nix/store/26nf6ymnmziwapz1zibhc9xk7hhwdlla-devpod-0.6.15/bin:/nix/store/ajvjk7qx159gp2x5jwpcgfzknbz647v3-hadolint-2.14.0/bin:/nix/store/figyvziz6dxyr2xxm0zb49ixvdb7y5iy-actionlint-1.7.12/bin:/nix/store/c6f208zihx5ml342y54vsg6nqfbgb83m-ghalint-1.5.6/bin:/nix/store/r7mpghp26h2rhm1ql7brwmfx2p8z3hbj-pinact-3.9.2/bin:/nix/store/2ipfv0mqnfs6zhkbmfwzgpg2jibjw8p2-bats-with-libraries-1.12.0/bin:/nix/store/v6gx58zw1b63ql1g2pygxf64j3s19zsj-k6-2.0.0/bin:/nix/store/mm84blmnxagc88222zdyqc19zy34xjsr-marp-cli-4.4.0/bin:/nix/store/pa2r7dksspckrfzb1gr1wlr62dvnfkwz-claude-code-2.1.328/bin:/nix/store/8jn3cr5ifk0pklllj3vmgm0bmgwdqrw8-codex-0.170.0/bin:/nix/store/nnnh2ks97pxsv3cswhmvir8vzi0gc63m-bubblewrap-0.12.0/bin:/nix/store/54d8j97xfbiyr06kmcx2n8snkiicfdz3-herdr-0.9.5/bin:/nix/store/sg6b7kdn0chw7q5mfxsj341clwc6f4qk-copilot-cli-1.0.114/bin:/nix/store/3yhdi2jsp3h49k121b6rgv1aiq7i11b3-antigravity-cli-1.5.12/bin:/nix/store/73ckhdy5x1xzpm0jrii9yxcs9c0z4hww-code-review-graph-2.4.0/bin:/nix/store/pq63sq4s7y8w39n5z23jbkk86zp8awbr-python3.14-mcp-1.29.0/bin:/nix/store/gzr0kz6kh4vs6f496v41aqqrlm30v1rp-python3.14-idna-3.20/bin:/nix/store/bya4ansy58az5133kryqp2cvrxbnz8qy-python3-3.14.10/bin:/nix/store/mx6j0a2bw0mb9wli3hqvj838clnmi0zz-python3.14-httpx-0.28.1/bin:/nix/store/bg6l7d62alyrjk2v035kabfz12a4v379-python3.14-jsonschema-4.26.0/bin:/nix/store/iz7h6y4bgkgmlrkp8crbshgxflqmgksg-python3.14-jsonpath-ng-1.8.0/bin:/nix/store/li8xsjwrfsss0dzzfx1faqnxhx1pmija-python3.14-python-dotenv-1.2.4/bin:/nix/store/f5g7wiyiy9b14pwb9wd5fjcsr6dj95s4-python3.14-uvicorn-0.51.0/bin:/nix/store/9q7lgf8lq3pmrd2dwr2lh577kzj3chw1-python3.14-fastmcp-slim-3.4.7/bin:/nix/store/s5n65nxjaz0f8g0n90hc4pn8718sdyi6-python3.14-markdown-it-py-4.2.0/bin:/nix/store/njfif2yiszjvm3sh41dyiw1qx38xplac-python3.14-pygments-2.21.0/bin:/nix/store/pk8q69mbhhmc1lc7aipc020yslr1a11m-python3.14-email-validator-2.3.0/bin:/nix/store/8pw5psvvgi3qy2dv4y4f8am2bi4ghf7j-python3.14-cffi-2.1.1/bin:/nix/store/bkdqdbr1bfnmy8jg9qfh1kni1jcgrf23-python3.14-keyring-25.7.0/bin:/nix/store/0z4f8gmmrr7l9q3x2nd92nfkmd3nwsbn-python3.14-cyclopts-5.4.0/bin:/nix/store/giil4p020b1xhw8lsqg9h5z8kwrq4b84-python3.14-watchfiles-1.3.0/bin:/nix/store/83vlpliyyhrv4g2j4cfmgcf58bqv1666-python3.14-websockets-17.0.1/bin:/nix/store/6qzwjxrm5cjx3as72ih1k7drwans6v7j-python3.14-watchdog-6.0.0/bin:/nix/store/6q73k9wjvhg11vj0laskby174zc5y8l7-ast-grep-0.42.1/bin:/nix/store/q0ggai1hcq6gywga3341i916sxhm0kv3-design-md-0.4.0/bin:/nix/store/r80pgd3b8qpdrwf649n8s5n6kn7wh0ny-impeccable-0.1.27/bin:/nix/store/l03n8w6r1m96fqvbwjb59q0cgzfikljv-playwright-cli-0.1.25/bin:/nix/store/mnap7wwfyj04a66v6sx8yb28qg5d7a67-defuddle-0.19.3/bin:/nix/store/9jq9g54a1sq15nn4rxrwq8xs5jnlkl5f-python3.13-markitdown-0.1.7/bin:/nix/store/jy00n3jp5xj8s40n1fbldmkcr5n7avxc-python3-3.13.15/bin:/nix/store/hh00dy0r736kvapa30a3cq7l83xb0cma-python3.13-charset-normalizer-3.4.7/bin:/nix/store/dmnyx4gl8b0b7ybgjmybv1mqa3a68w83-python3.13-magika-1.0.2/bin:/nix/store/vqq4ms2n4fk4w0ib9cdqhccjj8jfabrv-python3.13-numpy-2.4.4/bin:/nix/store/di2ylqszhss5s7shlkmcalp1k0fsy3wh-python3.13-onnxruntime-1.24.4/bin:/nix/store/vd73q6h945a7czh11vcw3sjm9ylb254j-python3.13-coloredlogs-15.0.1/bin:/nix/store/sq6j0rwh645yzpjn3434nz3wbj5y0583-python3.13-humanfriendly-10.0/bin:/nix/store/x8cmilsady9bhh5kh9fg7ws6b88fgaps-python3.13-python-dotenv-1.2.2/bin:/nix/store/6l2kgwdpa133q4mdic7v033zlzg38aj4-python3.13-tabulate-0.10.0/bin:/nix/store/l56v04yfk9av2d487bvsl2mhp8ygflz6-python3.13-tqdm-4.67.1/bin:/nix/store/c91b69vgk64samvpazhh1r5zv1yc8xix-python3.13-mammoth-1.12.0/bin:/nix/store/ynmwjgqfq1bmhsvg7994zq44f2jl98lk-python3.13-markdownify-1.2.2/bin:/nix/store/3v63sx85nx0ky1qqhy17ndirbw1vbxys-python3.13-pdfminer-six-20260107/bin:/nix/store/76ypywvvs4i1ib1p1anxnqw60m98s6rn-python3.13-pdfplumber-0.11.9/bin:/nix/store/3v4vj3w55cs8rgmcp7bcwr8x4srz5nxd-python3.13-pypdfium2-5.7.0/bin:/nix/store/2wpcnwrxrx1ck9lqyrl47rsb5acdcbnr-python3.13-xlsxwriter-3.2.9/bin:/nix/store/890r3r2hkdcvaamfvfxxc3m5l8hr3nc1-python3.13-speechrecognition-3.16.1/bin:/nix/store/fic59kxfy2f92idwzqm6phwrdnxgfv2j-python3.13-xlrd-2.0.2/bin:/nix/store/z7vqibzjvr40f485j15j6l8fnmcn8j3j-python3.13-youtube-transcript-api-1.2.4/bin:/nix/store/g3g1qkf8p32gliks6vx5fh86lxiwzrch-waza-0.41.0/bin:/nix/store/b57d3rsdby4w5pf67hs20y5ddp3kkach-apm-0.35.0/bin:/nix/store/lb41b0anx1f98y9y5s9mdv97gjgsq740-python3-3.14.7/bin:/nix/store/jmhnpxhyik89xg7rqi4shg73rxhfwasd-git-minimal-2.55.0/bin:/nix/store/aiwm8xqln02cbryvp9ilj6ykflrpmg0f-python3.14-llm-0.31.1/bin:/nix/store/5w5s4965dcmmi5z8mwh8y786gh8gdixp-python3.14-numpy-2.5.2/bin:/nix/store/3wfkjzcjdnxjy4nic8k6g8nr35brmpy4-python3.14-idna-3.18/bin:/nix/store/c1mi1l25nb3ri6m85jx8n0b29m10xqkj-python3.14-distro-1.9.0/bin:/nix/store/q30xa56nmlgz3h9cllifws4yic79jxww-python3.14-httpx-0.28.1/bin:/nix/store/fdzrpfafy3kda4j5ypcs7mzgc0z2aksz-python3.14-tqdm-4.68.4/bin:/nix/store/ljy6z6bzrpja4wffmh9yk5gmdma2n9cn-python3.14-pip-26.1.2/bin:/nix/store/z0445saanpac1n9d95aaap0i1ljxw5i0-python3.14-python-ulid-3.1.0/bin:/nix/store/97z4i8jsw7dzrxdraj21aad0bdkp7k8a-python3.14-sqlite-utils-4.2.1/bin:/nix/store/f9pg2siyxrjggn886zgrmwsgymrv133j-python3.14-tabulate-0.10.0/bin:/nix/store/9qz7dnr5pha2nz1x9hxp28fd0895pdbx-python3.14-cffi-2.1.0/bin:/nix/store/5sy15nk1s1ip12s7f71s7ymff77vk25s-python3.14-charset-normalizer-3.4.9/bin:/nix/store/fyhsd2di1ndbvwc29z5laqpcf95d35bm-python3.14-markdown-it-py-4.2.0/bin:/nix/store/lyj2hffm8hc3pv009mrmjkfdv5jsspxg-python3.14-pygments-2.20.0/bin:/nix/store/bxwqp1mz5wfn3qqi0ffasf1cj9f5dip9-python3.14-rich-click-1.9.9/bin:/nix/store/8xpscjfwi3h3jjih8gv7cw89brlnrhwp-python3.14-watchdog-6.0.0/bin:/nix/store/hhb6scq2lziy3cn0q8h6cw7kbwqwzqxf-python3.14-websockets-16.1/bin:/nix/store/3s182123rvgcibr7dsp2k9m6fdclddpg-act-0.2.88/bin:/nix/store/rkldw0s3szbf2n7w7hzd5d6ggwwk7afy-cocogitto-7.0.0/bin:/nix/store/wd19ylrrahpml0j904c5k1zzhnjsn3b7-lefthook-2.1.5/bin:/nix/store/sg9pynb5rh1n19cxwrxvs6v7cchbfqb6-go-task-3.48.0/bin:/nix/store/pddfs32zgslzi0ib7ik2qfv7n4lj3i8j-dive-0.13.1/bin:/nix/store/sy8xa2r5dk51i1259jlw38s90syr7xcx-atlas-1.2.0/bin:/nix/store/srasw7xdphshvl9h3y1pflddanm0jg27-tbls-1.94.5/bin:/nix/store/1zwn2wkjfvsk536ld9851vqqfmcbwfl3-ghq-1.9.4/bin:/nix/store/9aa5kvkxqasg3ym22brka88jgsj452x2-overmind-2.5.1/bin:/nix/store/7h3xzz9x6ag3xyx4mqzbs3wbb3j33yxi-graphviz-12.2.1/bin:/nix/store/m8p2pyd0lks5mbgda32w22m99xnk6rr5-gws-0.22.5/bin:/nix/store/dxvlx2iajwlrlwqj9rbbq1dlyy1wmbvf-gwq-0.1.2/bin:/nix/store/vzxysd7zvkxfqd932kc548qi408bcgqx-sprite-0.0.1-rc48/bin:/nix/store/xdnaya02qicjfdczyjqwy2yl04b8x3pw-patchelf-0.15.2/bin:/nix/store/dy6j7267wrgjlr2z748sbx83zj16vs3c-gcc-wrapper-15.3.0/bin:/nix/store/s2f0mfx0iiap9yxmlfvq0psn26jsbind-gcc-15.3.0/bin:/nix/store/kgd806ssw99qaxwiislhfx5dwnc8k893-glibc-2.42-100-bin/bin:/nix/store/bhv6xyvqw6gjs3j488gi1z6wdv18bdpa-coreutils-9.11/bin:/nix/store/2gjbrb8nwqf1225n3zhca56s2rxrqqhx-binutils-wrapper-2.46/bin:/nix/store/g2i5zxslx9msaqjy14hdp2af064i9pbv-binutils-2.46/bin:/nix/store/bhv6xyvqw6gjs3j488gi1z6wdv18bdpa-coreutils-9.11/bin:/nix/store/nl0wq6d4bpjrxmlax141liq0qr9z87gn-findutils-4.10.0/bin:/nix/store/aqq53g5lgr9n9hxzmbblpfzds5z067ca-diffutils-3.12/bin:/nix/store/0s17nja4n8b63by0nlg1m31mxn2bq1g1-gnused-4.10/bin:/nix/store/cqhgy07rpxdwk9kd2qlc3cw4s9ajzm9f-gnugrep-3.12/bin:/nix/store/xbqis14s3fvckwlayc6vxvglws1v2mcw-gawk-5.4.1/bin:/nix/store/rc7c5al4hdcv0dc42g1jabx2r68l45jq-gnutar-1.35/bin:/nix/store/k1z3ys65nbrdc60975wajrj4xjwaqqm4-gzip-1.14/bin:/nix/store/a7501p1w90nhbln9259viwql8m4mnbx5-bzip2-1.0.8-bin/bin:/nix/store/q5wf35q7dabb5m8mszqjn3d55ff5c1pl-gnumake-4.4.1/bin:/nix/store/jnyfsf2mp08d1xyz2m72ic2vz2kcx0sd-bash-5.3p9/bin:/nix/store/2dcxwfz9n8xpzrnrfgnl0yz7dw0f60gz-patch-2.8/bin:/nix/store/fr31df17rksfki6nv00xq4s5apvqpyhw-xz-5.8.4-bin/bin:/nix/store/24ppwxxymwv6p22ag41mk4vvb79cmr0k-file-5.47/bin:/home/ubuntu/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/Users/t_watanabe/AppData/Local/Programs/orca/resources/bin:/mnt/c/Users/t_watanabe/.volta/bin:/mnt/c/Users/t_watanabe/.asdf/shims:/mnt/c/Users/t_watanabe/.local/share/mise/shims:/mnt/c/Users/t_watanabe/AppData/Local/Programs/OpenAI/Codex/bin:/mnt/c/Users/t_watanabe/AppData/Local/agy/bin:/mnt/c/Users/t_watanabe/AppData/Roaming/npm:/mnt/c/Users/t_watanabe/AppData/Local/pnpm:/mnt/c/Users/t_watanabe/AppData/Local/Yarn/bin:/mnt/c/Users/t_watanabe/.bun/bin:/mnt/c/Users/t_watanabe/AppData/Roaming/fnm/aliases/default:/mnt/c/Users/t_watanabe/.fnm/aliases/default:/mnt/c/Windows/system32:/mnt/c/Windows:/mnt/c/Windows/System32/Wbem:/mnt/c/Windows/System32/WindowsPowerShell/v1.0/:/mnt/c/Windows/System32/OpenSSH/:/mnt/c/Program Files/dotnet/:/mnt/c/Program Files/Tailscale/:/mnt/c/Program Files/WezTerm:/mnt/c/Program Files/GitHub CLI/:/mnt/c/Program Files/Git/cmd:/mnt/c/Program Files/WSL/:/mnt/c/Users/t_watanabe/.local/bin:/mnt/c/Users/t_watanabe/AppData/Local/Microsoft/WindowsApps:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Microsoft VS Code/bin:/mnt/c/Users/t_watanabe/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Ollama:/mnt/c/Users/t_watanabe/AppData/Local/Microsoft/WinGet/Packages/GitHub.Copilot_Microsoft.Winget.Source_8wekyb3d8bbwe:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Orca/resources/bin:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Microsoft VS Code/bin/copilot-shim:/mnt/c/Users/t_watanabe/AppData/Local/PowerToys/DSCModules/:/mnt/c/Users/t_watanabe/AppData/Local/PowerToys/bin/:/mnt/c/Users/t_watanabe/AppData/Local/Programs/herdr-app:/mnt/c/Users/t_watanabe/AppData/Local/Programs/herdr-core:/snap/bin",
+        "HOME": "/home/ubuntu",
+        "TMPDIR": "/tmp/nix-shell.Wkg7FR/claude-1000/-home-ubuntu-orca-workspaces-skills-linux-cgroup-v2-fallback/1b0dc1e4-6b16-4e18-8244-febdf663c3ac/scratchpad/wsl2-proof/out/temporary-2-KexY3u",
+        "NO_COLOR": "1",
+        "PROCESS_PROOF_PID_NAMESPACE": "1",
+        "PROCESS_PROOF_RETAIN_TEMP": "1",
+        "XDG_RUNTIME_DIR": "/run/user/1000",
+        "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus"
+      },
+      "temporary": "temporary-2-KexY3u",
+      "log": "trial-2.log",
+      "logHash": "93625d03877a26831fb4348a34f2d6880ec78b289d501e5ec974c284b824a6e9",
+      "signal": null
+    },
+    {
+      "repetition": 3,
+      "exitCode": 0,
+      "counts": {
+        "pass": 47,
+        "fail": 0,
+        "skip": 0,
+        "todo": 0
+      },
+      "cases": [
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-detached-group の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-detached-group の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-detached-session の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-detached-session の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-stubborn-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-stubborn-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-stubborn-ignored の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-stubborn-ignored の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-before-ready-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-before-ready-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-complete-hang-blocked の SIGTERM 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "選ばれた方式は prep-complete-hang-blocked の SIGKILL 後に全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "launcher の process group 全体への SIGKILL でも全所有子孫を5秒以内に終了する"
+        },
+        {
+          "status": "pass",
+          "name": "準備中に監視役だけが終了しても、準備子孫を残さず target を起動しない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の namespace-before で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の namespace-before で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の pidfd-before で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の pidfd-before で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の pidfd-after で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の pidfd-after で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の fork-before で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の fork-before で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の fork-child で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の fork-child で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の parent-check で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の parent-check で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の exec-before で SIGTERM を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "unshare の exec-before で SIGKILL を受けても準備子を残さない"
+        },
+        {
+          "status": "pass",
+          "name": "親死亡の pidfd 検査を無効にした対照では登録前 race の残存を検出する"
+        },
+        {
+          "status": "pass",
+          "name": "probe 成功後に本番の unshare が拒否されたら cgroup へ移らず target を実行せず、同じ実行体の正常対照は動く"
+        },
+        {
+          "status": "pass",
+          "name": "旧 Python corpus の PID・FD・signal・argv・env 契約を候補でも満たす"
+        },
+        {
+          "status": "pass",
+          "name": "旧 corpus の exec 拒否を候補でも維持する"
+        },
+        {
+          "status": "pass",
+          "name": "正常な準備には5秒上限を設けず、5.2秒後に同じ launcher PID で target を実行する"
+        },
+        {
+          "status": "pass",
+          "name": "準備失敗・不正 frame・完了 frame 後の非ゼロ終了では target を実行しない"
+        },
+        {
+          "status": "pass",
+          "name": "wrapper 入力の ARG_MAX で旧方式の受理範囲を独立対照と比較する"
+        },
+        {
+          "status": "pass",
+          "name": "元 launcher の frame 上限の直前は通り、上限では候補も同じ診断で拒否する"
+        },
+        {
+          "status": "pass",
+          "name": "準備子の UID/GID/groups と proc PID は対照に一致する"
+        },
+        {
+          "status": "pass",
+          "name": "mount-proc なしの launcher では準備子の proc PID の不整合を検出する"
+        },
+        {
+          "status": "pass",
+          "name": "補助 group だけで許可される読み書きを候補でも維持する"
+        },
+        {
+          "status": "pass",
+          "name": "補助 group 非所属時の読み書き拒否を候補でも維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の input で target の PID・TTY・foreground group と終了状態を維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の interrupt で target の PID・TTY・foreground group と終了状態を維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の terminate で target の PID・TTY・foreground group と終了状態を維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の timeout で target の PID・TTY・foreground group と終了状態を維持する"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の準備中の SIGTERM でも離脱子孫を終了し target を起動しない"
+        },
+        {
+          "status": "pass",
+          "name": "実 PTY の準備中の SIGKILL でも離脱子孫を終了し target を起動しない"
+        },
+        {
+          "status": "pass",
+          "name": "実 Nix・shellHook を現行 prepare_environment caller から実行し候補と比較する"
+        }
+      ],
+      "observation": {
+        "boundary": "process-namespace",
+        "platform": "linux",
+        "kernel": "6.18.58.1-microsoft-standard-WSL2",
+        "arch": "x64",
+        "bun": "1.4.4",
+        "build": {
+          "unshare": "/usr/bin/unshare",
+          "unshareHash": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c",
+          "version": "unshare from util-linux 2.39.3",
+          "compiler": "gcc (GCC) 15.3.0",
+          "launcherSourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+          "observerSourceHash": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+          "entrySourceHash": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+          "preparationSourceHash": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+          "runnerSourceHash": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+          "systemdRun": "/usr/bin/systemd-run",
+          "corpusRevision": "f8598e7c516f8a64fec04596207f0907d0407132",
+          "builds": [
+            {
+              "source": "bun-process-namespace-observer.c",
+              "variant": "observer",
+              "sourceHash": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+              "binaryHash": "d3b7c294ed0038907fb06137d95de0a7abb115c051ddfb5a3da0229456754aab"
+            },
+            {
+              "source": "bun-process-pidfds.c",
+              "variant": "pidfds",
+              "sourceHash": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+              "binaryHash": "bdcbb4b65218dcdef989b288b9473ee72a9c753e0152af806b37b21020a56da7"
+            },
+            {
+              "source": "bun-exec-launcher.c",
+              "variant": "baseline",
+              "sourceHash": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+              "binaryHash": "cad7106b7b729ff0cb7bd7a322b21cf68e52f6238dae7c003ced54e2b7b71e7b"
+            },
+            {
+              "source": "bun-exec-pid-namespace.c",
+              "variant": "launcher",
+              "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+              "binaryHash": "f8a0f4d3cf03a031f616c9b721fb3e8cbedaa4c348c03980bf204105ad427e7d"
+            },
+            {
+              "source": "bun-exec-pid-namespace.c",
+              "variant": "without-proc",
+              "sourceHash": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+              "binaryHash": "45e2cb9eb4e0b09e54df0fcfaf145beda93d9b651ca8c870110321d2fdea1192"
+            },
+            {
+              "source": "bun-exec-namespace-delay.c",
+              "variant": "delay.so",
+              "sourceHash": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+              "binaryHash": "eaed66e0e775aac086344efc2b97e3e616f3972097d8b106302f0b062e13e4ed"
+            }
+          ]
+        },
+        "containment": "namespace",
+        "records": [
+          {
+            "realCaller": {
+              "nixStdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
+              "nixBash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+              "nixVersion": "nix (Nix) 2.34.6",
+              "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+              "flakeHash": "67942a48b5651065e7d68deca132103f31cac974351e94db28f33553bfb71488",
+              "bashHash": "80b557096c168920d1e77d7c064c92ee66b862d1f38be7efbe7bf254558d1c04",
+              "observations": [
+                {
+                  "binary": "baseline",
+                  "status": 37,
+                  "stderr": "devshell-env: ready; /tmp/nix-shell.Wkg7FR/claude-1000/-home-ubuntu-orca-workspaces-skills-linux-cgroup-v2-fallback/1b0dc1e4-6b16-4e18-8244-febdf663c3ac/scratchpad/wsl2-proof/out/temporary-3-uwyknx/bun-process-namespace-bUw1Ln/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":3239593,\"ppid\":3233747,\"uid\":1000,\"euid\":1000,\"gid\":1000,\"egid\":1000,\"groups\":[4,24,27,30,46,100,989,993,1000],\"procSelf\":\"3239593\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                },
+                {
+                  "binary": "candidate",
+                  "status": 37,
+                  "stderr": "devshell-env: ready; /tmp/nix-shell.Wkg7FR/claude-1000/-home-ubuntu-orca-workspaces-skills-linux-cgroup-v2-fallback/1b0dc1e4-6b16-4e18-8244-febdf663c3ac/scratchpad/wsl2-proof/out/temporary-3-uwyknx/bun-process-namespace-bUw1Ln/nix-project#default\nreal-caller:{\"hook\": \"hook-ok\"}\nnamespace-context:{\"pid\":3239713,\"ppid\":3233747,\"uid\":1000,\"euid\":1000,\"gid\":1000,\"egid\":1000,\"groups\":[4,24,27,30,46,100,989,993,1000],\"procSelf\":\"3239713\",\"uid_map\":[[0,0,4294967295]],\"gid_map\":[[0,0,4294967295]],\"fds\":[]}\n"
+                }
+              ]
+            }
+          }
+        ],
+        "verification": "see-test-results",
+        "realCallerRequested": true,
+        "adoption": "not-decided",
+        "macos": "held",
+        "issue33": "open",
+        "issue82": "blocked-by-33",
+        "recordsOmitted": 45
+      },
+      "environment": {
+        "PATH": "/mnt/c/Users/t_watanabe/AppData/Roaming/orca/wsl-managed-cli/e58401f50a7d926da1ce:/nix/store/2k477y1msi1wy81mccpfg3j8va6sh0vh-nodejs-slim-24.22.1/bin:/nix/store/wzcrn43h3xkbwzj2bid8lvbfjhsnqx2b-cloudflare-cli-1.0.0-beta.31/bin:/nix/store/8kv32k4ay16gi2q7j5y6qv5v5ald8phv-typescript-language-server-5.3.0/bin:/nix/store/wxcql5naq4k6qinpnv6xyh2sii6cm8qw-typescript-5.9.3/bin:/nix/store/5kch0g07ii0z2f51153pz793f3bk6acd-python3-3.14.7/bin:/nix/store/gdzijr54z7kh9jajpncw3nn2v6545ks7-uv-0.11.21/bin:/nix/store/zjmwcyva2jwli0d6vhvnvigg45m6743k-ty-0.0.38/bin:/nix/store/k0yjvdmnmgl3sd2002kwsxd46j2kqrsq-ruff-0.15.14/bin:/nix/store/0m78sw4631vp4b3awfi0cr5laj0375qa-bun-1.4.4/bin:/nix/store/yk8ykgjw8pfj25mw4s3hswls5y0k9iwg-oxfmt-0.45.0/bin:/nix/store/p3g5gmn0qafj5xn2yrqxdqh00pdj426y-shfmt-3.13.1/bin:/nix/store/zi5fbs9c41nh9sclp55bzl3jf5y5rjir-oxlint-1.65.0/bin:/nix/store/2z706bksw0z627hv3m8klf1nppv84rgz-tombi-0.10.4/bin:/nix/store/75sj7vvcjcadl14v6z4bcz2c6pb39njj-markdownlint-cli2-0.21.0/bin:/nix/store/a9q9cb9wmi9nm7ym2pnzj2fvawgw9fjs-starship-1.25.1/bin:/nix/store/l3nkkksy5ka5dnrp7y71rwpajj9zb96i-zoxide-0.9.9/bin:/nix/store/mws6a0zch1zx3143wnj9ls25rvjdzdrf-atuin-18.15.2/bin:/nix/store/95rwy6j31482ra293ifh328caspnl825-eza-0.23.4/bin:/nix/store/18wwww4lniqzx72yfga536wrv70aggpw-bat-0.26.1/bin:/nix/store/c4z02zzkg9s7v3x07hvkr4rmsd18d6z7-hexyl-0.17.0/bin:/nix/store/64g3rjnzshg5y2hfsm3zn8dr05mhh47z-fd-10.4.2/bin:/nix/store/jmxrpp9mj5l669s0y4f4rfdh10ln51xj-ripgrep-15.1.0/bin:/nix/store/25bsvdym9czrn0ys7my6s3fp21cppp30-fzf-0.72.0/bin:/nix/store/dqs7rckdigl213vvj4f5d67cfzcc44s9-jq-1.8.2-bin/bin:/nix/store/acfiq2qw0zh0spas671zmhylqhla1yn3-sd-1.1.0/bin:/nix/store/dmv5z5gasfrxpcmgj9ibssl6xkmiqjfv-shellcheck-0.11.0-bin/bin:/nix/store/nv7alwg77k9p5961zvijn60k7kscli76-direnv-2.37.1/bin:/nix/store/yc17ralrvc9zgyyd96kibncxm67a397v-nh-4.4.2/bin:/nix/store/gsyp77bqg04r83xh3gc2c6c8ndm7jf1g-zsh-5.9.1/bin:/nix/store/9prp39x2ljwzgwl3w712832zjq30224a-nb-7.25.4/bin:/nix/store/yqdhh83g4351yx8bq34sdz4mkmk0s68a-wsl-xdg-open-0.1.0/bin:/nix/store/q3v93b5pf9kyy3ci7n5jy1b4w9a59w93-neovim-0.12.4/bin:/nix/store/16scclaazx45d1j63m2vv1wg8q4cckxr-tmux-3.7b/bin:/nix/store/a89wg1agxlq8bxmyvd33das8x68fzqhq-tree-sitter-0.26.8/bin:/nix/store/pphp3krih1kan1f5abx8032glqw27fp0-lua-language-server-3.18.1/bin:/nix/store/2m0d472x4kl993iladlimmzaw507da46-gh-2.102.0/bin:/nix/store/ssksh0y8sknlxjhg4cr2adw2z943nd47-lazygit-0.61.1/bin:/nix/store/xz145m4acbpxsc1w9kykh55r70nvimg5-gitleaks-8.30.1/bin:/nix/store/k6p5g2k3bwyyzvznz52vjg6ii54na196-kubectl-1.36.3/bin:/nix/store/2b4rwni33v5m1rxmjprh20fdqrcif8w4-kubernetes-helm-3.20.2/bin:/nix/store/s37xn5ag3n6c18l1bz47bvd0fj8qfcnn-kustomize-5.8.1/bin:/nix/store/g1f8vx9i6lfdlhvxyjwqas5y3mmmxv2n-skaffold-2.19.0/bin:/nix/store/zvrh31s72z2r2qwdf32ridaafkd992d9-k9s-0.51.0/bin:/nix/store/cr6g453z1cbfxar81x4f9m0p8cqnimgz-flyctl-0.4.52/bin:/nix/store/26nf6ymnmziwapz1zibhc9xk7hhwdlla-devpod-0.6.15/bin:/nix/store/ajvjk7qx159gp2x5jwpcgfzknbz647v3-hadolint-2.14.0/bin:/nix/store/figyvziz6dxyr2xxm0zb49ixvdb7y5iy-actionlint-1.7.12/bin:/nix/store/c6f208zihx5ml342y54vsg6nqfbgb83m-ghalint-1.5.6/bin:/nix/store/r7mpghp26h2rhm1ql7brwmfx2p8z3hbj-pinact-3.9.2/bin:/nix/store/2ipfv0mqnfs6zhkbmfwzgpg2jibjw8p2-bats-with-libraries-1.12.0/bin:/nix/store/v6gx58zw1b63ql1g2pygxf64j3s19zsj-k6-2.0.0/bin:/nix/store/mm84blmnxagc88222zdyqc19zy34xjsr-marp-cli-4.4.0/bin:/nix/store/pa2r7dksspckrfzb1gr1wlr62dvnfkwz-claude-code-2.1.328/bin:/nix/store/8jn3cr5ifk0pklllj3vmgm0bmgwdqrw8-codex-0.170.0/bin:/nix/store/nnnh2ks97pxsv3cswhmvir8vzi0gc63m-bubblewrap-0.12.0/bin:/nix/store/54d8j97xfbiyr06kmcx2n8snkiicfdz3-herdr-0.9.5/bin:/nix/store/sg6b7kdn0chw7q5mfxsj341clwc6f4qk-copilot-cli-1.0.114/bin:/nix/store/3yhdi2jsp3h49k121b6rgv1aiq7i11b3-antigravity-cli-1.5.12/bin:/nix/store/73ckhdy5x1xzpm0jrii9yxcs9c0z4hww-code-review-graph-2.4.0/bin:/nix/store/pq63sq4s7y8w39n5z23jbkk86zp8awbr-python3.14-mcp-1.29.0/bin:/nix/store/gzr0kz6kh4vs6f496v41aqqrlm30v1rp-python3.14-idna-3.20/bin:/nix/store/bya4ansy58az5133kryqp2cvrxbnz8qy-python3-3.14.10/bin:/nix/store/mx6j0a2bw0mb9wli3hqvj838clnmi0zz-python3.14-httpx-0.28.1/bin:/nix/store/bg6l7d62alyrjk2v035kabfz12a4v379-python3.14-jsonschema-4.26.0/bin:/nix/store/iz7h6y4bgkgmlrkp8crbshgxflqmgksg-python3.14-jsonpath-ng-1.8.0/bin:/nix/store/li8xsjwrfsss0dzzfx1faqnxhx1pmija-python3.14-python-dotenv-1.2.4/bin:/nix/store/f5g7wiyiy9b14pwb9wd5fjcsr6dj95s4-python3.14-uvicorn-0.51.0/bin:/nix/store/9q7lgf8lq3pmrd2dwr2lh577kzj3chw1-python3.14-fastmcp-slim-3.4.7/bin:/nix/store/s5n65nxjaz0f8g0n90hc4pn8718sdyi6-python3.14-markdown-it-py-4.2.0/bin:/nix/store/njfif2yiszjvm3sh41dyiw1qx38xplac-python3.14-pygments-2.21.0/bin:/nix/store/pk8q69mbhhmc1lc7aipc020yslr1a11m-python3.14-email-validator-2.3.0/bin:/nix/store/8pw5psvvgi3qy2dv4y4f8am2bi4ghf7j-python3.14-cffi-2.1.1/bin:/nix/store/bkdqdbr1bfnmy8jg9qfh1kni1jcgrf23-python3.14-keyring-25.7.0/bin:/nix/store/0z4f8gmmrr7l9q3x2nd92nfkmd3nwsbn-python3.14-cyclopts-5.4.0/bin:/nix/store/giil4p020b1xhw8lsqg9h5z8kwrq4b84-python3.14-watchfiles-1.3.0/bin:/nix/store/83vlpliyyhrv4g2j4cfmgcf58bqv1666-python3.14-websockets-17.0.1/bin:/nix/store/6qzwjxrm5cjx3as72ih1k7drwans6v7j-python3.14-watchdog-6.0.0/bin:/nix/store/6q73k9wjvhg11vj0laskby174zc5y8l7-ast-grep-0.42.1/bin:/nix/store/q0ggai1hcq6gywga3341i916sxhm0kv3-design-md-0.4.0/bin:/nix/store/r80pgd3b8qpdrwf649n8s5n6kn7wh0ny-impeccable-0.1.27/bin:/nix/store/l03n8w6r1m96fqvbwjb59q0cgzfikljv-playwright-cli-0.1.25/bin:/nix/store/mnap7wwfyj04a66v6sx8yb28qg5d7a67-defuddle-0.19.3/bin:/nix/store/9jq9g54a1sq15nn4rxrwq8xs5jnlkl5f-python3.13-markitdown-0.1.7/bin:/nix/store/jy00n3jp5xj8s40n1fbldmkcr5n7avxc-python3-3.13.15/bin:/nix/store/hh00dy0r736kvapa30a3cq7l83xb0cma-python3.13-charset-normalizer-3.4.7/bin:/nix/store/dmnyx4gl8b0b7ybgjmybv1mqa3a68w83-python3.13-magika-1.0.2/bin:/nix/store/vqq4ms2n4fk4w0ib9cdqhccjj8jfabrv-python3.13-numpy-2.4.4/bin:/nix/store/di2ylqszhss5s7shlkmcalp1k0fsy3wh-python3.13-onnxruntime-1.24.4/bin:/nix/store/vd73q6h945a7czh11vcw3sjm9ylb254j-python3.13-coloredlogs-15.0.1/bin:/nix/store/sq6j0rwh645yzpjn3434nz3wbj5y0583-python3.13-humanfriendly-10.0/bin:/nix/store/x8cmilsady9bhh5kh9fg7ws6b88fgaps-python3.13-python-dotenv-1.2.2/bin:/nix/store/6l2kgwdpa133q4mdic7v033zlzg38aj4-python3.13-tabulate-0.10.0/bin:/nix/store/l56v04yfk9av2d487bvsl2mhp8ygflz6-python3.13-tqdm-4.67.1/bin:/nix/store/c91b69vgk64samvpazhh1r5zv1yc8xix-python3.13-mammoth-1.12.0/bin:/nix/store/ynmwjgqfq1bmhsvg7994zq44f2jl98lk-python3.13-markdownify-1.2.2/bin:/nix/store/3v63sx85nx0ky1qqhy17ndirbw1vbxys-python3.13-pdfminer-six-20260107/bin:/nix/store/76ypywvvs4i1ib1p1anxnqw60m98s6rn-python3.13-pdfplumber-0.11.9/bin:/nix/store/3v4vj3w55cs8rgmcp7bcwr8x4srz5nxd-python3.13-pypdfium2-5.7.0/bin:/nix/store/2wpcnwrxrx1ck9lqyrl47rsb5acdcbnr-python3.13-xlsxwriter-3.2.9/bin:/nix/store/890r3r2hkdcvaamfvfxxc3m5l8hr3nc1-python3.13-speechrecognition-3.16.1/bin:/nix/store/fic59kxfy2f92idwzqm6phwrdnxgfv2j-python3.13-xlrd-2.0.2/bin:/nix/store/z7vqibzjvr40f485j15j6l8fnmcn8j3j-python3.13-youtube-transcript-api-1.2.4/bin:/nix/store/g3g1qkf8p32gliks6vx5fh86lxiwzrch-waza-0.41.0/bin:/nix/store/b57d3rsdby4w5pf67hs20y5ddp3kkach-apm-0.35.0/bin:/nix/store/lb41b0anx1f98y9y5s9mdv97gjgsq740-python3-3.14.7/bin:/nix/store/jmhnpxhyik89xg7rqi4shg73rxhfwasd-git-minimal-2.55.0/bin:/nix/store/aiwm8xqln02cbryvp9ilj6ykflrpmg0f-python3.14-llm-0.31.1/bin:/nix/store/5w5s4965dcmmi5z8mwh8y786gh8gdixp-python3.14-numpy-2.5.2/bin:/nix/store/3wfkjzcjdnxjy4nic8k6g8nr35brmpy4-python3.14-idna-3.18/bin:/nix/store/c1mi1l25nb3ri6m85jx8n0b29m10xqkj-python3.14-distro-1.9.0/bin:/nix/store/q30xa56nmlgz3h9cllifws4yic79jxww-python3.14-httpx-0.28.1/bin:/nix/store/fdzrpfafy3kda4j5ypcs7mzgc0z2aksz-python3.14-tqdm-4.68.4/bin:/nix/store/ljy6z6bzrpja4wffmh9yk5gmdma2n9cn-python3.14-pip-26.1.2/bin:/nix/store/z0445saanpac1n9d95aaap0i1ljxw5i0-python3.14-python-ulid-3.1.0/bin:/nix/store/97z4i8jsw7dzrxdraj21aad0bdkp7k8a-python3.14-sqlite-utils-4.2.1/bin:/nix/store/f9pg2siyxrjggn886zgrmwsgymrv133j-python3.14-tabulate-0.10.0/bin:/nix/store/9qz7dnr5pha2nz1x9hxp28fd0895pdbx-python3.14-cffi-2.1.0/bin:/nix/store/5sy15nk1s1ip12s7f71s7ymff77vk25s-python3.14-charset-normalizer-3.4.9/bin:/nix/store/fyhsd2di1ndbvwc29z5laqpcf95d35bm-python3.14-markdown-it-py-4.2.0/bin:/nix/store/lyj2hffm8hc3pv009mrmjkfdv5jsspxg-python3.14-pygments-2.20.0/bin:/nix/store/bxwqp1mz5wfn3qqi0ffasf1cj9f5dip9-python3.14-rich-click-1.9.9/bin:/nix/store/8xpscjfwi3h3jjih8gv7cw89brlnrhwp-python3.14-watchdog-6.0.0/bin:/nix/store/hhb6scq2lziy3cn0q8h6cw7kbwqwzqxf-python3.14-websockets-16.1/bin:/nix/store/3s182123rvgcibr7dsp2k9m6fdclddpg-act-0.2.88/bin:/nix/store/rkldw0s3szbf2n7w7hzd5d6ggwwk7afy-cocogitto-7.0.0/bin:/nix/store/wd19ylrrahpml0j904c5k1zzhnjsn3b7-lefthook-2.1.5/bin:/nix/store/sg9pynb5rh1n19cxwrxvs6v7cchbfqb6-go-task-3.48.0/bin:/nix/store/pddfs32zgslzi0ib7ik2qfv7n4lj3i8j-dive-0.13.1/bin:/nix/store/sy8xa2r5dk51i1259jlw38s90syr7xcx-atlas-1.2.0/bin:/nix/store/srasw7xdphshvl9h3y1pflddanm0jg27-tbls-1.94.5/bin:/nix/store/1zwn2wkjfvsk536ld9851vqqfmcbwfl3-ghq-1.9.4/bin:/nix/store/9aa5kvkxqasg3ym22brka88jgsj452x2-overmind-2.5.1/bin:/nix/store/7h3xzz9x6ag3xyx4mqzbs3wbb3j33yxi-graphviz-12.2.1/bin:/nix/store/m8p2pyd0lks5mbgda32w22m99xnk6rr5-gws-0.22.5/bin:/nix/store/dxvlx2iajwlrlwqj9rbbq1dlyy1wmbvf-gwq-0.1.2/bin:/nix/store/vzxysd7zvkxfqd932kc548qi408bcgqx-sprite-0.0.1-rc48/bin:/nix/store/xdnaya02qicjfdczyjqwy2yl04b8x3pw-patchelf-0.15.2/bin:/nix/store/dy6j7267wrgjlr2z748sbx83zj16vs3c-gcc-wrapper-15.3.0/bin:/nix/store/s2f0mfx0iiap9yxmlfvq0psn26jsbind-gcc-15.3.0/bin:/nix/store/kgd806ssw99qaxwiislhfx5dwnc8k893-glibc-2.42-100-bin/bin:/nix/store/bhv6xyvqw6gjs3j488gi1z6wdv18bdpa-coreutils-9.11/bin:/nix/store/2gjbrb8nwqf1225n3zhca56s2rxrqqhx-binutils-wrapper-2.46/bin:/nix/store/g2i5zxslx9msaqjy14hdp2af064i9pbv-binutils-2.46/bin:/nix/store/bhv6xyvqw6gjs3j488gi1z6wdv18bdpa-coreutils-9.11/bin:/nix/store/nl0wq6d4bpjrxmlax141liq0qr9z87gn-findutils-4.10.0/bin:/nix/store/aqq53g5lgr9n9hxzmbblpfzds5z067ca-diffutils-3.12/bin:/nix/store/0s17nja4n8b63by0nlg1m31mxn2bq1g1-gnused-4.10/bin:/nix/store/cqhgy07rpxdwk9kd2qlc3cw4s9ajzm9f-gnugrep-3.12/bin:/nix/store/xbqis14s3fvckwlayc6vxvglws1v2mcw-gawk-5.4.1/bin:/nix/store/rc7c5al4hdcv0dc42g1jabx2r68l45jq-gnutar-1.35/bin:/nix/store/k1z3ys65nbrdc60975wajrj4xjwaqqm4-gzip-1.14/bin:/nix/store/a7501p1w90nhbln9259viwql8m4mnbx5-bzip2-1.0.8-bin/bin:/nix/store/q5wf35q7dabb5m8mszqjn3d55ff5c1pl-gnumake-4.4.1/bin:/nix/store/jnyfsf2mp08d1xyz2m72ic2vz2kcx0sd-bash-5.3p9/bin:/nix/store/2dcxwfz9n8xpzrnrfgnl0yz7dw0f60gz-patch-2.8/bin:/nix/store/fr31df17rksfki6nv00xq4s5apvqpyhw-xz-5.8.4-bin/bin:/nix/store/24ppwxxymwv6p22ag41mk4vvb79cmr0k-file-5.47/bin:/home/ubuntu/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/Users/t_watanabe/AppData/Local/Programs/orca/resources/bin:/mnt/c/Users/t_watanabe/.volta/bin:/mnt/c/Users/t_watanabe/.asdf/shims:/mnt/c/Users/t_watanabe/.local/share/mise/shims:/mnt/c/Users/t_watanabe/AppData/Local/Programs/OpenAI/Codex/bin:/mnt/c/Users/t_watanabe/AppData/Local/agy/bin:/mnt/c/Users/t_watanabe/AppData/Roaming/npm:/mnt/c/Users/t_watanabe/AppData/Local/pnpm:/mnt/c/Users/t_watanabe/AppData/Local/Yarn/bin:/mnt/c/Users/t_watanabe/.bun/bin:/mnt/c/Users/t_watanabe/AppData/Roaming/fnm/aliases/default:/mnt/c/Users/t_watanabe/.fnm/aliases/default:/mnt/c/Windows/system32:/mnt/c/Windows:/mnt/c/Windows/System32/Wbem:/mnt/c/Windows/System32/WindowsPowerShell/v1.0/:/mnt/c/Windows/System32/OpenSSH/:/mnt/c/Program Files/dotnet/:/mnt/c/Program Files/Tailscale/:/mnt/c/Program Files/WezTerm:/mnt/c/Program Files/GitHub CLI/:/mnt/c/Program Files/Git/cmd:/mnt/c/Program Files/WSL/:/mnt/c/Users/t_watanabe/.local/bin:/mnt/c/Users/t_watanabe/AppData/Local/Microsoft/WindowsApps:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Microsoft VS Code/bin:/mnt/c/Users/t_watanabe/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Ollama:/mnt/c/Users/t_watanabe/AppData/Local/Microsoft/WinGet/Packages/GitHub.Copilot_Microsoft.Winget.Source_8wekyb3d8bbwe:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Orca/resources/bin:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Microsoft VS Code/bin/copilot-shim:/mnt/c/Users/t_watanabe/AppData/Local/PowerToys/DSCModules/:/mnt/c/Users/t_watanabe/AppData/Local/PowerToys/bin/:/mnt/c/Users/t_watanabe/AppData/Local/Programs/herdr-app:/mnt/c/Users/t_watanabe/AppData/Local/Programs/herdr-core:/snap/bin",
+        "HOME": "/home/ubuntu",
+        "TMPDIR": "/tmp/nix-shell.Wkg7FR/claude-1000/-home-ubuntu-orca-workspaces-skills-linux-cgroup-v2-fallback/1b0dc1e4-6b16-4e18-8244-febdf663c3ac/scratchpad/wsl2-proof/out/temporary-3-uwyknx",
+        "NO_COLOR": "1",
+        "PROCESS_PROOF_PID_NAMESPACE": "1",
+        "PROCESS_PROOF_RETAIN_TEMP": "1",
+        "XDG_RUNTIME_DIR": "/run/user/1000",
+        "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus"
+      },
+      "temporary": "temporary-3-uwyknx",
+      "log": "trial-3.log",
+      "logHash": "fa2b3c4b02d907d21a6615afbf3d88db73c204e087a5a22244927571fd0dcbed",
+      "signal": null
+    }
+  ],
+  "sourceSha": "c6947cda6fc5dada4e021cfc87034133393da8cb",
+  "sources": {
+    "development/linux-process-proof-cases.json": "2115f90b7ed62b8758f411ceabc790d10b2cbbaf2c6906b3820eac7766c61975",
+    "lib/bun/bunfig.toml": "64685d48c66b066850d1a78ab41c170ea217e84acf8aaa4f6fe6b7349648c070",
+    "lib/bun/cli-path.ts": "f058948b035092a728bcd8a57bf2c2fa53f8333106fc523f6283b8d84bf13db0",
+    "lib/bun/coordination-json.ts": "32454d49fc3ceb63b6e39d4cdc7b8e6de98f9f334c545f411708e026634c3e0f",
+    "lib/bun/gh-review-thread.ts": "a89a07053bc6c42c3ed8706f46c6a7e5f6f16e41953c75d51b36f02f2920ee12",
+    "lib/bun/orca-send.ts": "5836b9e1a4dfcc35017eb73aed609abfa44bb62f596814305a63d9820d2152a2",
+    "lib/bun/orca-worker-readiness.ts": "a6a1258a2b7cd4432c6a025ffcf2d3120e7db31aacb2b869d82377c30eb4c818",
+    "lib/bun/run": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+    "lib/bun/serve-local.ts": "d766a03b278c3547e8d4eec69ae228c9a1e3fcacc2d5a3d43a4a416da0bbcd8b",
+    "lib/bun/strict-json.ts": "4d14a1305ae707c30a36d9acab9627a09105b479db85349bbe4ade9de33870d0",
+    "lib/bun/tsconfig.json": "66e3b8f1d08faaa895715154da26f2698c0af9dddb8c43ae2b382e16ef5e3fe1",
+    "lib/bun/vendor/casefold.LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+    "lib/bun/vendor/casefold.json": "233bb4581cca5ac020ee75fff73ad4e5792f9166e940318fbfdf4d969192c430",
+    "lib/bun/vendor/decimal.LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+    "lib/bun/vendor/decimal.json": "10a08b669b4aaf0c3969143d7f88bc3888e55212e4bffc751c1b8b1da71699e8",
+    "lib/python/treflebonbon_skills/__init__.py": "4c931ca391290d71a01aade9e3f3b249b7afc5b5143fdddf27dbeca9e5bfcfe1",
+    "lib/python/treflebonbon_skills/codex_reviewer.py": "84a40d9499cca63e78dbf5f1a3af50c2f91c6919eef0ab15dbcde8ecb402a775",
+    "lib/python/treflebonbon_skills/devshell_environment.py": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+    "lib/python/treflebonbon_skills/git_context.py": "986e2a6143cc467e760b7e931c93d3ab9126a6eda214192a372736502491de43",
+    "tests/bun/browser-fixtures.test.ts": "1dcf5e054b91382ec3ba11b580908cb8f7b7e442a02ef04bd378282d095cc92a",
+    "tests/bun/coordination-json.test.ts": "ee1feb00605a286488799eb28cb0b08cfafc5fd301d92597fdfe2e56484c7b04",
+    "tests/bun/gh-review-thread.test.ts": "b8a06c8b224403b5a9bd7dec68afa3b667cae5024d46c9bc4e2c4195e8a080d3",
+    "tests/bun/linux-process-proof.test.ts": "7555af16e652fb5273056e4ef9b55cffb875da1ef00534092c9a5cf3b2ef5bc2",
+    "tests/bun/namespace.test.ts": "05463a0aaec31a84bb135ce161f90536907a2b20f4b7a8a25197f5d2ded7b8c8",
+    "tests/bun/nix-runtime.test.ts": "34a4cfd555a66ec2561a2ffe9b72164b0a264f30cfd416298b4b12299f3f37db",
+    "tests/bun/orca-send.test.ts": "a4cd2b013cffd6c1f950b107054f5d767c779fda43908cf7dabf92ce88f7b58f",
+    "tests/bun/orca-worker-readiness.test.ts": "9385103a94aacbfb55567b6fe66b63f7332f0be83d25fc8e718d6ff497a73aba",
+    "tests/bun/package-contract-fixtures.test.ts": "55ce9779a5b29931377409dc8ce1883ce68ef0d4e92f7bacc9580c3a28fa7896",
+    "tests/bun/package-contract.test.ts": "6f1d71ff8a61540542e9091109d8caca1bc96eadfcc2b43f90552d2948f19570",
+    "tests/bun/plugin-session-process.test.ts": "8e22988b2e05d7b0cc2b2117603ded5b7428a19fcb1f3d77ac8a3533e91aa106",
+    "tests/bun/plugin-sessions.test.ts": "bd3dc1f65e88c9a83326393ca597eaa83cf3efe895e6889c606d08b248d0b602",
+    "tests/bun/plugin-smoke.test.ts": "52395afd52b12e6d071b9012b9ab4d51b22a5345c08bd8d713a52b97e518f83a",
+    "tests/bun/process-lock.test.ts": "53cfe60dc6f182c58ea674f1a5d870407c5e803249c6748411a7b9bd530af0f1",
+    "tests/bun/process-namespace.test.ts": "c35ed42b65d101cbedfc4a7a029fda50f1680392239e75137f41735d9393f9c2",
+    "tests/bun/process-state.test.ts": "c976d6585d48d72ba16f9a2b86204458f0b3aea176b30e2c578337991e7c1583",
+    "tests/bun/product-guide-collect.test.ts": "74bf12436dedb74bf6c2be4f6fee10b26672a95358a2cdc6b2258612950a7497",
+    "tests/bun/product-guide.test.ts": "cadf289d302b8250e7f5cb1a64822bf776851b83fb39f15bdf504fe41789488f",
+    "tests/bun/public-skills.test.ts": "ca2d6908974c5b5549caa62100a14f09ceb14d1dd56fac944ccf9060051ad92f",
+    "tests/bun/serve-local.test.ts": "eb0f112487855270a35270f0eb8b22c536d51a49132bea102dd5a4381807af24",
+    "tests/cli/__init__.py": "e579565af1f3a040cb9f5b582b8b9c7ec0160875699575a89dd88dff78b0a7da",
+    "tests/cli/fixtures/fake-gh": "11c7097dce8d601ce0ccf22a11ea735365c7a8f08add93a9d52c619cbbc50e2a",
+    "tests/cli/gh-review-thread.bats": "cfe8622ec7a14f7b811dfa05d6c6af5c83a70d2ce8338d68dc8a0deda3ec4438",
+    "tests/cli/git-push-topic.bats": "84757f6f502a70ea8ab99816e23c84cf2b794e3922d171ef1060f79df3e76f2e",
+    "tests/cli/orca-send.bats": "c7d9b7af5ac9d9867b4dbf4fbeb5176557e9ddf3e3753fb48b30fe768e0706f8",
+    "tests/cli/orca-worker-readiness.bats": "786133e813de0fa25ff021ddcfc1fd9f1aa6d58e69878791547e1c01601eccf1",
+    "tests/cli/test_codex_reviewer.py": "6dac260cd18be60d95975ceb6d8de64a77ffcf74d69d7fd5524740201fa695a1",
+    "tests/cli/test_docstring_report.py": "d2d458826cad44d2a4a0f4b79c0ad3e0b3de7d18ab75c65a39d04ace50774d14",
+    "tests/cli/test_git_context.py": "8124e67cd62b663a8edca433f93d4fd3cfeb8dd5af7f2928f01d3f2df518e134",
+    "tests/cli/test_python_launcher_payload_immutability.py": "a1a356713a676f9cf53b1dc3c5e68938255cb390264fa942db31e407bb635d08",
+    "tests/domain-modeling-studio.bats": "6bdf1d0c3f21e413c54eafa99385f84b17f6aeea915579068804c9c1981ac7e2",
+    "tests/fixtures/bun-exec-delayed-group.c": "dba438e31a8832c6b789371259fb2cc5bfd13eb093124be584c8cc8967905a88",
+    "tests/fixtures/bun-exec-entry.sh": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+    "tests/fixtures/bun-exec-launcher.c": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+    "tests/fixtures/bun-exec-namespace-delay.c": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+    "tests/fixtures/bun-exec-pid-namespace.c": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+    "tests/fixtures/bun-exec-prepare.ts": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+    "tests/fixtures/bun-exec-python.json": "b827d223fda4840af27ea9e23b3c393e89db62bf3e8b88db1b5020f2a7f0e6a2",
+    "tests/fixtures/bun-namespace.ts": "cafd9ba5bf74f554770614210762d326ba77540dad1ec1dfddc12e43995edcde",
+    "tests/fixtures/bun-nix-runtime.ts": "80426763914822d369de60b344cf83119d7c27717b61aa0bc72bd5b9849f3949",
+    "tests/fixtures/bun-process-lock-python.json": "2c1b105a39ccf0836c8aef8d9c3617e640f368af0c766af85278af2c711d4125",
+    "tests/fixtures/bun-process-lock.ts": "3df970a569ff09116e0c25c908317c6a193e0e404dcad95d4588cd2cf9052916",
+    "tests/fixtures/bun-process-namespace-observer.c": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+    "tests/fixtures/bun-process-observer.c": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+    "tests/fixtures/bun-process-pidfds.c": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+    "tests/fixtures/gh-review-checks.json": "81001f66051b252e5a49d73f125d3bcc24533205f2682e15b12ce7d4dea990d6",
+    "tests/fixtures/gh-review-thread-python.json": "c82947bb8597c413dca48d8ecb832dd16c93e1838c6a033bcfb7c76a7757c858",
+    "tests/fixtures/loopback-python.json": "67457a33c0bcd6484a22c700f4e5caafc20aa933144812213eae368e515edeb7",
+    "tests/fixtures/orca-send-python.json": "584600b3a89e5b8dba66f4772b690612e62e13f68a818478006378a228f5b890",
+    "tests/fixtures/orca-worker-readiness-python.json": "5e8a4d03d0c78a43dab1a22d78bf56c4862968d55bab9d19e755191fd43dc6c2",
+    "tests/fixtures/plugin-sessions-python.json": "7bb906b9c7d357ca85b1fd27260b22468380c615ba942c14869075817232d28b",
+    "tests/fixtures/plugin-smoke-python.json": "eb019ab18df4be7d41149b80dea076fa8a501f43a345fa6d32a60e7e32ab9bb3",
+    "tests/fixtures/product-guide-model.json": "454575c8ee02a60119d5f387971b6096e5c5ab65e3a594240fe4ee74dbf45431",
+    "tests/fixtures/quality-python.json": "a8e54fe7453aced765b1e9a0c21d580a7b1f011ee8fb8609bc211a20c9ce2b65",
+    "tests/fixtures/raw-codex/config.toml": "305b7c778dcaa7bbf15a4cadfeab1f8abe014ea8ba4095241e8ac5d81c1f515c",
+    "tests/fixtures/raw-codex/github-push.py": "b53946c944c30b7ac315d378f5393dbb24eab8d8c5575d70ee7f24333b5cdbcf",
+    "tests/fixtures/raw-codex/nixpkgs-revision": "52cad5a07f3c81459d12b35976c106adc7a978a6040dc444656f9427e61bb58e",
+    "tests/fixtures/secret-isolation/worktree-task.py": "77986f552d5734ca495a4bdd4cf97fa3596896fea2026fc5885cb8d3231738af",
+    "tests/fixtures/sprite-info-v0.0.1-rc48.txt": "4effa1363cca82c6e9940d1f8d0a5569b823c78c94c09704c21854ce9f7c8dc9",
+    "tests/helpers/codex-config-reader.py": "5ae8ccec771aa99978bf8f6cccae88f05deb21d03d52e62bb7afd5a3bd08dc45",
+    "tests/helpers/fake-raw-codex-app-server.py": "c000a0a32922d0bf2f0d17ccd87a71eb2f265b078b5744005247483f1ba6a418",
+    "tests/helpers/linux-namespace-fixture.ts": "e1c0420a817957cfed2250825dd0abff5bb0986a3706fa199fb203c5c3805154",
+    "tests/helpers/process-state.ts": "ad490150c0d250a03fb39b7b347709ac54093243e1a332caa2cac267a6ea1e69",
+    "tests/helpers/raw-codex-gateway-lifecycle.py": "5a534f523319c5ca5186d38581afabf0feee1f15d75b275781bb4680f4ddbde9",
+    "tests/helpers/raw-codex-handoff.py": "0ec5388930b2a6ec76db8da22dda4b531aa536b06e3f1a73452c485c8c485917",
+    "tests/helpers/raw-codex.bash": "39336cc8f653953f7bc6bec4d3ba394345e8d813607db8b8bd2d7d9a328b894e",
+    "tests/helpers/rop-typescript-evidence.test.ts": "c99f7adee987fdb94df65947aa8181e5c24821106f57888d361336a6aec026f0",
+    "tests/md-claude-review.bats": "231c3d2be5aec3b28d86a9a632c83846424b2baee69be93f57cf93f2ffa228e6",
+    "tests/raw-codex/devshell-env.bats": "d6a8cd1834572219f2071db6cdc8a48187afeb7b64e124a05484ab328dff02ca",
+    "tests/raw-codex/gateway-lifecycle.bats": "4525381552c701a71f965e81b8a09e06f1572350df837691d5eeb142c58d8698",
+    "tests/raw-codex/isolated-github.bats": "f3590914067cf2993368f4309aa2e460de149b0cf138768e1ec1bf353804c664",
+    "tests/raw-codex/raw-codex-handoff.bats": "f03529f558c94af0ea45d68a7e27300b67fa2f42a3a4efb8c5267afeb47f8212",
+    "tests/raw-codex/raw-codex-integration.bats": "0dca8965c2388d8518cb6648193f103b96fa7d6b3142d420b99fe400a6280e82",
+    "tests/raw-codex/raw-codex-services.bats": "85c0798a5237e53e748969154a9b739b33f4d6c5778d512f831d6dc44d22f334",
+    "tests/raw-codex/raw-managed-profile.bats": "8d966d643e1836f7b67405fa6b01c44e41453b6b7ea360e77d406f3cd109eae9",
+    "tests/raw-codex/secret-isolation-gateway.bats": "2b2e730fa2cd1af8caa97346c3da947aa9463eca9ae1b2f564d1f85562595467",
+    "tests/raw-codex/secret-isolation-worktree.bats": "8b56c0209b2d8e74adf35f291571d0fb618e9ae39bc27b3a00891a3a4577406d",
+    "tests/test_orca_sprites_pilot.py": "de3667462cd39084f8a19f3701500946a307e3c5aa9326e63371fe450f199067",
+    "tests/test_raw_codex_package.py": "ec8f8d851baed4513fc9e0500de7fe87a761b50addcbb7c243e96a29a41e38ff",
+    "tests/worktree-gc-fanout.bats": "b4c0d9a880e507fd1622c0c9b3c82a40863313093937bd472ee9e22bc7bfc935",
+    "tests/worktree-gc.bats": "1cd6a3c94e860cacc4a1c2ba388733cfb0f7ad1fcbdd34b21d47010bb257a746",
+    "tests/worktree_gc_test_helper.bash": "a4a9886bb1164c7e391dbbf201c4de6a9c4fee7293a4ac0bd82f4cbb5eee7aad"
+  },
+  "controllerHash": "49687e39a147cf04f4669f25a2fb8e1c43e9a839ce754cb1298565d52976b6d5",
+  "preflight": {
+    "verified": true,
+    "errors": [],
+    "platform": "linux",
+    "arch": "x64",
+    "kernel": "6.18.58.1-microsoft-standard-WSL2",
+    "tools": {
+      "cc": {
+        "path": "/nix/store/dy6j7267wrgjlr2z748sbx83zj16vs3c-gcc-wrapper-15.3.0/bin/gcc",
+        "hash": "3f2a19bf4f43158e2467cbdb61a6dfe38a051aaf6c6b81932726b8183ffb506f",
+        "version": "gcc (GCC) 15.3.0"
+      },
+      "unshare": {
+        "path": "/usr/bin/unshare",
+        "hash": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c",
+        "version": "unshare from util-linux 2.39.3"
+      },
+      "systemd-run": {
+        "path": "/usr/bin/systemd-run",
+        "hash": "de28cc5757d3789efa5f6fed5659893410469f68b42175d4531f5b34d3a09e16",
+        "version": "systemd 255 (255.4-1ubuntu8.18)"
+      },
+      "nix": {
+        "path": "/nix/store/3km45gzvnpin7xddlm9gpj5fac4wvjvn-nix-2.34.6/bin/nix",
+        "hash": "8293bf7cf93ca9e75961b6acbc3be59830dbc9259b7fd7fbb18756c49d7340b7",
+        "version": "nix (Nix) 2.34.6"
+      },
+      "nix-build": {
+        "path": "/nix/store/3km45gzvnpin7xddlm9gpj5fac4wvjvn-nix-2.34.6/bin/nix",
+        "hash": "8293bf7cf93ca9e75961b6acbc3be59830dbc9259b7fd7fbb18756c49d7340b7",
+        "version": "nix (Nix) 2.34.6"
+      },
+      "nix-store": {
+        "path": "/nix/store/3km45gzvnpin7xddlm9gpj5fac4wvjvn-nix-2.34.6/bin/nix",
+        "hash": "8293bf7cf93ca9e75961b6acbc3be59830dbc9259b7fd7fbb18756c49d7340b7",
+        "version": "nix (Nix) 2.34.6"
+      },
+      "setpriv": {
+        "path": "/usr/bin/setpriv",
+        "hash": "62ec0120791f3afcfb689fed52384ec2b0accc6e118a6b9a1d6fcfa7450aaf37",
+        "version": "setpriv from util-linux 2.39.3"
+      },
+      "bun": {
+        "path": "/nix/store/0m78sw4631vp4b3awfi0cr5laj0375qa-bun-1.4.4/bin/bun",
+        "hash": "111aefb9597cb10b201e2f3a40407f1557ac6714868481db14c6cb21ebd5cd7c",
+        "version": "1.4.4"
+      },
+      "sudo": {
+        "path": "/usr/bin/sudo",
+        "hash": "6ae6665cc51295ea8aaba94a3377dafa563f950aafc6296c0704fb33401a31ff",
+        "version": "Sudo version 1.9.15p5"
+      },
+      "python3": {
+        "path": "/nix/store/5kch0g07ii0z2f51153pz793f3bk6acd-python3-3.14.7/bin/python3.14",
+        "hash": "c673c0e40d30d9758730ac0bc2376c3dea345688cb2afcf70f79c4b7b72f3704",
+        "version": "Python 3.14.7"
+      },
+      "git": {
+        "path": "/nix/store/jmhnpxhyik89xg7rqi4shg73rxhfwasd-git-minimal-2.55.0/bin/git",
+        "hash": "3180e3de55c9c541d1457ebf733ffb72639cebc8d2d2e142dbfd1b3412938c84",
+        "version": "git version 2.55.0"
+      },
+      "bash": {
+        "path": "/usr/bin/bash",
+        "hash": "bc5945feb8bd26203ebfafea5ce1878bb2e32cb8fb50ab7ae395cfb1e1aaaef1",
+        "version": "GNU bash, version 5.2.21(1)-release (x86_64-pc-linux-gnu)"
+      }
+    },
+    "contexts": {
+      "/proc/self/status": {
+        "value": "Name:\tbun\nUmask:\t0022\nState:\tR (running)\nTgid:\t3225121\nNgid:\t0\nPid:\t3225121\nPPid:\t3225089\nTracerPid:\t0\nUid:\t1000\t1000\t1000\t1000\nGid:\t1000\t1000\t1000\t1000\nFDSize:\t1024\nGroups:\t4 24 27 30 46 100 989 993 1000 \nNStgid:\t3225121\nNSpid:\t3225121\nNSpgid:\t3225089\nNSsid:\t477857\nKthread:\t0\nVmPeak:\t10598400 kB\nVmSize:\t 6631036 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t  152060 kB\nVmRSS:\t  152060 kB\nRssAnon:\t  127932 kB\nRssFile:\t   24128 kB\nRssShmem:\t       0 kB\nVmData:\t 6326668 kB\nVmStk:\t     180 kB\nVmExe:\t   79832 kB\nVmLib:\t    2252 kB\nVmPTE:\t     576 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t16\nSigQ:\t1/61241\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000001001000\nSigCgt:\t00000001600044fa\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t2\nSeccomp_filters:\t1\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\tffff\nCpus_allowed_list:\t0-15\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t362\nnonvoluntary_ctxt_switches:\t5\n"
+      },
+      "/proc/self/uid_map": {
+        "value": "         0          0 4294967295\n"
+      },
+      "/proc/self/gid_map": {
+        "value": "         0          0 4294967295\n"
+      },
+      "/proc/self/attr/current": {
+        "value": "kernel\u0000"
+      },
+      "/sys/kernel/security/lsm": {
+        "error": "ENOENT"
+      },
+      "/sys/module/apparmor/parameters/enabled": {
+        "value": "N\n"
+      },
+      "/proc/sys/kernel/apparmor_restrict_unprivileged_userns": {
+        "error": "ENOENT"
+      },
+      "/proc/sys/kernel/unprivileged_userns_clone": {
+        "error": "ENOENT"
+      },
+      "/proc/sys/user/max_user_namespaces": {
+        "value": "61241\n"
+      }
+    },
+    "namespaces": {
+      "user": "user:[4026531837]",
+      "pid": "pid:[4026532220]",
+      "mnt": "mnt:[4026532218]"
+    },
+    "probe": {
+      "path": "/usr/bin/unshare",
+      "argv": [
+        "--user",
+        "--map-current-user",
+        "--pid",
+        "--fork",
+        "--kill-child=SIGKILL",
+        "--mount-proc",
+        "--",
+        "/usr/bin/true"
+      ],
+      "pid": 3225210,
+      "startedAt": "2026-11-21T14:06:50.765Z",
+      "endedAt": "2026-11-21T14:06:50.769Z",
+      "status": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": "",
+      "outputTruncated": false,
+      "processObservation": {
+        "status": "process-exited-before-sample",
+        "pid": 3225210,
+        "startTicks": "67720020"
+      },
+      "audit": {
+        "status": "not-requested",
+        "events": []
+      }
+    },
+    "containment": "namespace",
+    "session": {
+      "XDG_RUNTIME_DIR": "/run/user/1000",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+      "bus": true,
+      "linger": {
+        "status": 0,
+        "signal": null,
+        "stdout": "yes\n",
+        "stderr": ""
+      },
+      "userManager": {
+        "status": 0,
+        "signal": null,
+        "stdout": "active\n",
+        "stderr": ""
+      }
+    },
+    "environment": {
+      "PATH": "/mnt/c/Users/t_watanabe/AppData/Roaming/orca/wsl-managed-cli/e58401f50a7d926da1ce:/nix/store/2k477y1msi1wy81mccpfg3j8va6sh0vh-nodejs-slim-24.22.1/bin:/nix/store/wzcrn43h3xkbwzj2bid8lvbfjhsnqx2b-cloudflare-cli-1.0.0-beta.31/bin:/nix/store/8kv32k4ay16gi2q7j5y6qv5v5ald8phv-typescript-language-server-5.3.0/bin:/nix/store/wxcql5naq4k6qinpnv6xyh2sii6cm8qw-typescript-5.9.3/bin:/nix/store/5kch0g07ii0z2f51153pz793f3bk6acd-python3-3.14.7/bin:/nix/store/gdzijr54z7kh9jajpncw3nn2v6545ks7-uv-0.11.21/bin:/nix/store/zjmwcyva2jwli0d6vhvnvigg45m6743k-ty-0.0.38/bin:/nix/store/k0yjvdmnmgl3sd2002kwsxd46j2kqrsq-ruff-0.15.14/bin:/nix/store/0m78sw4631vp4b3awfi0cr5laj0375qa-bun-1.4.4/bin:/nix/store/yk8ykgjw8pfj25mw4s3hswls5y0k9iwg-oxfmt-0.45.0/bin:/nix/store/p3g5gmn0qafj5xn2yrqxdqh00pdj426y-shfmt-3.13.1/bin:/nix/store/zi5fbs9c41nh9sclp55bzl3jf5y5rjir-oxlint-1.65.0/bin:/nix/store/2z706bksw0z627hv3m8klf1nppv84rgz-tombi-0.10.4/bin:/nix/store/75sj7vvcjcadl14v6z4bcz2c6pb39njj-markdownlint-cli2-0.21.0/bin:/nix/store/a9q9cb9wmi9nm7ym2pnzj2fvawgw9fjs-starship-1.25.1/bin:/nix/store/l3nkkksy5ka5dnrp7y71rwpajj9zb96i-zoxide-0.9.9/bin:/nix/store/mws6a0zch1zx3143wnj9ls25rvjdzdrf-atuin-18.15.2/bin:/nix/store/95rwy6j31482ra293ifh328caspnl825-eza-0.23.4/bin:/nix/store/18wwww4lniqzx72yfga536wrv70aggpw-bat-0.26.1/bin:/nix/store/c4z02zzkg9s7v3x07hvkr4rmsd18d6z7-hexyl-0.17.0/bin:/nix/store/64g3rjnzshg5y2hfsm3zn8dr05mhh47z-fd-10.4.2/bin:/nix/store/jmxrpp9mj5l669s0y4f4rfdh10ln51xj-ripgrep-15.1.0/bin:/nix/store/25bsvdym9czrn0ys7my6s3fp21cppp30-fzf-0.72.0/bin:/nix/store/dqs7rckdigl213vvj4f5d67cfzcc44s9-jq-1.8.2-bin/bin:/nix/store/acfiq2qw0zh0spas671zmhylqhla1yn3-sd-1.1.0/bin:/nix/store/dmv5z5gasfrxpcmgj9ibssl6xkmiqjfv-shellcheck-0.11.0-bin/bin:/nix/store/nv7alwg77k9p5961zvijn60k7kscli76-direnv-2.37.1/bin:/nix/store/yc17ralrvc9zgyyd96kibncxm67a397v-nh-4.4.2/bin:/nix/store/gsyp77bqg04r83xh3gc2c6c8ndm7jf1g-zsh-5.9.1/bin:/nix/store/9prp39x2ljwzgwl3w712832zjq30224a-nb-7.25.4/bin:/nix/store/yqdhh83g4351yx8bq34sdz4mkmk0s68a-wsl-xdg-open-0.1.0/bin:/nix/store/q3v93b5pf9kyy3ci7n5jy1b4w9a59w93-neovim-0.12.4/bin:/nix/store/16scclaazx45d1j63m2vv1wg8q4cckxr-tmux-3.7b/bin:/nix/store/a89wg1agxlq8bxmyvd33das8x68fzqhq-tree-sitter-0.26.8/bin:/nix/store/pphp3krih1kan1f5abx8032glqw27fp0-lua-language-server-3.18.1/bin:/nix/store/2m0d472x4kl993iladlimmzaw507da46-gh-2.102.0/bin:/nix/store/ssksh0y8sknlxjhg4cr2adw2z943nd47-lazygit-0.61.1/bin:/nix/store/xz145m4acbpxsc1w9kykh55r70nvimg5-gitleaks-8.30.1/bin:/nix/store/k6p5g2k3bwyyzvznz52vjg6ii54na196-kubectl-1.36.3/bin:/nix/store/2b4rwni33v5m1rxmjprh20fdqrcif8w4-kubernetes-helm-3.20.2/bin:/nix/store/s37xn5ag3n6c18l1bz47bvd0fj8qfcnn-kustomize-5.8.1/bin:/nix/store/g1f8vx9i6lfdlhvxyjwqas5y3mmmxv2n-skaffold-2.19.0/bin:/nix/store/zvrh31s72z2r2qwdf32ridaafkd992d9-k9s-0.51.0/bin:/nix/store/cr6g453z1cbfxar81x4f9m0p8cqnimgz-flyctl-0.4.52/bin:/nix/store/26nf6ymnmziwapz1zibhc9xk7hhwdlla-devpod-0.6.15/bin:/nix/store/ajvjk7qx159gp2x5jwpcgfzknbz647v3-hadolint-2.14.0/bin:/nix/store/figyvziz6dxyr2xxm0zb49ixvdb7y5iy-actionlint-1.7.12/bin:/nix/store/c6f208zihx5ml342y54vsg6nqfbgb83m-ghalint-1.5.6/bin:/nix/store/r7mpghp26h2rhm1ql7brwmfx2p8z3hbj-pinact-3.9.2/bin:/nix/store/2ipfv0mqnfs6zhkbmfwzgpg2jibjw8p2-bats-with-libraries-1.12.0/bin:/nix/store/v6gx58zw1b63ql1g2pygxf64j3s19zsj-k6-2.0.0/bin:/nix/store/mm84blmnxagc88222zdyqc19zy34xjsr-marp-cli-4.4.0/bin:/nix/store/pa2r7dksspckrfzb1gr1wlr62dvnfkwz-claude-code-2.1.328/bin:/nix/store/8jn3cr5ifk0pklllj3vmgm0bmgwdqrw8-codex-0.170.0/bin:/nix/store/nnnh2ks97pxsv3cswhmvir8vzi0gc63m-bubblewrap-0.12.0/bin:/nix/store/54d8j97xfbiyr06kmcx2n8snkiicfdz3-herdr-0.9.5/bin:/nix/store/sg6b7kdn0chw7q5mfxsj341clwc6f4qk-copilot-cli-1.0.114/bin:/nix/store/3yhdi2jsp3h49k121b6rgv1aiq7i11b3-antigravity-cli-1.5.12/bin:/nix/store/73ckhdy5x1xzpm0jrii9yxcs9c0z4hww-code-review-graph-2.4.0/bin:/nix/store/pq63sq4s7y8w39n5z23jbkk86zp8awbr-python3.14-mcp-1.29.0/bin:/nix/store/gzr0kz6kh4vs6f496v41aqqrlm30v1rp-python3.14-idna-3.20/bin:/nix/store/bya4ansy58az5133kryqp2cvrxbnz8qy-python3-3.14.10/bin:/nix/store/mx6j0a2bw0mb9wli3hqvj838clnmi0zz-python3.14-httpx-0.28.1/bin:/nix/store/bg6l7d62alyrjk2v035kabfz12a4v379-python3.14-jsonschema-4.26.0/bin:/nix/store/iz7h6y4bgkgmlrkp8crbshgxflqmgksg-python3.14-jsonpath-ng-1.8.0/bin:/nix/store/li8xsjwrfsss0dzzfx1faqnxhx1pmija-python3.14-python-dotenv-1.2.4/bin:/nix/store/f5g7wiyiy9b14pwb9wd5fjcsr6dj95s4-python3.14-uvicorn-0.51.0/bin:/nix/store/9q7lgf8lq3pmrd2dwr2lh577kzj3chw1-python3.14-fastmcp-slim-3.4.7/bin:/nix/store/s5n65nxjaz0f8g0n90hc4pn8718sdyi6-python3.14-markdown-it-py-4.2.0/bin:/nix/store/njfif2yiszjvm3sh41dyiw1qx38xplac-python3.14-pygments-2.21.0/bin:/nix/store/pk8q69mbhhmc1lc7aipc020yslr1a11m-python3.14-email-validator-2.3.0/bin:/nix/store/8pw5psvvgi3qy2dv4y4f8am2bi4ghf7j-python3.14-cffi-2.1.1/bin:/nix/store/bkdqdbr1bfnmy8jg9qfh1kni1jcgrf23-python3.14-keyring-25.7.0/bin:/nix/store/0z4f8gmmrr7l9q3x2nd92nfkmd3nwsbn-python3.14-cyclopts-5.4.0/bin:/nix/store/giil4p020b1xhw8lsqg9h5z8kwrq4b84-python3.14-watchfiles-1.3.0/bin:/nix/store/83vlpliyyhrv4g2j4cfmgcf58bqv1666-python3.14-websockets-17.0.1/bin:/nix/store/6qzwjxrm5cjx3as72ih1k7drwans6v7j-python3.14-watchdog-6.0.0/bin:/nix/store/6q73k9wjvhg11vj0laskby174zc5y8l7-ast-grep-0.42.1/bin:/nix/store/q0ggai1hcq6gywga3341i916sxhm0kv3-design-md-0.4.0/bin:/nix/store/r80pgd3b8qpdrwf649n8s5n6kn7wh0ny-impeccable-0.1.27/bin:/nix/store/l03n8w6r1m96fqvbwjb59q0cgzfikljv-playwright-cli-0.1.25/bin:/nix/store/mnap7wwfyj04a66v6sx8yb28qg5d7a67-defuddle-0.19.3/bin:/nix/store/9jq9g54a1sq15nn4rxrwq8xs5jnlkl5f-python3.13-markitdown-0.1.7/bin:/nix/store/jy00n3jp5xj8s40n1fbldmkcr5n7avxc-python3-3.13.15/bin:/nix/store/hh00dy0r736kvapa30a3cq7l83xb0cma-python3.13-charset-normalizer-3.4.7/bin:/nix/store/dmnyx4gl8b0b7ybgjmybv1mqa3a68w83-python3.13-magika-1.0.2/bin:/nix/store/vqq4ms2n4fk4w0ib9cdqhccjj8jfabrv-python3.13-numpy-2.4.4/bin:/nix/store/di2ylqszhss5s7shlkmcalp1k0fsy3wh-python3.13-onnxruntime-1.24.4/bin:/nix/store/vd73q6h945a7czh11vcw3sjm9ylb254j-python3.13-coloredlogs-15.0.1/bin:/nix/store/sq6j0rwh645yzpjn3434nz3wbj5y0583-python3.13-humanfriendly-10.0/bin:/nix/store/x8cmilsady9bhh5kh9fg7ws6b88fgaps-python3.13-python-dotenv-1.2.2/bin:/nix/store/6l2kgwdpa133q4mdic7v033zlzg38aj4-python3.13-tabulate-0.10.0/bin:/nix/store/l56v04yfk9av2d487bvsl2mhp8ygflz6-python3.13-tqdm-4.67.1/bin:/nix/store/c91b69vgk64samvpazhh1r5zv1yc8xix-python3.13-mammoth-1.12.0/bin:/nix/store/ynmwjgqfq1bmhsvg7994zq44f2jl98lk-python3.13-markdownify-1.2.2/bin:/nix/store/3v63sx85nx0ky1qqhy17ndirbw1vbxys-python3.13-pdfminer-six-20260107/bin:/nix/store/76ypywvvs4i1ib1p1anxnqw60m98s6rn-python3.13-pdfplumber-0.11.9/bin:/nix/store/3v4vj3w55cs8rgmcp7bcwr8x4srz5nxd-python3.13-pypdfium2-5.7.0/bin:/nix/store/2wpcnwrxrx1ck9lqyrl47rsb5acdcbnr-python3.13-xlsxwriter-3.2.9/bin:/nix/store/890r3r2hkdcvaamfvfxxc3m5l8hr3nc1-python3.13-speechrecognition-3.16.1/bin:/nix/store/fic59kxfy2f92idwzqm6phwrdnxgfv2j-python3.13-xlrd-2.0.2/bin:/nix/store/z7vqibzjvr40f485j15j6l8fnmcn8j3j-python3.13-youtube-transcript-api-1.2.4/bin:/nix/store/g3g1qkf8p32gliks6vx5fh86lxiwzrch-waza-0.41.0/bin:/nix/store/b57d3rsdby4w5pf67hs20y5ddp3kkach-apm-0.35.0/bin:/nix/store/lb41b0anx1f98y9y5s9mdv97gjgsq740-python3-3.14.7/bin:/nix/store/jmhnpxhyik89xg7rqi4shg73rxhfwasd-git-minimal-2.55.0/bin:/nix/store/aiwm8xqln02cbryvp9ilj6ykflrpmg0f-python3.14-llm-0.31.1/bin:/nix/store/5w5s4965dcmmi5z8mwh8y786gh8gdixp-python3.14-numpy-2.5.2/bin:/nix/store/3wfkjzcjdnxjy4nic8k6g8nr35brmpy4-python3.14-idna-3.18/bin:/nix/store/c1mi1l25nb3ri6m85jx8n0b29m10xqkj-python3.14-distro-1.9.0/bin:/nix/store/q30xa56nmlgz3h9cllifws4yic79jxww-python3.14-httpx-0.28.1/bin:/nix/store/fdzrpfafy3kda4j5ypcs7mzgc0z2aksz-python3.14-tqdm-4.68.4/bin:/nix/store/ljy6z6bzrpja4wffmh9yk5gmdma2n9cn-python3.14-pip-26.1.2/bin:/nix/store/z0445saanpac1n9d95aaap0i1ljxw5i0-python3.14-python-ulid-3.1.0/bin:/nix/store/97z4i8jsw7dzrxdraj21aad0bdkp7k8a-python3.14-sqlite-utils-4.2.1/bin:/nix/store/f9pg2siyxrjggn886zgrmwsgymrv133j-python3.14-tabulate-0.10.0/bin:/nix/store/9qz7dnr5pha2nz1x9hxp28fd0895pdbx-python3.14-cffi-2.1.0/bin:/nix/store/5sy15nk1s1ip12s7f71s7ymff77vk25s-python3.14-charset-normalizer-3.4.9/bin:/nix/store/fyhsd2di1ndbvwc29z5laqpcf95d35bm-python3.14-markdown-it-py-4.2.0/bin:/nix/store/lyj2hffm8hc3pv009mrmjkfdv5jsspxg-python3.14-pygments-2.20.0/bin:/nix/store/bxwqp1mz5wfn3qqi0ffasf1cj9f5dip9-python3.14-rich-click-1.9.9/bin:/nix/store/8xpscjfwi3h3jjih8gv7cw89brlnrhwp-python3.14-watchdog-6.0.0/bin:/nix/store/hhb6scq2lziy3cn0q8h6cw7kbwqwzqxf-python3.14-websockets-16.1/bin:/nix/store/3s182123rvgcibr7dsp2k9m6fdclddpg-act-0.2.88/bin:/nix/store/rkldw0s3szbf2n7w7hzd5d6ggwwk7afy-cocogitto-7.0.0/bin:/nix/store/wd19ylrrahpml0j904c5k1zzhnjsn3b7-lefthook-2.1.5/bin:/nix/store/sg9pynb5rh1n19cxwrxvs6v7cchbfqb6-go-task-3.48.0/bin:/nix/store/pddfs32zgslzi0ib7ik2qfv7n4lj3i8j-dive-0.13.1/bin:/nix/store/sy8xa2r5dk51i1259jlw38s90syr7xcx-atlas-1.2.0/bin:/nix/store/srasw7xdphshvl9h3y1pflddanm0jg27-tbls-1.94.5/bin:/nix/store/1zwn2wkjfvsk536ld9851vqqfmcbwfl3-ghq-1.9.4/bin:/nix/store/9aa5kvkxqasg3ym22brka88jgsj452x2-overmind-2.5.1/bin:/nix/store/7h3xzz9x6ag3xyx4mqzbs3wbb3j33yxi-graphviz-12.2.1/bin:/nix/store/m8p2pyd0lks5mbgda32w22m99xnk6rr5-gws-0.22.5/bin:/nix/store/dxvlx2iajwlrlwqj9rbbq1dlyy1wmbvf-gwq-0.1.2/bin:/nix/store/vzxysd7zvkxfqd932kc548qi408bcgqx-sprite-0.0.1-rc48/bin:/nix/store/xdnaya02qicjfdczyjqwy2yl04b8x3pw-patchelf-0.15.2/bin:/nix/store/dy6j7267wrgjlr2z748sbx83zj16vs3c-gcc-wrapper-15.3.0/bin:/nix/store/s2f0mfx0iiap9yxmlfvq0psn26jsbind-gcc-15.3.0/bin:/nix/store/kgd806ssw99qaxwiislhfx5dwnc8k893-glibc-2.42-100-bin/bin:/nix/store/bhv6xyvqw6gjs3j488gi1z6wdv18bdpa-coreutils-9.11/bin:/nix/store/2gjbrb8nwqf1225n3zhca56s2rxrqqhx-binutils-wrapper-2.46/bin:/nix/store/g2i5zxslx9msaqjy14hdp2af064i9pbv-binutils-2.46/bin:/nix/store/bhv6xyvqw6gjs3j488gi1z6wdv18bdpa-coreutils-9.11/bin:/nix/store/nl0wq6d4bpjrxmlax141liq0qr9z87gn-findutils-4.10.0/bin:/nix/store/aqq53g5lgr9n9hxzmbblpfzds5z067ca-diffutils-3.12/bin:/nix/store/0s17nja4n8b63by0nlg1m31mxn2bq1g1-gnused-4.10/bin:/nix/store/cqhgy07rpxdwk9kd2qlc3cw4s9ajzm9f-gnugrep-3.12/bin:/nix/store/xbqis14s3fvckwlayc6vxvglws1v2mcw-gawk-5.4.1/bin:/nix/store/rc7c5al4hdcv0dc42g1jabx2r68l45jq-gnutar-1.35/bin:/nix/store/k1z3ys65nbrdc60975wajrj4xjwaqqm4-gzip-1.14/bin:/nix/store/a7501p1w90nhbln9259viwql8m4mnbx5-bzip2-1.0.8-bin/bin:/nix/store/q5wf35q7dabb5m8mszqjn3d55ff5c1pl-gnumake-4.4.1/bin:/nix/store/jnyfsf2mp08d1xyz2m72ic2vz2kcx0sd-bash-5.3p9/bin:/nix/store/2dcxwfz9n8xpzrnrfgnl0yz7dw0f60gz-patch-2.8/bin:/nix/store/fr31df17rksfki6nv00xq4s5apvqpyhw-xz-5.8.4-bin/bin:/nix/store/24ppwxxymwv6p22ag41mk4vvb79cmr0k-file-5.47/bin:/home/ubuntu/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/Users/t_watanabe/AppData/Local/Programs/orca/resources/bin:/mnt/c/Users/t_watanabe/.volta/bin:/mnt/c/Users/t_watanabe/.asdf/shims:/mnt/c/Users/t_watanabe/.local/share/mise/shims:/mnt/c/Users/t_watanabe/AppData/Local/Programs/OpenAI/Codex/bin:/mnt/c/Users/t_watanabe/AppData/Local/agy/bin:/mnt/c/Users/t_watanabe/AppData/Roaming/npm:/mnt/c/Users/t_watanabe/AppData/Local/pnpm:/mnt/c/Users/t_watanabe/AppData/Local/Yarn/bin:/mnt/c/Users/t_watanabe/.bun/bin:/mnt/c/Users/t_watanabe/AppData/Roaming/fnm/aliases/default:/mnt/c/Users/t_watanabe/.fnm/aliases/default:/mnt/c/Windows/system32:/mnt/c/Windows:/mnt/c/Windows/System32/Wbem:/mnt/c/Windows/System32/WindowsPowerShell/v1.0/:/mnt/c/Windows/System32/OpenSSH/:/mnt/c/Program Files/dotnet/:/mnt/c/Program Files/Tailscale/:/mnt/c/Program Files/WezTerm:/mnt/c/Program Files/GitHub CLI/:/mnt/c/Program Files/Git/cmd:/mnt/c/Program Files/WSL/:/mnt/c/Users/t_watanabe/.local/bin:/mnt/c/Users/t_watanabe/AppData/Local/Microsoft/WindowsApps:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Microsoft VS Code/bin:/mnt/c/Users/t_watanabe/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Ollama:/mnt/c/Users/t_watanabe/AppData/Local/Microsoft/WinGet/Packages/GitHub.Copilot_Microsoft.Winget.Source_8wekyb3d8bbwe:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Orca/resources/bin:/mnt/c/Users/t_watanabe/AppData/Local/Programs/Microsoft VS Code/bin/copilot-shim:/mnt/c/Users/t_watanabe/AppData/Local/PowerToys/DSCModules/:/mnt/c/Users/t_watanabe/AppData/Local/PowerToys/bin/:/mnt/c/Users/t_watanabe/AppData/Local/Programs/herdr-app:/mnt/c/Users/t_watanabe/AppData/Local/Programs/herdr-core:/snap/bin",
+      "HOME": "/home/ubuntu",
+      "PROCESS_PROOF_NIX_BASH": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+      "PROCESS_PROOF_NIX_STDENV": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
+      "PROCESS_PROOF_GROUP_FILE": "/tmp/nix-shell.Wkg7FR/claude-1000/-home-ubuntu-orca-workspaces-skills-linux-cgroup-v2-fallback/1b0dc1e4-6b16-4e18-8244-febdf663c3ac/scratchpad/wsl2-proof/group/data",
+      "PROCESS_PROOF_GROUP_GID": "30001"
+    },
+    "uid": 1000,
+    "euid": 1000,
+    "gid": 1000,
+    "groups": [
+      4,
+      24,
+      27,
+      30,
+      46,
+      100,
+      989,
+      993,
+      1000
+    ],
+    "bun": "1.4.4",
+    "nix": {
+      "mode": "multi-user",
+      "sandbox": true,
+      "buildUsersGroup": "",
+      "daemon": {
+        "status": 0,
+        "signal": null,
+        "stdout": "{\"trusted\":true,\"url\":\"daemon\",\"version\":\"2.34.6\"}\n",
+        "stderr": "warning: 'ping' is a deprecated alias for 'info'\n"
+      },
+      "bash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+      "stdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux"
+    },
+    "group": {
+      "path": "/tmp/nix-shell.Wkg7FR/claude-1000/-home-ubuntu-orca-workspaces-skills-linux-cgroup-v2-fallback/1b0dc1e4-6b16-4e18-8244-febdf663c3ac/scratchpad/wsl2-proof/group/data",
+      "ownerUid": 0,
+      "gid": 30001,
+      "mode": 48,
+      "dev": "2096",
+      "ino": "3001495"
+    }
+  },
+  "sourcesAfter": {
+    "development/linux-process-proof-cases.json": "2115f90b7ed62b8758f411ceabc790d10b2cbbaf2c6906b3820eac7766c61975",
+    "lib/bun/bunfig.toml": "64685d48c66b066850d1a78ab41c170ea217e84acf8aaa4f6fe6b7349648c070",
+    "lib/bun/cli-path.ts": "f058948b035092a728bcd8a57bf2c2fa53f8333106fc523f6283b8d84bf13db0",
+    "lib/bun/coordination-json.ts": "32454d49fc3ceb63b6e39d4cdc7b8e6de98f9f334c545f411708e026634c3e0f",
+    "lib/bun/gh-review-thread.ts": "a89a07053bc6c42c3ed8706f46c6a7e5f6f16e41953c75d51b36f02f2920ee12",
+    "lib/bun/orca-send.ts": "5836b9e1a4dfcc35017eb73aed609abfa44bb62f596814305a63d9820d2152a2",
+    "lib/bun/orca-worker-readiness.ts": "a6a1258a2b7cd4432c6a025ffcf2d3120e7db31aacb2b869d82377c30eb4c818",
+    "lib/bun/run": "f789eb2805d3c1c0c366fef0cf761c02816600dce7a32ce93cf162e322b58e9f",
+    "lib/bun/serve-local.ts": "d766a03b278c3547e8d4eec69ae228c9a1e3fcacc2d5a3d43a4a416da0bbcd8b",
+    "lib/bun/strict-json.ts": "4d14a1305ae707c30a36d9acab9627a09105b479db85349bbe4ade9de33870d0",
+    "lib/bun/tsconfig.json": "66e3b8f1d08faaa895715154da26f2698c0af9dddb8c43ae2b382e16ef5e3fe1",
+    "lib/bun/vendor/casefold.LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+    "lib/bun/vendor/casefold.json": "233bb4581cca5ac020ee75fff73ad4e5792f9166e940318fbfdf4d969192c430",
+    "lib/bun/vendor/decimal.LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+    "lib/bun/vendor/decimal.json": "10a08b669b4aaf0c3969143d7f88bc3888e55212e4bffc751c1b8b1da71699e8",
+    "lib/python/treflebonbon_skills/__init__.py": "4c931ca391290d71a01aade9e3f3b249b7afc5b5143fdddf27dbeca9e5bfcfe1",
+    "lib/python/treflebonbon_skills/codex_reviewer.py": "84a40d9499cca63e78dbf5f1a3af50c2f91c6919eef0ab15dbcde8ecb402a775",
+    "lib/python/treflebonbon_skills/devshell_environment.py": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
+    "lib/python/treflebonbon_skills/git_context.py": "986e2a6143cc467e760b7e931c93d3ab9126a6eda214192a372736502491de43",
+    "tests/bun/browser-fixtures.test.ts": "1dcf5e054b91382ec3ba11b580908cb8f7b7e442a02ef04bd378282d095cc92a",
+    "tests/bun/coordination-json.test.ts": "ee1feb00605a286488799eb28cb0b08cfafc5fd301d92597fdfe2e56484c7b04",
+    "tests/bun/gh-review-thread.test.ts": "b8a06c8b224403b5a9bd7dec68afa3b667cae5024d46c9bc4e2c4195e8a080d3",
+    "tests/bun/linux-process-proof.test.ts": "7555af16e652fb5273056e4ef9b55cffb875da1ef00534092c9a5cf3b2ef5bc2",
+    "tests/bun/namespace.test.ts": "05463a0aaec31a84bb135ce161f90536907a2b20f4b7a8a25197f5d2ded7b8c8",
+    "tests/bun/nix-runtime.test.ts": "34a4cfd555a66ec2561a2ffe9b72164b0a264f30cfd416298b4b12299f3f37db",
+    "tests/bun/orca-send.test.ts": "a4cd2b013cffd6c1f950b107054f5d767c779fda43908cf7dabf92ce88f7b58f",
+    "tests/bun/orca-worker-readiness.test.ts": "9385103a94aacbfb55567b6fe66b63f7332f0be83d25fc8e718d6ff497a73aba",
+    "tests/bun/package-contract-fixtures.test.ts": "55ce9779a5b29931377409dc8ce1883ce68ef0d4e92f7bacc9580c3a28fa7896",
+    "tests/bun/package-contract.test.ts": "6f1d71ff8a61540542e9091109d8caca1bc96eadfcc2b43f90552d2948f19570",
+    "tests/bun/plugin-session-process.test.ts": "8e22988b2e05d7b0cc2b2117603ded5b7428a19fcb1f3d77ac8a3533e91aa106",
+    "tests/bun/plugin-sessions.test.ts": "bd3dc1f65e88c9a83326393ca597eaa83cf3efe895e6889c606d08b248d0b602",
+    "tests/bun/plugin-smoke.test.ts": "52395afd52b12e6d071b9012b9ab4d51b22a5345c08bd8d713a52b97e518f83a",
+    "tests/bun/process-lock.test.ts": "53cfe60dc6f182c58ea674f1a5d870407c5e803249c6748411a7b9bd530af0f1",
+    "tests/bun/process-namespace.test.ts": "c35ed42b65d101cbedfc4a7a029fda50f1680392239e75137f41735d9393f9c2",
+    "tests/bun/process-state.test.ts": "c976d6585d48d72ba16f9a2b86204458f0b3aea176b30e2c578337991e7c1583",
+    "tests/bun/product-guide-collect.test.ts": "74bf12436dedb74bf6c2be4f6fee10b26672a95358a2cdc6b2258612950a7497",
+    "tests/bun/product-guide.test.ts": "cadf289d302b8250e7f5cb1a64822bf776851b83fb39f15bdf504fe41789488f",
+    "tests/bun/public-skills.test.ts": "ca2d6908974c5b5549caa62100a14f09ceb14d1dd56fac944ccf9060051ad92f",
+    "tests/bun/serve-local.test.ts": "eb0f112487855270a35270f0eb8b22c536d51a49132bea102dd5a4381807af24",
+    "tests/cli/__init__.py": "e579565af1f3a040cb9f5b582b8b9c7ec0160875699575a89dd88dff78b0a7da",
+    "tests/cli/fixtures/fake-gh": "11c7097dce8d601ce0ccf22a11ea735365c7a8f08add93a9d52c619cbbc50e2a",
+    "tests/cli/gh-review-thread.bats": "cfe8622ec7a14f7b811dfa05d6c6af5c83a70d2ce8338d68dc8a0deda3ec4438",
+    "tests/cli/git-push-topic.bats": "84757f6f502a70ea8ab99816e23c84cf2b794e3922d171ef1060f79df3e76f2e",
+    "tests/cli/orca-send.bats": "c7d9b7af5ac9d9867b4dbf4fbeb5176557e9ddf3e3753fb48b30fe768e0706f8",
+    "tests/cli/orca-worker-readiness.bats": "786133e813de0fa25ff021ddcfc1fd9f1aa6d58e69878791547e1c01601eccf1",
+    "tests/cli/test_codex_reviewer.py": "6dac260cd18be60d95975ceb6d8de64a77ffcf74d69d7fd5524740201fa695a1",
+    "tests/cli/test_docstring_report.py": "d2d458826cad44d2a4a0f4b79c0ad3e0b3de7d18ab75c65a39d04ace50774d14",
+    "tests/cli/test_git_context.py": "8124e67cd62b663a8edca433f93d4fd3cfeb8dd5af7f2928f01d3f2df518e134",
+    "tests/cli/test_python_launcher_payload_immutability.py": "a1a356713a676f9cf53b1dc3c5e68938255cb390264fa942db31e407bb635d08",
+    "tests/domain-modeling-studio.bats": "6bdf1d0c3f21e413c54eafa99385f84b17f6aeea915579068804c9c1981ac7e2",
+    "tests/fixtures/bun-exec-delayed-group.c": "dba438e31a8832c6b789371259fb2cc5bfd13eb093124be584c8cc8967905a88",
+    "tests/fixtures/bun-exec-entry.sh": "0bb1e2c83ee6a0ae01385ef804694a7dd3c99a2e07b4207c81cf32c24e356622",
+    "tests/fixtures/bun-exec-launcher.c": "bb15f604c0615840baee0abe788f0798a976585c11709b1fb4360a1c6513356c",
+    "tests/fixtures/bun-exec-namespace-delay.c": "01ac25e92a3fb3e3c6fcc8640e04220e70732bc5ca8b7962994feff707320976",
+    "tests/fixtures/bun-exec-pid-namespace.c": "e6f2324e52330b1589f220a64996fec8aae935ef18a73dec286d8097516580dc",
+    "tests/fixtures/bun-exec-prepare.ts": "50634b6b1242d293d30f551fbf7797ef57ffbc7e0f8d4d3da7338209758a5c05",
+    "tests/fixtures/bun-exec-python.json": "b827d223fda4840af27ea9e23b3c393e89db62bf3e8b88db1b5020f2a7f0e6a2",
+    "tests/fixtures/bun-namespace.ts": "cafd9ba5bf74f554770614210762d326ba77540dad1ec1dfddc12e43995edcde",
+    "tests/fixtures/bun-nix-runtime.ts": "80426763914822d369de60b344cf83119d7c27717b61aa0bc72bd5b9849f3949",
+    "tests/fixtures/bun-process-lock-python.json": "2c1b105a39ccf0836c8aef8d9c3617e640f368af0c766af85278af2c711d4125",
+    "tests/fixtures/bun-process-lock.ts": "3df970a569ff09116e0c25c908317c6a193e0e404dcad95d4588cd2cf9052916",
+    "tests/fixtures/bun-process-namespace-observer.c": "88d9a26db92fc868c0a4246fa346073f33707c5be42780be0cf65995e2ae801d",
+    "tests/fixtures/bun-process-observer.c": "a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39",
+    "tests/fixtures/bun-process-pidfds.c": "e9bd320cee082071afd5bf3d1be1133e4b015f4b1888970bd9fa46f70926b78d",
+    "tests/fixtures/gh-review-checks.json": "81001f66051b252e5a49d73f125d3bcc24533205f2682e15b12ce7d4dea990d6",
+    "tests/fixtures/gh-review-thread-python.json": "c82947bb8597c413dca48d8ecb832dd16c93e1838c6a033bcfb7c76a7757c858",
+    "tests/fixtures/loopback-python.json": "67457a33c0bcd6484a22c700f4e5caafc20aa933144812213eae368e515edeb7",
+    "tests/fixtures/orca-send-python.json": "584600b3a89e5b8dba66f4772b690612e62e13f68a818478006378a228f5b890",
+    "tests/fixtures/orca-worker-readiness-python.json": "5e8a4d03d0c78a43dab1a22d78bf56c4862968d55bab9d19e755191fd43dc6c2",
+    "tests/fixtures/plugin-sessions-python.json": "7bb906b9c7d357ca85b1fd27260b22468380c615ba942c14869075817232d28b",
+    "tests/fixtures/plugin-smoke-python.json": "eb019ab18df4be7d41149b80dea076fa8a501f43a345fa6d32a60e7e32ab9bb3",
+    "tests/fixtures/product-guide-model.json": "454575c8ee02a60119d5f387971b6096e5c5ab65e3a594240fe4ee74dbf45431",
+    "tests/fixtures/quality-python.json": "a8e54fe7453aced765b1e9a0c21d580a7b1f011ee8fb8609bc211a20c9ce2b65",
+    "tests/fixtures/raw-codex/config.toml": "305b7c778dcaa7bbf15a4cadfeab1f8abe014ea8ba4095241e8ac5d81c1f515c",
+    "tests/fixtures/raw-codex/github-push.py": "b53946c944c30b7ac315d378f5393dbb24eab8d8c5575d70ee7f24333b5cdbcf",
+    "tests/fixtures/raw-codex/nixpkgs-revision": "52cad5a07f3c81459d12b35976c106adc7a978a6040dc444656f9427e61bb58e",
+    "tests/fixtures/secret-isolation/worktree-task.py": "77986f552d5734ca495a4bdd4cf97fa3596896fea2026fc5885cb8d3231738af",
+    "tests/fixtures/sprite-info-v0.0.1-rc48.txt": "4effa1363cca82c6e9940d1f8d0a5569b823c78c94c09704c21854ce9f7c8dc9",
+    "tests/helpers/codex-config-reader.py": "5ae8ccec771aa99978bf8f6cccae88f05deb21d03d52e62bb7afd5a3bd08dc45",
+    "tests/helpers/fake-raw-codex-app-server.py": "c000a0a32922d0bf2f0d17ccd87a71eb2f265b078b5744005247483f1ba6a418",
+    "tests/helpers/linux-namespace-fixture.ts": "e1c0420a817957cfed2250825dd0abff5bb0986a3706fa199fb203c5c3805154",
+    "tests/helpers/process-state.ts": "ad490150c0d250a03fb39b7b347709ac54093243e1a332caa2cac267a6ea1e69",
+    "tests/helpers/raw-codex-gateway-lifecycle.py": "5a534f523319c5ca5186d38581afabf0feee1f15d75b275781bb4680f4ddbde9",
+    "tests/helpers/raw-codex-handoff.py": "0ec5388930b2a6ec76db8da22dda4b531aa536b06e3f1a73452c485c8c485917",
+    "tests/helpers/raw-codex.bash": "39336cc8f653953f7bc6bec4d3ba394345e8d813607db8b8bd2d7d9a328b894e",
+    "tests/helpers/rop-typescript-evidence.test.ts": "c99f7adee987fdb94df65947aa8181e5c24821106f57888d361336a6aec026f0",
+    "tests/md-claude-review.bats": "231c3d2be5aec3b28d86a9a632c83846424b2baee69be93f57cf93f2ffa228e6",
+    "tests/raw-codex/devshell-env.bats": "d6a8cd1834572219f2071db6cdc8a48187afeb7b64e124a05484ab328dff02ca",
+    "tests/raw-codex/gateway-lifecycle.bats": "4525381552c701a71f965e81b8a09e06f1572350df837691d5eeb142c58d8698",
+    "tests/raw-codex/isolated-github.bats": "f3590914067cf2993368f4309aa2e460de149b0cf138768e1ec1bf353804c664",
+    "tests/raw-codex/raw-codex-handoff.bats": "f03529f558c94af0ea45d68a7e27300b67fa2f42a3a4efb8c5267afeb47f8212",
+    "tests/raw-codex/raw-codex-integration.bats": "0dca8965c2388d8518cb6648193f103b96fa7d6b3142d420b99fe400a6280e82",
+    "tests/raw-codex/raw-codex-services.bats": "85c0798a5237e53e748969154a9b739b33f4d6c5778d512f831d6dc44d22f334",
+    "tests/raw-codex/raw-managed-profile.bats": "8d966d643e1836f7b67405fa6b01c44e41453b6b7ea360e77d406f3cd109eae9",
+    "tests/raw-codex/secret-isolation-gateway.bats": "2b2e730fa2cd1af8caa97346c3da947aa9463eca9ae1b2f564d1f85562595467",
+    "tests/raw-codex/secret-isolation-worktree.bats": "8b56c0209b2d8e74adf35f291571d0fb618e9ae39bc27b3a00891a3a4577406d",
+    "tests/test_orca_sprites_pilot.py": "de3667462cd39084f8a19f3701500946a307e3c5aa9326e63371fe450f199067",
+    "tests/test_raw_codex_package.py": "ec8f8d851baed4513fc9e0500de7fe87a761b50addcbb7c243e96a29a41e38ff",
+    "tests/worktree-gc-fanout.bats": "b4c0d9a880e507fd1622c0c9b3c82a40863313093937bd472ee9e22bc7bfc935",
+    "tests/worktree-gc.bats": "1cd6a3c94e860cacc4a1c2ba388733cfb0f7ad1fcbdd34b21d47010bb257a746",
+    "tests/worktree_gc_test_helper.bash": "a4a9886bb1164c7e391dbbf201c4de6a9c4fee7293a4ac0bd82f4cbb5eee7aad"
+  },
+  "callerAfter": {
+    "status": {
+      "value": "Name:\tbun\nUmask:\t0022\nState:\tR (running)\nTgid:\t3225121\nNgid:\t0\nPid:\t3225121\nPPid:\t3225089\nTracerPid:\t0\nUid:\t1000\t1000\t1000\t1000\nGid:\t1000\t1000\t1000\t1000\nFDSize:\t1024\nGroups:\t4 24 27 30 46 100 989 993 1000 \nNStgid:\t3225121\nNSpid:\t3225121\nNSpgid:\t3225089\nNSsid:\t477857\nKthread:\t0\nVmPeak:\t10598400 kB\nVmSize:\t 6631044 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t  154732 kB\nVmRSS:\t   49776 kB\nRssAnon:\t   22704 kB\nRssFile:\t   27072 kB\nRssShmem:\t       0 kB\nVmData:\t 6326676 kB\nVmStk:\t     180 kB\nVmExe:\t   79832 kB\nVmLib:\t    2252 kB\nVmPTE:\t     376 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t8\nSigQ:\t1/61241\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000001001000\nSigCgt:\t00000001600044fa\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t2\nSeccomp_filters:\t1\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\tffff\nCpus_allowed_list:\t0-15\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t618\nnonvoluntary_ctxt_switches:\t6\n"
+    },
+    "uidMap": {
+      "value": "         0          0 4294967295\n"
+    },
+    "gidMap": {
+      "value": "         0          0 4294967295\n"
+    },
+    "namespaces": {
+      "user": "user:[4026531837]",
+      "pid": "pid:[4026532220]",
+      "mnt": "mnt:[4026532218]"
+    }
+  }
+}

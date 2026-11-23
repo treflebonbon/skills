@@ -71,6 +71,8 @@ jobs:
   aggregate:
     permissions:
       contents: read
+      # 公開 metadata API を job token で読む。runner の共有 IP では認証なしの上限に当たるため。
+      actions: read
     name: 両 architecture と履歴を照合
     if: always()
     needs: proof
@@ -101,6 +103,8 @@ jobs:
           path: ${{ runner.temp }}/raw
       - name: raw log・metadata・過去 attempt を照合
         if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: bun control/development/run-linux-process-proof.ts aggregate "$GITHUB_WORKSPACE/subject" "$RUNNER_TEMP/raw" "$RUNNER_TEMP/result"
       - name: Git 管理へ移す判定候補を保存
         if: always()
