@@ -281,8 +281,8 @@
               },
               {
                 "realCaller": {
-                  "nixStdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
-                  "nixBash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+                  "nixStdenv": "<nix-store-x64>/stdenv-linux",
+                  "nixBash": "<nix-store-x64>/bash-interactive-5.3p15",
                   "nixVersion": "nix (Nix) 2.34.6",
                   "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
                   "flakeHash": "67942a48b5651065e7d68deca132103f31cac974351e94db28f33553bfb71488",
@@ -583,8 +583,8 @@
               },
               {
                 "realCaller": {
-                  "nixStdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
-                  "nixBash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+                  "nixStdenv": "<nix-store-x64>/stdenv-linux",
+                  "nixBash": "<nix-store-x64>/bash-interactive-5.3p15",
                   "nixVersion": "nix (Nix) 2.34.6",
                   "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
                   "flakeHash": "67942a48b5651065e7d68deca132103f31cac974351e94db28f33553bfb71488",
@@ -885,8 +885,8 @@
               },
               {
                 "realCaller": {
-                  "nixStdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
-                  "nixBash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
+                  "nixStdenv": "<nix-store-x64>/stdenv-linux",
+                  "nixBash": "<nix-store-x64>/bash-interactive-5.3p15",
                   "nixVersion": "nix (Nix) 2.34.6",
                   "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
                   "flakeHash": "67942a48b5651065e7d68deca132103f31cac974351e94db28f33553bfb71488",
@@ -1049,17 +1049,17 @@
             "version": "systemd 255 (255.4-1ubuntu8.18)"
           },
           "nix": {
-            "path": "/nix/store/3km45gzvnpin7xddlm9gpj5fac4wvjvn-nix-2.34.6/bin/nix",
+            "path": "<nix-store-x64>/nix-2.34.6/bin/nix",
             "hash": "8293bf7cf93ca9e75961b6acbc3be59830dbc9259b7fd7fbb18756c49d7340b7",
             "version": "nix (Nix) 2.34.6"
           },
           "nix-build": {
-            "path": "/nix/store/3km45gzvnpin7xddlm9gpj5fac4wvjvn-nix-2.34.6/bin/nix",
+            "path": "<nix-store-x64>/nix-2.34.6/bin/nix",
             "hash": "8293bf7cf93ca9e75961b6acbc3be59830dbc9259b7fd7fbb18756c49d7340b7",
             "version": "nix (Nix) 2.34.6"
           },
           "nix-store": {
-            "path": "/nix/store/3km45gzvnpin7xddlm9gpj5fac4wvjvn-nix-2.34.6/bin/nix",
+            "path": "<nix-store-x64>/nix-2.34.6/bin/nix",
             "hash": "8293bf7cf93ca9e75961b6acbc3be59830dbc9259b7fd7fbb18756c49d7340b7",
             "version": "nix (Nix) 2.34.6"
           },
@@ -1222,8 +1222,8 @@
           "PATH": "/home/runner/.bun/bin:/home/runner/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
           "HOME": "/home/runner",
           "NIX_REMOTE": "daemon",
-          "PROCESS_PROOF_NIX_BASH": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
-          "PROCESS_PROOF_NIX_STDENV": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux",
+          "PROCESS_PROOF_NIX_BASH": "<nix-store-x64>/bash-interactive-5.3p15",
+          "PROCESS_PROOF_NIX_STDENV": "<nix-store-x64>/stdenv-linux",
           "PROCESS_PROOF_GROUP_FILE": "/home/runner/work/_temp/group-proof.NuI65v/data",
           "PROCESS_PROOF_GROUP_GID": "30001"
         },
@@ -1249,8 +1249,8 @@
             "stdout": "{\"trusted\":false,\"url\":\"daemon\",\"version\":\"2.34.6\"}\n",
             "stderr": "warning: 'ping' is a deprecated alias for 'info'\nwarning: ignoring the client-specified setting 'store', because it is a restricted setting and you are not a trusted user\n"
           },
-          "bash": "/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15",
-          "stdenv": "/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux"
+          "bash": "<nix-store-x64>/bash-interactive-5.3p15",
+          "stdenv": "<nix-store-x64>/stdenv-linux"
         },
         "group": {
           "path": "/home/runner/work/_temp/group-proof.NuI65v/data",
@@ -1657,8 +1657,8 @@
               },
               {
                 "realCaller": {
-                  "nixStdenv": "/nix/store/33x3cyc63b5v4wwavz2hlxj60rzh6fq2-stdenv-linux",
-                  "nixBash": "/nix/store/wgxz9zr5a70v52nkqinbarf56f1c5jsi-bash-interactive-5.3p15",
+                  "nixStdenv": "<nix-store-arm64>/stdenv-linux",
+                  "nixBash": "<nix-store-arm64>/bash-interactive-5.3p15",
                   "nixVersion": "nix (Nix) 2.34.6",
                   "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
                   "flakeHash": "41f012ad4d778ee30602fd30d67c4a40daa7bf961e0d1dbe5210fb3b9f10085b",
@@ -1959,8 +1959,8 @@
               },
               {
                 "realCaller": {
-                  "nixStdenv": "/nix/store/33x3cyc63b5v4wwavz2hlxj60rzh6fq2-stdenv-linux",
-                  "nixBash": "/nix/store/wgxz9zr5a70v52nkqinbarf56f1c5jsi-bash-interactive-5.3p15",
+                  "nixStdenv": "<nix-store-arm64>/stdenv-linux",
+                  "nixBash": "<nix-store-arm64>/bash-interactive-5.3p15",
                   "nixVersion": "nix (Nix) 2.34.6",
                   "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
                   "flakeHash": "41f012ad4d778ee30602fd30d67c4a40daa7bf961e0d1dbe5210fb3b9f10085b",
@@ -2261,8 +2261,8 @@
               },
               {
                 "realCaller": {
-                  "nixStdenv": "/nix/store/33x3cyc63b5v4wwavz2hlxj60rzh6fq2-stdenv-linux",
-                  "nixBash": "/nix/store/wgxz9zr5a70v52nkqinbarf56f1c5jsi-bash-interactive-5.3p15",
+                  "nixStdenv": "<nix-store-arm64>/stdenv-linux",
+                  "nixBash": "<nix-store-arm64>/bash-interactive-5.3p15",
                   "nixVersion": "nix (Nix) 2.34.6",
                   "callerSourceHash": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1",
                   "flakeHash": "41f012ad4d778ee30602fd30d67c4a40daa7bf961e0d1dbe5210fb3b9f10085b",
@@ -2425,17 +2425,17 @@
             "version": "systemd 255 (255.4-1ubuntu8.18)"
           },
           "nix": {
-            "path": "/nix/store/ryr7lng2ippsrqlf7vh03f9ramad33id-nix-2.34.6/bin/nix",
+            "path": "<nix-store-arm64>/nix-2.34.6/bin/nix",
             "hash": "d183e83922b12bd2b0d76a40c10aa10cd5ac066037f3b394013401184cafb2dd",
             "version": "nix (Nix) 2.34.6"
           },
           "nix-build": {
-            "path": "/nix/store/ryr7lng2ippsrqlf7vh03f9ramad33id-nix-2.34.6/bin/nix",
+            "path": "<nix-store-arm64>/nix-2.34.6/bin/nix",
             "hash": "d183e83922b12bd2b0d76a40c10aa10cd5ac066037f3b394013401184cafb2dd",
             "version": "nix (Nix) 2.34.6"
           },
           "nix-store": {
-            "path": "/nix/store/ryr7lng2ippsrqlf7vh03f9ramad33id-nix-2.34.6/bin/nix",
+            "path": "<nix-store-arm64>/nix-2.34.6/bin/nix",
             "hash": "d183e83922b12bd2b0d76a40c10aa10cd5ac066037f3b394013401184cafb2dd",
             "version": "nix (Nix) 2.34.6"
           },
@@ -2598,8 +2598,8 @@
           "PATH": "/home/runner/.bun/bin:/home/runner/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/home/runner/.bun/bin:/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
           "HOME": "/home/runner",
           "NIX_REMOTE": "daemon",
-          "PROCESS_PROOF_NIX_BASH": "/nix/store/wgxz9zr5a70v52nkqinbarf56f1c5jsi-bash-interactive-5.3p15",
-          "PROCESS_PROOF_NIX_STDENV": "/nix/store/33x3cyc63b5v4wwavz2hlxj60rzh6fq2-stdenv-linux",
+          "PROCESS_PROOF_NIX_BASH": "<nix-store-arm64>/bash-interactive-5.3p15",
+          "PROCESS_PROOF_NIX_STDENV": "<nix-store-arm64>/stdenv-linux",
           "PROCESS_PROOF_GROUP_FILE": "/home/runner/work/_temp/group-proof.FWmvvI/data",
           "PROCESS_PROOF_GROUP_GID": "30001"
         },
@@ -2625,8 +2625,8 @@
             "stdout": "{\"trusted\":false,\"url\":\"daemon\",\"version\":\"2.34.6\"}\n",
             "stderr": "warning: 'ping' is a deprecated alias for 'info'\nwarning: ignoring the client-specified setting 'store', because it is a restricted setting and you are not a trusted user\n"
           },
-          "bash": "/nix/store/wgxz9zr5a70v52nkqinbarf56f1c5jsi-bash-interactive-5.3p15",
-          "stdenv": "/nix/store/33x3cyc63b5v4wwavz2hlxj60rzh6fq2-stdenv-linux"
+          "bash": "<nix-store-arm64>/bash-interactive-5.3p15",
+          "stdenv": "<nix-store-arm64>/stdenv-linux"
         },
         "group": {
           "path": "/home/runner/work/_temp/group-proof.FWmvvI/data",

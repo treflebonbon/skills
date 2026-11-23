@@ -62,7 +62,7 @@ Bunは両VMとも `1.4.4`、選択実体は `/usr/bin/unshare`、util-linux `2.3
 ## 保存した証跡
 
 - [run.json](run.json): 取得したrun・job・stepの終了状態。
-- [loop.json](loop.json): 両artifactの `namespace-loop.json` から、run / source / workflowの識別値、controller hash、3回分の前提検査とprobe / auditを選択した記録。環境fieldは既存の7キーだけ。source hash一覧は元artifactに残る。
+- [loop.json](loop.json): 両artifactの `namespace-loop.json` から、run / source / workflowの識別値、controller hash、3回分の前提検査とprobe / auditを選択した記録。環境fieldは既存の7キーだけ。固定 Nix store path のハッシュを含む接頭部は architecture ごとのプレースホルダーで表す。元のパスと source hash 一覧は元artifactに残る。
 
 | 元artifact                           | 元JSONのbyte数 | 展開した元JSONのSHA-256                                            |
 | ------------------------------------ | -------------- | ------------------------------------------------------------------ |

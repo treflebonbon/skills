@@ -44,6 +44,8 @@ metadata: Error: public metadata API: HTTP 403
 
 ## 記録の範囲
 
+`cohort.json` では固定 Nix store path のハッシュを含む接頭部を architecture ごとのプレースホルダーで表す。
+
 - `cohort.json` は、判定 artifact の cohort から、各試験の観測 JSON の `records` を実 caller・拒否・抜け出しの観測だけに絞ったものである。省いた件数は `trials[].observation.recordsOmitted` にある。ケースの結果・集計・終了状態・前提検査は省いていない。
 - `run.json` は公開 run metadata、`workflow-summary.md` は集約 job の要約である。
 

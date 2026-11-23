@@ -22,13 +22,14 @@
 ## 前提条件
 
 - 道具: Bun `1.4.4`、`unshare`／`setpriv`（util-linux `2.39.3`）、`systemd-run`（systemd `255.4-1ubuntu8.18`）、Nix `2.34.6`（multi-user、sandbox 有効）、C compiler `gcc (GCC) 15.3.0`（Nix の cc）。版と hash は `job.json` の `preflight.tools` にある。
-- 実 Nix caller の closure は `development/linux-process-proof.nix` を、`tests/fixtures/raw-codex/nixpkgs-revision` の revision で手元で build した。`bash` は `/nix/store/1mv3qz005gkbalxfghk4y3s8ayv4d2dl-bash-interactive-5.3p15`、`stdenv` は `/nix/store/rplwbx3hgs4wzc9hcs6r3cgp9r048fgl-stdenv-linux`。
+- 実 Nix caller の closure は `development/linux-process-proof.nix` を、`tests/fixtures/raw-codex/nixpkgs-revision` の revision で手元で build した。`bash` は `<nix-store-wsl2-x64>/bash-interactive-5.3p15`、`stdenv` は `<nix-store-wsl2-x64>/stdenv-linux`。
 - 補助 group の fixture は、人が外部ターミナルで `sudo` を使って用意し、実行後に削除した。試験用 group（GID 30001）と、root 所有・その group・mode `0060` の file である。試験は `sudo -n` と `setpriv` で資格情報を切り替えた。sysctl・AppArmor・sudoers は変えていない。
 - user manager は `active`、linger は `yes` だった。この WSL2 では namespace が選ばれるため、cgroup 経路は使っていない。
 - runner で導入する Nix の版・remote・build user 設定は、手元では要求していない（`build-users-group` は空）。
 
 ## 記録の範囲
 
+- 固定 Nix store path のハッシュを含む接頭部はプレースホルダーで表す。同名の package root が複数あった場合は連番で区別する。
 - `job.json` は、controller が出力した job から、各試験の観測 JSON の `records` を実 caller の1件だけに絞ったものである。省いた件数は `trials[].observation.recordsOmitted` にある。ケースの結果・集計・終了状態・build の source/binary hash・前提検査は省いていない。保存した `job.json` からも次の手順で同じ判定を再現できる。
 - raw log・build した実行体・一時領域は保存していない。log の SHA-256 は `trials[].logHash` にある。
 

@@ -60,6 +60,14 @@ test("test_every_manifest_and_package_uses_plugin_version", () => {
 test("test_release_manifest_tracks_the_plugin_version", () =>
   expect(json(".release-please-manifest.json"), "release manifest").toEqual({ ".": version }));
 
+test("test_release_source_contains_no_fixed_nix_store_paths", () => {
+  const git = spawnSync("git", ["grep", "-alE", "/nix/store/[0-9a-z]{32}-"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  expect(git.status, git.error?.message || git.stderr || git.stdout).toBe(1);
+});
+
 test("test_release_config_updates_every_version_location", () => {
   const config = json("release-please-config.json");
   expect(Object.keys(config.packages)).toEqual(["."]);
