@@ -99,9 +99,17 @@ python3 -B /home/ubuntu/ghq/github.com/treflebonbon/dotfiles/scripts/verificatio
 
 この VM では、旧入口と候補のどちらも準備段階で停止した。候補の Bun 起動、private sysctl・loopback・capability の設定、bubblewrap の受入はこの環境では未実測。raw 隔離には rootless user/network namespace が使える環境が必要になる。 [raw Codex の必要な環境](raw-codex-isolation.md#必要な環境)
 
+## 追加実証の受入条件
+
+必要範囲は、現行の raw 隔離の前提を満たす Linux／WSL2 とする。Ubuntu 24.04 x86_64 の既定設定で両入口が準備段階で停止した結果は、拒否時の証跡として扱う。 [raw Codex の必要な環境](raw-codex-isolation.md#必要な環境)
+
+- 成立の実証は、成功済みの WSL2 x86_64 に加え、権限やセキュリティ設定を変えずに旧版が動作する通常 Linux の x86_64 と arm64 で行う。arm64 は arm64 CPU 上の Linux 実機または VM を使う。x86_64 上の arm64 エミュレーションは事前確認に使う。
+- 各環境で既存の `tests/bun/namespace.test.ts` を `NAMESPACE_PROOF_REAL=1` で実行し、現行の13件が失敗・スキップともに0であれば合格とする。同じ fixture で旧 Python 入口と候補の namespace、capability、bubblewrap の挙動を比較し、準備に失敗したときの終了状態と理由、target の未起動を確認する。
+- 対象 SHA、OS、CPU アーキテクチャ、カーネル、ツールの版、ホストの実効 policy と結果を記録する。
+
 ## 残る判断
 
-WSL2 x86_64 の合成境界では、追加 native helper なしの候補が成立した。通常 Linux では Ubuntu 24.04 x86_64 の拒否を確認した。旧版が動作する通常 Linux と aarch64 での比較、配布先の実効 policy、Nix closure に入れる OS ツールと版の固定が残る。#34 は open を維持し、対応範囲での採用判断を `ready-for-human` として残す。
+通常 Linux の x86_64 と arm64 での実測、配布先の実効 policy、Nix closure に入れる OS ツールと版の固定が残る。#34 は採用に必要な実証が揃うまで open／`ready-for-human` を維持する。
 
 fixture の bubblewrap は保護済み filesystem を読み取り専用で再公開する合成構成であり、raw orchestrator の秘密情報の選別や完全な filesystem / PID / gateway 設計の受入ではない。複数段階の Bun 親子 process を使うため、同一 PID への置換や FD・signal の互換性は #33 の判断を引き継ぐ。通常利用向けの entry と製品の方式は未採用。
 
