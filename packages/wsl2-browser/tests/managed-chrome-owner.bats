@@ -48,6 +48,22 @@ MOCK
   chmod +x "$PWCLI_POWERSHELL" "$PWCLI_WSLPATH"
 }
 
+@test "status の単一表示と一覧に所有トークンが含まれない" {
+  local token single listed
+  token="$(owner --identity status-owner reserve --role playwright --id status-owner --pid "$$" \
+    --mode headless --profile "$BATS_TEST_TMPDIR/profile" --endpoint http://127.0.0.1:9222)"
+  single="$(owner --identity status-owner status)"
+  listed="$(owner status)"
+
+  jq -e '.id == "status-owner" and .role == "playwright" and .phase == "reserved" and (has("token") | not)' \
+    <<<"$single" >/dev/null
+  jq -e 'length == 1 and (.[0] | .id == "status-owner" and .phase == "reserved" and (has("token") | not))' \
+    <<<"$listed" >/dev/null
+  [[ "$single" != *"$token"* && "$listed" != *"$token"* ]]
+
+  owner --identity status-owner release "$token"
+}
+
 @test "既定の Windows 資産で各 role の直接 activate と recover が使える" {
   unset PWCLI_WINDOWS_SCRIPT DOGFOOD_WINDOWS_SCRIPT
   export DOGFOOD_POWERSHELL="$PWCLI_POWERSHELL" DOGFOOD_WSLPATH="$PWCLI_WSLPATH"
@@ -254,9 +270,8 @@ reserve() {
 }
 
 @test "Managed Chrome ownership permits only one competing reservation" {
-  run reserve playwright first
-  [ "$status" -eq 0 ]
-  local token="$output"
+  local token
+  token="$(reserve playwright first)"
 
   run reserve dogfood second
   [ "$status" -ne 0 ]
@@ -264,8 +279,9 @@ reserve() {
 
   run owner status
   [ "$status" -eq 0 ]
-  [[ "$output" == *"$token"* ]]
-  [[ "$output" == *'"phase":"reserved"'* ]]
+  jq -e '.id == "first" and .phase == "reserved"' <<<"$output" >/dev/null
+  [[ "$output" != *"$token"* ]]
+  owner release "$token"
 }
 
 @test "explicit recovery keeps a live reservation and reclaims an abandoned one" {

@@ -1029,6 +1029,7 @@ test.skipIf(process.platform !== "linux")(
       fs.rmSync(root, { recursive: true, force: true });
     }
   },
+  40_000, // コンパイル 30 秒と観測 2 回（各 3 秒）の上限を確保する。
 );
 
 test.skipIf(process.platform !== "linux" || !fs.existsSync("/usr/bin/journalctl"))(
