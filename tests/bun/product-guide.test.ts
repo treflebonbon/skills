@@ -208,7 +208,29 @@ test("目次リンクと見出しリンクの飛び先 ID が実在する", () =
   expect(hrefs.length).toBeGreaterThan(5);
   for (const h of hrefs) expect(ids.has(h)).toBe(true);
   expect(text).toContain('href="#main"'); // スキップリンク
-  expect(text).toContain('<nav aria-label="機能目次">');
+  const toc = text.match(/<nav\b[^>]*>([\s\S]*?)<\/nav>/)?.[1];
+  for (const id of ["feature-1", "scope", "unconfirmed", "glossary", "conflicts"]) {
+    expect(toc).toContain(`href="#${id}"`);
+  }
+});
+
+test("必要な対応は手順の前に、例外は図の前に読める", () => {
+  const m = model();
+  const first = {
+    ...m.features[0],
+    exceptions: [{ text: "締め日を過ぎたら経理に連絡する。", evidence: ["E2"] }],
+  };
+  const { r, text } = generate({ ...m, features: [first] }, "public");
+  expect(r.code).toBe(0);
+  const actions = text.indexOf("金額を確認する。");
+  const exception = text.indexOf("締め日を過ぎたら経理に連絡する。");
+  const steps = text.indexOf("通常の流れ");
+  expect(actions).toBeGreaterThan(text.indexOf("請求書を経理へ提出する。"));
+  expect(actions).toBeLessThan(steps);
+  expect(exception).toBeGreaterThan(steps);
+  const diagram = text.indexOf("通常の流れの図");
+  expect(diagram).toBeGreaterThan(exception);
+  expect(diagram).toBeLessThan(text.indexOf("<figure"));
 });
 
 test("折りたたみは native の details で、キーボード操作と印刷展開を備える", () => {
@@ -714,7 +736,7 @@ test("読みやすさ: 本文 1rem 以上・行長の上限・目次固定の下
   expect(text).toMatch(/font:1rem\/1\.85 /);
   expect(text).toContain("main{max-width:42rem;");
   // 固定の目次(14rem)と本文(42rem)が重ならない幅からだけ固定する。
-  expect(text).toContain("@media(min-width:88rem){nav{position:fixed");
+  expect(text).toContain("@media screen and (min-width:88rem){nav{position:fixed");
   expect(text).toContain("word-break:auto-phrase");
   expect(text).toContain("overflow-wrap:anywhere");
 });

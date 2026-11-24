@@ -511,10 +511,13 @@ const esc = (s: string) =>
     .replace(/'/g, "&#39;");
 const CSS = `:root{color-scheme:light dark;--bg:#fff;--fg:#1a1a1a;--muted:#555;--line:#c8c8c8;--accent:#0b5cad}
 @media(prefers-color-scheme:dark){:root{--bg:#161616;--fg:#eee;--muted:#aaa;--line:#444;--accent:#7ab7ff}}
-body{margin:0;background:var(--bg);color:var(--fg);font:1rem/1.85 "Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,system-ui,sans-serif;overflow-wrap:anywhere;word-break:auto-phrase}h1,h2,h3{text-wrap:balance}p,li,figcaption{text-wrap:pretty}
+body{margin:0;background:var(--bg);color:var(--fg);font:1rem/1.85 "Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,system-ui,sans-serif;overflow-wrap:anywhere}h1,h2,h3{text-wrap:balance}
+@media(min-width:45em){main p,main li,figcaption{word-break:auto-phrase}}
 main{max-width:42rem;margin:0 auto;padding:1rem 1.25rem 4rem}
 h1{font-size:1.75rem;line-height:1.4}h2{font-size:1.4rem;border-bottom:2px solid var(--line);padding-bottom:.25rem;margin-top:2.5rem}h3{font-size:1.15rem;margin-top:1.75rem}
-a{color:var(--accent)}a:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+h4{margin-block:1.5rem .25rem}h4+ul,h4+ol{margin-block-start:.25rem}
+a{color:var(--accent);text-underline-offset:.18em}a:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+section:target>:is(h2,h3) a{text-decoration-thickness:.14em}
 .badge{display:inline-block;border:1px solid var(--fg);border-radius:.25rem;padding:0 .4rem;margin-left:.4rem;font-size:.875rem;line-height:1.6}
 .muted{color:var(--muted)}.box{border:1px solid var(--line);border-left:6px solid var(--fg);padding:.5rem 1rem;margin:1rem 0}
 details{margin:.25rem 0 .75rem}summary{cursor:pointer}ol,ul{padding-left:1.5rem}code{font-family:ui-monospace,monospace}
@@ -522,7 +525,8 @@ section[id],h2,h3{scroll-margin-top:1rem}
 .skip{position:absolute;left:-999px}.skip:focus{left:1rem;top:1rem;background:var(--bg);padding:.25rem .5rem;z-index:2}
 .box>strong:first-child{display:block}.box>strong:first-child::before{content:"\\26A0 "}
 main:focus{outline:none}
-@media(min-width:88rem){nav{position:fixed;top:1rem;left:1rem;width:14rem;max-height:calc(100vh - 2rem);overflow:auto;font-size:.9375rem}nav h2{margin-top:0;font-size:1.1rem}}
+nav li{margin-block:.375rem;line-height:1.55}
+@media screen and (min-width:88rem){nav{position:fixed;top:2rem;left:max(1.25rem,calc(50% - 38rem));width:14rem;max-height:calc(100vh - 4rem);overflow:auto;font-size:.9375rem}nav h2{margin-top:0;font-size:1.1rem}}
 figure.flow{margin:1rem 0}.diagram{overflow:auto;border:1px solid var(--line);padding:.5rem}.diagram:focus-visible{outline:3px solid var(--accent)}svg{display:block;max-width:none;color:var(--fg)}svg text{fill:var(--fg)}svg .node rect{fill:var(--bg);stroke:var(--fg);stroke-width:2}svg .edge{fill:none;stroke:var(--fg);stroke-width:2}svg .head{fill:var(--fg)}svg .group rect{fill:none;stroke:var(--muted);stroke-width:2}figcaption{color:var(--muted)}
 @media print{details:not([open])::details-content{content-visibility:visible;display:block}body{background:#fff;color:#000;font-size:11pt;line-height:1.7}nav{position:static}a{color:inherit;text-decoration:none}main{max-width:none;padding:0}.skip{display:none}li,.box{break-inside:avoid}h2,h3,h4{break-after:avoid}.diagram{overflow:visible}svg{max-width:100%;height:auto}}`;
 
@@ -778,13 +782,21 @@ async function render(v: View): Promise<string> {
   for (const [i, f] of [...v.current, ...v.proposed].entries())
     if (f.flow.some((step) => "group" in step))
       nested.set(f, await nestedFlowDiagram(f.name, f.flow, `nested-${i}-flow`));
-  // 現在位置: 目次から飛んだ節（:target）を、文字の印（▶）と太字で示す。script は使わない。
-  const tocSelectors = v.current.map(
-    (_, i) => `body:has(#feature-${i + 1}:target) nav a[href="#feature-${i + 1}"]`,
-  );
-  const current = tocSelectors.length
-    ? `${tocSelectors.join(",")}{font-weight:700}${tocSelectors.map((x) => `${x}::before`).join(",")}{content:"\\25B6 "}`
-    : "";
+  const contents: { id: string; label: string; status?: string }[] = [
+    ...(v.baseline ? [{ id: "changes", label: "前回からの変更点" }] : []),
+    { id: "scope", label: "調査範囲" },
+    ...v.current.map((f, i) => ({
+      id: `feature-${i + 1}`,
+      label: f.name,
+      status: AVAIL_LABEL[f.availability],
+    })),
+    ...(v.conflicts.length ? [{ id: "conflicts", label: "コードと業務判断の食い違い" }] : []),
+    { id: "unconfirmed", label: "未確認事項" },
+    { id: "glossary", label: "用語集" },
+  ];
+  // 目次と飛び先の対応を CSS だけで示す。
+  const tocSelectors = contents.map(({ id }) => `body:has(#${id}:target) nav a[href="#${id}"]`);
+  const current = `${tocSelectors.join(",")}{font-weight:700}${tocSelectors.map((x) => `${x}::before`).join(",")}{content:"\\25B6 "}`;
   const internal = v.audience === "internal";
   const badges = (kinds: Kind[]) =>
     kinds.map((k) => `<span class="badge">${esc(KIND_LABEL[k])}</span>`).join("");
@@ -807,10 +819,13 @@ async function render(v: View): Promise<string> {
     items.length ? `<h4>${label}</h4>${list("ul", items)}` : "";
   const feature = (f: F, id: string) =>
     `<section id="${id}"><h3><a href="#${id}">${esc(f.name)}</a><span class="badge">${AVAIL_LABEL[f.availability]}</span></h3><p>${esc(f.purpose)}</p>` +
+    section("必要な対応", f.actions) +
+    section("条件", f.conditions) +
+    section("制約", f.constraints) +
     (f.operations.length
       ? `<h4>画面上の表記</h4><ul>${f.operations.map((o) => `<li>${esc(o)}</li>`).join("")}</ul>`
       : "") +
-    `<h4>通常の流れ</h4>${list("ol", f.flow)}${nested.get(f) ?? flowDiagram(f.name, f.flow, `${id}-flow`)}${section("条件", f.conditions)}${section("例外", f.exceptions)}${section("制約", f.constraints)}${section("必要な対応", f.actions)}</section>`;
+    `<h4>通常の流れ</h4>${list("ol", f.flow)}${section("例外", f.exceptions)}<h4>通常の流れの図</h4>${nested.get(f) ?? flowDiagram(f.name, f.flow, `${id}-flow`)}</section>`;
   const ver = `${v.version.name ? `${esc(v.version.name)} / ` : ""}確認日 ${esc(v.version.confirmedOn)}`;
   const changes = v.baseline
     ? `<section id="changes"><h2><a href="#changes">前回からの変更点</a></h2><p class="muted">比較元: ${v.baseline.name ? `${esc(v.baseline.name)} / ` : ""}確認日 ${esc(v.baseline.confirmedOn)}${internal && v.baseline.commit ? ` / コミット <code>${esc(v.baseline.commit)}</code>` : ""}</p>${v.changes
@@ -820,10 +835,10 @@ async function render(v: View): Promise<string> {
         )
         .join("")}</section>`
     : "";
-  const toc = v.current
+  const toc = contents
     .map(
-      (f, i) =>
-        `<li><a href="#feature-${i + 1}">${esc(f.name)}</a><span class="badge">${AVAIL_LABEL[f.availability]}</span></li>`,
+      ({ id, label, status }) =>
+        `<li><a href="#${id}">${esc(label)}</a>${status ? `<span class="badge">${status}</span>` : ""}</li>`,
     )
     .join("");
   const conflicts = v.conflicts.length
@@ -843,11 +858,11 @@ async function render(v: View): Promise<string> {
   return `<!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(v.title)}</title><style>${CSS}${current}</style></head>
 <body><a class="skip" href="#main">本文へ移動</a><main id="main" tabindex="-1">
-<h1>${esc(v.title)}</h1><p>${esc(v.summary)}</p>
-<p class="muted">対象版: ${ver}${internal && v.version.commit ? ` / コミット <code>${esc(v.version.commit)}</code>` : ""}</p>
+<header><h1>${esc(v.title)}</h1><p>${esc(v.summary)}</p>
+<p class="muted">対象版: ${ver}${internal && v.version.commit ? ` / コミット <code>${esc(v.version.commit)}</code>` : ""}</p></header>
+<nav aria-labelledby="contents-heading"><h2 id="contents-heading">目次</h2><ul>${toc}</ul></nav>
 ${changes}
-<nav aria-label="機能目次"><h2>機能目次</h2><ul>${toc}</ul></nav>
-<section id="scope"><h2><a href="#scope">調査範囲</a></h2><h4>調査した機能</h4><ul>${v.scope.investigated.map((s) => `<li>${esc(s)}</li>`).join("")}</ul><h4>未調査</h4>${notInv}</section>
+<section id="scope"><h2><a href="#scope">調査範囲</a></h2><h3>調査した機能</h3><ul>${v.scope.investigated.map((s) => `<li>${esc(s)}</li>`).join("")}</ul><h3>未調査</h3>${notInv}</section>
 <section id="features"><h2><a href="#features">機能</a></h2>${v.current.map((f, i) => feature(f, `feature-${i + 1}`)).join("")}</section>
 ${conflicts}${proposed}
 <section id="unconfirmed"><h2><a href="#unconfirmed">未確認事項</a></h2>${v.unconfirmed.length ? `<ul>${v.unconfirmed.map((u) => `<li>${esc(u)}<span class="badge">未確認</span></li>`).join("")}</ul>` : "<p>なし</p>"}</section>
