@@ -55,6 +55,8 @@ CI の `typescript-evidence` は Bun 1.4.4 と `ast-grep 0.42.1` で `tests/help
 
 CI の `domain-modeling-studio` は、`scripts/build.mjs` で再生成したテンプレートが commit 済みの `dist/` と一致することを確かめ、Node suite と browser workflow（`npm --prefix skills/domain-modeling-studio run test:browser`）を実行します。browser workflow は lock に固定した Playwright とその Chromium を一時ディレクトリへ導入して使います。
 
+個別のブラウザー検証で追加の npm 依存が必要な場合も、対象の `package.json` と `package-lock.json` を checkout 外の一時ディレクトリにコピーし、そこで `npm ci` を実行します。
+
 ```sh
 npm ci --prefix development
 npm run format:check
