@@ -228,7 +228,9 @@ test("必要な対応は手順の前に、例外は図の前に読める", () =>
   expect(actions).toBeGreaterThan(text.indexOf("請求書を経理へ提出する。"));
   expect(actions).toBeLessThan(steps);
   expect(exception).toBeGreaterThan(steps);
-  expect(exception).toBeLessThan(text.indexOf("<figure"));
+  const diagram = text.indexOf("通常の流れの図");
+  expect(diagram).toBeGreaterThan(exception);
+  expect(diagram).toBeLessThan(text.indexOf("<figure"));
 });
 
 test("折りたたみは native の details で、キーボード操作と印刷展開を備える", () => {

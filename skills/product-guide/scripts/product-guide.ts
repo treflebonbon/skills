@@ -825,7 +825,7 @@ async function render(v: View): Promise<string> {
     (f.operations.length
       ? `<h4>画面上の表記</h4><ul>${f.operations.map((o) => `<li>${esc(o)}</li>`).join("")}</ul>`
       : "") +
-    `<h4>通常の流れ</h4>${list("ol", f.flow)}${section("例外", f.exceptions)}${nested.get(f) ?? flowDiagram(f.name, f.flow, `${id}-flow`)}</section>`;
+    `<h4>通常の流れ</h4>${list("ol", f.flow)}${section("例外", f.exceptions)}<h4>通常の流れの図</h4>${nested.get(f) ?? flowDiagram(f.name, f.flow, `${id}-flow`)}</section>`;
   const ver = `${v.version.name ? `${esc(v.version.name)} / ` : ""}確認日 ${esc(v.version.confirmedOn)}`;
   const changes = v.baseline
     ? `<section id="changes"><h2><a href="#changes">前回からの変更点</a></h2><p class="muted">比較元: ${v.baseline.name ? `${esc(v.baseline.name)} / ` : ""}確認日 ${esc(v.baseline.confirmedOn)}${internal && v.baseline.commit ? ` / コミット <code>${esc(v.baseline.commit)}</code>` : ""}</p>${v.changes
