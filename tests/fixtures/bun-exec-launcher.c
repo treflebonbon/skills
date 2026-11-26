@@ -11,8 +11,7 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-/* 実証用。製品の入口・配布物としては採用していない。 */
-/* 方式を選ぶ候補だけが差し替える。旧方式の対照では何もしない。 */
+/* 単体では旧方式の対照。Linux launcher は準備子孫を管理する hook を差し替える。 */
 #ifndef PROOF_HOOKS
 #define PROOF_INTERRUPT()
 #define PROOF_FINISH() 0

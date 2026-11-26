@@ -24,6 +24,7 @@ import uuid
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "lib/python"))
 from treflebonbon_skills import devshell_environment  # noqa: E402
+from treflebonbon_skills.raw_launcher import RawLauncher  # noqa: E402
 from treflebonbon_skills.devshell_environment import (  # noqa: E402
     InvalidContext,
     Repository,
@@ -848,7 +849,17 @@ fi
 """
 
 
-def run_isolated(repo, policy, output, command, services, ca_bundle=None, runtime=None):
+def run_isolated(
+    repo,
+    policy,
+    output,
+    command,
+    services,
+    ca_bundle=None,
+    runtime=None,
+    *,
+    launcher: RawLauncher | None = None,
+):
     if "dependencies" in services and ca_bundle is None:
         raise ValueError(
             "dependency access requires an explicitly selected public CA bundle"
@@ -882,6 +893,9 @@ def run_isolated(repo, policy, output, command, services, ca_bundle=None, runtim
         "NIX_CONF_DIR": str(bootstrap),
         "NIX_CONFIG": "experimental-features = nix-command flakes\n",
     }
+    roots = list(map(str, paths.values()))
+    if launcher is not None:
+        roots.append(str(launcher.package))
     with (output / "store-copy.log").open("w") as log:
         subprocess.run(
             [
@@ -890,7 +904,7 @@ def run_isolated(repo, policy, output, command, services, ca_bundle=None, runtim
                 "--to",
                 str(store),
                 "--no-check-sigs",
-                *map(str, paths.values()),
+                *roots,
             ],
             env=environment,
             stdout=log,
@@ -903,11 +917,13 @@ def run_isolated(repo, policy, output, command, services, ca_bundle=None, runtim
             str(paths["nix"] / "bin/nix-store"),
             "--query",
             "--requisites",
-            *map(str, paths.values()),
+            *roots,
         ],
         env=environment,
         text=True,
     ).splitlines()
+    if launcher is not None:
+        launcher.verify_copy(store / "nix/store", closure)
     result = output / "result"
     result.mkdir()
     mounts = []

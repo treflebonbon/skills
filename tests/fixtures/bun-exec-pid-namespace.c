@@ -1,4 +1,4 @@
-/* Linux の正式実証用。製品の起動入口には組み込まない。
+/* Linux の正式実証と raw 用 Nix 成果物で共有する。
  * 準備のたびに方式を選ぶ（ADR 0005）。本番と同じ argv の unshare probe が成功すれば PID namespace、
  * 失敗すれば systemd-run の委譲 scope と cgroup.kill、どちらも使えなければ準備を始めずに拒否する。 */
 #define _GNU_SOURCE
@@ -40,6 +40,9 @@ int launcher_main(int, char **);
 
 #define GATE_ARGUMENT "--process-proof-cgroup-gate"
 #define REFUSED_STATUS 69
+#ifndef PROCESS_PROOF_TRUE
+#define PROCESS_PROOF_TRUE "/usr/bin/true"
+#endif
 
 static const char *const namespace_prefix[] = {PROCESS_PROOF_UNSHARE, "--user", "--map-current-user",
                                                "--pid", "--fork", "--kill-child=SIGKILL",
@@ -56,6 +59,7 @@ static volatile sig_atomic_t kill_descriptor = -1;
 static int alive = -1, watchdog_descriptor = -1;
 static pid_t watchdog;
 
+#ifndef RAW_CODEX_LAUNCHER
 /* 試験と集約が読む観測。分岐には使わない。 */
 static void observe(const char *format, ...) {
   const char *path = getenv("PROCESS_PROOF_OBSERVE");
@@ -68,6 +72,9 @@ static void observe(const char *format, ...) {
   va_end(arguments);
   close(descriptor);
 }
+#else
+#define observe(...) ((void)0)
+#endif
 
 /* 選択はキャッシュしない。probe の出力は launcher の stderr へ混ぜない。 */
 static int adaptive_select(const sigset_t *original_mask) {
@@ -79,7 +86,7 @@ static int adaptive_select(const sigset_t *original_mask) {
   if (!probe) {
     const char *command[NAMESPACE_PREFIX + 2];
     for (size_t i = 0; i < NAMESPACE_PREFIX; i++) command[i] = namespace_prefix[i];
-    command[NAMESPACE_PREFIX] = "/usr/bin/true";
+    command[NAMESPACE_PREFIX] = PROCESS_PROOF_TRUE;
     command[NAMESPACE_PREFIX + 1] = NULL;
     int null = open("/dev/null", O_RDWR);
     if (null < 0 || dup2(null, 0) < 0 || dup2(null, 1) < 0 || dup2(null, 2) < 0) _exit(127);
@@ -137,9 +144,12 @@ static int cgroup_execv(const char *path, char *const argv[]) {
   if (fcntl(report_pipe[1], F_SETFD, 0) < 0 || fcntl(go_pipe[0], F_SETFD, 0) < 0) return -1;
   char *command[] = {PROCESS_PROOF_SYSTEMD_RUN, "--user", "--scope", "--quiet", "--collect", "-p",
                      "Delegate=yes", "--", self, GATE_ARGUMENT, report, go, arguments, NULL};
-  // user bus の接続情報と実証用の preload だけを中継の exec に渡す。
+  // scope の作成に使う user bus だけを中継の exec に渡す。
   const char *const keys[] = {"XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS",
-                              "LD_PRELOAD", "PROCESS_PROOF_GATE"};
+#ifndef RAW_CODEX_LAUNCHER
+                              "LD_PRELOAD", "PROCESS_PROOF_GATE",
+#endif
+  };
   char *scope_environment[sizeof(keys) / sizeof(keys[0]) + 1] = {0};
   size_t count_env = 0;
   for (size_t key = 0; key < sizeof(keys) / sizeof(keys[0]); key++) {

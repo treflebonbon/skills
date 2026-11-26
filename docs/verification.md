@@ -51,6 +51,8 @@ namespace・UID/GID mapping・capability・loopback の比較は [Bun namespace 
 
 Nix store の Bun・closure・生成 wrapper と書込み先の実証は [Bun Nix runtime の実証](bun-nix-runtime-proof.md)に記録します。実隔離の検査は Linux / WSL2 で `NIX_BUN_PROOF_REAL=1` を明示し、Nix store の tool と bubblewrap を使って実行します。通常 CI の skip を採用や本番 runtime の受入の証拠にはしません。
 
+raw 専用 C launcher の正常起動、launcher 単独の SIGKILL、および選択した実行体と closure の照合は、明示的にビルドした成果物を `RAW_LAUNCHER_PROOF` に指定して実行します。 [実行手順と検証結果](raw-codex-launcher-proof.md)
+
 CI の `typescript-evidence` は Bun 1.4.4 と `ast-grep 0.42.1` で `tests/helpers/rop-typescript-evidence.test.ts` を実行し、別の Bun 1.2.14 ジョブで `unavailable` による拒否を確認します。旧版 job のドライバーだけは明示的な設定無効化付きで旧 Bun から直接実行し、共用 runner の最低版チェックとは区別します。対応版では実物の `ast-grep` の版を先に確認するため、ツール不足で native テストがスキップされた結果を成功扱いしません。旧版の拒否テストは専用ジョブで必ず実行します。
 
 CI の `domain-modeling-studio` は、`scripts/build.mjs` で再生成したテンプレートが commit 済みの `dist/` と一致することを確かめ、Node suite と browser workflow（`npm --prefix skills/domain-modeling-studio run test:browser`）を実行します。browser workflow は lock に固定した Playwright とその Chromium を一時ディレクトリへ導入して使います。
