@@ -1,0 +1,102 @@
+{
+  "sourceRevision": "940f25e4ae102b2ccd4b58408e85cf8411750544",
+  "sources": [
+    {
+      "path": "lib/python/treflebonbon_skills/git_context.py",
+      "sha256": "986e2a6143cc467e760b7e931c93d3ab9126a6eda214192a372736502491de43"
+    },
+    {
+      "path": "tests/cli/test_git_context.py",
+      "sha256": "8124e67cd62b663a8edca433f93d4fd3cfeb8dd5af7f2928f01d3f2df518e134"
+    }
+  ],
+  "captured": {
+    "python": "3.14.7",
+    "os": "Linux",
+    "architecture": "x86_64",
+    "git": "git version 2.55.0"
+  },
+  "cases": {
+    "linked": {
+      "root": "review",
+      "git_dir": "repo/.git/worktrees/review",
+      "common_dir": "repo/.git"
+    },
+    "alias": {
+      "root": "review",
+      "git_dir": "repo/.git/worktrees/review",
+      "common_dir": "repo/.git"
+    },
+    "relativePointers": {
+      "root": "review",
+      "git_dir": "repo/.git/worktrees/review",
+      "common_dir": "repo/.git"
+    },
+    "redundantPointerSegments": {
+      "root": "review",
+      "git_dir": "repo/.git/worktrees/review",
+      "common_dir": "repo/.git"
+    },
+    "physicalBackPointer": {
+      "root": "review",
+      "git_dir": "repo/.git/worktrees/review",
+      "common_dir": "repo/.git"
+    },
+    "primary": {
+      "root": "repo",
+      "git_dir": "repo/.git",
+      "common_dir": "repo/.git"
+    },
+    "linkedOnly": {
+      "rejected": "current directory is not a linked Git worktree"
+    },
+    "gitfile": {
+      "rejected": "current directory is not a linked Git worktree"
+    },
+    "allowedGitfile": {
+      "root": "separate",
+      "git_dir": "external",
+      "common_dir": "external"
+    },
+    "linkedOnlyGitfile": {
+      "rejected": "current directory is not a linked Git worktree"
+    },
+    "brokenBackPointer": {
+      "rejected": "cannot resolve Git worktree metadata"
+    },
+    "foreignBackPointer": {
+      "rejected": "linked worktree metadata ownership does not match"
+    },
+    "foreignMetadata": {
+      "rejected": "linked worktree metadata ownership does not match"
+    },
+    "symlinkBackPointer": {
+      "rejected": "symlinked Git metadata pointer"
+    },
+    "symlinkDotGit": {
+      "rejected": "symlinked worktree metadata"
+    },
+    "nonGit": {
+      "rejected": "cannot resolve Git worktree metadata"
+    },
+    "unavailableGit": {
+      "rejected": "Git is required to resolve worktree metadata"
+    },
+    "environment": {
+      "root": "review",
+      "retained": "retained",
+      "containsGitVariables": false
+    },
+    "identity": {
+      "common_dir": "repo/.git",
+      "deviceMatches": true,
+      "inodeMatches": true
+    },
+    "replacedCommonDir": {
+      "rejected": "worktree metadata changed during preparation"
+    },
+    "changedOwnership": {
+      "rejected": "cannot resolve Git worktree metadata"
+    }
+  }
+}
