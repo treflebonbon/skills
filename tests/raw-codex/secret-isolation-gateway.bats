@@ -1,5 +1,26 @@
 #!/usr/bin/env bats
 
+@test "isolated DNS bridge preserves the query, Unix HTTP and answer packets" {
+  local root
+  root="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
+  run unshare --user --map-current-user --net --keep-caps bash -p -c '
+    set -eu
+    printf 0 > /proc/sys/net/ipv4/ip_unprivileged_port_start
+    ip link set lo up
+    exec setpriv --inh-caps=-all --ambient-caps=-all python3 -B "$@"
+  ' _ "$root/tests/fixtures/raw-dns-command.py" \
+      "$root/lib/bun/run" run "$root/lib/bun/raw-gateway-bridge.ts"
+  [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" | rg '^RAW_DNS ' | python3 -c '
+import json, sys
+from pathlib import Path
+observed = json.loads(sys.stdin.read().removeprefix("RAW_DNS "))
+expected = json.loads(Path(sys.argv[1]).read_text())["observed"]
+assert observed == expected, (observed, expected)
+' "$root/tests/fixtures/raw-dns-python.json"
+}
+
 @test "gateways serve independent long paths and release their socket resources" {
   [ "$(uname -s)" = Linux ] || skip "long-path raw isolation requires Linux/WSL2"
   run python3 - "$BATS_TEST_DIRNAME/../../share/codex-isolation/secret-isolation-gateway.py" "$BATS_TEST_TMPDIR" <<'PY'
@@ -524,6 +545,9 @@ startup = runpy.run_path(str(source / 'secret-isolation-worktree.py'))['bridge_s
 gateway = runpy.run_path(str(source / 'secret-isolation-gateway.py'))
 python = Path(sys.executable).resolve()
 bash = Path(shutil.which('bash')).resolve()
+bun = Path(shutil.which('bun')).resolve()
+utils = Path(shutil.which('dirname')).resolve().parent
+bun_source = source.parents[1] / 'lib/bun'
 with tempfile.TemporaryDirectory(prefix='cxi-ready-', dir='/tmp') as temporary:
     server = gateway['start_gateway'](Path(temporary) / 'dependencies', 'dependencies', domains=[])
     try:
@@ -534,14 +558,14 @@ with tempfile.TemporaryDirectory(prefix='cxi-ready-', dir='/tmp') as temporary:
             ('closed', 1, 'bridge exited with status 143'),
             ('invalid', 1, 'unexpected readiness line'),
         ]:
-            wrapper = fixture / f'{mode}.py'
-            wrapper.write_text('import runpy, time\n' + {
-                'slow': 'time.sleep(12)\n',
-                'failed': 'import sys\nprint("bridge stderr marker", file=sys.stderr)\nraise SystemExit(17)\n',
-                'stalled': 'time.sleep(60)\n',
-                'closed': 'import os\nos.close(1)\ntime.sleep(20)\n',
-                'invalid': 'print("unexpected", flush=True)\ntime.sleep(20)\n',
-            }[mode] + 'runpy.run_path("/gateway-source.py", run_name="__main__")\n')
+            wrapper = fixture / f'{mode}.ts'
+            wrapper.write_text('import { closeSync } from "node:fs";\n' + {
+                'slow': 'await Bun.sleep(12000);\n',
+                'failed': 'console.error("bridge stderr marker"); process.exit(17);\n',
+                'stalled': 'await Bun.sleep(60000);\n',
+                'closed': 'closeSync(1); await Bun.sleep(20000);\n',
+                'invalid': 'console.log("unexpected"); await Bun.sleep(20000);\n',
+            }[mode] + 'await import("/gateway-source.ts");\n')
             script = fixture / f'{mode}.sh'
             script.write_text('set -eu\n' + startup('dependencies', 8124) + '''
 python3 - <<'CLIENT'
@@ -558,9 +582,14 @@ CLIENT
                 'bwrap', '--unshare-all', '--die-with-parent', '--new-session',
                 '--ro-bind', '/nix/store', '/nix/store', '--proc', '/proc', '--dev', '/dev',
                 '--tmpfs', '/tmp', '--ro-bind', temporary, '/gateway',
-                '--ro-bind', str(source / 'secret-isolation-gateway.py'), '/gateway-source.py',
-                '--ro-bind', str(wrapper), '/gateway-bridge.py', '--ro-bind', str(script), '/startup.sh',
-                '--clearenv', '--setenv', 'PATH', f'{bash.parent}:{python.parent}',
+                '--ro-bind', str(bun_source / 'raw-gateway-bridge.ts'), '/gateway-source.ts',
+                '--ro-bind', str(bun_source / 'run'), '/nix/codex-isolation/lib/bun/run',
+                '--ro-bind', str(bun_source / 'bunfig.toml'), '/nix/codex-isolation/lib/bun/bunfig.toml',
+                '--ro-bind', str(bun_source / 'tsconfig.json'), '/nix/codex-isolation/lib/bun/tsconfig.json',
+                '--ro-bind', str(wrapper), '/nix/codex-isolation/lib/bun/raw-gateway-bridge.ts',
+                '--ro-bind', str(script), '/startup.sh',
+                '--symlink', str(bash), '/bin/bash',
+                '--clearenv', '--setenv', 'PATH', f'{bash.parent}:{bun.parent}:{python.parent}:{utils}',
                 str(bash), '/startup.sh',
             ], text=True, capture_output=True, timeout=45)
             assert result.returncode == expected, (mode, result.returncode, result.stdout, result.stderr)

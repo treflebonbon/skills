@@ -13,7 +13,7 @@ esac
 SH
   chmod +x "$BATS_TEST_TMPDIR/bin/gh"
   run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" python3 - "$root/share/codex-isolation/secret-isolation-gateway.py" "$BATS_TEST_TMPDIR/socket" <<'PY'
-import http.client, json, runpy, socket, sys
+import http.client, json, os, runpy, select, socket, subprocess, sys
 from pathlib import Path
 module = runpy.run_path(sys.argv[1])
 policy = {'repository': 'example/public', 'branch': 'task', 'default_branch': 'main',
@@ -46,6 +46,39 @@ try:
 finally:
     server.shutdown()
     server.server_close()
+
+root = Path(sys.argv[1]).parents[2]
+runtime = root / "lib/bun"
+proxy = module["start_gateway"](Path(sys.argv[2]).with_name("proxy"), "dependencies",
+                                domains=["api.github.com"], github_policy=policy)
+with socket.socket() as listener:
+    listener.bind(("127.0.0.1", 0))
+    port = listener.getsockname()[1]
+bridge = subprocess.Popen(
+    [runtime / "run", "run", runtime / "raw-gateway-bridge.ts", proxy.server_address, str(port)],
+    stdout=subprocess.PIPE,
+)
+try:
+    assert select.select([bridge.stdout], [], [], 5)[0], "bridge did not become ready"
+    assert bridge.stdout.readline() == b"ready\n"
+    for route, status, expected in [
+        ("repos/example/public", 0, "example/public"),
+        ("repos/other/private", 1, "operation rejected"),
+        ("repos/example/public/actions/secrets", 1, "operation rejected"),
+    ]:
+        result = subprocess.run(
+            [runtime / "run", "run", runtime / "raw-github-client.ts", "gh", "api",
+             route, "--jq", ".full_name"],
+            env=os.environ | {"HTTP_PROXY": f"http://127.0.0.1:{port}"},
+            text=True, capture_output=True, timeout=5,
+        )
+        assert result.returncode == status, result
+        assert expected in result.stdout + result.stderr, result
+finally:
+    bridge.terminate()
+    bridge.wait(timeout=5)
+    proxy.shutdown()
+    proxy.server_close()
 PY
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
@@ -185,7 +218,7 @@ PY
 @test "isolated gh reads typed fields from stdin and files while raw fields stay literal" {
   local root
   root="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-  run python3 - "$root/share/codex-isolation/github-client.py" "$BATS_TEST_TMPDIR" <<'PY'
+  run python3 - "$root/lib/bun/run" "$root/lib/bun/raw-github-client.ts" "$BATS_TEST_TMPDIR" <<'PY'
 import http.server, json, os, subprocess, sys, threading
 from pathlib import Path
 requests = []
@@ -203,10 +236,10 @@ threading.Thread(target=server.serve_forever, daemon=True).start()
 try:
     env = os.environ | {'HTTP_PROXY': f'http://127.0.0.1:{server.server_port}'}
     text = 'first line\n日本語 and `literal` $value\n'
-    path = Path(sys.argv[2]) / 'body.txt'
+    path = Path(sys.argv[3]) / 'body.txt'
     path.write_text(text)
     for flag, value, expected in (('-F', '@-', text), ('--field', '@'+str(path), text), ('-f', '@-', '@-')):
-        result = subprocess.run([sys.executable, sys.argv[1], 'gh', 'api', 'repos/example/public/pulls',
+        result = subprocess.run([sys.argv[1], 'run', sys.argv[2], 'gh', 'api', 'repos/example/public/pulls',
                                  flag, 'body='+value], input=text, text=True, env=env, capture_output=True)
         assert result.returncode == 0, result.stderr
         assert requests[-1] == ('http://api.github.com/repos/example/public/pulls', {'body':expected}), requests
@@ -220,7 +253,8 @@ PY
 }
 
 @test "isolated gh reports a missing PR title before reading policy or contacting the gateway" {
-  run python3 "$BATS_TEST_DIRNAME/../../share/codex-isolation/github-client.py" gh pr create --body 'public body'
+  local root="$BATS_TEST_DIRNAME/../.."
+  run "$root/lib/bun/run" run "$root/lib/bun/raw-github-client.ts" gh pr create --body 'public body'
   [ "$status" -eq 1 ]
   [[ "$output" == *'gh pr create requires --title'* ]]
 }

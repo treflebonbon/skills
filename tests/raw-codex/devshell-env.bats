@@ -72,6 +72,17 @@ SH
   [[ "$output" == *'arg=<model with spaces>'* && "$output" == *'arg=<prompt with spaces>'* ]]
 }
 
+@test "raw Codex requires an explicitly selected launcher before it prepares the worktree" {
+  raw_fixture
+  raw_admit flake.nix task.sh
+  export CODEX_RAW_LAUNCHER= CODEX_RAW_LAUNCHER_SOURCE_SHA256=
+  run raw_run sandbox -- true
+  raw_assert_status 1
+  [[ "$output" == *"select a canonical Nix store output for the raw launcher"* ]]
+  [ ! -e "$RAW_BASE/state/devshell-env/sessions" ]
+  [ ! -e "$RAW_BASE/work/hook-calls" ]
+}
+
 @test "trust follows a repository's linked worktrees and untrust revokes it" {
   run cli status "$FIXTURE/worktree"
   [ "$status" -eq 0 ]
@@ -213,7 +224,7 @@ test -z "${LD_LIBRARY_PATH+x}"
 test -f fake-bin/codex
 test ! -e fake-codex-ran
 test -f flake.nix
-if printf changed >> /nix/codex-isolation/share/codex-isolation/codex-inner.py 2>/dev/null; then exit 1; fi
+if printf changed >> /nix/codex-isolation/lib/bun/raw-inner.ts 2>/dev/null; then exit 1; fi
 if printf changed >> /etc/codex/requirements.toml 2>/dev/null; then exit 1; fi
 printf POLICY_FIXED
 SH

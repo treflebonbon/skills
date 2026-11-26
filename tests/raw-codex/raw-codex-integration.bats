@@ -8,6 +8,22 @@ teardown() {
   raw_cleanup
 }
 
+@test "raw with-env preserves argv, TTY, inherited FD and signal state" {
+  raw_fixture
+  cp "$PROJECT_ROOT/tests/fixtures/raw-tty-command.py" "$RAW_BASE/work/observe.py"
+  raw_admit flake.nix observe.py
+  run raw_run sandbox -- python3 -I -B observe.py "$(realpath "$(command -v bash)")"
+  raw_assert_status 0
+  printf '%s\n' "$output" | rg '^RAW_TTY ' | python3 -c '
+import json, sys
+from pathlib import Path
+observed = json.loads(sys.stdin.read().removeprefix("RAW_TTY "))
+expected = json.loads(Path(sys.argv[1]).read_text())["observed"]
+if observed != expected:
+    raise AssertionError((observed, expected))
+' "$PROJECT_ROOT/tests/fixtures/raw-tty-python.json"
+}
+
 @test "raw Codex keeps host /tmp private while its isolated TMPDIR remains writable" {
   raw_fixture
   RAW_HOST_TMP="$BATS_TEST_TMPDIR/host-private"

@@ -24,7 +24,7 @@ import uuid
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "lib/python"))
 from treflebonbon_skills import devshell_environment  # noqa: E402
-from treflebonbon_skills.raw_launcher import RawLauncher  # noqa: E402
+from treflebonbon_skills.raw_launcher import RawLauncher, select_raw_launcher  # noqa: E402
 from treflebonbon_skills.devshell_environment import (  # noqa: E402
     InvalidContext,
     Repository,
@@ -34,7 +34,8 @@ from treflebonbon_skills.devshell_environment import (  # noqa: E402
 )
 
 BIN = PACKAGE_ROOT / "bin"
-HELPER = BIN / "devshell-env"
+BUN_RUNTIME = PACKAGE_ROOT / "lib/bun"
+ISOLATED_BUN = Path("/nix/codex-isolation/lib/bun")
 INNER = runpy.run_path(str(Path(__file__).with_name("codex-inner.py")))
 
 
@@ -550,17 +551,23 @@ def launch(arguments):
     INNER["validate_codex_arguments"](arguments)
     if not sys.platform.startswith("linux"):
         raise ValueError("raw isolated Codex requires Linux or WSL2")
+    launcher_package = os.environ.get("CODEX_RAW_LAUNCHER", "")
+    launcher_source = os.environ.get("CODEX_RAW_LAUNCHER_SOURCE_SHA256", "")
     tool_paths = {
         name: shutil.which(name)
         for name in (
-            "nix",
             "bash",
+            "nix",
             "cat",
             "python3",
             "git",
             "codex",
             "gh",
             "bwrap",
+            "bun",
+            "unshare",
+            "setpriv",
+            "ip",
             "awk",
             "jq",
         )
@@ -616,6 +623,7 @@ def launch(arguments):
             )
         if "flake.nix" not in record["files"]:
             raise ValueError("flake.nix must be an admitted public input")
+        launcher = select_raw_launcher(launcher_package, launcher_source)
         sessions = policy.parent.parent / "sessions"
         sessions.mkdir(mode=0o700, exist_ok=True)
         session = sessions / uuid.uuid4().hex
@@ -635,16 +643,11 @@ def launch(arguments):
             repo,
             policy,
             session,
-            [
-                "python3",
-                "-I",
-                "-B",
-                "/nix/codex-isolation/share/codex-isolation/codex-inner.py",
-                *arguments,
-            ],
+            [*launcher_argv(launcher, "raw-inner.ts"), *arguments],
             services,
             Path(runtime["ca_bundle"]),
             runtime,
+            launcher=launcher,
         )
         if not (session / "result/codex-started").is_file():
             raise ValueError(
@@ -826,12 +829,12 @@ def prepare(repo, policy, output):
 
 
 def bridge_startup(service, port):
-    # CPU 競合で10秒を超える正常な Python の初期化も待つ。
+    # CPU 競合中も bridge の初期化完了を待つ。
     # read status >128 is a timeout; other failures mean the bridge closed stdout.
     # Killing first keeps wait bounded if the bridge closed stdout but kept running.
     return f"""bridge_read_status=0
 IFS= read -r -t 30 bridge_ready < <(
-    python3 /gateway-bridge.py /gateway/{service}/service.sock {port} </dev/null
+    {ISOLATED_BUN}/run run {ISOLATED_BUN}/raw-gateway-bridge.ts /gateway/{service}/service.sock {port} </dev/null
 ) || bridge_read_status=$?
 if [ "$bridge_read_status" -gt 128 ]; then
     printf '%s\\n' 'gateway bridge did not start: no readiness within 30s' >&2
@@ -847,6 +850,19 @@ elif [ "$bridge_ready" != ready ]; then
     exit 1
 fi
 """
+
+
+def launcher_argv(launcher, entry):
+    # Bun consumes the separators, and even an empty caller argv meets the C protocol's minimum.
+    return [
+        str(launcher.executable), str(ISOLATED_BUN / "run"),
+        "--", str(ISOLATED_BUN / entry), "--",
+    ]
+
+
+def exec_wrapper(path, bash, arguments):
+    path.write_text(f'#!{bash} -p\nexec {shlex.join([str(arg) for arg in arguments])} "$@"\n')
+    path.chmod(0o755)
 
 
 def run_isolated(
@@ -866,7 +882,10 @@ def run_isolated(
         )
     prepare(repo, policy, output)
     paths = {}
-    for name in ("nix", "bash", "cat", "python3", "git", "codex", "gh", "bwrap"):
+    tools = ("nix", "bash", "cat", "python3", "git", "codex", "gh", "bwrap")
+    if runtime or services:
+        tools += ("bun",)
+    for name in tools:
         executable = shutil.which(name)
         if executable is None:
             raise ValueError(f"missing isolation tool: {name}")
@@ -978,11 +997,26 @@ def run_isolated(
                 ) from None
             script = output / "inside.sh"
             startup = ""
+            runtime_copy = output / "runtime"
+            bash = paths["bash"] / "bin/bash"
+            if runtime or services:
+                bun_copy = runtime_copy / "lib/bun"
+                bun_copy.mkdir(parents=True)
+                files = ("run", "bunfig.toml", "tsconfig.json")
+                if services:
+                    files += ("raw-gateway-bridge.ts",)
+                if runtime:
+                    files += (
+                        "raw-inner.ts", "raw-with-env.ts", "raw-exec-frame.ts",
+                        "devshell-environment.ts", "cli-path.ts", "coordination-json.ts",
+                        "git-context.ts", "strict-json.ts",
+                    )
+                    if runtime.get("github"):
+                        files += ("raw-github-client.ts",)
+                for file in files:
+                    shutil.copy2(BUN_RUNTIME / file, bun_copy / file)
+                mounts.extend(["--ro-bind", str(runtime_copy), "/nix/codex-isolation"])
             if "model" in services or "dependencies" in services:
-                bridge_script = (
-                    Path(__file__).with_name("secret-isolation-gateway.py").resolve()
-                )
-                mounts.extend(["--ro-bind", str(bridge_script), "/gateway-bridge.py"])
                 for service, port in (("model", 8123), ("dependencies", 8124)):
                     if service not in services:
                         continue
@@ -1017,43 +1051,19 @@ export NO_PROXY=localhost,127.0.0.1,::1 no_proxy=localhost,127.0.0.1,::1
                         "nameserver 127.0.0.1\noptions timeout:2 attempts:2\n"
                     )
                     mounts.extend(["--ro-bind", str(resolver), "/etc/resolv.conf"])
-                    startup += "python3 /gateway-bridge.py --dns /gateway/dependencies/service.sock </dev/null &\n"
+                    startup += f"{ISOLATED_BUN}/run run {ISOLATED_BUN}/raw-gateway-bridge.ts --dns /gateway/dependencies/service.sock </dev/null &\n"
             if runtime:
-                runtime_source = Path(__file__).resolve().parent
-                runtime_copy = output / "runtime"
-                (runtime_copy / "bin").mkdir(parents=True)
-                shutil.copyfile(HELPER, runtime_copy / "bin/devshell-env")
-                shutil.copytree(
-                    PACKAGE_ROOT / "lib/python/treflebonbon_skills",
-                    runtime_copy / "lib/python/treflebonbon_skills",
-                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
-                )
-                shutil.copytree(
-                    runtime_source,
-                    runtime_copy / "share/codex-isolation",
-                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
-                )
+                if launcher is None:
+                    raise ValueError("raw runtime requires an explicitly selected launcher")
+                (runtime_copy / "bin").mkdir()
                 if runtime.get("github"):
-                    shutil.copyfile(
-                        runtime_source / "github-client.py",
-                        runtime_copy / "github-client.py",
-                    )
-                    publisher = runtime_copy / "bin/git-push-topic"
-                    publisher.write_text(
-                        f'#!{paths["bash"]}/bin/bash\nexec {paths["python3"]}/bin/python3 -I /nix/codex-isolation/github-client.py "$@"\n'
-                    )
-                    publisher.chmod(0o755)
-                    github_cli = runtime_copy / "bin/gh"
-                    github_cli.write_text(
-                        f'#!{paths["bash"]}/bin/bash\nexec {paths["python3"]}/bin/python3 -I /nix/codex-isolation/github-client.py gh "$@"\n'
-                    )
-                    github_cli.chmod(0o755)
-                with_env = runtime_copy / "bin/with-env"
-                with_env.write_text(
-                    f'#!{paths["bash"]}/bin/bash\nexec {paths["python3"]}/bin/python3 -I -B /nix/codex-isolation/bin/devshell-env with-env "$@"\n'
+                    client = [ISOLATED_BUN / "run", "run", ISOLATED_BUN / "raw-github-client.ts"]
+                    exec_wrapper(runtime_copy / "bin/git-push-topic", bash, client)
+                    exec_wrapper(runtime_copy / "bin/gh", bash, [*client, "gh"])
+                exec_wrapper(
+                    runtime_copy / "bin/with-env", bash,
+                    launcher_argv(launcher, "raw-with-env.ts"),
                 )
-                with_env.chmod(0o755)
-                mounts.extend(["--ro-bind", str(runtime_copy), "/nix/codex-isolation"])
                 (output / "config").mkdir()
                 # Codex atomically replaces its session config when saving TUI trust.
                 # Permissions remain in the separate, immutable requirements layer.
@@ -1125,7 +1135,7 @@ printf '%s\n' "$command_status" > /result/exit-code
                 "--cap-drop",
                 "ALL",
                 "--clearenv",
-                # Runtime shares only the fresh network created by codex-namespace.py.
+                # Runtime shares only the fresh network prepared below.
                 *(["--share-net"] if runtime else []),
                 "--tmpfs",
                 "/",
@@ -1197,10 +1207,29 @@ printf '%s\n' "$command_status" > /result/exit-code
                 *command,
             ]
             if runtime:
+                namespace_tools = {}
+                for name in ("unshare", "ip", "setpriv"):
+                    selected = shutil.which(name)
+                    if not selected:
+                        raise ValueError(f"missing isolation tool: {name}")
+                    executable = Path(selected).resolve(strict=True)
+                    if not executable.is_relative_to("/nix/store"):
+                        raise ValueError(f"isolation tool must come from the Nix store: {name}")
+                    namespace_tools[name] = str(executable)
+                namespace_prepare = shlex.join([
+                    str(bash), "-p", str(BUN_RUNTIME / "run"), "run", str(BUN_RUNTIME / "raw-namespace.ts"),
+                    str(Path("/proc/self/ns/user").stat().st_ino),
+                    str(Path("/proc/self/ns/net").stat().st_ino),
+                    namespace_tools["ip"],
+                ])
+                # Prepare in the network namespace's owning user namespace.
+                # The C launcher's preparation child runs in a nested user namespace.
+                drop = shlex.join([namespace_tools["setpriv"], "--inh-caps=-all", "--ambient-caps=-all"])
                 argv = [
-                    str(paths["python3"] / "bin/python3"),
-                    "-I",
-                    str(Path(__file__).with_name("codex-namespace.py")),
+                    namespace_tools["unshare"],
+                    "--user", "--map-current-user", "--net", "--keep-caps",
+                    str(bash), "-p", "-c", f'{namespace_prepare} && exec {drop} "$@"',
+                    "codex-namespace",
                     *argv,
                 ]
             completed = subprocess.run(

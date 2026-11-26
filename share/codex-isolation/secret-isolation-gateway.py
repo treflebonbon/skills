@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Single-service, fixed-endpoint gateways for the #270 runtime experiment."""
 
-import argparse
 from contextlib import ExitStack, contextmanager
 import http.client
 from http.server import BaseHTTPRequestHandler
@@ -611,96 +610,3 @@ def gateway_scope():
             resources.close()
             if errors and not failed:
                 raise GatewayCleanupError("; ".join(errors))
-
-
-def bridge(unix_socket, port):
-    class Forward(socketserver.BaseRequestHandler):
-        def handle(self):
-            with socket.socket(socket.AF_UNIX) as upstream:
-                upstream.connect(unix_socket)
-                try:
-                    relay(self.request, upstream)
-                except OSError:
-                    pass
-
-    with socketserver.ThreadingTCPServer(("127.0.0.1", port), Forward) as server:
-        print("ready", flush=True)
-        server.serve_forever()
-
-
-def dns_bridge(unix_socket):
-    class Resolver(socketserver.BaseRequestHandler):
-        def handle(self):
-            packet, transport = self.request
-            if len(packet) < 12:
-                return
-            try:
-                identifier, flags, questions, _, _, _ = struct.unpack(
-                    "!6H", packet[:12]
-                )
-                if flags & 0xF800 or questions != 1:
-                    return
-                offset, labels = 12, []
-                while packet[offset]:
-                    length = packet[offset]
-                    if length > 63:
-                        return
-                    labels.append(
-                        packet[offset + 1 : offset + 1 + length].decode("ascii")
-                    )
-                    offset += length + 1
-                offset += 1
-                kind, query_class = struct.unpack("!HH", packet[offset : offset + 4])
-                question = packet[12 : offset + 4]
-                host = ".".join(labels).lower()
-                answer, error = b"", 3
-                if kind in (1, 28) and query_class == 1 and len(host) <= 253:
-                    connection = http.client.HTTPConnection("resolver", timeout=10)
-                    connection.sock = socket.socket(socket.AF_UNIX)
-                    connection.sock.settimeout(10)
-                    connection.sock.connect(unix_socket)
-                    try:
-                        connection.request(
-                            "POST", "/resolve", json.dumps({"host": host, "type": kind})
-                        )
-                        response = connection.getresponse()
-                        if response.status == 200:
-                            values = json.loads(response.read(1024))
-                            error = 0
-                            for value in values:
-                                address = ipaddress.ip_address(value).packed
-                                answer += (
-                                    b"\xc0\x0c"
-                                    + struct.pack("!HHIH", kind, 1, 30, len(address))
-                                    + address
-                                )
-                    finally:
-                        connection.close()
-                count = len(answer) // (16 if kind == 1 else 28) if answer else 0
-                header = struct.pack("!6H", identifier, 0x8180 | error, 1, count, 0, 0)
-                transport.sendto(header + question + answer, self.client_address)
-            except (
-                OSError,
-                ValueError,
-                IndexError,
-                struct.error,
-                http.client.HTTPException,
-            ):
-                return
-
-    with socketserver.ThreadingUDPServer(("127.0.0.1", 53), Resolver) as server:
-        server.serve_forever()
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dns", action="store_true")
-    parser.add_argument("socket")
-    parser.add_argument("port", type=int, nargs="?")
-    args = parser.parse_args()
-    if args.dns:
-        dns_bridge(args.socket)
-    elif args.port is not None:
-        bridge(args.socket, args.port)
-    else:
-        parser.error("a TCP port or --dns is required")

@@ -4,7 +4,7 @@
 
 ## 比較対象と観測境界
 
-基準は `3ff7907083814d081114f96ae10e6a192541ac8e` の [codex-namespace.py](../share/codex-isolation/codex-namespace.py)。SHA-256 は `fa1b9de47711a6c25df0c2049ee1db10c29db89d83f3c0aa6564b2fe36cdc332`。実 [main](../share/codex-isolation/codex-namespace.py) を `runpy` で読み、`os.execv` の直前だけ観測を追加する。UID/GID mapping、`setgroups`、user / network namespace の inode、capability の5集合、sysctl を記録した後、元の `os.execv` を呼ぶ。観測を追加しない旧 CLI の直接起動でも終了37と port 53 の成功を確認する。通常の Bun suite からこの Python 比較を暗黙には起動しない。
+基準は `3ff7907083814d081114f96ae10e6a192541ac8e` の [codex-namespace.py](https://github.com/treflebonbon/skills/blob/3ff7907083814d081114f96ae10e6a192541ac8e/share/codex-isolation/codex-namespace.py)。SHA-256 は `fa1b9de47711a6c25df0c2049ee1db10c29db89d83f3c0aa6564b2fe36cdc332`。実 [main](https://github.com/treflebonbon/skills/blob/3ff7907083814d081114f96ae10e6a192541ac8e/share/codex-isolation/codex-namespace.py) を `runpy` で読み、`os.execv` の直前だけ観測を追加する。UID/GID mapping、`setgroups`、user / network namespace の inode、capability の5集合、sysctl を記録した後、元の `os.execv` を呼ぶ。観測を追加しない旧 CLI の直接起動でも終了37と port 53 の成功を確認する。通常の Bun suite からこの Python 比較を暗黙には起動しない。
 
 [候補の fixture](../tests/fixtures/bun-namespace.ts) は既存の `lib/bun/run` を通して Bun を起動する。FFI、addon、新規 native helper は使用しない。観測は `/proc/self/`、network interface、合成の UDP 通信で行い、[process のテスト](../tests/bun/namespace.test.ts)から stdout / stderr・終了状態を検査する。新しい user / network namespace を確認する前に sysctl と loopback を変更しない。
 
@@ -76,6 +76,8 @@ python3 -B /home/ubuntu/ghq/github.com/treflebonbon/dotfiles/scripts/verificatio
 ```
 
 ローカルでは13件が pass、失敗・skip は0。末尾の `boundary: "namespace"` の JSON に source revision、比較元と候補の source hash、版、namespace / capability の観測値、合成失敗の状態が残る。dirty checkout で実行する場合の source revision は base の HEAD なので、同じ記録の候補 source hash も照合する。
+
+#45 以降の再実行では [保存済みの旧 Python の観測値](../tests/fixtures/raw-namespace-python.json) と照合する。旧版の source revision と source hash は記録に含まれる。
 
 通常の `npm run test:bun` は共有 namespace での拒否を検査し、実 namespace の12件は明示 opt-in まで skip する。既存の3環境 CI は raw isolation を起動しない。この skip は OS 対応の証拠に数えない。opt-in の検証で必要なツールや権限がなければテストを失敗させ、成功へ置き換えない。
 

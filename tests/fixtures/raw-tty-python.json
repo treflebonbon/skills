@@ -1,0 +1,15 @@
+{
+  "sourceRevision": "29b7009a01204d3ede7369cc523ee408789b6e8f",
+  "observed": {
+    "argv": ["6c69746572616c20617267756d656e74", "627974652dff"],
+    "exit": 37,
+    "foreground": true,
+    "ignore": true,
+    "input": true,
+    "mask": true,
+    "prepared": "ready",
+    "sameDescriptor": true,
+    "samePid": true,
+    "tty": true
+  }
+}

@@ -193,7 +193,7 @@ const excludedKeys = new Set([
 
 const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
-function decodeEnvironment(bytes: Uint8Array): string {
+export function decodeSurrogateEscape(bytes: Uint8Array): string {
   try {
     return utf8.decode(bytes);
   } catch {
@@ -215,7 +215,7 @@ function decodeEnvironment(bytes: Uint8Array): string {
 }
 
 function shellEnvironment(bytes: Uint8Array): Record<string, string> {
-  const records = decodeEnvironment(bytes).split("\0");
+  const records = decodeSurrogateEscape(bytes).split("\0");
   if (records.pop() !== "" || records.length === 0)
     throw new PreparationError("invalid devShell environment output");
   return Object.fromEntries(
