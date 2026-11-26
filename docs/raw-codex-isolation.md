@@ -54,4 +54,4 @@ raw 起動はホストの HOME、Nix daemon、任意の継承環境変数、未�
 
 #45 の旧版比較は `29b7009a01204d3ede7369cc523ee408789b6e8f` を起点としました。旧 Python と同じ公開 raw 入口で、`with-env` の PID・引数の bytes・制御 TTY と foreground group・TTY 入力・継承 FD・signal の mask／ignore・終了コードを比較します。DNS は旧版と同じ UDP query と Unix socket HTTP を使い、A・AAAA・未対応 type の応答 bytes と質問数が1以外の場合の無応答を照合します。 [旧 with-env の記録](../tests/fixtures/raw-tty-python.json) · [旧 DNS の記録](../tests/fixtures/raw-dns-python.json)
 
-raw の Bats を再実行する際も、上記の launcher と Nix ツールを指定します。WSL2 x86_64 の検証では、配布用 Nixpkgs `7529d323f8f9926b38df356da2483c2a4e759d00` からビルドした `1rb2qg5r383m1sdqk33f0f0qf16sc9fm-raw-codex-launcher-1` を使用しました。選択済み Bash と隔離内の `/bin/bash` の実体、同じ PID の exec、SIGKILL 後の準備子孫の cleanup を確認しました。#45 の本番呼び出し元を使ったネイティブ arm64 の実測と、外部 flake への配備は未確認です。
+raw の Bats を再実行する際も、上記の launcher と Nix ツールを指定します。WSL2 x86_64 の検証では、配布用 Nixpkgs `7529d323f8f9926b38df356da2483c2a4e759d00` からビルドした `1rb2qg5r383m1sdqk33f0f0qf16sc9fm-raw-codex-launcher-1` を使用しました。選択済み Bash と隔離内の `/bin/bash` の実体、同じ PID の exec、SIGKILL 後の準備子孫の cleanup を確認しました。ネイティブ Linux arm64 の実測結果と対象 SHA は、[#45](https://github.com/treflebonbon/skills/issues/45) の実装 PR に記録します。外部 flake への配備は未確認です。
