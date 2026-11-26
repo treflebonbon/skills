@@ -185,7 +185,7 @@ PY
 @test "isolated gh reads typed fields from stdin and files while raw fields stay literal" {
   local root
   root="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-  run python3 - "$root/share/codex-isolation/github-client.py" "$BATS_TEST_TMPDIR" <<'PY'
+  run python3 - "$root/lib/bun/run" "$root/lib/bun/raw-github-client.ts" "$BATS_TEST_TMPDIR" <<'PY'
 import http.server, json, os, subprocess, sys, threading
 from pathlib import Path
 requests = []
@@ -203,10 +203,10 @@ threading.Thread(target=server.serve_forever, daemon=True).start()
 try:
     env = os.environ | {'HTTP_PROXY': f'http://127.0.0.1:{server.server_port}'}
     text = 'first line\n日本語 and `literal` $value\n'
-    path = Path(sys.argv[2]) / 'body.txt'
+    path = Path(sys.argv[3]) / 'body.txt'
     path.write_text(text)
     for flag, value, expected in (('-F', '@-', text), ('--field', '@'+str(path), text), ('-f', '@-', '@-')):
-        result = subprocess.run([sys.executable, sys.argv[1], 'gh', 'api', 'repos/example/public/pulls',
+        result = subprocess.run([sys.argv[1], 'run', sys.argv[2], 'gh', 'api', 'repos/example/public/pulls',
                                  flag, 'body='+value], input=text, text=True, env=env, capture_output=True)
         assert result.returncode == 0, result.stderr
         assert requests[-1] == ('http://api.github.com/repos/example/public/pulls', {'body':expected}), requests
@@ -220,7 +220,8 @@ PY
 }
 
 @test "isolated gh reports a missing PR title before reading policy or contacting the gateway" {
-  run python3 "$BATS_TEST_DIRNAME/../../share/codex-isolation/github-client.py" gh pr create --body 'public body'
+  local root="$BATS_TEST_DIRNAME/../.."
+  run "$root/lib/bun/run" run "$root/lib/bun/raw-github-client.ts" gh pr create --body 'public body'
   [ "$status" -eq 1 ]
   [[ "$output" == *'gh pr create requires --title'* ]]
 }

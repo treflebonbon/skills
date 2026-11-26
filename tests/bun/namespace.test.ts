@@ -5,11 +5,11 @@ import { mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync
 import { release, tmpdir } from "node:os";
 import { resolve } from "node:path";
 import type { NamespaceSnapshot } from "../fixtures/bun-namespace.ts";
+import legacy from "../fixtures/raw-namespace-python.json";
 
 const root = resolve(import.meta.dir, "../..");
 const runner = resolve(root, "lib/bun/run");
 const fixture = resolve(root, "tests/fixtures/bun-namespace.ts");
-const legacy = resolve(root, "share/codex-isolation/codex-namespace.py");
 const real = process.platform === "linux" && process.env.NAMESPACE_PROOF_REAL === "1";
 type Observation = { event: string; snapshot: NamespaceSnapshot; port53?: string };
 const records: object[] = [];
@@ -49,11 +49,12 @@ afterAll(() => {
       bun: Bun.version,
       realNamespace: real ? "executed-see-results" : "not-requested",
       sourceRevision: run(["rev-parse", "HEAD"], "git").stdout.trim(),
-      legacySourceHash: createHash("sha256").update(readFileSync(legacy)).digest("hex"),
+      legacySourceHash: legacy.sourceHash,
+      legacySourceRevision: legacy.sourceRevision,
       fixtureSourceHash: createHash("sha256").update(readFileSync(fixture)).digest("hex"),
       tools: real
         ? Object.fromEntries(
-            ["unshare", "setpriv", "bwrap", "python3"].map((tool) => {
+            ["unshare", "setpriv", "bwrap"].map((tool) => {
               const result = run(["--version"], tool);
               expect(result.status).toBe(0);
               return [tool, result.stdout.trim()];
@@ -107,102 +108,47 @@ describe.skipIf(!real)("実 namespace（明示 opt-in）", () => {
       expect(value).toBe("0000000000000000");
   });
 
-  test("旧 namespace の実 main と mapping・exec 前後の capability を比較する", () => {
-    const reference = run(
-      [
-        "-I",
-        "-c",
-        String.raw`
-import json, os, runpy, sys
-from pathlib import Path
-source = sys.argv.pop(1)
-original = os.execv
-def observe(path, argv):
-    def mapping(name):
-        return [list(map(int, line.split())) for line in Path('/proc/self/' + name + '_map').read_text().splitlines()]
-    caps = dict(line.split(':', 1) for line in Path('/proc/self/status').read_text().splitlines() if line.startswith('Cap'))
-    print(json.dumps({'event': 'legacy-prepared', 'snapshot': {
-        'uid': os.getuid(), 'gid': os.getgid(), 'uidMap': mapping('uid'), 'gidMap': mapping('gid'),
-        'setgroups': Path('/proc/self/setgroups').read_text().strip(),
-        'capabilities': {key: value.strip() for key, value in caps.items()},
-        'namespaces': {key: str(Path('/proc/self/ns/' + key).stat().st_ino) for key in ['user', 'net']},
-        'unprivilegedPortStart': int(Path('/proc/sys/net/ipv4/ip_unprivileged_port_start').read_text())
-    }}), flush=True)
-    original(path, argv)
-os.execv = observe
-runpy.run_path(source)['main']()
-`,
-        legacy,
-        runner,
-        "run",
-        fixture,
-        "bwrap",
-      ],
-      "python3",
-    );
+  test("旧 namespace の記録と mapping・exec 前後の capability の契約を照合する", () => {
     const candidate = run(["run", fixture, "launch", "normal"]);
-    expect(reference.stderr).toBe("");
-    expect(reference.status).toBe(37);
     expect(candidate.stderr).toBe("");
     expect(candidate.status).toBe(37);
-    const oldEvents = events(reference.stdout);
-    const newEvents = events(candidate.stdout);
-    const direct = run(["-I", legacy, runner, "run", fixture, "bwrap"], "python3");
-    expect(direct.status).toBe(37);
-    expect(direct.stderr).toBe("");
-    const old = oldEvents.find((event) => event.event === "legacy-prepared")!.snapshot;
-    const prepared = newEvents.find((event) => event.event === "prepared")!.snapshot;
-    const parent = newEvents.find((event) => event.event === "parent")!.snapshot;
+    const observed = events(candidate.stdout);
+    const at = (event: string) => observed.find((entry) => entry.event === event)!.snapshot;
+    const parent = at("parent");
+    const prepared = at("prepared");
+    const before = at("before-bwrap");
+    const target = at("target");
+    const capabilitySet = (snapshot: NamespaceSnapshot) =>
+      Object.keys(snapshot.capabilities)
+        .filter((key) => BigInt("0x" + snapshot.capabilities[key]) > 0n)
+        .sort();
     expect(prepared.namespaces.user).not.toBe(parent.namespaces.user);
     expect(prepared.namespaces.net).not.toBe(parent.namespaces.net);
-    expect(prepared.interfaces).toEqual(["lo"]);
-    for (const observation of [old, prepared]) {
-      expect(observation.uid).toBe(process.getuid!());
-      expect(observation.gid).toBe(process.getgid!());
-      expect(observation.uidMap).toEqual([[process.getuid!(), process.getuid!(), 1]]);
-      expect(observation.gidMap).toEqual([[process.getgid!(), process.getgid!(), 1]]);
-      expect(observation.setgroups).toBe("deny");
-      expect(observation.unprivilegedPortStart).toBe(0);
-      for (const key of ["CapPrm", "CapEff", "CapBnd"])
-        expect(BigInt("0x" + observation.capabilities[key]!)).toBeGreaterThan(0n);
+    expect(prepared.uidMap).toEqual([[process.getuid!(), process.getuid!(), 1]]);
+    expect(prepared.gidMap).toEqual([[process.getgid!(), process.getgid!(), 1]]);
+    expect(prepared.setgroups).toBe(legacy.reference["legacy-prepared"].setgroups);
+    expect(prepared.unprivilegedPortStart).toBe(
+      legacy.reference["legacy-prepared"].unprivilegedPortStart,
+    );
+    expect(capabilitySet(prepared)).toEqual(["CapAmb", "CapBnd", "CapEff", "CapInh", "CapPrm"]);
+    expect(new Set(Object.values(prepared.capabilities)).size).toBe(1);
+    expect(target.namespaces.net).toBe(before.namespaces.net);
+    expect(target.namespaces.user).not.toBe(before.namespaces.user);
+    expect(target.uidMap).toEqual([[process.getuid!(), 0, 1]]);
+    expect(target.gidMap).toEqual([[process.getgid!(), 0, 1]]);
+    for (const [snapshot, reference] of [
+      [before, legacy.reference["before-bwrap"]],
+      [target, legacy.reference.target],
+    ] as const) {
+      expect(snapshot.uid).toBe(process.getuid!());
+      expect(snapshot.gid).toBe(process.getgid!());
+      expect(snapshot.setgroups).toBe(reference.setgroups);
+      expect(snapshot.unprivilegedPortStart).toBe(reference.unprivilegedPortStart);
+      expect(snapshot.interfaces).toEqual(["lo"]);
+      expect(snapshot.addresses).toContain("127.0.0.1");
+      expect(capabilitySet(snapshot)).toEqual(reference.capabilitiesSet);
     }
-    expect(old.capabilities.CapInh).toBe("0000000000000000");
-    expect(old.capabilities.CapAmb).toBe("0000000000000000");
-    expect(Object.keys(prepared.capabilities).sort()).toEqual([
-      "CapAmb",
-      "CapBnd",
-      "CapEff",
-      "CapInh",
-      "CapPrm",
-    ]);
-    for (const value of Object.values(prepared.capabilities))
-      expect(value).toBe(old.capabilities.CapEff!);
-    for (const observations of [oldEvents, newEvents]) {
-      const before = observations.find((event) => event.event === "before-bwrap")!.snapshot;
-      for (const key of ["CapInh", "CapPrm", "CapEff", "CapAmb"])
-        expect(before.capabilities[key]).toBe("0000000000000000");
-      expect(before.capabilities.CapBnd).toBe(old.capabilities.CapBnd!);
-      const inside = observations.find((event) => event.event === "target")!.snapshot;
-      expect(Object.keys(inside.capabilities).sort()).toEqual([
-        "CapAmb",
-        "CapBnd",
-        "CapEff",
-        "CapInh",
-        "CapPrm",
-      ]);
-      expect(inside.interfaces).toEqual(["lo"]);
-      expect(inside.namespaces.net).toBe(before.namespaces.net);
-      expect(inside.namespaces.user).not.toBe(before.namespaces.user);
-      const oldInside = oldEvents.find((event) => event.event === "target")!.snapshot;
-      expect(inside.uid).toBe(old.uid);
-      expect(inside.gid).toBe(old.gid);
-      expect(inside.uidMap).toEqual(oldInside.uidMap);
-      expect(inside.gidMap).toEqual(oldInside.gidMap);
-      expect(inside.addresses).toContain("127.0.0.1");
-      for (const value of Object.values(inside.capabilities))
-        expect(value).toBe("0000000000000000");
-    }
-    records.push({ reference: oldEvents, candidate: newEvents });
+    records.push({ candidate: observed });
   });
 
   test("capability を保持したまま bubblewrap へ渡す対照は拒否され target を起動しない", () => {

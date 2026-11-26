@@ -6,13 +6,20 @@
 
 - Linux または WSL2 と、rootless user/network namespace を使える kernel
 - Nix flakes と、対象 worktree root の `flake.nix`
-- PATH で選択できる Nix store 内の `nix`、`bash`、`cat`、Python 3.13 以上、Git、Codex CLI 0.153.4 以上、GitHub CLI `gh`、bubblewrap `bwrap`
+- PATH で選択できる Nix store 内の `nix`、`bash`、`cat`、Bun 1.4.4 以上、Python 3.13 以上、Git、Codex CLI 0.153.4 以上、GitHub CLI `gh`、bubblewrap `bwrap`、util-linux の `unshare` と `setpriv`、iproute2 の `ip`
+- 事前ビルド済み raw launcher の正規の store path を `CODEX_RAW_LAUNCHER`、同じ Nix derivation の `sourceSha256` を `CODEX_RAW_LAUNCHER_SOURCE_SHA256` に指定します。 [利用側 flake の準備](raw-codex-launcher-proof.md#利用側-flake-と-45-への引継ぎ)
 - managed Codex 設定にある `dotfiles-secure` permission profile と、その profile が参照する network allowlist
 - Nix store 内の公開 CA bundle。`CODEX_ISOLATION_CA_BUNDLE`、`NIX_SSL_CERT_FILE`、`SSL_CERT_FILE` の順に選び、指定なし・Nix store 外は拒否します。
 
 macOS と Windows native は対象外です。Nix または flake がない、必要な tool が Nix store 外から選ばれた、linked worktree の Git ownership を検証できない、repo の trust や入力登録がない場合は隔離起動前に理由を表示して停止します。
 
 GitHub policy を登録する場合だけ Nix store の `awk` と `jq` も必要です。Context7／Serena を登録する場合は Nix store の `bunx`、`node`、`uvx` と managed Codex 設定が必要です。これらは任意の host command や環境変数を隔離へ引き継がず、固定した tool・引数・scope だけを利用します。
+
+### 利用側 flake の更新
+
+skills の source を完全なコミット SHA に固定し、配布先と同じ Nixpkgs で `pkgs.callPackage "${inputs.skills}/nix/raw-codex-launcher.nix" { }` を使います。たとえば `packages.${system}.rawLauncher` に公開し、初回起動前に `nix build <flake>#rawLauncher --no-link --print-out-paths` でビルドします。出力 path と、この derivation の `sourceSha256` を組にして信頼済みのホスト設定から渡します。
+
+ホスト側の `PATH` の先頭に選択済み Nix Bash の `bin` を置き、同じ pin から Bun と namespace 用 OS ツールを供給します。`run_isolated` はそこで選択した Bash の closure をコピーし、隔離内の `/bin/bash` にリンクします。launcher は manifest の版・source・SHA-256 と外側の store の owner／mode を検証し、コピー先でも選択した closure、実行体の digest、owner／mode を照合します。
 
 ## Trust と公開入力
 
@@ -37,8 +44,14 @@ raw 起動はホストの HOME、Nix daemon、任意の継承環境変数、未�
 
 実行 state は `${XDG_STATE_HOME:-$HOME/.local/state}/devshell-env/inputs/` と `sessions/` に保存され、package checkout は書き換えません。各起動は session directory を表示します。隔離内では同じ host worktree を並行編集しないでください。終了後は commit、index、通常ファイルの結果を元へ返し、次の公開入力登録を更新します。HEAD・index・入力の競合、未登録ファイルとの衝突、失敗した初期化や gateway cleanup は返却を止め、session を復旧用に保持します。返却中の I/O 障害に対する全体 atomic rollback は保証しないため、保存された snapshot と bundle を確認してから人が復旧します。成功後の session も自動削除しません。
 
-隔離内の `with-env` は `devshell-env with-env --prepared -- COMMAND [ARGS...]` のみです。準備済み環境を再利用し、root `.env` を読みません。package に含む入口は generic な host `.env` loader ではありません。
+ホストでは既存の Python が公開入力・policy・gateway を管理します。namespace の準備は `unshare` の中で Bun と `ip` を実行し、`setpriv` で継承・ambient capability を落としてから bubblewrap へ exec します。隔離内の Codex 初期化と `with-env` は、検査済み launcher が Bun を準備子として実行し、同じ PID で target へ exec します。bridge、DNS、隔離用 GitHub クライアントは Bun を使います。
+
+隔離内では `with-env --prepared -- COMMAND [ARGS...]` で準備済み環境を再利用します。root `.env` は読みません。
 
 ## テスト
 
 `tests/raw-codex/` へ、raw entry、devShell preparation、公開入力 snapshot、Git result transfer、gateway cleanup と protocol、MCP/GitHub opt-in、app-server handoff の既存 Bats suite を移しています。既定の Python suite には、dotfiles を使わない Git context と argv 拒否の確認があります。実モデル・既存認証を使うケースは元の opt-in 条件を維持し、通常の fixture 検証は一時 repository とダミー値だけを使用します。
+
+#45 の旧版比較は `29b7009a01204d3ede7369cc523ee408789b6e8f` を起点としました。旧 Python と同じ公開 raw 入口で、`with-env` の PID・引数の bytes・TTY 入力・継承 FD・signal の mask／ignore・終了コードを比較します。DNS は旧版と同じ UDP query と Unix socket HTTP を使い、A・AAAA・未対応 type の応答 bytes を照合します。 [旧 with-env の記録](../tests/fixtures/raw-tty-python.json) · [旧 DNS の記録](../tests/fixtures/raw-dns-python.json)
+
+raw の Bats を再実行する際も、上記の launcher と Nix ツールを指定します。WSL2 x86_64 の検証では、配布用 Nixpkgs `7529d323f8f9926b38df356da2483c2a4e759d00` からビルドした `1rb2qg5r383m1sdqk33f0f0qf16sc9fm-raw-codex-launcher-1` を使用しました。選択済み Bash と隔離内の `/bin/bash` の実体、同じ PID の exec、SIGKILL 後の準備子孫の cleanup を確認しました。#45 の本番呼び出し元を使ったネイティブ arm64 の実測と、外部 flake への配備は未確認です。

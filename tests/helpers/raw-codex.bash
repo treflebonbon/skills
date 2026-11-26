@@ -25,15 +25,16 @@ raw_fixture() {
 
 raw_flake() {
   python3 - "$RAW_BASE/work/flake.nix" "${1:-default}" <<'PY'
-import json, shutil, sys
+import json, platform, shutil, sys
 from pathlib import Path
 bash = Path(shutil.which('bash')).resolve().parents[1]
 utils = Path(shutil.which('cat')).resolve().parents[1]
 hook = 'test -z "${RAW_DUMMY_SECRET+x}"; test ! -e .env; test ! -e ordinary-looking-name; printf "run\\n" >> hook-calls; export HOOK_VAR=ready'
-Path(sys.argv[1]).write_text('''{ outputs = { self }: { devShells.x86_64-linux.%s = builtins.derivation {
- name = "raw-test"; system = "x86_64-linux"; builder = "%s/bin/bash"; args = [ "-c" "exit 0" ];
+system = platform.machine() + "-linux"
+Path(sys.argv[1]).write_text('''{ outputs = { self }: { devShells.%s.%s = builtins.derivation {
+ name = "raw-test"; system = "%s"; builder = "%s/bin/bash"; args = [ "-c" "exit 0" ];
  outputs = [ "out" ]; PATH = "%s/bin:%s/bin"; PUBLIC_VAR = "normal"; shellHook = %s;
-}; }; }''' % (sys.argv[2], bash, bash, utils, json.dumps(hook).replace('${', '\\${')))
+}; }; }''' % (system, sys.argv[2], system, bash, bash, utils, json.dumps(hook).replace('${', '\\${')))
 PY
 }
 

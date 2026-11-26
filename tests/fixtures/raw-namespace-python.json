@@ -1,0 +1,21 @@
+{
+  "sourceRevision": "aa26b76c6f1f8f22625757ae87ed8d31e7ce1132",
+  "sourceHash": "fa1b9de47711a6c25df0c2049ee1db10c29db89d83f3c0aa6564b2fe36cdc332",
+  "reference": {
+    "legacy-prepared": {
+      "setgroups": "deny",
+      "unprivilegedPortStart": 0,
+      "capabilitiesSet": ["CapBnd", "CapEff", "CapPrm"]
+    },
+    "before-bwrap": {
+      "setgroups": "deny",
+      "unprivilegedPortStart": 0,
+      "capabilitiesSet": ["CapBnd"]
+    },
+    "target": {
+      "setgroups": "deny",
+      "unprivilegedPortStart": 0,
+      "capabilitiesSet": []
+    }
+  }
+}
