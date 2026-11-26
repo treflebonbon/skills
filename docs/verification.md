@@ -82,11 +82,15 @@ devShell の TypeScript 準備は `lib/bun/run test tests/bun/devshell-environme
 通常の Bun テストは GitHub policy の schema を比較します。入力登録全体を再検証する Linux／WSL2 では、既存の Node.js と Node-API header、C compiler、Nix の `bunx`、`node`、`uvx` および公開 CA bundle を用意します。ADR 0004 の履歴から復元した Node-API を payload 外で明示ビルドしてから、比較を実行します。
 
 ```sh
-export TREFLEBONBON_FILE_SAFETY_DIR="$(mktemp -d /tmp/codex/raw-admission.XXXXXX)"
-export RAW_ADMISSION_TEST_CA="${CODEX_ISOLATION_CA_BUNDLE:?公開 Nix CA bundle を指定してください}"
-lib/bun/run run lib/bun/prepare-file-safety.ts
-lib/bun/run test tests/bun/raw-admission.test.ts
+mkdir -p -m 700 /tmp/codex &&
+  raw_admission_cache="$(mktemp -d /tmp/codex/raw-admission.XXXXXX)" &&
+  export TREFLEBONBON_FILE_SAFETY_DIR="$raw_admission_cache" &&
+  export RAW_ADMISSION_TEST_CA="${CODEX_ISOLATION_CA_BUNDLE:?公開 Nix CA bundle を指定してください}" &&
+  lib/bun/run run lib/bun/prepare-file-safety.ts &&
+  lib/bun/run test tests/bun/raw-admission.test.ts tests/bun/raw-file-safety-cache.test.ts
 ```
+
+TypeScript の入力登録では、GitHub policy ファイルを物理パスで指定します。旧 Python が受理した祖先 symlink も拒否するため、symlink を含むパスを指定していた場合は、移行時に実体のパスへ変更します。公開入力に含まれる `.git` の要素は ASCII の大文字小文字を区別せず拒否します。この 2 件は旧版の記録を使い、強化後の拒否を検証します。
 
 #45 が利用する隔離内の資産は `lib/bun/devshell-environment.ts`、その依存 `git-context.ts`・`cli-path.ts`・`coordination-json.ts`・`strict-json.ts`、および Bun の共用起動に必要な `run`・`bunfig.toml`・`tsconfig.json` です。準備前に呼び出し元の `PATH` で `env` を探し、shellHook の後に `env -0` で環境を取得します。Nix の coreutils への symlink が見つかった場合はそのパスを使い、`argv[0]` で `env` が選ばれるようにします。UTF-8 でない環境の bytes は旧ダンプと同じ surrogate escape で返るため、launcher へ渡す側で元の bytes に戻して検証します。host の公開入口の切り替えと旧 Python 実装の撤去は #48 が担当します。 [隔離内の切り替え #45](https://github.com/treflebonbon/skills/issues/45) [host の切り替え #48](https://github.com/treflebonbon/skills/issues/48)
 

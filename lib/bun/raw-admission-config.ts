@@ -75,6 +75,31 @@ const wildcard = /[*?\[\]{}]/;
 const readOnly = ["read", "deny"];
 const publicModes = [...readOnly, "write"];
 
+function bracketClass(pattern: string, negated: boolean): string {
+  const characters = Array.from(pattern);
+  const escape = (character: string) => character.replace(/[-\\\[\]^]/g, "\\$&");
+  let members = "";
+  for (let index = 0; index < characters.length; index++) {
+    const start = characters[index];
+    const end = characters[index + 2];
+    if (characters[index + 1] === "-" && end !== undefined) {
+      // fnmatchcase drops descending ranges while keeping the other class members.
+      if (start.codePointAt(0)! <= end.codePointAt(0)!)
+        members += escape(start) + "-" + escape(end);
+      index += 2;
+    } else {
+      members += escape(start);
+    }
+  }
+  // A literal ! can become the negation marker when all preceding ranges are removed.
+  if (!negated && members.startsWith("!")) {
+    negated = true;
+    members = members.slice(1);
+  }
+  if (members === "") return negated ? "." : "(?!)";
+  return "[" + (negated ? "^" : "") + members + "]";
+}
+
 function componentMatches(value: string, pattern: string): boolean {
   let expression = "^";
   for (let index = 0; index < pattern.length; index++) {
@@ -91,8 +116,7 @@ function componentMatches(value: string, pattern: string): boolean {
       if (end === -1) {
         expression += "\\[";
       } else {
-        const escape = (part: string) => part.replace(/[\\\[\]^]/g, "\\$&");
-        expression += "[" + (negated ? "^" : "") + escape(pattern.slice(start, end)) + "]";
+        expression += bracketClass(pattern.slice(start, end), negated);
         index = end;
       }
     } else {

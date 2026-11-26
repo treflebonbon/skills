@@ -6,7 +6,7 @@ import { getSystemErrorName } from "node:util";
 
 export const source = new URL("./file-safety-native.c", import.meta.url);
 export const hash = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
-export function cacheDirectory(): string {
+export function cacheDirectory(sourceHash = hash(fs.readFileSync(source))): string {
   if (
     !(process.platform === "linux" && ["x64", "arm64"].includes(process.arch)) &&
     !(process.platform === "darwin" && process.arch === "arm64")
@@ -20,12 +20,18 @@ export function cacheDirectory(): string {
     );
   if (!isAbsolute(base) || base.split("/").includes(".."))
     throw new Error("native cache は正規の絶対 path が必要です");
-  return join(base, `${hash(fs.readFileSync(source))}-${process.platform}-${process.arch}`);
+  return join(base, `${sourceHash}-${process.platform}-${process.arch}`);
+}
+
+function systemTempPath(path: string): string {
+  return path === "/tmp" || path.startsWith("/tmp/")
+    ? fs.realpathSync("/tmp") + path.slice(4)
+    : path;
 }
 
 // load 前の bootstrap。共有書込みを許す祖先は system の sticky /tmp のみ。
 export function privateDirectory(path: string, create = false): void {
-  const canonical = path.startsWith("/tmp/") ? fs.realpathSync("/tmp") + path.slice(4) : path;
+  const canonical = systemTempPath(path);
   let current = "/";
   for (const part of canonical.split("/").filter(Boolean)) {
     current = join(current, part);
@@ -46,7 +52,7 @@ export function privateDirectory(path: string, create = false): void {
     )
       throw new Error("native cache の祖先は symlink と他 owner の書込みを許可できません");
   }
-  const stat = fs.lstatSync(path);
+  const stat = fs.lstatSync(canonical);
   if (stat.uid !== process.getuid!() || (stat.mode & 0o077) !== 0)
     throw new Error("native cache は実 owner の private directory が必要です");
 }
@@ -60,9 +66,7 @@ type Addon = {
   fstatat(fd: number, name: Buffer): Identity | number;
 };
 let addon: Addon | undefined;
-function load(): Addon {
-  if (addon) return addon;
-  const directory = cacheDirectory();
+function loadArtifact(directory: string, sourceHash: string): Addon {
   try {
     privateDirectory(directory);
     const path = join(directory, "file-safety.node");
@@ -98,7 +102,7 @@ function load(): Addon {
         fs.closeSync(record);
       }
       if (
-        metadata.sourceHash !== hash(fs.readFileSync(source)) ||
+        metadata.sourceHash !== sourceHash ||
         metadata.platform !== process.platform ||
         metadata.arch !== process.arch ||
         metadata.binaryHash !== hash(fs.readFileSync(fd))
@@ -110,8 +114,7 @@ function load(): Addon {
         module,
         `${process.platform === "darwin" ? "/dev/fd" : "/proc/self/fd"}/${fd}`,
       );
-      addon = module.exports as Addon;
-      return addon;
+      return module.exports as Addon;
     } finally {
       fs.closeSync(fd);
     }
@@ -121,6 +124,21 @@ function load(): Addon {
     );
   }
 }
+export function validateFileSafetyArtifact(directory: string, sourceHash: string): void {
+  loadArtifact(directory, sourceHash);
+}
+
+function load(): Addon {
+  if (addon) return addon;
+  const sourceHash = hash(fs.readFileSync(source));
+  const directory = cacheDirectory(sourceHash);
+  const artifact = join(directory, "artifact");
+  // A previously prepared complete cache remains usable until an atomic generation is present.
+  const published = fs.lstatSync(artifact, { throwIfNoEntry: false }) ? artifact : directory;
+  addon = loadArtifact(published, sourceHash);
+  return addon;
+}
+
 function checked(result: number, syscall: string): number {
   if (result < 0) {
     const code = getSystemErrorName(result);
@@ -163,13 +181,14 @@ export function openParent(path: string, anchor = "/", create = false): Parent {
     path.split("/").includes("..")
   )
     throw new Error("正規の絶対 path が必要です");
-  path = resolve(path);
+  path = systemTempPath(resolve(path));
+  anchor = systemTempPath(anchor);
   if (!path.startsWith(anchor === "/" ? "/" : anchor + "/"))
     throw new Error("path が anchor の外です");
   const parts = path.slice(anchor.length).split("/").filter(Boolean);
   const createAnchor = create && anchor !== "/";
   if (createAnchor) parts.unshift(basename(anchor));
-  // 共有先自身も保持した親 FD から作る。system の /tmp alias はここで解決する。
+  // 共有先自身も保持した親 FD から作る。
   let fd = fs.openSync(
     createAnchor ? fs.realpathSync(dirname(anchor)) : anchor,
     fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW,

@@ -26,7 +26,10 @@ function pathBytes(component: string): Buffer {
 
 export function readPublicInput(root: string, name: string) {
   const parts = name.split("/");
-  if (name.includes("\0") || parts.some((part) => !part || [".", "..", ".git"].includes(part)))
+  if (
+    name.includes("\0") ||
+    parts.some((part) => !part || part === "." || part === ".." || part.toLowerCase() === ".git")
+  )
     throw new Error("input must be a relative file outside Git metadata");
   let directory = openParent(join(root, ".admission-root")).fd;
   let descriptor: number;

@@ -293,6 +293,9 @@ export function admitRawInputs(
       throw new Error("initial approval requires an index matching HEAD");
     if (!Object.keys(files).length) throw new Error("name the public input files explicitly");
     const index_tree = strip(decoder.decode(git(repo, "write-tree")));
+    const headTree = strip(decoder.decode(git(repo, "rev-parse", head + "^{tree}")));
+    if (index_tree !== headTree)
+      throw new Error("initial approval requires an index matching HEAD");
     repo.checkUnchanged(repository);
     const record = {
       version: 1,

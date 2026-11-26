@@ -17,6 +17,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { cacheDirectory } from "../../lib/bun/file-safety.ts";
 import { Repository } from "../../lib/bun/git-context.ts";
 import { admitRawInputs } from "../../lib/bun/raw-admission.ts";
 import { executable } from "../../lib/bun/devshell-environment.ts";
@@ -63,6 +64,7 @@ type Input = {
   github?: Record<string, string>;
   insidePolicy?: boolean;
   symlinkPolicy?: boolean;
+  ancestorPolicySymlink?: boolean;
   inputsMode?: number;
   inputsSymlink?: boolean;
   externalCa?: boolean;
@@ -92,6 +94,7 @@ describe.skipIf(process.platform !== "linux" || !ca)("raw 入力登録と旧 adm
       mkdirSync(join(codex, "rules"), { recursive: true });
       writeFileSync(join(base, "ca.pem"), "");
       Object.assign(process.env, {
+        TREFLEBONBON_FILE_SAFETY_DIR: dirname(cacheDirectory()),
         HOME: home,
         XDG_STATE_HOME: state,
         CODEX_HOME: codex,
@@ -142,6 +145,7 @@ describe.skipIf(process.platform !== "linux" || !ca)("raw 入力登録と旧 adm
       }
       if (input.inputKind === "hardlink") linkSync(join(work, "flake.nix"), join(work, "linked"));
       if (input.inputKind === "fifo") execFileSync("mkfifo", [join(work, "linked")]);
+      if (input.inputKind === "git-case") writeFileSync(join(work, "notes/.GiT"), "case fixture\n");
       if (input.inputKind === "bytes")
         writeFileSync(
           Buffer.concat([Buffer.from(join(work, "notes/raw-")), Buffer.from([255])]),
@@ -159,6 +163,11 @@ describe.skipIf(process.platform !== "linux" || !ca)("raw 入力登録と旧 adm
       let githubPolicyFile: string | undefined;
       if (input.github) {
         githubPolicyFile = join(input.insidePolicy ? work : base, "github.json");
+        if (input.ancestorPolicySymlink) {
+          mkdirSync(join(base, "physical/parent"), { recursive: true });
+          symlinkSync(join(base, "physical"), join(base, "policy-alias"));
+          githubPolicyFile = join(base, "policy-alias/parent/github.json");
+        }
         const fields = Object.fromEntries(
           Object.entries({ ...inputs.github, ...input.github }).map(([key, value]) => [
             key,
@@ -182,6 +191,16 @@ describe.skipIf(process.platform !== "linux" || !ca)("raw 入力登録と旧 adm
       const names = input.names ?? Object.keys(inputs.public);
       const admit = () =>
         admitRawInputs(repo, input.head ?? head, names, { githubPolicyFile, mcp: input.mcp });
+      if (caseName === "githubAncestorSymlink" || caseName === "gitMetadataCaseVariant") {
+        expect(expected.status).toBe(0);
+        expect(admit).toThrow(
+          caseName === "githubAncestorSymlink"
+            ? /ELOOP|ENOTDIR/
+            : "input must be a relative file outside Git metadata",
+        );
+        expect(readdirSync(output)).toEqual([]);
+        return;
+      }
       if (expected.status !== 0) {
         const legacy = expected.stderr.trimEnd().replace(/^devshell-env: /, "");
         const reason = legacy.startsWith("[Errno ")
@@ -227,6 +246,27 @@ describe.skipIf(process.platform !== "linux" || !ca)("raw 入力登録と旧 adm
         expect(readFileSync(path, "utf8")).not.toBe(before);
         expect(readdirSync(output)).toEqual([expectedName]);
         expect(statSync(path).mode & 0o777).toBe(expected.mode!);
+
+        const previous = readFileSync(path, "utf8");
+        const commands = join(base, "commands");
+        mkdirSync(commands);
+        const gitPath = "'" + executable("git")!.replaceAll("'", "'\\''") + "'";
+        writeFileSync(
+          join(commands, "git"),
+          [
+            "#!/bin/bash -p",
+            'if [[ "${!#}" == write-tree ]]; then',
+            `  ${gitPath} -C "$6" add -- flake.nix || exit "$?"`,
+            "fi",
+            `exec ${gitPath} "$@"`,
+          ].join("\n") + "\n",
+          { mode: 0o700 },
+        );
+        process.env.PATH = commands + ":" + process.env.PATH;
+        expect(admit).toThrow("initial approval requires an index matching HEAD");
+        expect(git(["diff", "--cached", "--name-only"], work)).toBe("flake.nix");
+        expect(readFileSync(path, "utf8")).toBe(previous);
+        expect(readdirSync(output)).toEqual([expectedName]);
       }
     } finally {
       for (const key of Object.keys(process.env))
