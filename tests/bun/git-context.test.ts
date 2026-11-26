@@ -24,8 +24,8 @@ import corpus from "../fixtures/git-context-python.json";
 
 let base: string, primary: string, worktree: string, common: string, metadata: string;
 
-function git(...args: string[]): void {
-  execFileSync("git", args);
+function git(...args: string[]): string {
+  return execFileSync("git", args, { encoding: "utf8", env: gitEnvironment() });
 }
 
 beforeEach(() => {
@@ -184,6 +184,7 @@ test("継承した GIT_* 全体を除去し、他の環境変数を保持する"
   const original = Object.keys(overrides).map((key) => [key, process.env[key]] as const);
   Object.assign(process.env, overrides);
   try {
+    expect(git("-C", worktree, "rev-parse", "--show-toplevel").trimEnd()).toBe(worktree);
     compare("environment", () => {
       const resolved = linked();
       const environment = gitEnvironment();
