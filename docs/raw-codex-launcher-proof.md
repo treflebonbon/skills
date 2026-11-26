@@ -6,11 +6,13 @@
 
 合成 worktree を公開する既存の `run_isolated` の runtime 経路を通し、raw の bubblewrap、namespace、capability、Nix closure の read-only mount を使いました。合成コマンドは既存の process と mount の境界で実行し、gateway を起動せず認証なしで検証しました。監視役は隔離内に残り、入口が launcher に置換されたことを照合してから、その PID にだけ pidfd 経由で SIGKILL を送りました。準備子は有効な target frame を送り、`setsid` で離脱した子を起動して待機します。監視役は離脱した子の pidfd の終了通知を単調時計で測り、target の起動記録がないことを確認しました。その後、同じ隔離内の正常系で target の PID、argv、環境変数、TTY と lock の FD identity、signal の ignore と mask、終了37を照合しました。実 caller が持つ制御 TTY は #45 で確認します。
 
-| 環境                                             | 実証結果                                                                                                                                                                |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| WSL2 x86_64、`6.18.58.1-microsoft-standard-WSL2` | PID namespace が成立。全 capability が0。SIGKILL 送信直前から離脱した準備子孫の pidfd で終了を観測するまで約1.77 ms。target は未起動。正常系は入口と同じ PID で終了37。 |
-| 現行 raw が動く通常 Linux x86_64                 | #132 の launcher 実証は未実行。                                                                                                                                         |
-| 現行 raw が動く通常 Linux ネイティブ arm64       | #132 の launcher 実証は未実行。                                                                                                                                         |
+| 環境                                                 | 実証結果                                                                                                                                                                 |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| WSL2 x86_64、`6.18.58.1-microsoft-standard-WSL2`     | PID namespace が成立。全 capability が0。SIGKILL 送信直前から離脱した準備子孫の pidfd で終了を観測するまで約1.77 ms。target は未起動。正常系は入口と同じ PID で終了37。  |
+| 通常 Linux x86_64、NixOS 26.11pre-git、Linux 6.18.34 | PID namespace が成立。全 capability が0。SIGKILL 送信直前から離脱した準備子孫の pidfd で終了を観測するまで約12.45 ms。target は未起動。正常系は入口と同じ PID で終了37。 |
+| 通常 Linux ネイティブ arm64                          | `aarch64-linux` の Nix derivation は評価済み。ネイティブ環境でのビルドと launcher 実証は未実行。                                                                         |
+
+NixOS の検証は QEMU 11.0.0 の TCG で実行しました。ゲストの既定の kernel セキュリティ設定で UID 1000 を使用し、外部ネットワークを遮断しました。合成 fixture の `codex` tool slot には選択済みの Nix Bun を指定しました。WSL2 と NixOS の両方で launcher の opt-in テスト3件が通過し、失敗・スキップは0件でした。
 
 WSL2 の実行には Nix 2.34.6、bubblewrap 0.12.0、Bun 1.4.4 を使用しました。Nix 成果物の版は `1`、2つの C source の SHA-256 を連結してハッシュした値は `d83c5dac31da837c8794ba2d839ff379544b275ceeecdc3284458d123e7799ad`、実行体の SHA-256 は `57edfea2100142009d47a39f605ca7d18d1470aac12df9227faf97862ca6be89` です。実測時の store 名は、Nixpkgs が `wz6pw7bm0qmj0j6n8i2craddlhj662l5-source`、launcher が `fzlr96fgq217f1w2j9mqjrwbvvh2wfgc-raw-codex-launcher-1` でした。
 
