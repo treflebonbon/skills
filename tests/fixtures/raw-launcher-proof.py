@@ -43,6 +43,7 @@ def fd_identity(descriptor):
 
 
 def supervise(executable):
+    """Observe both launcher runs while the same raw namespace stays alive."""
     entry = [str(HERE / "entry"), str(HERE / "run"), str(HERE / "prepare.ts"), executable]
     suffix = [sys.executable, SCRIPT]
     marker = RESULT / "target.json"
@@ -59,6 +60,8 @@ def supervise(executable):
         with os.fdopen(os.pidfd_open(launcher.pid), "rb") as launcher_fd:
             descendant, status = detached_descendant(launcher)
             assert os.readlink(f"/proc/{launcher.pid}/exe") == executable
+            ignored = next(line.split()[1] for line in status.splitlines() if line.startswith("SigIgn:"))
+            assert int(ignored, 16) & (1 << (signal.SIGTERM - 1)), "descendant must ignore SIGTERM"
             with os.fdopen(os.pidfd_open(descendant), "rb") as descendant_fd:
                 poller = select.poll()
                 poller.register(descendant_fd, select.POLLIN)
@@ -107,6 +110,7 @@ def supervise(executable):
         "architecture": os.uname().machine,
         "containment": "PID namespace" if len(namespace_pids) > 1 else "cgroup v2",
         "detachedExitMilliseconds": elapsed_ms,
+        "detachedIgnoresSigterm": True,
         "targetAfterKill": False,
         "normalTargetExit": 37,
         "normalTargetPid": launcher.pid,
@@ -118,6 +122,7 @@ def supervise(executable):
 
 if sys.argv[1] == "descendant":
     os.setsid()
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
     (RESULT / "ready").touch()
     while True:
         signal.pause()
