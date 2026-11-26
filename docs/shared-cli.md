@@ -30,6 +30,14 @@ environment = git_environment()
 - `git_environment()` は呼び出し元の `GIT_*` をすべて除去する。内部の `git rev-parse` は optional lock を無効にする。
 - Git metadata を解決できない場合は `InvalidContext` を返す。呼び出し元は権限を広げず処理を止める。
 
+### TypeScript module への引継ぎ
+
+reviewer の移行（#40）と devShell の準備用 module（#43）は、共通の [`lib/bun/git-context.ts`](../lib/bun/git-context.ts) を利用する。`Repository.discover(directory, { linkedOnly, allowGitfile })` は上記と同じ許可条件で `root`、`gitDir`、`commonDir` を返す。`gitEnvironment()`、`identity()`、`checkUnchanged(saved)`、`InvalidContext` が既存の環境除去・同一性・拒否の契約を引き継ぐ。
+
+`GitIdentity` の保存形式は `{ common_dir, device, inode }`。device と inode は安全に表現できる範囲で `number`、それを超える場合は `bigint` で保持する。保存と読込みには既存の `strictJSON` と `parseStrictJSON` を使うと、旧 Python と同じ JSON 整数の形式を保てる。現行の公開 CLI は引き続き Python module を使う。
+
+[比較用 corpus](../tests/fixtures/git-context-python.json) は `940f25e4ae102b2ccd4b58408e85cf8411750544` の Python module と一時 worktree fixture に固定して採取した。物理パスは一時 root からの相対値に正規化し、device と inode は実ファイルの値との一致を記録した。`lib/bun/run test tests/bun/git-context.test.ts` で、固定した 20 ケースの戻り値と拒否を比較できる。
+
 ## CLI の契約と依存
 
 依存 CLI は package に同梱しない。必要な一般ツールは公式の配布元から別途用意する。バージョンは plugin で pin せず、各 CLI が現在サポートする版を使う。これらの実行時依存は独立しており、ある CLI の不足で別の skill を止めない。
