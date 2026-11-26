@@ -312,6 +312,38 @@
         "stderr": "devshell-env: Invalid initial character for a key part (at line 1, column 13)\n"
       }
     },
+    "tomlMultilineCrlf": {
+      "input": {
+        "replace": ["real = 1.0", "example = '''\r\nline one\r\nline two\r\n'''"]
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "public files, reachable Git history and managed runtime policy admitted\n",
+        "stderr": "",
+        "bytes": "{\n  \"version\": 1,\n  \"root\": \"{base}/work\",\n  \"repository\": {\n    \"common_dir\": \"{base}/repo/.git\",\n    \"device\": {device},\n    \"inode\": {inode}\n  },\n  \"git_head\": \"{head}\",\n  \"index_tree\": \"{index_tree}\",\n  \"files\": {\n    \"flake.nix\": {\n      \"sha256\": \"b868b112f38777103dbd44740d3ebc6735107900dc784096c447de14a2c02ba9\",\n      \"executable\": false\n    },\n    \"tools/check.sh\": {\n      \"sha256\": \"d3da42f22921553098697a8df587dc67cf0bd665be951e054c0925e9f620aa4b\",\n      \"executable\": true\n    },\n    \"notes/\\u00e9.txt\": {\n      \"sha256\": \"0228f14354fb823b30812aff38e46d249df921785fa24b3d47552c1358d5f125\",\n      \"executable\": false\n    }\n  },\n  \"runtime\": {\n    \"codex_home\": \"{base}/home/.codex\",\n    \"config_files\": {\n      \"config.toml\": \"\\\"example\\\"=\\\"line one\\\\nline two\\\\n\\\"\\n\\\"large\\\"=9007199254740993\\n\\\"values\\\"=[-0.0,1e-08,42,Infinity,NaN]\\n\\\"quoted\\\"=\\\"\\u00e9 and tabs\\\\t\\\"\\n\\\"model\\\"=\\\"gpt-6-luna\\\"\\n\\\"model_reasoning_effort\\\"=\\\"xhigh\\\"\\n\\\"model_provider\\\"=\\\"isolated\\\"\\n\\\"approval_policy\\\"=\\\"on-request\\\"\\n\\\"approvals_reviewer\\\"=\\\"auto_review\\\"\\n\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n\\\"web_search\\\"=\\\"disabled\\\"\\n[\\\"features\\\"]\\n\\\"network_proxy\\\"=true\\n\\\"shell_snapshot\\\"=false\\n[\\\"model_providers\\\"]\\n[\\\"model_providers\\\".\\\"isolated\\\"]\\n\\\"name\\\"=\\\"Fixture model gateway\\\"\\n\\\"base_url\\\"=\\\"http://127.0.0.1:8123/v1\\\"\\n\\\"wire_api\\\"=\\\"responses\\\"\\n\\\"requires_openai_auth\\\"=false\\n\\\"request_max_retries\\\"=0\\n\\\"stream_max_retries\\\"=0\\n[\\\"mcp_servers\\\"]\\n[\\\"extra\\\"]\\n\\\"10\\\"=\\\"first\\\"\\n\\\"2\\\"=\\\"second\\\"\\n\\\"constructor\\\"=\\\"present\\\"\\n\\\"__proto__\\\"=\\\"also present\\\"\\n[\\\"plugins\\\"]\\n[\\\"plugins\\\".\\\"fixture\\\"]\\n\\\"enabled\\\"=false\\n\",\n      \"AGENTS.md\": \"Public fixture instructions.\\n\",\n      \"rules/default.rules\": \"# fixture rule\\n\"\n    },\n    \"requirements\": \"\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n[\\\"allowed_permission_profiles\\\"]\\n\\\"dotfiles-secure\\\"=true\\n[\\\"permissions\\\"]\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\"]\\n\\\"extends\\\"=\\\":workspace\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\"]\\n\\\":root\\\"=\\\"deny\\\"\\n\\\":minimal\\\"=\\\"read\\\"\\n\\\":slash_tmp\\\"=\\\"deny\\\"\\n\\\"/nix\\\"=\\\"read\\\"\\n\\\"{base}/repo/.git/worktrees/work\\\"=\\\"write\\\"\\n\\\"{base}/repo/.git\\\"=\\\"write\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\":workspace_roots\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\".env\\\"=\\\"deny\\\"\\n\\\"*/**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\"/tmp/codex\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\"**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\"]\\n\\\"enabled\\\"=true\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\".\\\"domains\\\"]\\n\\\"cache.nixos.org\\\"=\\\"allow\\\"\\n\\\"*.github.com\\\"=\\\"allow\\\"\\n\\\"github.com\\\"=\\\"allow\\\"\\n\\\"private.example\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"workspace_roots\\\"]\\n\",\n    \"domains\": [\n      \"cache.nixos.org\",\n      \"*.github.com\",\n      \"github.com\"\n    ],\n    \"denied_domains\": [\n      \"private.example\"\n    ],\n    \"hooks\": {\n      \"pre-commit\": \"#!/bin/sh\\nexit 0\\n\"\n    },\n    \"git_identity\": {\n      \"user.name\": \"Fixture\",\n      \"user.email\": \"fixture@example.invalid\"\n    },\n    \"ca_bundle\": \"{ca}\",\n    \"mcp_tools\": {},\n    \"private_tmp_codex\": true,\n    \"github\": null,\n    \"push_helper\": null\n  }\n}\n",
+        "mode": 384
+      }
+    },
+    "tomlInvalidYear": {
+      "input": {
+        "replace": ["[plugins.fixture]", "[plugins.fixture]\nignored = 0000-01-01"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: Invalid date or datetime (at line 72, column 11)\n"
+      }
+    },
+    "tomlInvalidSecond": {
+      "input": {
+        "replace": ["[plugins.fixture]", "[plugins.fixture]\nignored = 2000-01-01T00:00:60Z"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: Expected newline or end of document after a statement (at line 72, column 21)\n"
+      }
+    },
     "tomlDate": {
       "input": {
         "replace": ["real = 1.0", "real = 2026-11-27"]

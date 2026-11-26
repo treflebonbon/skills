@@ -156,16 +156,16 @@ describe.skipIf(process.platform !== "linux" || !ca)("raw 入力登録と旧 adm
         symlinkSync(home, output);
       }
 
-      let githubPolicy: string | undefined;
+      let githubPolicyFile: string | undefined;
       if (input.github) {
-        githubPolicy = join(input.insidePolicy ? work : base, "github.json");
+        githubPolicyFile = join(input.insidePolicy ? work : base, "github.json");
         const fields = Object.fromEntries(
           Object.entries({ ...inputs.github, ...input.github }).map(([key, value]) => [
             key,
             value.replaceAll("{head}", head),
           ]),
         );
-        const file = input.symlinkPolicy ? join(base, "github-target.json") : githubPolicy;
+        const file = input.symlinkPolicy ? join(base, "github-target.json") : githubPolicyFile;
         const payload = JSON.stringify(fields);
         if (input.policyEncoding === "utf-32-be-bom") {
           const data = Buffer.alloc((payload.length + 1) * 4);
@@ -176,12 +176,12 @@ describe.skipIf(process.platform !== "linux" || !ca)("raw 入力登録と旧 adm
         } else {
           writeFileSync(file, (input.policyEncoding === "utf-8-sig" ? "\ufeff" : "") + payload);
         }
-        if (input.symlinkPolicy) symlinkSync(file, githubPolicy);
+        if (input.symlinkPolicy) symlinkSync(file, githubPolicyFile);
       }
 
       const names = input.names ?? Object.keys(inputs.public);
       const admit = () =>
-        admitRawInputs(repo, input.head ?? head, names, { githubPolicy, mcp: input.mcp });
+        admitRawInputs(repo, input.head ?? head, names, { githubPolicyFile, mcp: input.mcp });
       if (expected.status !== 0) {
         const legacy = expected.stderr.trimEnd().replace(/^devshell-env: /, "");
         const reason = legacy.startsWith("[Errno ")

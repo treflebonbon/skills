@@ -270,7 +270,7 @@ function projectFilesystem(filesystem: unknown, repo: Repository): Table {
 export function readManagedConfig(text: string, repo: Repository) {
   let config: Table;
   try {
-    config = parse(text, { integersAsBigInt: true, useLegacyDate: false });
+    config = parse(text.replaceAll("\r\n", "\n"), { integersAsBigInt: true, useLegacyDate: false });
   } catch {
     throw new Error("invalid managed TOML configuration");
   }

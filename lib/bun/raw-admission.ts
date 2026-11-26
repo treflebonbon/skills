@@ -58,7 +58,7 @@ const mcpContracts = {
 } as const;
 
 type AdmissionOptions = {
-  githubPolicy?: string;
+  githubPolicyFile?: string;
   mcp?: readonly (keyof typeof mcpContracts)[];
 };
 
@@ -215,7 +215,7 @@ function gitRuntime(repo: Repository) {
 function publicRuntime(
   repo: Repository,
   head: string,
-  { githubPolicy, mcp = [] }: AdmissionOptions,
+  { githubPolicyFile, mcp = [] }: AdmissionOptions,
 ) {
   const codex_home = physical(process.env.CODEX_HOME ?? join(homedir(), ".codex"));
   if (!isOutsideProject(codex_home, repo))
@@ -232,7 +232,8 @@ function publicRuntime(
     Object.keys(plugins).map((name) => [name, { enabled: false }]),
   );
 
-  const github = githubPolicy === undefined ? null : bindGitHubPolicy(repo, head, githubPolicy);
+  const github =
+    githubPolicyFile === undefined ? null : bindGitHubPolicy(repo, head, githubPolicyFile);
   const push_helper = github ? readText(physical(bin), "git-push-topic") : null;
   const config_files: Record<string, string> = { "config.toml": tomlDocument(config) };
   for (const name of ["AGENTS.md", "rules/default.rules"])
