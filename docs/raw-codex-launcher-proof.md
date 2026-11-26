@@ -12,7 +12,7 @@
 | 現行 raw が動く通常 Linux x86_64                 | #132 の launcher 実証は未実行。                                                                                                                                         |
 | 現行 raw が動く通常 Linux ネイティブ arm64       | #132 の launcher 実証は未実行。                                                                                                                                         |
 
-WSL2 の実行には Nix 2.34.6、bubblewrap 0.12.0、Bun 1.4.4 を使用しました。Nix 成果物の版は `1`、2つの C source の SHA-256 を連結してハッシュした値は `d83c5dac31da837c8794ba2d839ff379544b275ceeecdc3284458d123e7799ad`、実行体の SHA-256 は `57edfea2100142009d47a39f605ca7d18d1470aac12df9227faf97862ca6be89` です。ビルドに使った Nixpkgs は `/nix/store/wz6pw7bm0qmj0j6n8i2craddlhj662l5-source`、成果物は `/nix/store/fzlr96fgq217f1w2j9mqjrwbvvh2wfgc-raw-codex-launcher-1` です。
+WSL2 の実行には Nix 2.34.6、bubblewrap 0.12.0、Bun 1.4.4 を使用しました。Nix 成果物の版は `1`、2つの C source の SHA-256 を連結してハッシュした値は `d83c5dac31da837c8794ba2d839ff379544b275ceeecdc3284458d123e7799ad`、実行体の SHA-256 は `57edfea2100142009d47a39f605ca7d18d1470aac12df9227faf97862ca6be89` です。実測時の store 名は、Nixpkgs が `wz6pw7bm0qmj0j6n8i2craddlhj662l5-source`、launcher が `fzlr96fgq217f1w2j9mqjrwbvvh2wfgc-raw-codex-launcher-1` でした。
 
 方式の選択は実行時に PID namespace の probe、委譲された cgroup v2、準備前の拒否の順です。WSL2 の raw 隔離内には `/sys/fs/cgroup` と host の user manager の socket がありませんでした。cgroup v2 と拒否の既存証跡は #121 のホスト上の結果です。必要範囲での実証が揃うまで製品化の受入を保留します。 [raw の前提](raw-codex-isolation.md#必要な環境) · [#34 の追加実証条件](bun-namespace-proof.md#追加実証の受入条件)
 
