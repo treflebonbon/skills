@@ -125,7 +125,7 @@ Debian GNU/Linux 13.7 の QEMU/KVM ゲストで、既定のセキュリティ設
 
 2026-11-26 に、配布先の既定セキュリティ設定で、配布用 Nix pin から選んだ Bun、Bash、`unshare`、`setpriv`、`ip`、`bwrap` を使用する方針に合意した。必要な namespace やツールが利用できない環境では、準備を停止する。
 
-ホスト側で `lib/bun/run` を呼ぶ際は、選択した Nix Bash の絶対パスと `-p` を指定する。隔離内では、現行 raw が選択済み Bash を `/bin/bash` に配置する仕組みを使う。ホストの `/bin/bash` がない状態での起動は、[#35 のランナー起動の確認](bun-nix-runtime-proof.md#固定した-nix-bash-によるランナー起動)に記録した。
+ホスト側で `lib/bun/run` を呼ぶ際は、選択した Nix Bash の絶対パスと `-p` を指定する。隔離内の `/bin/bash` にも同じ Bash を使う条件は、`run_isolated` が検索するホスト側の `PATH` の先頭にその Bash の `bin` を置くこと。Bash の選択とホストの `/bin/bash` がない状態での起動は、[#35 のランナー起動の確認](bun-nix-runtime-proof.md#固定した-nix-bash-によるランナー起動)に記録した。
 
 fixture の bubblewrap は保護済み filesystem を読み取り専用で再公開する合成構成であり、raw orchestrator の秘密情報の選別や完全な filesystem / PID / gateway 設計の受入ではない。複数段階の Bun 親子 process を使うため、同一 PID への置換や FD・signal の互換性は #33 の判断を引き継ぐ。本番の raw 呼び出し元と組み合わせた統合受入は #45 が担当する。
 

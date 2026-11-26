@@ -97,6 +97,8 @@ dotfiles の `4f3d33d6a210702153cfa5ede67717c57d05222f` にある devShell の `
 
 2026-11-26 に、ホスト側の `lib/bun/run` は配布用 pin で選んだ Nix Bash の絶対パスと `-p` を指定して起動し、隔離内では現行 raw の `/bin/bash` 配置を使う方針に合意した。
 
+現行の `run_isolated` はホスト側の `PATH` で `bash` を検索し、取得した Nix パッケージの closure をコピーして、その `bin/bash` を隔離内の `/bin/bash` にリンクする。同じ Bash を使うため、#45 では `run_isolated` が検索するホスト側の `PATH` の先頭に、配布用 pin で選んだ Bash の `bin` を置く。ホストでの選択結果と隔離内の `/bin/bash` の実体が、選択した store path に一致することを統合受入で確認する。
+
 WSL2 x86_64（kernel `6.18.58.1-microsoft-standard-WSL2`）上で、`/bin/bash` のない隔離を作り、配布用 pin の Bash 5.3p9、Bun 1.4.4、coreutils 9.11 の closure 14 paths を読み取り専用で公開した。`aa26b76c6f1f8f22625757ae87ed8d31e7ce1132` の既存ランナーを `env` 経由で直接起動する対照は終了127。Nix Bash の絶対パスを指定した `bash -p /runtime/run` は、選択した Bun で合成 entrypoint を実行し、終了状態0だった。`BASH_ENV` に指定した合成ファイルも読み込まれなかった。
 
 ## repo 外の切り替え
