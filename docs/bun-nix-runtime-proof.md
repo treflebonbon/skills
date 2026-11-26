@@ -1,6 +1,6 @@
 # Nix closure 内の Bun と生成 wrapper の実証
 
-[#35](https://github.com/treflebonbon/skills/issues/35) の実証用 fixture と記録。Linux / WSL2 x86_64 では、選択した Bun と closure を専用 store へコピーし、読み取り専用の runtime copy にある生成 wrapper から Bun を起動できた。通常 Linux / aarch64 と配布先での受入は未確認で、対応範囲全体での採用は保留する。本番 tools 一覧と wrapper は切り替えていない。
+[#35](https://github.com/treflebonbon/skills/issues/35) の実証用 fixture と記録。WSL2 x86_64、Debian x86_64、NixOS arm64 では、選択した Bun と closure を専用 store へコピーし、読み取り専用の runtime copy にある生成 wrapper から Bun を起動できた。採用は、現行 raw の前提を満たす必要範囲に限る。
 
 ## 比較する境界と選択する tool
 
@@ -81,14 +81,32 @@ python3 -B /home/ubuntu/ghq/github.com/treflebonbon/dotfiles/scripts/verificatio
 
 末尾の `boundary: "nix-runtime"` の JSON に source revision、fixture / test source hash、選択 tool と closure、準備時間、不変性の結果を残す。dirty checkout では HEAD と両方の source hash を併せて照合する。準備は test file ごとに一度だけ行い、終了後に自分が作った専用 store を片付ける。追加の npm package、FFI、native build は不要。既存入口の検査には通常の raw fixture と同じ Nix tool 群・Python・Git・GitHub CLI も必要だが、実モデル・認証・外部サービスは使用しない。
 
-通常の Bun suite は Nix store 外の Bun の拒否を検査し、実隔離の8件は明示 opt-in まで skip する。未実行時の JSON は `realIsolation: "not-requested"` とし、Nix がない CI の成功を実証の成功に数えない。opt-in 時の tool・権限・版の不足は失敗にする。通常 Linux / aarch64、WSL2 aarch64 は未確認。macOS と Windows native は raw isolation の対象外。
+通常の Bun suite は Nix store 外の Bun の拒否を検査し、実隔離の8件は明示 opt-in まで skip する。未実行時の JSON は `realIsolation: "not-requested"` とし、Nix がない CI の成功を実証の成功に数えない。opt-in 時の tool・権限・版の不足は失敗にする。WSL2 aarch64 は未確認。macOS と Windows native は raw isolation の対象外。
 
-## repo 外の切り替えと残る判断
+Debian GNU/Linux 13.7 の x86_64 ゲストでは、既定のセキュリティ設定で `176fa3678eca08e7404988d8ff08c6bffb24af2b` の9件が合格した。失敗・スキップはともに0件。 [#35 の Debian 実測記録](https://github.com/treflebonbon/skills/issues/35#issuecomment-7104458712)
 
-現在の dotfiles source には `private_dot_config/nix-devshell/modules/runtimes.nix` の Bun 定義と、`flake.nix` の `nixpkgs-language-sources` 選択がある。今回の実効 PATH では Nix Bun 1.4.4 が利用できたが、その store path と現在の外部 flake の再評価結果の同一性は未確認である。
+## NixOS arm64 の追加実測
+
+2026-11-26 に #34 と同じ EC2 Graviton 上で `aa26b76c6f1f8f22625757ae87ed8d31e7ce1132` を検証した。ホストの既定のセキュリティ設定と、検証内だけの `/bin/bash` の準備は #34 の記録を参照する。 [NixOS arm64 の環境と実行条件](bun-namespace-proof.md#nixos-arm64-の追加実測)
+
+dotfiles の `4f3d33d6a210702153cfa5ede67717c57d05222f` にある devShell の `aarch64-linux` 出力から Bun 1.4.4 を解決した。nixpkgs は `7529d323f8f9926b38df356da2483c2a4e759d00`、Bun 定義の取得元は `0d765791b09356dd5b356559c1b67c1600ca3c5b`。devShell の評価、ゲストの PATH、テストの manifest、既存の raw 入口から実行した target の Bun は、store path がすべて一致した。観測した store ディレクトリ名は `9795kdj4wig6h6hm62vrzi3h7a8rprhn-bun-1.4.4`、実行体の相対パスは `bin/bun`。
+
+同じ `NIX_BUN_PROOF_REAL=1` の実行で9件合格、失敗・スキップはともに0件、終了状態0。Nix 2.35.3、Bash 5.3p9、coreutils 9.11、bubblewrap 0.12.0、Python 3.14.7、Git 2.54.0、GitHub CLI 2.102.0 を使った。Bun・Bash・coreutils の3 roots から14 store paths をコピーし、コピー元とコピー先の Bun の SHA-256 `958c92462f8c7d7cd2020db59f7dadd3e81e4c456e1f4b5b14f0b1602c54ada0` が一致した。生成 wrapper と Bun の読み取り専用配置、専用 HOME・scratch への書込み、環境変数の除去、payload と元の `lib/bun` の同一性を確認した。
+
+## 固定した Nix Bash によるランナー起動
+
+2026-11-26 に、ホスト側の `lib/bun/run` は配布用 pin で選んだ Nix Bash の絶対パスと `-p` を指定して起動し、隔離内では現行 raw の `/bin/bash` 配置を使う方針に合意した。
+
+現行の `run_isolated` はホスト側の `PATH` で `bash` を検索し、取得した Nix パッケージの closure をコピーして、その `bin/bash` を隔離内の `/bin/bash` にリンクする。同じ Bash を使うため、#45 では `run_isolated` が検索するホスト側の `PATH` の先頭に、配布用 pin で選んだ Bash の `bin` を置く。ホストでの選択結果と隔離内の `/bin/bash` の実体が、選択した store path に一致することを統合受入で確認する。
+
+WSL2 x86_64（kernel `6.18.58.1-microsoft-standard-WSL2`）上で、`/bin/bash` のない隔離を作り、配布用 pin の Bash 5.3p9、Bun 1.4.4、coreutils 9.11 の closure 14 paths を読み取り専用で公開した。`aa26b76c6f1f8f22625757ae87ed8d31e7ce1132` の既存ランナーを `env` 経由で直接起動する対照は終了127。Nix Bash の絶対パスを指定した `bash -p /runtime/run` は、選択した Bun で合成 entrypoint を実行し、終了状態0だった。`BASH_ENV` に指定した合成ファイルも読み込まれなかった。
+
+## repo 外の切り替え
+
+dotfiles の Bun 定義は `private_dot_config/nix-devshell/modules/runtimes.nix` にあり、`flake.nix` が `nixpkgs-language-sources` を選ぶ。検証に使った pin では、arm64 上で既存 runner の下限を満たす Bun 1.4.4 を解決できた。
 
 後続の本番切り替えでは、対象 devShell の pin で必要な Bun を解決できるか確かめ、Bun を明示的な tool root として closure に含める。runtime copy に `lib/bun/run`・config と移植済み TypeScript を含め、生成 wrapper の shebang と PATH を選択済みの store paths へ固定する。必要な版を取得できなければ、外部 flake を自動更新せず、pin の選択を判断事項として残す。
 
 今回の公開入口と repo 外の呼び出し元に変更はない。dotfiles の PATH / flake、共有設定、認証、配備は変更していない。実証は Bun entrypoint の起動を対象とし、隔離内 Nix の評価・build・追加 store 書込み、実モデル・gateway、全製品 wrapper の受入は未実施。同一 PID・FD・signal と namespace の採用判断は #33・#34 を引き継ぐ。
 
-WSL2 x86_64 の候補は成立したが、必要な対応範囲と配布先での採用条件は確定していない。#35 は open / ready-for-human として判断事項を残し、後続の blocking links は解除しない。
+本番の runtime copy・生成 wrapper・PATH から選択済み store paths を使うことと、実際の raw 呼び出し元での TTY・signal・cleanup を #45 の統合受入で確認する。

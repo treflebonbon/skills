@@ -1,6 +1,6 @@
 # Bun と OS ツールによる namespace の実証
 
-[#34](https://github.com/treflebonbon/skills/issues/34) の実証用 fixture と記録。Linux / WSL2 x86_64 では、`unshare` で user / network namespace を作ってから Bun を起動し、準備後に `setpriv` で capability を落とす候補が成立した。本番 orchestrator は変更していない。Ubuntu 24.04 x86_64 の既定設定では旧版と候補が準備段階で停止した。対応範囲全体での採用は未確定。#34 の完了や後続の依存解除の根拠にはしない。
+[#34](https://github.com/treflebonbon/skills/issues/34) の実証用 fixture と記録。WSL2 x86_64、Debian x86_64、NixOS arm64 では、`unshare` で user / network namespace を作ってから Bun を起動し、準備後に `setpriv` で capability を落とす候補が成立した。Ubuntu 24.04 x86_64 の既定設定では旧版と候補が準備段階で停止した。採用は、現行 raw の前提を満たす必要範囲に限る。
 
 ## 比較対象と観測境界
 
@@ -61,7 +61,7 @@ bubblewrap の内部の mapping は、準備段階の mapping と異なる。途
 | `ip`                        | iproute2 6.1.0、libbpf 1.3.0                              |
 | bubblewrap                  | 0.12.0                                                    |
 | 比較元 Python               | 3.14.7、`os.unshare` 対応版                               |
-| 通常 Linux x86_64 / aarch64 | x86_64 は下記を参照。aarch64 は未確認                     |
+| 通常 Linux x86_64 / aarch64 | Debian x86_64 と NixOS arm64 で合格。下記の追加実測を参照 |
 | WSL2 aarch64                | 未確認                                                    |
 | macOS                       | raw isolation の対象外                                    |
 
@@ -99,6 +99,20 @@ python3 -B /home/ubuntu/ghq/github.com/treflebonbon/dotfiles/scripts/verificatio
 
 この VM では、旧入口と候補のどちらも準備段階で停止した。候補の Bun 起動、private sysctl・loopback・capability の設定、bubblewrap の受入はこの環境では未実測。raw 隔離には rootless user/network namespace が使える環境が必要になる。 [raw Codex の必要な環境](raw-codex-isolation.md#必要な環境)
 
+## Debian x86_64 の追加実測
+
+Debian GNU/Linux 13.7 の QEMU/KVM ゲストで、既定のセキュリティ設定のまま `176fa3678eca08e7404988d8ff08c6bffb24af2b` の実 namespace テスト13件が合格した。失敗・スキップはともに0件。 [#34 の Debian 実測記録](https://github.com/treflebonbon/skills/issues/34#issuecomment-7103915449)
+
+## NixOS arm64 の追加実測
+
+2026-11-26 に EC2 Graviton `t4g.small` の NixOS 26.05、kernel `6.18.57`、aarch64 で、`aa26b76c6f1f8f22625757ae87ed8d31e7ce1132` の既存テストを実行した。非 root の UID 995、GID 100 で実行し、ホストはイメージ既定のセキュリティ設定を使った。
+
+起動時の LSM は `capability,landlock,yama,bpf,ima`、`NoNewPrivs` と `Seccomp` はともに0だった。`user.max_user_namespaces` と `user.max_net_namespaces` はともに7429、ホストの `net.ipv4.ip_unprivileged_port_start` は1024。`kernel.unprivileged_userns_clone` と `kernel.apparmor_restrict_unprivileged_userns` は取得できなかった。
+
+配布用 dotfiles の pin と一致する Bun 1.4.4 を使った。比較元は `os.unshare` を持つ Python 3.14.7、候補の OS ツールは util-linux 2.42.3、iproute2 7.0.0（libbpf 1.7.0）、bubblewrap 0.12.0。 [Nix pin と Bun の照合](bun-nix-runtime-proof.md#nixos-arm64-の追加実測)
+
+初回はゲストに `/bin/bash` がなく、`lib/bun/run` の shebang を解決できず終了127となった。再実行では固定済み Nix Bash 5.3p9 を検証用サンドボックスの `/bin/bash` に限って読み取り専用で公開した。同じ `NAMESPACE_PROOF_REAL=1` の実行で13件合格、失敗・スキップはともに0件、終了状態0。旧 Python 入口との mapping と capability の比較、private loopback と UDP port 53、bubblewrap の受理・拒否、準備失敗時の target 未起動を確認した。
+
 ## 追加実証の受入条件
 
 必要範囲は、現行の raw 隔離の前提を満たす Linux／WSL2 とする。Ubuntu 24.04 x86_64 の既定設定で両入口が準備段階で停止した結果は、拒否時の証跡として扱う。 [raw Codex の必要な環境](raw-codex-isolation.md#必要な環境)
@@ -107,10 +121,12 @@ python3 -B /home/ubuntu/ghq/github.com/treflebonbon/dotfiles/scripts/verificatio
 - 各環境で既存の `tests/bun/namespace.test.ts` を `NAMESPACE_PROOF_REAL=1` で実行し、現行の13件が失敗・スキップともに0であれば合格とする。同じ fixture で旧 Python 入口と候補の namespace、capability、bubblewrap の挙動を比較し、準備に失敗したときの終了状態と理由、target の未起動を確認する。
 - 対象 SHA、OS、CPU アーキテクチャ、カーネル、ツールの版、ホストの実効 policy と結果を記録する。
 
-## 残る判断
+## 採用条件
 
-通常 Linux の x86_64 と arm64 での実測、配布先の実効 policy、Nix closure に入れる OS ツールと版の固定が残る。#34 は採用に必要な実証が揃うまで open／`ready-for-human` を維持する。
+2026-11-26 に、配布先の既定セキュリティ設定で、配布用 Nix pin から選んだ Bun、Bash、`unshare`、`setpriv`、`ip`、`bwrap` を使用する方針に合意した。必要な namespace やツールが利用できない環境では、準備を停止する。
 
-fixture の bubblewrap は保護済み filesystem を読み取り専用で再公開する合成構成であり、raw orchestrator の秘密情報の選別や完全な filesystem / PID / gateway 設計の受入ではない。複数段階の Bun 親子 process を使うため、同一 PID への置換や FD・signal の互換性は #33 の判断を引き継ぐ。通常利用向けの entry と製品の方式は未採用。
+ホスト側で `lib/bun/run` を呼ぶ際は、選択した Nix Bash の絶対パスと `-p` を指定する。隔離内の `/bin/bash` にも同じ Bash を使う条件は、`run_isolated` が検索するホスト側の `PATH` の先頭にその Bash の `bin` を置くこと。Bash の選択とホストの `/bin/bash` がない状態での起動は、[#35 のランナー起動の確認](bun-nix-runtime-proof.md#固定した-nix-bash-によるランナー起動)に記録した。
+
+fixture の bubblewrap は保護済み filesystem を読み取り専用で再公開する合成構成であり、raw orchestrator の秘密情報の選別や完全な filesystem / PID / gateway 設計の受入ではない。複数段階の Bun 親子 process を使うため、同一 PID への置換や FD・signal の互換性は #33 の判断を引き継ぐ。本番の raw 呼び出し元と組み合わせた統合受入は #45 が担当する。
 
 公開入口と本番 orchestrator を変更していないため、今回の repo 外の呼び出し元の更新はない。将来の切り替え ticket では dotfiles 側の raw 起動と Nix runtime closure へ OS ツールを含め、必要な版と拒否条件を確認する手順を報告する。repo 外の設定変更と本番配備は実行しない。
