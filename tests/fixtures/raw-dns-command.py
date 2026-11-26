@@ -32,9 +32,13 @@ class Resolver(BaseHTTPRequestHandler):
         pass
 
 
+def question(kind, count=1):
+    return (struct.pack("!6H", 123, 0x0100, count, 0, 0, 0)
+            + b"\x07EXample\x07invalid\x00" + struct.pack("!HH", kind, 1))
+
+
 def query(client, kind):
-    packet = struct.pack("!6H", 123, 0x0100, 1, 0, 0, 0)
-    packet += b"\x07EXample\x07invalid\x00" + struct.pack("!HH", kind, 1)
+    packet = question(kind)
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
         client.sendto(packet, ("127.0.0.1", 53))
@@ -55,6 +59,15 @@ with tempfile.TemporaryDirectory(prefix="raw-dns-", dir="/tmp") as directory:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
                 client.settimeout(0.1)
                 observed = {str(kind): query(client, kind) for kind in (1, 28, 16)}
+                for count in (0, 2):
+                    client.sendto(question(1, count), ("127.0.0.1", 53))
+                    try:
+                        client.recv(512)
+                    except TimeoutError:
+                        continue
+                    raise AssertionError(f"answered a query with QDCOUNT={count}")
+                observed["ignoredQuestionCounts"] = [0, 2]
+
             assert all(request["host"] == "example.invalid" for request in requests), requests
             assert {request["type"] for request in requests} == {1, 28}, requests
             print("RAW_DNS " + json.dumps(observed, sort_keys=True))

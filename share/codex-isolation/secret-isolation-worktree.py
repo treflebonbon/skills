@@ -643,7 +643,7 @@ def launch(arguments):
             repo,
             policy,
             session,
-            [str(launcher.executable), str(ISOLATED_BUN / "run"), str(ISOLATED_BUN / "raw-inner.ts"), *arguments],
+            [*launcher_argv(launcher, "raw-inner.ts"), *arguments],
             services,
             Path(runtime["ca_bundle"]),
             runtime,
@@ -852,6 +852,14 @@ fi
 """
 
 
+def launcher_argv(launcher, entry):
+    # Bun consumes the separators, and even an empty caller argv meets the C protocol's minimum.
+    return [
+        str(launcher.executable), str(ISOLATED_BUN / "run"),
+        "--", str(ISOLATED_BUN / entry), "--",
+    ]
+
+
 def exec_wrapper(path, bash, arguments):
     path.write_text(f'#!{bash} -p\nexec {shlex.join([str(arg) for arg in arguments])} "$@"\n')
     path.chmod(0o755)
@@ -1054,7 +1062,7 @@ export NO_PROXY=localhost,127.0.0.1,::1 no_proxy=localhost,127.0.0.1,::1
                     exec_wrapper(runtime_copy / "bin/gh", bash, [*client, "gh"])
                 exec_wrapper(
                     runtime_copy / "bin/with-env", bash,
-                    [launcher.executable, ISOLATED_BUN / "run", ISOLATED_BUN / "raw-with-env.ts"],
+                    launcher_argv(launcher, "raw-with-env.ts"),
                 )
                 (output / "config").mkdir()
                 # Codex atomically replaces its session config when saving TUI trust.
@@ -1207,7 +1215,7 @@ printf '%s\n' "$command_status" > /result/exit-code
                     executable = Path(selected).resolve(strict=True)
                     if not executable.is_relative_to("/nix/store"):
                         raise ValueError(f"isolation tool must come from the Nix store: {name}")
-                    namespace_tools[name] = selected
+                    namespace_tools[name] = str(executable)
                 namespace_prepare = shlex.join([
                     str(bash), "-p", str(BUN_RUNTIME / "run"), "run", str(BUN_RUNTIME / "raw-namespace.ts"),
                     str(Path("/proc/self/ns/user").stat().st_ino),

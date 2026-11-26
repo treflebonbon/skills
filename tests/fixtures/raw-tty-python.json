@@ -3,6 +3,7 @@
   "observed": {
     "argv": ["6c69746572616c20617267756d656e74", "627974652dff"],
     "exit": 37,
+    "foreground": true,
     "ignore": true,
     "input": true,
     "mask": true,

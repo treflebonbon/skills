@@ -1,5 +1,6 @@
 """Observe the real with-env caller using a terminal and an inherited descriptor."""
 
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -8,9 +9,15 @@ import signal
 import subprocess
 import sys
 import tempfile
+import termios
 
 
 def target():
+    terminal = os.open("/dev/tty", os.O_RDONLY | os.O_CLOEXEC)
+    try:
+        foreground = os.tcgetpgrp(terminal) == os.getpgrp()
+    finally:
+        os.close(terminal)
     signal.signal(signal.SIGUSR2, lambda *_: sys.exit(37))
     print(
         json.dumps(
@@ -18,6 +25,7 @@ def target():
                 "pid": os.getpid(),
                 "descriptor": os.fstat(int(sys.argv[2])).st_ino,
                 "tty": all(os.isatty(fd) for fd in range(3)),
+                "foreground": foreground,
                 "mask": signal.SIGUSR1 in signal.pthread_sigmask(signal.SIG_BLOCK, []),
                 "ignore": signal.getsignal(signal.SIGINT) == signal.SIG_IGN,
                 "argv": [os.fsencode(arg).hex() for arg in sys.argv[3:]],
@@ -31,6 +39,11 @@ def target():
     print("input received", flush=True)
     while True:
         signal.pause()
+
+
+def attach_terminal():
+    os.setsid()
+    fcntl.ioctl(0, termios.TIOCSCTTY, 0)
 
 
 def supervise():
@@ -48,7 +61,7 @@ def supervise():
                         __file__, "target", str(descriptor), "literal argument", b"byte-\xff",
                     ],
                     stdin=slave, stdout=slave, stderr=slave,
-                    pass_fds=(descriptor,), restore_signals=False,
+                    pass_fds=(descriptor,), restore_signals=False, preexec_fn=attach_terminal,
                 )
             finally:
                 signal.signal(signal.SIGINT, handler)
