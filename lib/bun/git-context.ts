@@ -45,8 +45,10 @@ function metadataTarget(path: string, prefix = ""): string {
     throw new InvalidContext("invalid Git metadata pointer");
   const target = strip(lines[0].slice(prefix.length));
   if (!target) throw new InvalidContext("empty Git metadata pointer");
-  // 相対 pointer では symlink を解決する前に「..」を取り除かない。
-  return physicalPath(isAbsolute(target) ? target : `${dirname(path)}/${target}`);
+  // Python の Path と同じく、余分な区切りと「.」を除去し「..」は物理解決に委ねる。
+  const components = target.split("/").filter((part) => part && part !== ".");
+  const base = isAbsolute(target) ? "" : dirname(path);
+  return physicalPath(`${base}/${components.join("/")}`);
 }
 
 export type GitIdentity = {

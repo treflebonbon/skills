@@ -36,7 +36,7 @@ reviewer の移行（#40）と devShell の準備用 module（#43）は、共通
 
 `GitIdentity` の保存形式は `{ common_dir, device, inode }`。device と inode は安全に表現できる範囲で `number`、それを超える場合は `bigint` で保持する。保存と読込みには既存の `strictJSON` と `parseStrictJSON` を使うと、旧 Python と同じ JSON 整数の形式を保てる。現行の公開 CLI は引き続き Python module を使う。
 
-[比較用 corpus](../tests/fixtures/git-context-python.json) は `940f25e4ae102b2ccd4b58408e85cf8411750544` の Python module と一時 worktree fixture に固定して採取した。物理パスは一時 root からの相対値に正規化し、device と inode は実ファイルの値との一致を記録した。`lib/bun/run test tests/bun/git-context.test.ts` で、固定した 20 ケースの戻り値と拒否を比較できる。
+[比較用 corpus](../tests/fixtures/git-context-python.json) は `940f25e4ae102b2ccd4b58408e85cf8411750544` の Python module と一時 worktree fixture に固定して採取した。物理パスは一時 root からの相対値に正規化し、device と inode は実ファイルの値との一致を記録した。`lib/bun/run test tests/bun/git-context.test.ts` で、固定した 21 ケースの戻り値と拒否を比較できる。
 
 ## CLI の契約と依存
 

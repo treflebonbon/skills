@@ -32,6 +32,11 @@
       "git_dir": "repo/.git/worktrees/review",
       "common_dir": "repo/.git"
     },
+    "redundantPointerSegments": {
+      "root": "review",
+      "git_dir": "repo/.git/worktrees/review",
+      "common_dir": "repo/.git"
+    },
     "physicalBackPointer": {
       "root": "review",
       "git_dir": "repo/.git/worktrees/review",

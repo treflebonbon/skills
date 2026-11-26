@@ -97,6 +97,11 @@ test("相対 pointer は各 metadata ファイルを基準に解決する", () =
   compare("relativePointers", () => paths(linked()));
 });
 
+test("back-pointer 末尾の冗長な区切りとドットを受け入れる", () => {
+  backPointer("../../../../review/.git/./");
+  compare("redundantPointerSegments", () => paths(linked()));
+});
+
 test("back-pointer は symlink をたどってから親を解決する", () => {
   const child = join(worktree, "child");
   mkdirSync(child);
