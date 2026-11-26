@@ -350,7 +350,8 @@ const removed = [
   new RegExp("\\b" + "peer" + "[-_]"),
   new RegExp(["--", "peer\\b"].join("")),
   new RegExp(["html", "report"].join("[-_]")),
-  new RegExp(["file", "safety"].join("[-_]")),
+  // ADR 0004 に沿って内部実装を復元したため、撤去済みの公開入口を検出する。
+  new RegExp(["bin/prepare", "file", "safety\\b"].join("[-_]")),
   new RegExp(["auto", "peer"].join("[-_]")),
   new RegExp("(^|[^\\w])" + "contracts" + "/"),
   new RegExp(["html", "parser2"].join("")),
