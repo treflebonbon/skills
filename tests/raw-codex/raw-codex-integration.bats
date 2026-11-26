@@ -19,7 +19,8 @@ import json, sys
 from pathlib import Path
 observed = json.loads(sys.stdin.read().removeprefix("RAW_TTY "))
 expected = json.loads(Path(sys.argv[1]).read_text())["observed"]
-assert observed == expected, (observed, expected)
+if observed != expected:
+    raise AssertionError((observed, expected))
 ' "$PROJECT_ROOT/tests/fixtures/raw-tty-python.json"
 }
 

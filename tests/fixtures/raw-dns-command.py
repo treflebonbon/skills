@@ -43,7 +43,10 @@ def query(client, kind):
     while time.monotonic() < deadline:
         client.sendto(packet, ("127.0.0.1", 53))
         try:
-            return client.recv(512).hex()
+            while time.monotonic() < deadline:
+                response = client.recv(512)
+                if response[:2] == packet[:2] and response[12:len(packet)] == packet[12:]:
+                    return response.hex()
         except TimeoutError:
             continue
     raise TimeoutError("DNS bridge did not reply")
@@ -56,13 +59,18 @@ with tempfile.TemporaryDirectory(prefix="raw-dns-", dir="/tmp") as directory:
         worker.start()
         bridge = subprocess.Popen([*sys.argv[1:], "--dns", path])
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
+            # Resends can leave duplicate replies queued on the first socket.
+            with (
+                socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client,
+                socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as ignored_client,
+            ):
                 client.settimeout(0.1)
                 observed = {str(kind): query(client, kind) for kind in (1, 28, 16)}
+                ignored_client.settimeout(0.1)
                 for count in (0, 2):
-                    client.sendto(question(1, count), ("127.0.0.1", 53))
+                    ignored_client.sendto(question(1, count), ("127.0.0.1", 53))
                     try:
-                        client.recv(512)
+                        ignored_client.recv(512)
                     except TimeoutError:
                         continue
                     raise AssertionError(f"answered a query with QDCOUNT={count}")

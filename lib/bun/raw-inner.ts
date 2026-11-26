@@ -99,11 +99,11 @@ try {
     "features.shell_snapshot=false",
     "features.network_proxy=true",
   ];
-  closeSync(openSync("/result/codex-started", "a"));
   writeExecFrame(
     [codex, "-C", repo.root, ...overrides.flatMap((value) => ["-c", value]), ...args],
     env,
   );
+  closeSync(openSync("/result/codex-started", "a"));
 } catch (error) {
   console.error(`codex-worktree: ${(error as Error).message}; initialization incomplete`);
   process.exitCode = 1;

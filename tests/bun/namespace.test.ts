@@ -133,6 +133,7 @@ describe.skipIf(!real)("実 namespace（明示 opt-in）", () => {
     expect(capabilitySet(prepared)).toEqual(["CapAmb", "CapBnd", "CapEff", "CapInh", "CapPrm"]);
     expect(new Set(Object.values(prepared.capabilities)).size).toBe(1);
     expect(target.namespaces.net).toBe(before.namespaces.net);
+    expect(target.namespaces.net).toBe(prepared.namespaces.net);
     expect(target.namespaces.user).not.toBe(before.namespaces.user);
     expect(target.uidMap).toEqual([[process.getuid!(), 0, 1]]);
     expect(target.gidMap).toEqual([[process.getgid!(), 0, 1]]);
