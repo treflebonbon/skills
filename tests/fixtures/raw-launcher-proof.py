@@ -4,6 +4,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import pty
 import select
 import signal
 import subprocess
@@ -36,6 +37,11 @@ def detached_descendant(launcher):
     raise AssertionError(f"detached preparation did not start: launcher exit={launcher.poll()}")
 
 
+def fd_identity(descriptor):
+    metadata = os.fstat(descriptor)
+    return [metadata.st_dev, metadata.st_ino]
+
+
 def supervise(executable):
     entry = [str(HERE / "entry"), str(HERE / "run"), str(HERE / "prepare.ts"), executable]
     suffix = [sys.executable, SCRIPT]
@@ -44,8 +50,12 @@ def supervise(executable):
     with (RESULT / "lock").open("xb") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         suffix.append(str(lock.fileno()))
+        inherited = {
+            "pass_fds": (lock.fileno(),),
+            "env": os.environ | {"RAW_LAUNCHER_PROOF_ENV": "inherited"},
+        }
 
-        launcher = subprocess.Popen([*entry, "hold", *suffix])
+        launcher = subprocess.Popen([*entry, "hold", *suffix], **inherited)
         with os.fdopen(os.pidfd_open(launcher.pid), "rb") as launcher_fd:
             descendant, status = detached_descendant(launcher)
             assert os.readlink(f"/proc/{launcher.pid}/exe") == executable
@@ -63,18 +73,31 @@ def supervise(executable):
         assert os.stat("/proc/self/ns/pid").st_ino == namespace
         assert not marker.exists(), "target started during killed preparation"
 
-        launcher = subprocess.Popen(
-            [*entry, "normal", *suffix],
-            pass_fds=(lock.fileno(),),
-            env=os.environ | {"RAW_LAUNCHER_PROOF_ENV": "inherited"},
-        )
+        signal.signal(signal.SIGUSR1, signal.SIG_IGN)
+        signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGUSR2})
+        master, slave = pty.openpty()
         try:
-            assert launcher.wait(timeout=15) == 37
-            assert json.loads(marker.read_bytes()) == [launcher.pid, "quoted argument", "inherited"]
-        except subprocess.TimeoutExpired:
-            launcher.kill()
-            launcher.wait(timeout=5)
-            raise
+            launcher = subprocess.Popen(
+                [*entry, "normal", *suffix], stdin=slave, stdout=slave, **inherited
+            )
+            try:
+                assert launcher.wait(timeout=15) == 37
+            except subprocess.TimeoutExpired:
+                launcher.kill()
+                launcher.wait(timeout=5)
+                raise
+            assert json.loads(marker.read_bytes()) == {
+                "pid": launcher.pid,
+                "argument": "quoted argument",
+                "environment": "inherited",
+                "tty": [fd_identity(slave), fd_identity(slave)],
+                "lock": fd_identity(lock.fileno()),
+                "signalIgnore": True,
+                "signalBlock": True,
+            }
+        finally:
+            os.close(slave)
+            os.close(master)
 
     caps = [line for line in Path("/proc/self/status").read_text().splitlines() if line.startswith("Cap")]
     assert len(caps) == 5 and all(int(line.split()[1], 16) == 0 for line in caps)
@@ -99,10 +122,20 @@ if sys.argv[1] == "descendant":
     while True:
         signal.pause()
 elif sys.argv[1] == "target":
-    fcntl.flock(int(sys.argv[2]), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    (RESULT / "target.json").write_text(
-        json.dumps([os.getpid(), sys.argv[3], os.environ["RAW_LAUNCHER_PROOF_ENV"]])
-    )
+    marker = RESULT / "target.json"
+    marker.touch()
+    lock_fd = int(sys.argv[2])
+    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    assert os.isatty(0) and os.isatty(1)
+    marker.write_text(json.dumps({
+        "pid": os.getpid(),
+        "argument": sys.argv[3],
+        "environment": os.environ["RAW_LAUNCHER_PROOF_ENV"],
+        "tty": [fd_identity(0), fd_identity(1)],
+        "lock": fd_identity(lock_fd),
+        "signalIgnore": signal.getsignal(signal.SIGUSR1) == signal.SIG_IGN,
+        "signalBlock": signal.SIGUSR2 in signal.pthread_sigmask(signal.SIG_BLOCK, set()),
+    }))
     sys.exit(37)
 else:
     supervise(sys.argv[1])
