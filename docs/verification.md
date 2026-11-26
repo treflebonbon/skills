@@ -77,6 +77,17 @@ worker-readiness の独立検証は `tests/bun/orca-worker-readiness.test.ts` �
 
 devShell の TypeScript 準備は `lib/bun/run test tests/bun/devshell-environment.test.ts` で検証します。一時 Git worktree と fake Nix を使い、旧版の trust record の bytes と mode、Nix の argv、shellHook 後の環境、旧 `with-env` の prepared context、reasoning effort の TOML 入力を比較します。通常の Bun テストは保存済み corpus を読み込みます。 [旧版の corpus](../tests/fixtures/devshell-environment-python.json)
 
+#44 の raw 入力登録は、一時 linked worktree で TypeScript の `admitRawInputs` を呼び出し、旧 `bin/devshell-env admit` が保存した JSON と埋め込み TOML の bytes、mode、拒否理由を比較します。旧版は `d3958cf04c26610103ecd05d1d88ef2890950a1d` の Python 3.14.7 で採取しました。公開 `admit` の切り替えは #48 が担当します。 [旧版の corpus](../tests/fixtures/raw-admission-python.json)
+
+通常の Bun テストは GitHub policy の schema を比較します。入力登録全体を再検証する Linux／WSL2 では、既存の Node.js と Node-API header、C compiler、Nix の `bunx`、`node`、`uvx` および公開 CA bundle を用意します。ADR 0004 の履歴から復元した Node-API を payload 外で明示ビルドしてから、比較を実行します。
+
+```sh
+export TREFLEBONBON_FILE_SAFETY_DIR="$(mktemp -d /tmp/codex/raw-admission.XXXXXX)"
+export RAW_ADMISSION_TEST_CA="${CODEX_ISOLATION_CA_BUNDLE:?公開 Nix CA bundle を指定してください}"
+lib/bun/run run lib/bun/prepare-file-safety.ts
+lib/bun/run test tests/bun/raw-admission.test.ts
+```
+
 #45 が利用する隔離内の資産は `lib/bun/devshell-environment.ts`、その依存 `git-context.ts`・`cli-path.ts`・`coordination-json.ts`・`strict-json.ts`、および Bun の共用起動に必要な `run`・`bunfig.toml`・`tsconfig.json` です。準備前に呼び出し元の `PATH` で `env` を探し、shellHook の後に `env -0` で環境を取得します。Nix の coreutils への symlink が見つかった場合はそのパスを使い、`argv[0]` で `env` が選ばれるようにします。UTF-8 でない環境の bytes は旧ダンプと同じ surrogate escape で返るため、launcher へ渡す側で元の bytes に戻して検証します。host の公開入口の切り替えと旧 Python 実装の撤去は #48 が担当します。 [隔離内の切り替え #45](https://github.com/treflebonbon/skills/issues/45) [host の切り替え #48](https://github.com/treflebonbon/skills/issues/48)
 
 `gh-review-thread` の旧 CLI 出力・段階別失敗・返信と resolve の順序は [移行記録](bun-review-thread-proof.md)、`tests/bun/gh-review-thread.test.ts` と `tests/cli/gh-review-thread.bats` で確認します。実 GitHub への返信・resolve は行わず、fake `gh` の argv と応答を比較します。

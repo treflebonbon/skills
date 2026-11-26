@@ -1,0 +1,591 @@
+{
+  "sourceRevision": "d3958cf04c26610103ecd05d1d88ef2890950a1d",
+  "python": "3.14.7",
+  "inputs": {
+    "config": "real = 1.0\nlarge = 9007199254740993\nvalues = [-0.0, 1e-8, 0x2A, inf, nan]\nquoted = \"\u00e9 and tabs\\t\"\nmodel = \"gpt-6-luna\"\nmodel_reasoning_effort = \"xhigh\"\nmodel_provider = \"isolated\"\napproval_policy = \"on-request\"\napprovals_reviewer = \"auto_review\"\ndefault_permissions = \"dotfiles-secure\"\nweb_search = \"disabled\"\n\n[features]\nnetwork_proxy = true\nshell_snapshot = false\n\n[permissions.dotfiles-secure]\nextends = \":workspace\"\n\n[permissions.dotfiles-secure.filesystem]\n\":root\" = \"deny\"\n\":minimal\" = \"read\"\n\":slash_tmp\" = \"deny\"\n\"/nix\" = \"read\"\n\n[permissions.dotfiles-secure.filesystem.\":workspace_roots\"]\n\".\" = \"write\"\n\".env\" = \"deny\"\n\"*/**/.env\" = \"deny\"\n\"**/*.key\" = \"deny\"\n\"**/credentials.json\" = \"deny\"\n\n[permissions.dotfiles-secure.filesystem.\"/tmp/codex\"]\n\".\" = \"write\"\n\"**/.env\" = \"deny\"\n\"**/*.key\" = \"deny\"\n\"**/credentials.json\" = \"deny\"\n\n[permissions.dotfiles-secure.network]\nenabled = true\n\n[permissions.dotfiles-secure.network.domains]\n\"cache.nixos.org\" = \"allow\"\n\"*.github.com\" = \"allow\"\n\"github.com\" = \"allow\"\n\"private.example\" = \"deny\"\n\n[model_providers.isolated]\nname = \"Fixture model gateway\"\nbase_url = \"http://127.0.0.1:8123/v1\"\nwire_api = \"responses\"\nrequires_openai_auth = false\nrequest_max_retries = 0\nstream_max_retries = 0\n\n[mcp_servers.context7]\ncommand = \"bunx\"\nargs = [\"-y\", \"@upstash/context7-mcp\"]\n\n[mcp_servers.serena]\ncommand = \"uvx\"\nargs = [\"--from\", \"git+https://github.com/oraios/serena\", \"serena\", \"start-mcp-server\", \"--enable-web-dashboard\", \"false\"]\n\n[extra]\n10 = \"first\"\n2 = \"second\"\nconstructor = \"present\"\n__proto__ = \"also present\"\n\n\n[plugins.fixture]\nenabled = true\n\n[permissions.dotfiles-secure.filesystem.\"~\"]\n\"private\" = \"deny\"\n",
+    "public": {
+      "flake.nix": {
+        "text": "{ outputs = { self }: {}; }\n",
+        "mode": 420
+      },
+      "tools/check.sh": {
+        "text": "#!/bin/sh\nprintf fixture\\n\n",
+        "mode": 493
+      },
+      "notes/\u00e9.txt": {
+        "text": "\u5408\u6210 fixture\n",
+        "mode": 420
+      }
+    },
+    "managed": {
+      "AGENTS.md": "Public fixture instructions.\n",
+      "rules/default.rules": "# fixture rule\n"
+    },
+    "hook": "#!/bin/sh\nexit 0\n",
+    "github": {
+      "repository": "fixture/demo",
+      "branch": "task",
+      "default_branch": "main",
+      "reviewed_commit": "{head}",
+      "automation": "no-project-secrets",
+      "review": "Synthetic review"
+    }
+  },
+  "cases": {
+    "valid": {
+      "input": {},
+      "expected": {
+        "status": 0,
+        "stdout": "public files, reachable Git history and managed runtime policy admitted\n",
+        "stderr": "",
+        "bytes": "{\n  \"version\": 1,\n  \"root\": \"{base}/work\",\n  \"repository\": {\n    \"common_dir\": \"{base}/repo/.git\",\n    \"device\": {device},\n    \"inode\": {inode}\n  },\n  \"git_head\": \"{head}\",\n  \"index_tree\": \"{index_tree}\",\n  \"files\": {\n    \"flake.nix\": {\n      \"sha256\": \"b868b112f38777103dbd44740d3ebc6735107900dc784096c447de14a2c02ba9\",\n      \"executable\": false\n    },\n    \"tools/check.sh\": {\n      \"sha256\": \"d3da42f22921553098697a8df587dc67cf0bd665be951e054c0925e9f620aa4b\",\n      \"executable\": true\n    },\n    \"notes/\\u00e9.txt\": {\n      \"sha256\": \"0228f14354fb823b30812aff38e46d249df921785fa24b3d47552c1358d5f125\",\n      \"executable\": false\n    }\n  },\n  \"runtime\": {\n    \"codex_home\": \"{base}/home/.codex\",\n    \"config_files\": {\n      \"config.toml\": \"\\\"real\\\"=1.0\\n\\\"large\\\"=9007199254740993\\n\\\"values\\\"=[-0.0,1e-08,42,Infinity,NaN]\\n\\\"quoted\\\"=\\\"\\u00e9 and tabs\\\\t\\\"\\n\\\"model\\\"=\\\"gpt-6-luna\\\"\\n\\\"model_reasoning_effort\\\"=\\\"xhigh\\\"\\n\\\"model_provider\\\"=\\\"isolated\\\"\\n\\\"approval_policy\\\"=\\\"on-request\\\"\\n\\\"approvals_reviewer\\\"=\\\"auto_review\\\"\\n\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n\\\"web_search\\\"=\\\"disabled\\\"\\n[\\\"features\\\"]\\n\\\"network_proxy\\\"=true\\n\\\"shell_snapshot\\\"=false\\n[\\\"model_providers\\\"]\\n[\\\"model_providers\\\".\\\"isolated\\\"]\\n\\\"name\\\"=\\\"Fixture model gateway\\\"\\n\\\"base_url\\\"=\\\"http://127.0.0.1:8123/v1\\\"\\n\\\"wire_api\\\"=\\\"responses\\\"\\n\\\"requires_openai_auth\\\"=false\\n\\\"request_max_retries\\\"=0\\n\\\"stream_max_retries\\\"=0\\n[\\\"mcp_servers\\\"]\\n[\\\"extra\\\"]\\n\\\"10\\\"=\\\"first\\\"\\n\\\"2\\\"=\\\"second\\\"\\n\\\"constructor\\\"=\\\"present\\\"\\n\\\"__proto__\\\"=\\\"also present\\\"\\n[\\\"plugins\\\"]\\n[\\\"plugins\\\".\\\"fixture\\\"]\\n\\\"enabled\\\"=false\\n\",\n      \"AGENTS.md\": \"Public fixture instructions.\\n\",\n      \"rules/default.rules\": \"# fixture rule\\n\"\n    },\n    \"requirements\": \"\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n[\\\"allowed_permission_profiles\\\"]\\n\\\"dotfiles-secure\\\"=true\\n[\\\"permissions\\\"]\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\"]\\n\\\"extends\\\"=\\\":workspace\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\"]\\n\\\":root\\\"=\\\"deny\\\"\\n\\\":minimal\\\"=\\\"read\\\"\\n\\\":slash_tmp\\\"=\\\"deny\\\"\\n\\\"/nix\\\"=\\\"read\\\"\\n\\\"{base}/repo/.git/worktrees/work\\\"=\\\"write\\\"\\n\\\"{base}/repo/.git\\\"=\\\"write\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\":workspace_roots\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\".env\\\"=\\\"deny\\\"\\n\\\"*/**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\"/tmp/codex\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\"**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\"]\\n\\\"enabled\\\"=true\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\".\\\"domains\\\"]\\n\\\"cache.nixos.org\\\"=\\\"allow\\\"\\n\\\"*.github.com\\\"=\\\"allow\\\"\\n\\\"github.com\\\"=\\\"allow\\\"\\n\\\"private.example\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"workspace_roots\\\"]\\n\",\n    \"domains\": [\n      \"cache.nixos.org\",\n      \"*.github.com\",\n      \"github.com\"\n    ],\n    \"denied_domains\": [\n      \"private.example\"\n    ],\n    \"hooks\": {\n      \"pre-commit\": \"#!/bin/sh\\nexit 0\\n\"\n    },\n    \"git_identity\": {\n      \"user.name\": \"Fixture\",\n      \"user.email\": \"fixture@example.invalid\"\n    },\n    \"ca_bundle\": \"{ca}\",\n    \"mcp_tools\": {},\n    \"private_tmp_codex\": true,\n    \"github\": null,\n    \"push_helper\": null\n  }\n}\n",
+        "mode": 384
+      }
+    },
+    "githubHttps": {
+      "input": {
+        "github": {}
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "public files, reachable Git history and managed runtime policy admitted\n",
+        "stderr": "",
+        "bytes": "{\n  \"version\": 1,\n  \"root\": \"{base}/work\",\n  \"repository\": {\n    \"common_dir\": \"{base}/repo/.git\",\n    \"device\": {device},\n    \"inode\": {inode}\n  },\n  \"git_head\": \"{head}\",\n  \"index_tree\": \"{index_tree}\",\n  \"files\": {\n    \"flake.nix\": {\n      \"sha256\": \"b868b112f38777103dbd44740d3ebc6735107900dc784096c447de14a2c02ba9\",\n      \"executable\": false\n    },\n    \"tools/check.sh\": {\n      \"sha256\": \"d3da42f22921553098697a8df587dc67cf0bd665be951e054c0925e9f620aa4b\",\n      \"executable\": true\n    },\n    \"notes/\\u00e9.txt\": {\n      \"sha256\": \"0228f14354fb823b30812aff38e46d249df921785fa24b3d47552c1358d5f125\",\n      \"executable\": false\n    }\n  },\n  \"runtime\": {\n    \"codex_home\": \"{base}/home/.codex\",\n    \"config_files\": {\n      \"config.toml\": \"\\\"real\\\"=1.0\\n\\\"large\\\"=9007199254740993\\n\\\"values\\\"=[-0.0,1e-08,42,Infinity,NaN]\\n\\\"quoted\\\"=\\\"\\u00e9 and tabs\\\\t\\\"\\n\\\"model\\\"=\\\"gpt-6-luna\\\"\\n\\\"model_reasoning_effort\\\"=\\\"xhigh\\\"\\n\\\"model_provider\\\"=\\\"isolated\\\"\\n\\\"approval_policy\\\"=\\\"on-request\\\"\\n\\\"approvals_reviewer\\\"=\\\"auto_review\\\"\\n\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n\\\"web_search\\\"=\\\"disabled\\\"\\n[\\\"features\\\"]\\n\\\"network_proxy\\\"=true\\n\\\"shell_snapshot\\\"=false\\n[\\\"model_providers\\\"]\\n[\\\"model_providers\\\".\\\"isolated\\\"]\\n\\\"name\\\"=\\\"Fixture model gateway\\\"\\n\\\"base_url\\\"=\\\"http://127.0.0.1:8123/v1\\\"\\n\\\"wire_api\\\"=\\\"responses\\\"\\n\\\"requires_openai_auth\\\"=false\\n\\\"request_max_retries\\\"=0\\n\\\"stream_max_retries\\\"=0\\n[\\\"mcp_servers\\\"]\\n[\\\"extra\\\"]\\n\\\"10\\\"=\\\"first\\\"\\n\\\"2\\\"=\\\"second\\\"\\n\\\"constructor\\\"=\\\"present\\\"\\n\\\"__proto__\\\"=\\\"also present\\\"\\n[\\\"plugins\\\"]\\n[\\\"plugins\\\".\\\"fixture\\\"]\\n\\\"enabled\\\"=false\\n\",\n      \"AGENTS.md\": \"Public fixture instructions.\\n\",\n      \"rules/default.rules\": \"# fixture rule\\n\"\n    },\n    \"requirements\": \"\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n[\\\"allowed_permission_profiles\\\"]\\n\\\"dotfiles-secure\\\"=true\\n[\\\"permissions\\\"]\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\"]\\n\\\"extends\\\"=\\\":workspace\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\"]\\n\\\":root\\\"=\\\"deny\\\"\\n\\\":minimal\\\"=\\\"read\\\"\\n\\\":slash_tmp\\\"=\\\"deny\\\"\\n\\\"/nix\\\"=\\\"read\\\"\\n\\\"{base}/repo/.git/worktrees/work\\\"=\\\"write\\\"\\n\\\"{base}/repo/.git\\\"=\\\"write\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\":workspace_roots\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\".env\\\"=\\\"deny\\\"\\n\\\"*/**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\"/tmp/codex\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\"**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\"]\\n\\\"enabled\\\"=true\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\".\\\"domains\\\"]\\n\\\"cache.nixos.org\\\"=\\\"allow\\\"\\n\\\"*.github.com\\\"=\\\"allow\\\"\\n\\\"github.com\\\"=\\\"allow\\\"\\n\\\"private.example\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"workspace_roots\\\"]\\n\",\n    \"domains\": [\n      \"cache.nixos.org\",\n      \"*.github.com\",\n      \"github.com\"\n    ],\n    \"denied_domains\": [\n      \"private.example\"\n    ],\n    \"hooks\": {\n      \"pre-commit\": \"#!/bin/sh\\nexit 0\\n\"\n    },\n    \"git_identity\": {\n      \"user.name\": \"Fixture\",\n      \"user.email\": \"fixture@example.invalid\"\n    },\n    \"ca_bundle\": \"{ca}\",\n    \"mcp_tools\": {},\n    \"private_tmp_codex\": true,\n    \"github\": {\n      \"repository\": \"fixture/demo\",\n      \"branch\": \"task\",\n      \"default_branch\": \"main\",\n      \"reviewed_commit\": \"{head}\",\n      \"automation\": \"no-project-secrets\",\n      \"review\": \"Synthetic review\"\n    },\n    \"push_helper\": \"#!/usr/bin/env bash\\nset -euo pipefail\\n\\nif [ \\\"$#\\\" -ne 0 ]; then\\n  echo \\\"usage: git-push-topic\\\" >&2\\n  exit 2\\nfi\\n\\ngit_command=\\\"$(type -P git || true)\\\"\\nif [ -z \\\"$git_command\\\" ]; then\\n  echo \\\"ERROR: Git is required\\\" >&2\\n  exit 1\\nfi\\ncase \\\"$git_command\\\" in\\n/*) ;;\\n*) git_command=\\\"$PWD/$git_command\\\" ;;\\nesac\\n\\nbranch=\\\"$(\\\"$git_command\\\" branch --show-current)\\\"\\nif [ -z \\\"$branch\\\" ]; then\\n  echo \\\"ERROR: detached HEAD cannot be published as a topic branch\\\" >&2\\n  exit 1\\nfi\\n\\ncommand_name=\\\"$(basename \\\"$0\\\")\\\"\\nif [ \\\"$command_name\\\" != \\\"git-push-reviewed\\\" ]; then\\n  case \\\"$branch\\\" in\\n  main | master)\\n    echo \\\"ERROR: refusing to push default branch: $branch\\\" >&2\\n    exit 1\\n    ;;\\n  esac\\nfi\\n\\nif ! remote_head=\\\"$(\\\"$git_command\\\" ls-remote --symref origin HEAD 2>/dev/null)\\\"; then\\n  echo \\\"ERROR: cannot resolve origin's default branch\\\" >&2\\n  exit 1\\nfi\\ndefault_ref=\\\"\\\"\\nwhile IFS=$' \\\\t' read -r key value ref; do\\n  if [ \\\"$key\\\" = \\\"ref:\\\" ] && [ \\\"$ref\\\" = \\\"HEAD\\\" ]; then\\n    default_ref=\\\"$value\\\"\\n    break\\n  fi\\ndone <<<\\\"$remote_head\\\"\\ncase \\\"$default_ref\\\" in\\nrefs/heads/*) ;;\\n*)\\n  echo \\\"ERROR: cannot resolve origin's default branch\\\" >&2\\n  exit 1\\n  ;;\\nesac\\ndefault_branch=\\\"${default_ref#refs/heads/}\\\"\\n\\nif [ \\\"$command_name\\\" = \\\"git-push-reviewed\\\" ]; then\\n  if [ \\\"$branch\\\" != \\\"$default_branch\\\" ]; then\\n    echo \\\"ERROR: refusing reviewed push from non-default branch: $branch\\\" >&2\\n    exit 1\\n  fi\\nelse\\n  if [ \\\"$branch\\\" = \\\"$default_branch\\\" ]; then\\n    echo \\\"ERROR: refusing to push default branch: $branch\\\" >&2\\n    exit 1\\n  fi\\n\\n  # A commit that failed in a hook leaves HEAD equal to the default branch; refuse to publish it.\\n  # The local origin/<default> can be stale or missing, so compare against the tip ls-remote reported.\\n  default_sha=\\\"\\\"\\n  while IFS=$' \\\\t' read -r key value _; do\\n    if [ \\\"$key\\\" != \\\"ref:\\\" ] && [ \\\"$value\\\" = \\\"HEAD\\\" ]; then\\n      default_sha=\\\"$key\\\"\\n      break\\n    fi\\n  done <<<\\\"$remote_head\\\"\\n  # is_ancestor <commit> <descendant>: succeeds when <commit> is in <descendant>'s history. A commit this\\n  # clone does not have cannot be in it. Any other failure is not an answer, so stop instead of guessing.\\n  is_ancestor() {\\n    local status=0\\n    \\\"$git_command\\\" cat-file -e \\\"$1^{commit}\\\" 2>/dev/null || return 1\\n    \\\"$git_command\\\" merge-base --is-ancestor \\\"$1\\\" \\\"$2\\\" || status=$?\\n    case \\\"$status\\\" in\\n    0 | 1) return \\\"$status\\\" ;;\\n    esac\\n    echo \\\"ERROR: cannot compare $1 with $2\\\" >&2\\n    exit 1\\n  }\\n\\n  # The tip is fetched so its history is available to is_ancestor. A shallow history can report\\n  # \\\"not an ancestor\\\" for a commit that is one, so it cannot be trusted.\\n  if [ -z \\\"$default_sha\\\" ] || [ \\\"$(\\\"$git_command\\\" rev-parse --is-shallow-repository)\\\" != false ] ||\\n    ! \\\"$git_command\\\" fetch -q origin \\\"$default_ref\\\"; then\\n    echo \\\"ERROR: cannot compare HEAD with origin/$default_branch\\\" >&2\\n    exit 1\\n  fi\\n  if is_ancestor HEAD \\\"$default_sha\\\"; then\\n    echo \\\"ERROR: $branch has no commits beyond origin/$default_branch; check that the last commit succeeded\\\" >&2\\n    exit 1\\n  fi\\n\\n  # Once a PR from this branch is merged, new commits on it never reach the default branch.\\n  # Reject a HEAD that contains the merged PR's head but not its merge result: that is a continuation\\n  # of the old branch. A same-named branch cut from the default branch afterwards contains the merge\\n  # result (a squash or rebase merge result is new, a merge commit keeps the old head reachable).\\n  cannot_check_merged_prs() {\\n    echo \\\"ERROR: cannot check merged PRs for $branch\\\" >&2\\n    exit 1\\n  }\\n  gh_command=\\\"$(type -P gh || true)\\\"\\n  [ -n \\\"$gh_command\\\" ] || cannot_check_merged_prs\\n  case \\\"$gh_command\\\" in\\n  /*) ;;\\n  *) gh_command=\\\"$PWD/$gh_command\\\" ;;\\n  esac\\n  # Name origin's repository explicitly so GH_REPO or a fork's upstream default cannot redirect the query.\\n  origin_url=\\\"$(\\\"$git_command\\\" remote get-url origin)\\\" || cannot_check_merged_prs\\n  merged_prs=\\\"$(\\\"$gh_command\\\" pr list --repo \\\"$origin_url\\\" --head \\\"$branch\\\" --state merged --limit 1000 --json headRefOid,mergeCommit --jq '.[] | \\\"\\\\(.headRefOid) \\\\(.mergeCommit.oid // \\\"\\\")\\\"')\\\" || cannot_check_merged_prs\\n  # A full page may have dropped older PRs.\\n  [ \\\"$(printf '%s\\\\n' \\\"$merged_prs\\\" | wc -l)\\\" -lt 1000 ] || cannot_check_merged_prs\\n  while read -r merged_head merge_commit; do\\n    [ -n \\\"$merged_head\\\" ] || continue\\n    if [ -n \\\"$merge_commit\\\" ] && is_ancestor \\\"$merge_commit\\\" HEAD; then\\n      continue\\n    fi\\n    if is_ancestor \\\"$merged_head\\\" HEAD; then\\n      echo \\\"ERROR: a PR from $branch is already merged; new commits would not reach $default_branch.\\\" >&2\\n      echo \\\"Create a new branch from origin/$default_branch and cherry-pick them.\\\" >&2\\n      exit 1\\n    fi\\n  done <<<\\\"$merged_prs\\\"\\nfi\\n\\nexec \\\"$git_command\\\" push -u origin HEAD\\n\"\n  }\n}\n",
+        "mode": 384
+      }
+    },
+    "githubHttpsDotGit": {
+      "input": {
+        "github": {},
+        "origin": "https://github.com/fixture/demo.git"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "public files, reachable Git history and managed runtime policy admitted\n",
+        "stderr": "",
+        "bytes": "{\n  \"version\": 1,\n  \"root\": \"{base}/work\",\n  \"repository\": {\n    \"common_dir\": \"{base}/repo/.git\",\n    \"device\": {device},\n    \"inode\": {inode}\n  },\n  \"git_head\": \"{head}\",\n  \"index_tree\": \"{index_tree}\",\n  \"files\": {\n    \"flake.nix\": {\n      \"sha256\": \"b868b112f38777103dbd44740d3ebc6735107900dc784096c447de14a2c02ba9\",\n      \"executable\": false\n    },\n    \"tools/check.sh\": {\n      \"sha256\": \"d3da42f22921553098697a8df587dc67cf0bd665be951e054c0925e9f620aa4b\",\n      \"executable\": true\n    },\n    \"notes/\\u00e9.txt\": {\n      \"sha256\": \"0228f14354fb823b30812aff38e46d249df921785fa24b3d47552c1358d5f125\",\n      \"executable\": false\n    }\n  },\n  \"runtime\": {\n    \"codex_home\": \"{base}/home/.codex\",\n    \"config_files\": {\n      \"config.toml\": \"\\\"real\\\"=1.0\\n\\\"large\\\"=9007199254740993\\n\\\"values\\\"=[-0.0,1e-08,42,Infinity,NaN]\\n\\\"quoted\\\"=\\\"\\u00e9 and tabs\\\\t\\\"\\n\\\"model\\\"=\\\"gpt-6-luna\\\"\\n\\\"model_reasoning_effort\\\"=\\\"xhigh\\\"\\n\\\"model_provider\\\"=\\\"isolated\\\"\\n\\\"approval_policy\\\"=\\\"on-request\\\"\\n\\\"approvals_reviewer\\\"=\\\"auto_review\\\"\\n\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n\\\"web_search\\\"=\\\"disabled\\\"\\n[\\\"features\\\"]\\n\\\"network_proxy\\\"=true\\n\\\"shell_snapshot\\\"=false\\n[\\\"model_providers\\\"]\\n[\\\"model_providers\\\".\\\"isolated\\\"]\\n\\\"name\\\"=\\\"Fixture model gateway\\\"\\n\\\"base_url\\\"=\\\"http://127.0.0.1:8123/v1\\\"\\n\\\"wire_api\\\"=\\\"responses\\\"\\n\\\"requires_openai_auth\\\"=false\\n\\\"request_max_retries\\\"=0\\n\\\"stream_max_retries\\\"=0\\n[\\\"mcp_servers\\\"]\\n[\\\"extra\\\"]\\n\\\"10\\\"=\\\"first\\\"\\n\\\"2\\\"=\\\"second\\\"\\n\\\"constructor\\\"=\\\"present\\\"\\n\\\"__proto__\\\"=\\\"also present\\\"\\n[\\\"plugins\\\"]\\n[\\\"plugins\\\".\\\"fixture\\\"]\\n\\\"enabled\\\"=false\\n\",\n      \"AGENTS.md\": \"Public fixture instructions.\\n\",\n      \"rules/default.rules\": \"# fixture rule\\n\"\n    },\n    \"requirements\": \"\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n[\\\"allowed_permission_profiles\\\"]\\n\\\"dotfiles-secure\\\"=true\\n[\\\"permissions\\\"]\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\"]\\n\\\"extends\\\"=\\\":workspace\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\"]\\n\\\":root\\\"=\\\"deny\\\"\\n\\\":minimal\\\"=\\\"read\\\"\\n\\\":slash_tmp\\\"=\\\"deny\\\"\\n\\\"/nix\\\"=\\\"read\\\"\\n\\\"{base}/repo/.git/worktrees/work\\\"=\\\"write\\\"\\n\\\"{base}/repo/.git\\\"=\\\"write\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\":workspace_roots\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\".env\\\"=\\\"deny\\\"\\n\\\"*/**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\"/tmp/codex\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\"**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\"]\\n\\\"enabled\\\"=true\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\".\\\"domains\\\"]\\n\\\"cache.nixos.org\\\"=\\\"allow\\\"\\n\\\"*.github.com\\\"=\\\"allow\\\"\\n\\\"github.com\\\"=\\\"allow\\\"\\n\\\"private.example\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"workspace_roots\\\"]\\n\",\n    \"domains\": [\n      \"cache.nixos.org\",\n      \"*.github.com\",\n      \"github.com\"\n    ],\n    \"denied_domains\": [\n      \"private.example\"\n    ],\n    \"hooks\": {\n      \"pre-commit\": \"#!/bin/sh\\nexit 0\\n\"\n    },\n    \"git_identity\": {\n      \"user.name\": \"Fixture\",\n      \"user.email\": \"fixture@example.invalid\"\n    },\n    \"ca_bundle\": \"{ca}\",\n    \"mcp_tools\": {},\n    \"private_tmp_codex\": true,\n    \"github\": {\n      \"repository\": \"fixture/demo\",\n      \"branch\": \"task\",\n      \"default_branch\": \"main\",\n      \"reviewed_commit\": \"{head}\",\n      \"automation\": \"no-project-secrets\",\n      \"review\": \"Synthetic review\"\n    },\n    \"push_helper\": \"#!/usr/bin/env bash\\nset -euo pipefail\\n\\nif [ \\\"$#\\\" -ne 0 ]; then\\n  echo \\\"usage: git-push-topic\\\" >&2\\n  exit 2\\nfi\\n\\ngit_command=\\\"$(type -P git || true)\\\"\\nif [ -z \\\"$git_command\\\" ]; then\\n  echo \\\"ERROR: Git is required\\\" >&2\\n  exit 1\\nfi\\ncase \\\"$git_command\\\" in\\n/*) ;;\\n*) git_command=\\\"$PWD/$git_command\\\" ;;\\nesac\\n\\nbranch=\\\"$(\\\"$git_command\\\" branch --show-current)\\\"\\nif [ -z \\\"$branch\\\" ]; then\\n  echo \\\"ERROR: detached HEAD cannot be published as a topic branch\\\" >&2\\n  exit 1\\nfi\\n\\ncommand_name=\\\"$(basename \\\"$0\\\")\\\"\\nif [ \\\"$command_name\\\" != \\\"git-push-reviewed\\\" ]; then\\n  case \\\"$branch\\\" in\\n  main | master)\\n    echo \\\"ERROR: refusing to push default branch: $branch\\\" >&2\\n    exit 1\\n    ;;\\n  esac\\nfi\\n\\nif ! remote_head=\\\"$(\\\"$git_command\\\" ls-remote --symref origin HEAD 2>/dev/null)\\\"; then\\n  echo \\\"ERROR: cannot resolve origin's default branch\\\" >&2\\n  exit 1\\nfi\\ndefault_ref=\\\"\\\"\\nwhile IFS=$' \\\\t' read -r key value ref; do\\n  if [ \\\"$key\\\" = \\\"ref:\\\" ] && [ \\\"$ref\\\" = \\\"HEAD\\\" ]; then\\n    default_ref=\\\"$value\\\"\\n    break\\n  fi\\ndone <<<\\\"$remote_head\\\"\\ncase \\\"$default_ref\\\" in\\nrefs/heads/*) ;;\\n*)\\n  echo \\\"ERROR: cannot resolve origin's default branch\\\" >&2\\n  exit 1\\n  ;;\\nesac\\ndefault_branch=\\\"${default_ref#refs/heads/}\\\"\\n\\nif [ \\\"$command_name\\\" = \\\"git-push-reviewed\\\" ]; then\\n  if [ \\\"$branch\\\" != \\\"$default_branch\\\" ]; then\\n    echo \\\"ERROR: refusing reviewed push from non-default branch: $branch\\\" >&2\\n    exit 1\\n  fi\\nelse\\n  if [ \\\"$branch\\\" = \\\"$default_branch\\\" ]; then\\n    echo \\\"ERROR: refusing to push default branch: $branch\\\" >&2\\n    exit 1\\n  fi\\n\\n  # A commit that failed in a hook leaves HEAD equal to the default branch; refuse to publish it.\\n  # The local origin/<default> can be stale or missing, so compare against the tip ls-remote reported.\\n  default_sha=\\\"\\\"\\n  while IFS=$' \\\\t' read -r key value _; do\\n    if [ \\\"$key\\\" != \\\"ref:\\\" ] && [ \\\"$value\\\" = \\\"HEAD\\\" ]; then\\n      default_sha=\\\"$key\\\"\\n      break\\n    fi\\n  done <<<\\\"$remote_head\\\"\\n  # is_ancestor <commit> <descendant>: succeeds when <commit> is in <descendant>'s history. A commit this\\n  # clone does not have cannot be in it. Any other failure is not an answer, so stop instead of guessing.\\n  is_ancestor() {\\n    local status=0\\n    \\\"$git_command\\\" cat-file -e \\\"$1^{commit}\\\" 2>/dev/null || return 1\\n    \\\"$git_command\\\" merge-base --is-ancestor \\\"$1\\\" \\\"$2\\\" || status=$?\\n    case \\\"$status\\\" in\\n    0 | 1) return \\\"$status\\\" ;;\\n    esac\\n    echo \\\"ERROR: cannot compare $1 with $2\\\" >&2\\n    exit 1\\n  }\\n\\n  # The tip is fetched so its history is available to is_ancestor. A shallow history can report\\n  # \\\"not an ancestor\\\" for a commit that is one, so it cannot be trusted.\\n  if [ -z \\\"$default_sha\\\" ] || [ \\\"$(\\\"$git_command\\\" rev-parse --is-shallow-repository)\\\" != false ] ||\\n    ! \\\"$git_command\\\" fetch -q origin \\\"$default_ref\\\"; then\\n    echo \\\"ERROR: cannot compare HEAD with origin/$default_branch\\\" >&2\\n    exit 1\\n  fi\\n  if is_ancestor HEAD \\\"$default_sha\\\"; then\\n    echo \\\"ERROR: $branch has no commits beyond origin/$default_branch; check that the last commit succeeded\\\" >&2\\n    exit 1\\n  fi\\n\\n  # Once a PR from this branch is merged, new commits on it never reach the default branch.\\n  # Reject a HEAD that contains the merged PR's head but not its merge result: that is a continuation\\n  # of the old branch. A same-named branch cut from the default branch afterwards contains the merge\\n  # result (a squash or rebase merge result is new, a merge commit keeps the old head reachable).\\n  cannot_check_merged_prs() {\\n    echo \\\"ERROR: cannot check merged PRs for $branch\\\" >&2\\n    exit 1\\n  }\\n  gh_command=\\\"$(type -P gh || true)\\\"\\n  [ -n \\\"$gh_command\\\" ] || cannot_check_merged_prs\\n  case \\\"$gh_command\\\" in\\n  /*) ;;\\n  *) gh_command=\\\"$PWD/$gh_command\\\" ;;\\n  esac\\n  # Name origin's repository explicitly so GH_REPO or a fork's upstream default cannot redirect the query.\\n  origin_url=\\\"$(\\\"$git_command\\\" remote get-url origin)\\\" || cannot_check_merged_prs\\n  merged_prs=\\\"$(\\\"$gh_command\\\" pr list --repo \\\"$origin_url\\\" --head \\\"$branch\\\" --state merged --limit 1000 --json headRefOid,mergeCommit --jq '.[] | \\\"\\\\(.headRefOid) \\\\(.mergeCommit.oid // \\\"\\\")\\\"')\\\" || cannot_check_merged_prs\\n  # A full page may have dropped older PRs.\\n  [ \\\"$(printf '%s\\\\n' \\\"$merged_prs\\\" | wc -l)\\\" -lt 1000 ] || cannot_check_merged_prs\\n  while read -r merged_head merge_commit; do\\n    [ -n \\\"$merged_head\\\" ] || continue\\n    if [ -n \\\"$merge_commit\\\" ] && is_ancestor \\\"$merge_commit\\\" HEAD; then\\n      continue\\n    fi\\n    if is_ancestor \\\"$merged_head\\\" HEAD; then\\n      echo \\\"ERROR: a PR from $branch is already merged; new commits would not reach $default_branch.\\\" >&2\\n      echo \\\"Create a new branch from origin/$default_branch and cherry-pick them.\\\" >&2\\n      exit 1\\n    fi\\n  done <<<\\\"$merged_prs\\\"\\nfi\\n\\nexec \\\"$git_command\\\" push -u origin HEAD\\n\"\n  }\n}\n",
+        "mode": 384
+      }
+    },
+    "githubUtf8Bom": {
+      "input": {
+        "github": {},
+        "policyEncoding": "utf-8-sig"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "public files, reachable Git history and managed runtime policy admitted\n",
+        "stderr": "",
+        "bytes": "{\n  \"version\": 1,\n  \"root\": \"{base}/work\",\n  \"repository\": {\n    \"common_dir\": \"{base}/repo/.git\",\n    \"device\": {device},\n    \"inode\": {inode}\n  },\n  \"git_head\": \"{head}\",\n  \"index_tree\": \"{index_tree}\",\n  \"files\": {\n    \"flake.nix\": {\n      \"sha256\": \"b868b112f38777103dbd44740d3ebc6735107900dc784096c447de14a2c02ba9\",\n      \"executable\": false\n    },\n    \"tools/check.sh\": {\n      \"sha256\": \"d3da42f22921553098697a8df587dc67cf0bd665be951e054c0925e9f620aa4b\",\n      \"executable\": true\n    },\n    \"notes/\\u00e9.txt\": {\n      \"sha256\": \"0228f14354fb823b30812aff38e46d249df921785fa24b3d47552c1358d5f125\",\n      \"executable\": false\n    }\n  },\n  \"runtime\": {\n    \"codex_home\": \"{base}/home/.codex\",\n    \"config_files\": {\n      \"config.toml\": \"\\\"real\\\"=1.0\\n\\\"large\\\"=9007199254740993\\n\\\"values\\\"=[-0.0,1e-08,42,Infinity,NaN]\\n\\\"quoted\\\"=\\\"\\u00e9 and tabs\\\\t\\\"\\n\\\"model\\\"=\\\"gpt-6-luna\\\"\\n\\\"model_reasoning_effort\\\"=\\\"xhigh\\\"\\n\\\"model_provider\\\"=\\\"isolated\\\"\\n\\\"approval_policy\\\"=\\\"on-request\\\"\\n\\\"approvals_reviewer\\\"=\\\"auto_review\\\"\\n\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n\\\"web_search\\\"=\\\"disabled\\\"\\n[\\\"features\\\"]\\n\\\"network_proxy\\\"=true\\n\\\"shell_snapshot\\\"=false\\n[\\\"model_providers\\\"]\\n[\\\"model_providers\\\".\\\"isolated\\\"]\\n\\\"name\\\"=\\\"Fixture model gateway\\\"\\n\\\"base_url\\\"=\\\"http://127.0.0.1:8123/v1\\\"\\n\\\"wire_api\\\"=\\\"responses\\\"\\n\\\"requires_openai_auth\\\"=false\\n\\\"request_max_retries\\\"=0\\n\\\"stream_max_retries\\\"=0\\n[\\\"mcp_servers\\\"]\\n[\\\"extra\\\"]\\n\\\"10\\\"=\\\"first\\\"\\n\\\"2\\\"=\\\"second\\\"\\n\\\"constructor\\\"=\\\"present\\\"\\n\\\"__proto__\\\"=\\\"also present\\\"\\n[\\\"plugins\\\"]\\n[\\\"plugins\\\".\\\"fixture\\\"]\\n\\\"enabled\\\"=false\\n\",\n      \"AGENTS.md\": \"Public fixture instructions.\\n\",\n      \"rules/default.rules\": \"# fixture rule\\n\"\n    },\n    \"requirements\": \"\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n[\\\"allowed_permission_profiles\\\"]\\n\\\"dotfiles-secure\\\"=true\\n[\\\"permissions\\\"]\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\"]\\n\\\"extends\\\"=\\\":workspace\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\"]\\n\\\":root\\\"=\\\"deny\\\"\\n\\\":minimal\\\"=\\\"read\\\"\\n\\\":slash_tmp\\\"=\\\"deny\\\"\\n\\\"/nix\\\"=\\\"read\\\"\\n\\\"{base}/repo/.git/worktrees/work\\\"=\\\"write\\\"\\n\\\"{base}/repo/.git\\\"=\\\"write\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\":workspace_roots\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\".env\\\"=\\\"deny\\\"\\n\\\"*/**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\"/tmp/codex\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\"**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\"]\\n\\\"enabled\\\"=true\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\".\\\"domains\\\"]\\n\\\"cache.nixos.org\\\"=\\\"allow\\\"\\n\\\"*.github.com\\\"=\\\"allow\\\"\\n\\\"github.com\\\"=\\\"allow\\\"\\n\\\"private.example\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"workspace_roots\\\"]\\n\",\n    \"domains\": [\n      \"cache.nixos.org\",\n      \"*.github.com\",\n      \"github.com\"\n    ],\n    \"denied_domains\": [\n      \"private.example\"\n    ],\n    \"hooks\": {\n      \"pre-commit\": \"#!/bin/sh\\nexit 0\\n\"\n    },\n    \"git_identity\": {\n      \"user.name\": \"Fixture\",\n      \"user.email\": \"fixture@example.invalid\"\n    },\n    \"ca_bundle\": \"{ca}\",\n    \"mcp_tools\": {},\n    \"private_tmp_codex\": true,\n    \"github\": {\n      \"repository\": \"fixture/demo\",\n      \"branch\": \"task\",\n      \"default_branch\": \"main\",\n      \"reviewed_commit\": \"{head}\",\n      \"automation\": \"no-project-secrets\",\n      \"review\": \"Synthetic review\"\n    },\n    \"push_helper\": \"#!/usr/bin/env bash\\nset -euo pipefail\\n\\nif [ \\\"$#\\\" -ne 0 ]; then\\n  echo \\\"usage: git-push-topic\\\" >&2\\n  exit 2\\nfi\\n\\ngit_command=\\\"$(type -P git || true)\\\"\\nif [ -z \\\"$git_command\\\" ]; then\\n  echo \\\"ERROR: Git is required\\\" >&2\\n  exit 1\\nfi\\ncase \\\"$git_command\\\" in\\n/*) ;;\\n*) git_command=\\\"$PWD/$git_command\\\" ;;\\nesac\\n\\nbranch=\\\"$(\\\"$git_command\\\" branch --show-current)\\\"\\nif [ -z \\\"$branch\\\" ]; then\\n  echo \\\"ERROR: detached HEAD cannot be published as a topic branch\\\" >&2\\n  exit 1\\nfi\\n\\ncommand_name=\\\"$(basename \\\"$0\\\")\\\"\\nif [ \\\"$command_name\\\" != \\\"git-push-reviewed\\\" ]; then\\n  case \\\"$branch\\\" in\\n  main | master)\\n    echo \\\"ERROR: refusing to push default branch: $branch\\\" >&2\\n    exit 1\\n    ;;\\n  esac\\nfi\\n\\nif ! remote_head=\\\"$(\\\"$git_command\\\" ls-remote --symref origin HEAD 2>/dev/null)\\\"; then\\n  echo \\\"ERROR: cannot resolve origin's default branch\\\" >&2\\n  exit 1\\nfi\\ndefault_ref=\\\"\\\"\\nwhile IFS=$' \\\\t' read -r key value ref; do\\n  if [ \\\"$key\\\" = \\\"ref:\\\" ] && [ \\\"$ref\\\" = \\\"HEAD\\\" ]; then\\n    default_ref=\\\"$value\\\"\\n    break\\n  fi\\ndone <<<\\\"$remote_head\\\"\\ncase \\\"$default_ref\\\" in\\nrefs/heads/*) ;;\\n*)\\n  echo \\\"ERROR: cannot resolve origin's default branch\\\" >&2\\n  exit 1\\n  ;;\\nesac\\ndefault_branch=\\\"${default_ref#refs/heads/}\\\"\\n\\nif [ \\\"$command_name\\\" = \\\"git-push-reviewed\\\" ]; then\\n  if [ \\\"$branch\\\" != \\\"$default_branch\\\" ]; then\\n    echo \\\"ERROR: refusing reviewed push from non-default branch: $branch\\\" >&2\\n    exit 1\\n  fi\\nelse\\n  if [ \\\"$branch\\\" = \\\"$default_branch\\\" ]; then\\n    echo \\\"ERROR: refusing to push default branch: $branch\\\" >&2\\n    exit 1\\n  fi\\n\\n  # A commit that failed in a hook leaves HEAD equal to the default branch; refuse to publish it.\\n  # The local origin/<default> can be stale or missing, so compare against the tip ls-remote reported.\\n  default_sha=\\\"\\\"\\n  while IFS=$' \\\\t' read -r key value _; do\\n    if [ \\\"$key\\\" != \\\"ref:\\\" ] && [ \\\"$value\\\" = \\\"HEAD\\\" ]; then\\n      default_sha=\\\"$key\\\"\\n      break\\n    fi\\n  done <<<\\\"$remote_head\\\"\\n  # is_ancestor <commit> <descendant>: succeeds when <commit> is in <descendant>'s history. A commit this\\n  # clone does not have cannot be in it. Any other failure is not an answer, so stop instead of guessing.\\n  is_ancestor() {\\n    local status=0\\n    \\\"$git_command\\\" cat-file -e \\\"$1^{commit}\\\" 2>/dev/null || return 1\\n    \\\"$git_command\\\" merge-base --is-ancestor \\\"$1\\\" \\\"$2\\\" || status=$?\\n    case \\\"$status\\\" in\\n    0 | 1) return \\\"$status\\\" ;;\\n    esac\\n    echo \\\"ERROR: cannot compare $1 with $2\\\" >&2\\n    exit 1\\n  }\\n\\n  # The tip is fetched so its history is available to is_ancestor. A shallow history can report\\n  # \\\"not an ancestor\\\" for a commit that is one, so it cannot be trusted.\\n  if [ -z \\\"$default_sha\\\" ] || [ \\\"$(\\\"$git_command\\\" rev-parse --is-shallow-repository)\\\" != false ] ||\\n    ! \\\"$git_command\\\" fetch -q origin \\\"$default_ref\\\"; then\\n    echo \\\"ERROR: cannot compare HEAD with origin/$default_branch\\\" >&2\\n    exit 1\\n  fi\\n  if is_ancestor HEAD \\\"$default_sha\\\"; then\\n    echo \\\"ERROR: $branch has no commits beyond origin/$default_branch; check that the last commit succeeded\\\" >&2\\n    exit 1\\n  fi\\n\\n  # Once a PR from this branch is merged, new commits on it never reach the default branch.\\n  # Reject a HEAD that contains the merged PR's head but not its merge result: that is a continuation\\n  # of the old branch. A same-named branch cut from the default branch afterwards contains the merge\\n  # result (a squash or rebase merge result is new, a merge commit keeps the old head reachable).\\n  cannot_check_merged_prs() {\\n    echo \\\"ERROR: cannot check merged PRs for $branch\\\" >&2\\n    exit 1\\n  }\\n  gh_command=\\\"$(type -P gh || true)\\\"\\n  [ -n \\\"$gh_command\\\" ] || cannot_check_merged_prs\\n  case \\\"$gh_command\\\" in\\n  /*) ;;\\n  *) gh_command=\\\"$PWD/$gh_command\\\" ;;\\n  esac\\n  # Name origin's repository explicitly so GH_REPO or a fork's upstream default cannot redirect the query.\\n  origin_url=\\\"$(\\\"$git_command\\\" remote get-url origin)\\\" || cannot_check_merged_prs\\n  merged_prs=\\\"$(\\\"$gh_command\\\" pr list --repo \\\"$origin_url\\\" --head \\\"$branch\\\" --state merged --limit 1000 --json headRefOid,mergeCommit --jq '.[] | \\\"\\\\(.headRefOid) \\\\(.mergeCommit.oid // \\\"\\\")\\\"')\\\" || cannot_check_merged_prs\\n  # A full page may have dropped older PRs.\\n  [ \\\"$(printf '%s\\\\n' \\\"$merged_prs\\\" | wc -l)\\\" -lt 1000 ] || cannot_check_merged_prs\\n  while read -r merged_head merge_commit; do\\n    [ -n \\\"$merged_head\\\" ] || continue\\n    if [ -n \\\"$merge_commit\\\" ] && is_ancestor \\\"$merge_commit\\\" HEAD; then\\n      continue\\n    fi\\n    if is_ancestor \\\"$merged_head\\\" HEAD; then\\n      echo \\\"ERROR: a PR from $branch is already merged; new commits would not reach $default_branch.\\\" >&2\\n      echo \\\"Create a new branch from origin/$default_branch and cherry-pick them.\\\" >&2\\n      exit 1\\n    fi\\n  done <<<\\\"$merged_prs\\\"\\nfi\\n\\nexec \\\"$git_command\\\" push -u origin HEAD\\n\"\n  }\n}\n",
+        "mode": 384
+      }
+    },
+    "githubUtf32BE": {
+      "input": {
+        "github": {},
+        "policyEncoding": "utf-32-be-bom"
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "public files, reachable Git history and managed runtime policy admitted\n",
+        "stderr": "",
+        "bytes": "{\n  \"version\": 1,\n  \"root\": \"{base}/work\",\n  \"repository\": {\n    \"common_dir\": \"{base}/repo/.git\",\n    \"device\": {device},\n    \"inode\": {inode}\n  },\n  \"git_head\": \"{head}\",\n  \"index_tree\": \"{index_tree}\",\n  \"files\": {\n    \"flake.nix\": {\n      \"sha256\": \"b868b112f38777103dbd44740d3ebc6735107900dc784096c447de14a2c02ba9\",\n      \"executable\": false\n    },\n    \"tools/check.sh\": {\n      \"sha256\": \"d3da42f22921553098697a8df587dc67cf0bd665be951e054c0925e9f620aa4b\",\n      \"executable\": true\n    },\n    \"notes/\\u00e9.txt\": {\n      \"sha256\": \"0228f14354fb823b30812aff38e46d249df921785fa24b3d47552c1358d5f125\",\n      \"executable\": false\n    }\n  },\n  \"runtime\": {\n    \"codex_home\": \"{base}/home/.codex\",\n    \"config_files\": {\n      \"config.toml\": \"\\\"real\\\"=1.0\\n\\\"large\\\"=9007199254740993\\n\\\"values\\\"=[-0.0,1e-08,42,Infinity,NaN]\\n\\\"quoted\\\"=\\\"\\u00e9 and tabs\\\\t\\\"\\n\\\"model\\\"=\\\"gpt-6-luna\\\"\\n\\\"model_reasoning_effort\\\"=\\\"xhigh\\\"\\n\\\"model_provider\\\"=\\\"isolated\\\"\\n\\\"approval_policy\\\"=\\\"on-request\\\"\\n\\\"approvals_reviewer\\\"=\\\"auto_review\\\"\\n\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n\\\"web_search\\\"=\\\"disabled\\\"\\n[\\\"features\\\"]\\n\\\"network_proxy\\\"=true\\n\\\"shell_snapshot\\\"=false\\n[\\\"model_providers\\\"]\\n[\\\"model_providers\\\".\\\"isolated\\\"]\\n\\\"name\\\"=\\\"Fixture model gateway\\\"\\n\\\"base_url\\\"=\\\"http://127.0.0.1:8123/v1\\\"\\n\\\"wire_api\\\"=\\\"responses\\\"\\n\\\"requires_openai_auth\\\"=false\\n\\\"request_max_retries\\\"=0\\n\\\"stream_max_retries\\\"=0\\n[\\\"mcp_servers\\\"]\\n[\\\"extra\\\"]\\n\\\"10\\\"=\\\"first\\\"\\n\\\"2\\\"=\\\"second\\\"\\n\\\"constructor\\\"=\\\"present\\\"\\n\\\"__proto__\\\"=\\\"also present\\\"\\n[\\\"plugins\\\"]\\n[\\\"plugins\\\".\\\"fixture\\\"]\\n\\\"enabled\\\"=false\\n\",\n      \"AGENTS.md\": \"Public fixture instructions.\\n\",\n      \"rules/default.rules\": \"# fixture rule\\n\"\n    },\n    \"requirements\": \"\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n[\\\"allowed_permission_profiles\\\"]\\n\\\"dotfiles-secure\\\"=true\\n[\\\"permissions\\\"]\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\"]\\n\\\"extends\\\"=\\\":workspace\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\"]\\n\\\":root\\\"=\\\"deny\\\"\\n\\\":minimal\\\"=\\\"read\\\"\\n\\\":slash_tmp\\\"=\\\"deny\\\"\\n\\\"/nix\\\"=\\\"read\\\"\\n\\\"{base}/repo/.git/worktrees/work\\\"=\\\"write\\\"\\n\\\"{base}/repo/.git\\\"=\\\"write\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\":workspace_roots\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\".env\\\"=\\\"deny\\\"\\n\\\"*/**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\"/tmp/codex\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\"**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\"]\\n\\\"enabled\\\"=true\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\".\\\"domains\\\"]\\n\\\"cache.nixos.org\\\"=\\\"allow\\\"\\n\\\"*.github.com\\\"=\\\"allow\\\"\\n\\\"github.com\\\"=\\\"allow\\\"\\n\\\"private.example\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"workspace_roots\\\"]\\n\",\n    \"domains\": [\n      \"cache.nixos.org\",\n      \"*.github.com\",\n      \"github.com\"\n    ],\n    \"denied_domains\": [\n      \"private.example\"\n    ],\n    \"hooks\": {\n      \"pre-commit\": \"#!/bin/sh\\nexit 0\\n\"\n    },\n    \"git_identity\": {\n      \"user.name\": \"Fixture\",\n      \"user.email\": \"fixture@example.invalid\"\n    },\n    \"ca_bundle\": \"{ca}\",\n    \"mcp_tools\": {},\n    \"private_tmp_codex\": true,\n    \"github\": {\n      \"repository\": \"fixture/demo\",\n      \"branch\": \"task\",\n      \"default_branch\": \"main\",\n      \"reviewed_commit\": \"{head}\",\n      \"automation\": \"no-project-secrets\",\n      \"review\": \"Synthetic review\"\n    },\n    \"push_helper\": \"#!/usr/bin/env bash\\nset -euo pipefail\\n\\nif [ \\\"$#\\\" -ne 0 ]; then\\n  echo \\\"usage: git-push-topic\\\" >&2\\n  exit 2\\nfi\\n\\ngit_command=\\\"$(type -P git || true)\\\"\\nif [ -z \\\"$git_command\\\" ]; then\\n  echo \\\"ERROR: Git is required\\\" >&2\\n  exit 1\\nfi\\ncase \\\"$git_command\\\" in\\n/*) ;;\\n*) git_command=\\\"$PWD/$git_command\\\" ;;\\nesac\\n\\nbranch=\\\"$(\\\"$git_command\\\" branch --show-current)\\\"\\nif [ -z \\\"$branch\\\" ]; then\\n  echo \\\"ERROR: detached HEAD cannot be published as a topic branch\\\" >&2\\n  exit 1\\nfi\\n\\ncommand_name=\\\"$(basename \\\"$0\\\")\\\"\\nif [ \\\"$command_name\\\" != \\\"git-push-reviewed\\\" ]; then\\n  case \\\"$branch\\\" in\\n  main | master)\\n    echo \\\"ERROR: refusing to push default branch: $branch\\\" >&2\\n    exit 1\\n    ;;\\n  esac\\nfi\\n\\nif ! remote_head=\\\"$(\\\"$git_command\\\" ls-remote --symref origin HEAD 2>/dev/null)\\\"; then\\n  echo \\\"ERROR: cannot resolve origin's default branch\\\" >&2\\n  exit 1\\nfi\\ndefault_ref=\\\"\\\"\\nwhile IFS=$' \\\\t' read -r key value ref; do\\n  if [ \\\"$key\\\" = \\\"ref:\\\" ] && [ \\\"$ref\\\" = \\\"HEAD\\\" ]; then\\n    default_ref=\\\"$value\\\"\\n    break\\n  fi\\ndone <<<\\\"$remote_head\\\"\\ncase \\\"$default_ref\\\" in\\nrefs/heads/*) ;;\\n*)\\n  echo \\\"ERROR: cannot resolve origin's default branch\\\" >&2\\n  exit 1\\n  ;;\\nesac\\ndefault_branch=\\\"${default_ref#refs/heads/}\\\"\\n\\nif [ \\\"$command_name\\\" = \\\"git-push-reviewed\\\" ]; then\\n  if [ \\\"$branch\\\" != \\\"$default_branch\\\" ]; then\\n    echo \\\"ERROR: refusing reviewed push from non-default branch: $branch\\\" >&2\\n    exit 1\\n  fi\\nelse\\n  if [ \\\"$branch\\\" = \\\"$default_branch\\\" ]; then\\n    echo \\\"ERROR: refusing to push default branch: $branch\\\" >&2\\n    exit 1\\n  fi\\n\\n  # A commit that failed in a hook leaves HEAD equal to the default branch; refuse to publish it.\\n  # The local origin/<default> can be stale or missing, so compare against the tip ls-remote reported.\\n  default_sha=\\\"\\\"\\n  while IFS=$' \\\\t' read -r key value _; do\\n    if [ \\\"$key\\\" != \\\"ref:\\\" ] && [ \\\"$value\\\" = \\\"HEAD\\\" ]; then\\n      default_sha=\\\"$key\\\"\\n      break\\n    fi\\n  done <<<\\\"$remote_head\\\"\\n  # is_ancestor <commit> <descendant>: succeeds when <commit> is in <descendant>'s history. A commit this\\n  # clone does not have cannot be in it. Any other failure is not an answer, so stop instead of guessing.\\n  is_ancestor() {\\n    local status=0\\n    \\\"$git_command\\\" cat-file -e \\\"$1^{commit}\\\" 2>/dev/null || return 1\\n    \\\"$git_command\\\" merge-base --is-ancestor \\\"$1\\\" \\\"$2\\\" || status=$?\\n    case \\\"$status\\\" in\\n    0 | 1) return \\\"$status\\\" ;;\\n    esac\\n    echo \\\"ERROR: cannot compare $1 with $2\\\" >&2\\n    exit 1\\n  }\\n\\n  # The tip is fetched so its history is available to is_ancestor. A shallow history can report\\n  # \\\"not an ancestor\\\" for a commit that is one, so it cannot be trusted.\\n  if [ -z \\\"$default_sha\\\" ] || [ \\\"$(\\\"$git_command\\\" rev-parse --is-shallow-repository)\\\" != false ] ||\\n    ! \\\"$git_command\\\" fetch -q origin \\\"$default_ref\\\"; then\\n    echo \\\"ERROR: cannot compare HEAD with origin/$default_branch\\\" >&2\\n    exit 1\\n  fi\\n  if is_ancestor HEAD \\\"$default_sha\\\"; then\\n    echo \\\"ERROR: $branch has no commits beyond origin/$default_branch; check that the last commit succeeded\\\" >&2\\n    exit 1\\n  fi\\n\\n  # Once a PR from this branch is merged, new commits on it never reach the default branch.\\n  # Reject a HEAD that contains the merged PR's head but not its merge result: that is a continuation\\n  # of the old branch. A same-named branch cut from the default branch afterwards contains the merge\\n  # result (a squash or rebase merge result is new, a merge commit keeps the old head reachable).\\n  cannot_check_merged_prs() {\\n    echo \\\"ERROR: cannot check merged PRs for $branch\\\" >&2\\n    exit 1\\n  }\\n  gh_command=\\\"$(type -P gh || true)\\\"\\n  [ -n \\\"$gh_command\\\" ] || cannot_check_merged_prs\\n  case \\\"$gh_command\\\" in\\n  /*) ;;\\n  *) gh_command=\\\"$PWD/$gh_command\\\" ;;\\n  esac\\n  # Name origin's repository explicitly so GH_REPO or a fork's upstream default cannot redirect the query.\\n  origin_url=\\\"$(\\\"$git_command\\\" remote get-url origin)\\\" || cannot_check_merged_prs\\n  merged_prs=\\\"$(\\\"$gh_command\\\" pr list --repo \\\"$origin_url\\\" --head \\\"$branch\\\" --state merged --limit 1000 --json headRefOid,mergeCommit --jq '.[] | \\\"\\\\(.headRefOid) \\\\(.mergeCommit.oid // \\\"\\\")\\\"')\\\" || cannot_check_merged_prs\\n  # A full page may have dropped older PRs.\\n  [ \\\"$(printf '%s\\\\n' \\\"$merged_prs\\\" | wc -l)\\\" -lt 1000 ] || cannot_check_merged_prs\\n  while read -r merged_head merge_commit; do\\n    [ -n \\\"$merged_head\\\" ] || continue\\n    if [ -n \\\"$merge_commit\\\" ] && is_ancestor \\\"$merge_commit\\\" HEAD; then\\n      continue\\n    fi\\n    if is_ancestor \\\"$merged_head\\\" HEAD; then\\n      echo \\\"ERROR: a PR from $branch is already merged; new commits would not reach $default_branch.\\\" >&2\\n      echo \\\"Create a new branch from origin/$default_branch and cherry-pick them.\\\" >&2\\n      exit 1\\n    fi\\n  done <<<\\\"$merged_prs\\\"\\nfi\\n\\nexec \\\"$git_command\\\" push -u origin HEAD\\n\"\n  }\n}\n",
+        "mode": 384
+      }
+    },
+    "managedMcp": {
+      "input": {
+        "mcp": ["context7", "serena"]
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "public files, reachable Git history and managed runtime policy admitted\n",
+        "stderr": "",
+        "bytes": "{\n  \"version\": 1,\n  \"root\": \"{base}/work\",\n  \"repository\": {\n    \"common_dir\": \"{base}/repo/.git\",\n    \"device\": {device},\n    \"inode\": {inode}\n  },\n  \"git_head\": \"{head}\",\n  \"index_tree\": \"{index_tree}\",\n  \"files\": {\n    \"flake.nix\": {\n      \"sha256\": \"b868b112f38777103dbd44740d3ebc6735107900dc784096c447de14a2c02ba9\",\n      \"executable\": false\n    },\n    \"tools/check.sh\": {\n      \"sha256\": \"d3da42f22921553098697a8df587dc67cf0bd665be951e054c0925e9f620aa4b\",\n      \"executable\": true\n    },\n    \"notes/\\u00e9.txt\": {\n      \"sha256\": \"0228f14354fb823b30812aff38e46d249df921785fa24b3d47552c1358d5f125\",\n      \"executable\": false\n    }\n  },\n  \"runtime\": {\n    \"codex_home\": \"{base}/home/.codex\",\n    \"config_files\": {\n      \"config.toml\": \"\\\"real\\\"=1.0\\n\\\"large\\\"=9007199254740993\\n\\\"values\\\"=[-0.0,1e-08,42,Infinity,NaN]\\n\\\"quoted\\\"=\\\"\\u00e9 and tabs\\\\t\\\"\\n\\\"model\\\"=\\\"gpt-6-luna\\\"\\n\\\"model_reasoning_effort\\\"=\\\"xhigh\\\"\\n\\\"model_provider\\\"=\\\"isolated\\\"\\n\\\"approval_policy\\\"=\\\"on-request\\\"\\n\\\"approvals_reviewer\\\"=\\\"auto_review\\\"\\n\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n\\\"web_search\\\"=\\\"disabled\\\"\\n[\\\"features\\\"]\\n\\\"network_proxy\\\"=true\\n\\\"shell_snapshot\\\"=false\\n[\\\"model_providers\\\"]\\n[\\\"model_providers\\\".\\\"isolated\\\"]\\n\\\"name\\\"=\\\"Fixture model gateway\\\"\\n\\\"base_url\\\"=\\\"http://127.0.0.1:8123/v1\\\"\\n\\\"wire_api\\\"=\\\"responses\\\"\\n\\\"requires_openai_auth\\\"=false\\n\\\"request_max_retries\\\"=0\\n\\\"stream_max_retries\\\"=0\\n[\\\"mcp_servers\\\"]\\n[\\\"mcp_servers\\\".\\\"context7\\\"]\\n\\\"command\\\"=\\\"{bunx}\\\"\\n\\\"args\\\"=[\\\"-y\\\",\\\"@upstash/context7-mcp\\\"]\\n\\\"enabled\\\"=true\\n\\\"required\\\"=true\\n\\\"startup_timeout_sec\\\"=180\\n\\\"env_vars\\\"=[\\\"HTTPS_PROXY\\\",\\\"HTTP_PROXY\\\",\\\"SSL_CERT_FILE\\\"]\\n[\\\"mcp_servers\\\".\\\"serena\\\"]\\n\\\"command\\\"=\\\"{uvx}\\\"\\n\\\"args\\\"=[\\\"--from\\\",\\\"git+https://github.com/oraios/serena\\\",\\\"serena\\\",\\\"start-mcp-server\\\",\\\"--enable-web-dashboard\\\",\\\"false\\\"]\\n\\\"enabled\\\"=true\\n\\\"required\\\"=true\\n\\\"startup_timeout_sec\\\"=180\\n\\\"env_vars\\\"=[\\\"HTTPS_PROXY\\\",\\\"HTTP_PROXY\\\",\\\"SSL_CERT_FILE\\\"]\\n[\\\"extra\\\"]\\n\\\"10\\\"=\\\"first\\\"\\n\\\"2\\\"=\\\"second\\\"\\n\\\"constructor\\\"=\\\"present\\\"\\n\\\"__proto__\\\"=\\\"also present\\\"\\n[\\\"plugins\\\"]\\n[\\\"plugins\\\".\\\"fixture\\\"]\\n\\\"enabled\\\"=false\\n\",\n      \"AGENTS.md\": \"Public fixture instructions.\\n\",\n      \"rules/default.rules\": \"# fixture rule\\n\"\n    },\n    \"requirements\": \"\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n[\\\"allowed_permission_profiles\\\"]\\n\\\"dotfiles-secure\\\"=true\\n[\\\"permissions\\\"]\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\"]\\n\\\"extends\\\"=\\\":workspace\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\"]\\n\\\":root\\\"=\\\"deny\\\"\\n\\\":minimal\\\"=\\\"read\\\"\\n\\\":slash_tmp\\\"=\\\"deny\\\"\\n\\\"/nix\\\"=\\\"read\\\"\\n\\\"{base}/repo/.git/worktrees/work\\\"=\\\"write\\\"\\n\\\"{base}/repo/.git\\\"=\\\"write\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\":workspace_roots\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\".env\\\"=\\\"deny\\\"\\n\\\"*/**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\"/tmp/codex\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\"**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\"]\\n\\\"enabled\\\"=true\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\".\\\"domains\\\"]\\n\\\"cache.nixos.org\\\"=\\\"allow\\\"\\n\\\"*.github.com\\\"=\\\"allow\\\"\\n\\\"github.com\\\"=\\\"allow\\\"\\n\\\"private.example\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"workspace_roots\\\"]\\n\",\n    \"domains\": [\n      \"cache.nixos.org\",\n      \"*.github.com\",\n      \"github.com\"\n    ],\n    \"denied_domains\": [\n      \"private.example\"\n    ],\n    \"hooks\": {\n      \"pre-commit\": \"#!/bin/sh\\nexit 0\\n\"\n    },\n    \"git_identity\": {\n      \"user.name\": \"Fixture\",\n      \"user.email\": \"fixture@example.invalid\"\n    },\n    \"ca_bundle\": \"{ca}\",\n    \"mcp_tools\": {\n      \"bunx\": \"{bunx}\",\n      \"node\": \"{node}\",\n      \"uvx\": \"{uvx}\"\n    },\n    \"private_tmp_codex\": true,\n    \"github\": null,\n    \"push_helper\": null\n  }\n}\n",
+        "mode": 384
+      }
+    },
+    "unmanagedMcp": {
+      "input": {
+        "mcp": ["context7"],
+        "replace": ["@upstash/context7-mcp", "@fixture/other"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: managed MCP configuration differs: context7; review it on the host\n"
+      }
+    },
+    "byteFilename": {
+      "input": {
+        "inputKind": "bytes",
+        "names": ["notes/raw-\udcff"]
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "public files, reachable Git history and managed runtime policy admitted\n",
+        "stderr": "",
+        "bytes": "{\n  \"version\": 1,\n  \"root\": \"{base}/work\",\n  \"repository\": {\n    \"common_dir\": \"{base}/repo/.git\",\n    \"device\": {device},\n    \"inode\": {inode}\n  },\n  \"git_head\": \"{head}\",\n  \"index_tree\": \"{index_tree}\",\n  \"files\": {\n    \"notes/raw-\\udcff\": {\n      \"sha256\": \"3d743cabf772b69ec36b2abe1d6969d24823116b976d08540d811abe8d10de15\",\n      \"executable\": false\n    }\n  },\n  \"runtime\": {\n    \"codex_home\": \"{base}/home/.codex\",\n    \"config_files\": {\n      \"config.toml\": \"\\\"real\\\"=1.0\\n\\\"large\\\"=9007199254740993\\n\\\"values\\\"=[-0.0,1e-08,42,Infinity,NaN]\\n\\\"quoted\\\"=\\\"\\u00e9 and tabs\\\\t\\\"\\n\\\"model\\\"=\\\"gpt-6-luna\\\"\\n\\\"model_reasoning_effort\\\"=\\\"xhigh\\\"\\n\\\"model_provider\\\"=\\\"isolated\\\"\\n\\\"approval_policy\\\"=\\\"on-request\\\"\\n\\\"approvals_reviewer\\\"=\\\"auto_review\\\"\\n\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n\\\"web_search\\\"=\\\"disabled\\\"\\n[\\\"features\\\"]\\n\\\"network_proxy\\\"=true\\n\\\"shell_snapshot\\\"=false\\n[\\\"model_providers\\\"]\\n[\\\"model_providers\\\".\\\"isolated\\\"]\\n\\\"name\\\"=\\\"Fixture model gateway\\\"\\n\\\"base_url\\\"=\\\"http://127.0.0.1:8123/v1\\\"\\n\\\"wire_api\\\"=\\\"responses\\\"\\n\\\"requires_openai_auth\\\"=false\\n\\\"request_max_retries\\\"=0\\n\\\"stream_max_retries\\\"=0\\n[\\\"mcp_servers\\\"]\\n[\\\"extra\\\"]\\n\\\"10\\\"=\\\"first\\\"\\n\\\"2\\\"=\\\"second\\\"\\n\\\"constructor\\\"=\\\"present\\\"\\n\\\"__proto__\\\"=\\\"also present\\\"\\n[\\\"plugins\\\"]\\n[\\\"plugins\\\".\\\"fixture\\\"]\\n\\\"enabled\\\"=false\\n\",\n      \"AGENTS.md\": \"Public fixture instructions.\\n\",\n      \"rules/default.rules\": \"# fixture rule\\n\"\n    },\n    \"requirements\": \"\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n[\\\"allowed_permission_profiles\\\"]\\n\\\"dotfiles-secure\\\"=true\\n[\\\"permissions\\\"]\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\"]\\n\\\"extends\\\"=\\\":workspace\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\"]\\n\\\":root\\\"=\\\"deny\\\"\\n\\\":minimal\\\"=\\\"read\\\"\\n\\\":slash_tmp\\\"=\\\"deny\\\"\\n\\\"/nix\\\"=\\\"read\\\"\\n\\\"{base}/repo/.git/worktrees/work\\\"=\\\"write\\\"\\n\\\"{base}/repo/.git\\\"=\\\"write\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\":workspace_roots\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\".env\\\"=\\\"deny\\\"\\n\\\"*/**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\"/tmp/codex\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\"**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\"]\\n\\\"enabled\\\"=true\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\".\\\"domains\\\"]\\n\\\"cache.nixos.org\\\"=\\\"allow\\\"\\n\\\"*.github.com\\\"=\\\"allow\\\"\\n\\\"github.com\\\"=\\\"allow\\\"\\n\\\"private.example\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"workspace_roots\\\"]\\n\",\n    \"domains\": [\n      \"cache.nixos.org\",\n      \"*.github.com\",\n      \"github.com\"\n    ],\n    \"denied_domains\": [\n      \"private.example\"\n    ],\n    \"hooks\": {\n      \"pre-commit\": \"#!/bin/sh\\nexit 0\\n\"\n    },\n    \"git_identity\": {\n      \"user.name\": \"Fixture\",\n      \"user.email\": \"fixture@example.invalid\"\n    },\n    \"ca_bundle\": \"{ca}\",\n    \"mcp_tools\": {},\n    \"private_tmp_codex\": true,\n    \"github\": null,\n    \"push_helper\": null\n  }\n}\n",
+        "mode": 384
+      }
+    },
+    "githubBranchLinebreak": {
+      "input": {
+        "github": {
+          "branch": "task\n"
+        }
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: GitHub policy contains an unsupported branch name\n"
+      }
+    },
+    "unrelatedBracketGlob": {
+      "input": {
+        "append": "\n[permissions.dotfiles-secure.filesystem.\"{base}\"]\n\"wo[z]k\" = \"deny\"\n",
+        "ancestorRoot": true
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "public files, reachable Git history and managed runtime policy admitted\n",
+        "stderr": "",
+        "bytes": "{\n  \"version\": 1,\n  \"root\": \"{base}/work\",\n  \"repository\": {\n    \"common_dir\": \"{base}/repo/.git\",\n    \"device\": {device},\n    \"inode\": {inode}\n  },\n  \"git_head\": \"{head}\",\n  \"index_tree\": \"{index_tree}\",\n  \"files\": {\n    \"flake.nix\": {\n      \"sha256\": \"b868b112f38777103dbd44740d3ebc6735107900dc784096c447de14a2c02ba9\",\n      \"executable\": false\n    },\n    \"tools/check.sh\": {\n      \"sha256\": \"d3da42f22921553098697a8df587dc67cf0bd665be951e054c0925e9f620aa4b\",\n      \"executable\": true\n    },\n    \"notes/\\u00e9.txt\": {\n      \"sha256\": \"0228f14354fb823b30812aff38e46d249df921785fa24b3d47552c1358d5f125\",\n      \"executable\": false\n    }\n  },\n  \"runtime\": {\n    \"codex_home\": \"{base}/home/.codex\",\n    \"config_files\": {\n      \"config.toml\": \"\\\"real\\\"=1.0\\n\\\"large\\\"=9007199254740993\\n\\\"values\\\"=[-0.0,1e-08,42,Infinity,NaN]\\n\\\"quoted\\\"=\\\"\\u00e9 and tabs\\\\t\\\"\\n\\\"model\\\"=\\\"gpt-6-luna\\\"\\n\\\"model_reasoning_effort\\\"=\\\"xhigh\\\"\\n\\\"model_provider\\\"=\\\"isolated\\\"\\n\\\"approval_policy\\\"=\\\"on-request\\\"\\n\\\"approvals_reviewer\\\"=\\\"auto_review\\\"\\n\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n\\\"web_search\\\"=\\\"disabled\\\"\\n[\\\"features\\\"]\\n\\\"network_proxy\\\"=true\\n\\\"shell_snapshot\\\"=false\\n[\\\"model_providers\\\"]\\n[\\\"model_providers\\\".\\\"isolated\\\"]\\n\\\"name\\\"=\\\"Fixture model gateway\\\"\\n\\\"base_url\\\"=\\\"http://127.0.0.1:8123/v1\\\"\\n\\\"wire_api\\\"=\\\"responses\\\"\\n\\\"requires_openai_auth\\\"=false\\n\\\"request_max_retries\\\"=0\\n\\\"stream_max_retries\\\"=0\\n[\\\"mcp_servers\\\"]\\n[\\\"extra\\\"]\\n\\\"10\\\"=\\\"first\\\"\\n\\\"2\\\"=\\\"second\\\"\\n\\\"constructor\\\"=\\\"present\\\"\\n\\\"__proto__\\\"=\\\"also present\\\"\\n[\\\"plugins\\\"]\\n[\\\"plugins\\\".\\\"fixture\\\"]\\n\\\"enabled\\\"=false\\n\",\n      \"AGENTS.md\": \"Public fixture instructions.\\n\",\n      \"rules/default.rules\": \"# fixture rule\\n\"\n    },\n    \"requirements\": \"\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n[\\\"allowed_permission_profiles\\\"]\\n\\\"dotfiles-secure\\\"=true\\n[\\\"permissions\\\"]\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\"]\\n\\\"extends\\\"=\\\":workspace\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\"]\\n\\\":root\\\"=\\\"deny\\\"\\n\\\":minimal\\\"=\\\"read\\\"\\n\\\":slash_tmp\\\"=\\\"deny\\\"\\n\\\"/nix\\\"=\\\"read\\\"\\n\\\"{base}/repo/.git/worktrees/work\\\"=\\\"write\\\"\\n\\\"{base}/repo/.git\\\"=\\\"write\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\":workspace_roots\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\".env\\\"=\\\"deny\\\"\\n\\\"*/**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\"/tmp/codex\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\"**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\"]\\n\\\"enabled\\\"=true\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\".\\\"domains\\\"]\\n\\\"cache.nixos.org\\\"=\\\"allow\\\"\\n\\\"*.github.com\\\"=\\\"allow\\\"\\n\\\"github.com\\\"=\\\"allow\\\"\\n\\\"private.example\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"workspace_roots\\\"]\\n\",\n    \"domains\": [\n      \"cache.nixos.org\",\n      \"*.github.com\",\n      \"github.com\"\n    ],\n    \"denied_domains\": [\n      \"private.example\"\n    ],\n    \"hooks\": {\n      \"pre-commit\": \"#!/bin/sh\\nexit 0\\n\"\n    },\n    \"git_identity\": {\n      \"user.name\": \"Fixture\",\n      \"user.email\": \"fixture@example.invalid\"\n    },\n    \"ca_bundle\": \"{ca}\",\n    \"mcp_tools\": {},\n    \"private_tmp_codex\": true,\n    \"github\": null,\n    \"push_helper\": null\n  }\n}\n",
+        "mode": 384
+      }
+    },
+    "publicBracketGlob": {
+      "input": {
+        "append": "\n[permissions.dotfiles-secure.filesystem.\"{base}\"]\n\"wo[a-z]k\" = \"deny\"\n",
+        "ancestorRoot": true
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: managed ancestor pattern may affect a public path\n"
+      }
+    },
+    "unsupportedProfile": {
+      "input": {
+        "replace": ["extends = \":workspace\"", "extends = \":other\""]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: managed dotfiles-secure filesystem and network policy is required\n"
+      }
+    },
+    "networkDenyOnly": {
+      "input": {
+        "replace": ["= \"allow\"", "= \"deny\""]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: managed network domain policy is required\n"
+      }
+    },
+    "hostWrite": {
+      "input": {
+        "replace": ["\"private\" = \"deny\"", "\"private\" = \"write\""]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: host filesystem grants must be read-only before projection\n"
+      }
+    },
+    "ancestorGlob": {
+      "input": {
+        "append": "\n[permissions.dotfiles-secure.filesystem.\"{base}\"]\n\"work*\" = \"deny\"\n",
+        "ancestorRoot": true
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: managed ancestor pattern may affect a public path\n"
+      }
+    },
+    "publicAncestor": {
+      "input": {
+        "append": "\n[permissions.dotfiles-secure.filesystem.\"{base}\"]\n\"work/notes\" = \"deny\"\n",
+        "ancestorRoot": true
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "public files, reachable Git history and managed runtime policy admitted\n",
+        "stderr": "",
+        "bytes": "{\n  \"version\": 1,\n  \"root\": \"{base}/work\",\n  \"repository\": {\n    \"common_dir\": \"{base}/repo/.git\",\n    \"device\": {device},\n    \"inode\": {inode}\n  },\n  \"git_head\": \"{head}\",\n  \"index_tree\": \"{index_tree}\",\n  \"files\": {\n    \"flake.nix\": {\n      \"sha256\": \"b868b112f38777103dbd44740d3ebc6735107900dc784096c447de14a2c02ba9\",\n      \"executable\": false\n    },\n    \"tools/check.sh\": {\n      \"sha256\": \"d3da42f22921553098697a8df587dc67cf0bd665be951e054c0925e9f620aa4b\",\n      \"executable\": true\n    },\n    \"notes/\\u00e9.txt\": {\n      \"sha256\": \"0228f14354fb823b30812aff38e46d249df921785fa24b3d47552c1358d5f125\",\n      \"executable\": false\n    }\n  },\n  \"runtime\": {\n    \"codex_home\": \"{base}/home/.codex\",\n    \"config_files\": {\n      \"config.toml\": \"\\\"real\\\"=1.0\\n\\\"large\\\"=9007199254740993\\n\\\"values\\\"=[-0.0,1e-08,42,Infinity,NaN]\\n\\\"quoted\\\"=\\\"\\u00e9 and tabs\\\\t\\\"\\n\\\"model\\\"=\\\"gpt-6-luna\\\"\\n\\\"model_reasoning_effort\\\"=\\\"xhigh\\\"\\n\\\"model_provider\\\"=\\\"isolated\\\"\\n\\\"approval_policy\\\"=\\\"on-request\\\"\\n\\\"approvals_reviewer\\\"=\\\"auto_review\\\"\\n\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n\\\"web_search\\\"=\\\"disabled\\\"\\n[\\\"features\\\"]\\n\\\"network_proxy\\\"=true\\n\\\"shell_snapshot\\\"=false\\n[\\\"model_providers\\\"]\\n[\\\"model_providers\\\".\\\"isolated\\\"]\\n\\\"name\\\"=\\\"Fixture model gateway\\\"\\n\\\"base_url\\\"=\\\"http://127.0.0.1:8123/v1\\\"\\n\\\"wire_api\\\"=\\\"responses\\\"\\n\\\"requires_openai_auth\\\"=false\\n\\\"request_max_retries\\\"=0\\n\\\"stream_max_retries\\\"=0\\n[\\\"mcp_servers\\\"]\\n[\\\"extra\\\"]\\n\\\"10\\\"=\\\"first\\\"\\n\\\"2\\\"=\\\"second\\\"\\n\\\"constructor\\\"=\\\"present\\\"\\n\\\"__proto__\\\"=\\\"also present\\\"\\n[\\\"plugins\\\"]\\n[\\\"plugins\\\".\\\"fixture\\\"]\\n\\\"enabled\\\"=false\\n\",\n      \"AGENTS.md\": \"Public fixture instructions.\\n\",\n      \"rules/default.rules\": \"# fixture rule\\n\"\n    },\n    \"requirements\": \"\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n[\\\"allowed_permission_profiles\\\"]\\n\\\"dotfiles-secure\\\"=true\\n[\\\"permissions\\\"]\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\"]\\n\\\"extends\\\"=\\\":workspace\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\"]\\n\\\":root\\\"=\\\"deny\\\"\\n\\\":minimal\\\"=\\\"read\\\"\\n\\\":slash_tmp\\\"=\\\"deny\\\"\\n\\\"/nix\\\"=\\\"read\\\"\\n\\\"{base}/work/notes\\\"=\\\"deny\\\"\\n\\\"{base}/repo/.git/worktrees/work\\\"=\\\"write\\\"\\n\\\"{base}/repo/.git\\\"=\\\"write\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\":workspace_roots\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\".env\\\"=\\\"deny\\\"\\n\\\"*/**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\"/tmp/codex\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\"**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\"]\\n\\\"enabled\\\"=true\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\".\\\"domains\\\"]\\n\\\"cache.nixos.org\\\"=\\\"allow\\\"\\n\\\"*.github.com\\\"=\\\"allow\\\"\\n\\\"github.com\\\"=\\\"allow\\\"\\n\\\"private.example\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"workspace_roots\\\"]\\n\",\n    \"domains\": [\n      \"cache.nixos.org\",\n      \"*.github.com\",\n      \"github.com\"\n    ],\n    \"denied_domains\": [\n      \"private.example\"\n    ],\n    \"hooks\": {\n      \"pre-commit\": \"#!/bin/sh\\nexit 0\\n\"\n    },\n    \"git_identity\": {\n      \"user.name\": \"Fixture\",\n      \"user.email\": \"fixture@example.invalid\"\n    },\n    \"ca_bundle\": \"{ca}\",\n    \"mcp_tools\": {},\n    \"private_tmp_codex\": true,\n    \"github\": null,\n    \"push_helper\": null\n  }\n}\n",
+        "mode": 384
+      }
+    },
+    "duplicateProjection": {
+      "input": {
+        "append": "\n[permissions.dotfiles-secure.filesystem.\"{base}\"]\n\"work/notes\" = \"deny\"\n\n[permissions.dotfiles-secure.filesystem.\"{base}/work/notes\"]\n\".\" = \"deny\"\n",
+        "ancestorRoot": true
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: managed filesystem contains duplicate normalized path grants\n"
+      }
+    },
+    "scratchRequired": {
+      "input": {
+        "replace": ["\"/tmp/codex\"]", "\"/not-allowed\"]"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: managed filesystem contains an unrecognized namespace grant\n"
+      }
+    },
+    "workspaceWriteRule": {
+      "input": {
+        "replace": ["\".env\" = \"deny\"", "\".env\" = \"write\""]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: raw workspace policy must grant writes with deny rules only\n"
+      }
+    },
+    "scanInteger": {
+      "input": {
+        "replace": ["\":root\" = \"deny\"", "\":root\" = \"deny\"\nglob_scan_max_depth = 2"]
+      },
+      "expected": {
+        "status": 0,
+        "stdout": "public files, reachable Git history and managed runtime policy admitted\n",
+        "stderr": "",
+        "bytes": "{\n  \"version\": 1,\n  \"root\": \"{base}/work\",\n  \"repository\": {\n    \"common_dir\": \"{base}/repo/.git\",\n    \"device\": {device},\n    \"inode\": {inode}\n  },\n  \"git_head\": \"{head}\",\n  \"index_tree\": \"{index_tree}\",\n  \"files\": {\n    \"flake.nix\": {\n      \"sha256\": \"b868b112f38777103dbd44740d3ebc6735107900dc784096c447de14a2c02ba9\",\n      \"executable\": false\n    },\n    \"tools/check.sh\": {\n      \"sha256\": \"d3da42f22921553098697a8df587dc67cf0bd665be951e054c0925e9f620aa4b\",\n      \"executable\": true\n    },\n    \"notes/\\u00e9.txt\": {\n      \"sha256\": \"0228f14354fb823b30812aff38e46d249df921785fa24b3d47552c1358d5f125\",\n      \"executable\": false\n    }\n  },\n  \"runtime\": {\n    \"codex_home\": \"{base}/home/.codex\",\n    \"config_files\": {\n      \"config.toml\": \"\\\"real\\\"=1.0\\n\\\"large\\\"=9007199254740993\\n\\\"values\\\"=[-0.0,1e-08,42,Infinity,NaN]\\n\\\"quoted\\\"=\\\"\\u00e9 and tabs\\\\t\\\"\\n\\\"model\\\"=\\\"gpt-6-luna\\\"\\n\\\"model_reasoning_effort\\\"=\\\"xhigh\\\"\\n\\\"model_provider\\\"=\\\"isolated\\\"\\n\\\"approval_policy\\\"=\\\"on-request\\\"\\n\\\"approvals_reviewer\\\"=\\\"auto_review\\\"\\n\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n\\\"web_search\\\"=\\\"disabled\\\"\\n[\\\"features\\\"]\\n\\\"network_proxy\\\"=true\\n\\\"shell_snapshot\\\"=false\\n[\\\"model_providers\\\"]\\n[\\\"model_providers\\\".\\\"isolated\\\"]\\n\\\"name\\\"=\\\"Fixture model gateway\\\"\\n\\\"base_url\\\"=\\\"http://127.0.0.1:8123/v1\\\"\\n\\\"wire_api\\\"=\\\"responses\\\"\\n\\\"requires_openai_auth\\\"=false\\n\\\"request_max_retries\\\"=0\\n\\\"stream_max_retries\\\"=0\\n[\\\"mcp_servers\\\"]\\n[\\\"extra\\\"]\\n\\\"10\\\"=\\\"first\\\"\\n\\\"2\\\"=\\\"second\\\"\\n\\\"constructor\\\"=\\\"present\\\"\\n\\\"__proto__\\\"=\\\"also present\\\"\\n[\\\"plugins\\\"]\\n[\\\"plugins\\\".\\\"fixture\\\"]\\n\\\"enabled\\\"=false\\n\",\n      \"AGENTS.md\": \"Public fixture instructions.\\n\",\n      \"rules/default.rules\": \"# fixture rule\\n\"\n    },\n    \"requirements\": \"\\\"default_permissions\\\"=\\\"dotfiles-secure\\\"\\n[\\\"allowed_permission_profiles\\\"]\\n\\\"dotfiles-secure\\\"=true\\n[\\\"permissions\\\"]\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\"]\\n\\\"extends\\\"=\\\":workspace\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\"]\\n\\\":root\\\"=\\\"deny\\\"\\n\\\"glob_scan_max_depth\\\"=2\\n\\\":minimal\\\"=\\\"read\\\"\\n\\\":slash_tmp\\\"=\\\"deny\\\"\\n\\\"/nix\\\"=\\\"read\\\"\\n\\\"{base}/repo/.git/worktrees/work\\\"=\\\"write\\\"\\n\\\"{base}/repo/.git\\\"=\\\"write\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\":workspace_roots\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\".env\\\"=\\\"deny\\\"\\n\\\"*/**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"filesystem\\\".\\\"/tmp/codex\\\"]\\n\\\".\\\"=\\\"write\\\"\\n\\\"**/.env\\\"=\\\"deny\\\"\\n\\\"**/*.key\\\"=\\\"deny\\\"\\n\\\"**/credentials.json\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\"]\\n\\\"enabled\\\"=true\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"network\\\".\\\"domains\\\"]\\n\\\"cache.nixos.org\\\"=\\\"allow\\\"\\n\\\"*.github.com\\\"=\\\"allow\\\"\\n\\\"github.com\\\"=\\\"allow\\\"\\n\\\"private.example\\\"=\\\"deny\\\"\\n[\\\"permissions\\\".\\\"dotfiles-secure\\\".\\\"workspace_roots\\\"]\\n\",\n    \"domains\": [\n      \"cache.nixos.org\",\n      \"*.github.com\",\n      \"github.com\"\n    ],\n    \"denied_domains\": [\n      \"private.example\"\n    ],\n    \"hooks\": {\n      \"pre-commit\": \"#!/bin/sh\\nexit 0\\n\"\n    },\n    \"git_identity\": {\n      \"user.name\": \"Fixture\",\n      \"user.email\": \"fixture@example.invalid\"\n    },\n    \"ca_bundle\": \"{ca}\",\n    \"mcp_tools\": {},\n    \"private_tmp_codex\": true,\n    \"github\": null,\n    \"push_helper\": null\n  }\n}\n",
+        "mode": 384
+      }
+    },
+    "scanFloat": {
+      "input": {
+        "replace": ["\":root\" = \"deny\"", "\":root\" = \"deny\"\nglob_scan_max_depth = 2.0"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: managed filesystem scan depth is invalid\n"
+      }
+    },
+    "scanBoolean": {
+      "input": {
+        "replace": ["\":root\" = \"deny\"", "\":root\" = \"deny\"\nglob_scan_max_depth = true"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: managed filesystem scan depth is invalid\n"
+      }
+    },
+    "gitMetadataDeny": {
+      "input": {
+        "append": "\n[permissions.dotfiles-secure.filesystem.\"{base}/repo/.git\"]\n\".\" = \"deny\"\n"
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: raw Git metadata root must remain writable\n"
+      }
+    },
+    "tomlEscape": {
+      "input": {
+        "replace": ["quoted = \"\u00e9 and tabs\\t\"", "quoted = \"\\e\""]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: Unescaped '\\' in a string (at line 4, column 13)\n"
+      }
+    },
+    "tomlInlineTrailingComma": {
+      "input": {
+        "replace": ["real = 1.0", "real = {a=1,}"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: Invalid initial character for a key part (at line 1, column 13)\n"
+      }
+    },
+    "tomlDate": {
+      "input": {
+        "replace": ["real = 1.0", "real = 2026-11-27"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: unsupported public configuration value\n"
+      }
+    },
+    "foreignHead": {
+      "input": {
+        "head": "0000000000000000000000000000000000000000"
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: approval must name the current full Git HEAD\n"
+      }
+    },
+    "stagedChange": {
+      "input": {
+        "staged": true
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: initial approval requires an index matching HEAD\n"
+      }
+    },
+    "dotComponent": {
+      "input": {
+        "names": ["./flake.nix"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: input must be a relative file outside Git metadata\n"
+      }
+    },
+    "gitMetadataInput": {
+      "input": {
+        "names": [".git"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: input must be a relative file outside Git metadata\n"
+      }
+    },
+    "fileSymlink": {
+      "input": {
+        "inputKind": "symlink",
+        "names": ["linked"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: [Errno 40] Too many levels of symbolic links: 'linked'\n"
+      }
+    },
+    "ancestorSymlink": {
+      "input": {
+        "inputKind": "symlink",
+        "names": ["alias/\u00e9.txt"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: [Errno 20] Not a directory: 'alias'\n"
+      }
+    },
+    "fileHardlink": {
+      "input": {
+        "inputKind": "hardlink",
+        "names": ["linked"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: input must be a regular file with one link\n"
+      }
+    },
+    "fileFifo": {
+      "input": {
+        "inputKind": "fifo",
+        "names": ["linked"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: input must be a regular file with one link\n"
+      }
+    },
+    "missingInput": {
+      "input": {
+        "names": ["missing"]
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: [Errno 2] No such file or directory: 'missing'\n"
+      }
+    },
+    "githubField": {
+      "input": {
+        "github": {
+          "extra": "reject"
+        }
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: GitHub policy requires repository, branch, default_branch, reviewed_commit, automation and review\n"
+      }
+    },
+    "githubEmpty": {
+      "input": {
+        "github": {
+          "review": ""
+        }
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: GitHub policy values must be nonempty strings\n"
+      }
+    },
+    "githubRepository": {
+      "input": {
+        "github": {
+          "repository": "fixture/demo/more"
+        }
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: GitHub policy requires an owner/repository\n"
+      }
+    },
+    "githubHash": {
+      "input": {
+        "github": {
+          "reviewed_commit": "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
+        }
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: GitHub policy requires a full reviewed commit SHA\n"
+      }
+    },
+    "githubMain": {
+      "input": {
+        "github": {
+          "branch": "main"
+        }
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: GitHub policy must select a topic branch\n"
+      }
+    },
+    "githubUnsupportedBranch": {
+      "input": {
+        "github": {
+          "branch": "topic with spaces"
+        }
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: GitHub policy contains an unsupported branch name\n"
+      }
+    },
+    "githubAutomation": {
+      "input": {
+        "github": {
+          "automation": "unknown"
+        }
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: review secret-free automation or human-reviewed external execution before enabling GitHub\n"
+      }
+    },
+    "githubForeignBranch": {
+      "input": {
+        "github": {
+          "branch": "other"
+        }
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: GitHub policy belongs to another topic branch\n"
+      }
+    },
+    "githubForeignOrigin": {
+      "input": {
+        "github": {},
+        "origin": "https://github.com/fixture/other"
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: GitHub policy does not match the HTTPS origin\n"
+      }
+    },
+    "githubUnrelatedCommit": {
+      "input": {
+        "github": {
+          "reviewed_commit": "0000000000000000000000000000000000000000"
+        }
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: Git merge-base failed; no input was published\n"
+      }
+    },
+    "githubInsideProject": {
+      "input": {
+        "github": {},
+        "insidePolicy": true
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: GitHub policy must be owned outside the project\n"
+      }
+    },
+    "githubSymlink": {
+      "input": {
+        "github": {},
+        "symlinkPolicy": true
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: [Errno 40] Too many levels of symbolic links: 'github.json'\n"
+      }
+    },
+    "privateInputsMode": {
+      "input": {
+        "inputsMode": 493
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: input state must be private to the current user\n"
+      }
+    },
+    "privateInputsSymlink": {
+      "input": {
+        "inputsSymlink": true
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: input state must be private to the current user\n"
+      }
+    },
+    "externalCa": {
+      "input": {
+        "externalCa": true
+      },
+      "expected": {
+        "status": 1,
+        "stdout": "",
+        "stderr": "devshell-env: select the public Nix CA bundle with CODEX_ISOLATION_CA_BUNDLE\n"
+      }
+    }
+  }
+}
