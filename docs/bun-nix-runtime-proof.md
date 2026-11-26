@@ -89,7 +89,7 @@ Debian GNU/Linux 13.7 の x86_64 ゲストでは、既定のセキュリティ�
 
 2026-11-26 に #34 と同じ EC2 Graviton 上で `aa26b76c6f1f8f22625757ae87ed8d31e7ce1132` を検証した。ホストの既定のセキュリティ設定と、検証内だけの `/bin/bash` の準備は #34 の記録を参照する。 [NixOS arm64 の環境と実行条件](bun-namespace-proof.md#nixos-arm64-の追加実測)
 
-dotfiles の `4f3d33d6a210702153cfa5ede67717c57d05222f` にある devShell の `aarch64-linux` 出力から Bun 1.4.4 を解決した。nixpkgs は `7529d323f8f9926b38df356da2483c2a4e759d00`、Bun 定義の取得元は `0d765791b09356dd5b356559c1b67c1600ca3c5b`。devShell の評価、ゲストの PATH、テストの manifest、既存の raw 入口から実行した target の Bun はすべて `/nix/store/9795kdj4wig6h6hm62vrzi3h7a8rprhn-bun-1.4.4/bin/bun` で一致した。
+dotfiles の `4f3d33d6a210702153cfa5ede67717c57d05222f` にある devShell の `aarch64-linux` 出力から Bun 1.4.4 を解決した。nixpkgs は `7529d323f8f9926b38df356da2483c2a4e759d00`、Bun 定義の取得元は `0d765791b09356dd5b356559c1b67c1600ca3c5b`。devShell の評価、ゲストの PATH、テストの manifest、既存の raw 入口から実行した target の Bun は、store path がすべて一致した。観測した store ディレクトリ名は `9795kdj4wig6h6hm62vrzi3h7a8rprhn-bun-1.4.4`、実行体の相対パスは `bin/bun`。
 
 同じ `NIX_BUN_PROOF_REAL=1` の実行で9件合格、失敗・スキップはともに0件、終了状態0。Nix 2.35.3、Bash 5.3p9、coreutils 9.11、bubblewrap 0.12.0、Python 3.14.7、Git 2.54.0、GitHub CLI 2.102.0 を使った。Bun・Bash・coreutils の3 roots から14 store paths をコピーし、コピー元とコピー先の Bun の SHA-256 `958c92462f8c7d7cd2020db59f7dadd3e81e4c456e1f4b5b14f0b1602c54ada0` が一致した。生成 wrapper と Bun の読み取り専用配置、専用 HOME・scratch への書込み、環境変数の除去、payload と元の `lib/bun` の同一性を確認した。
 
