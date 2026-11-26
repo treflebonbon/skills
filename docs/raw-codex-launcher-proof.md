@@ -29,9 +29,17 @@ WSL2 の実行には Nix 2.34.6、bubblewrap 0.12.0、Bun 1.4.4 を使用しま�
 
 ## 再実行
 
-Nix store から選択された既存の raw tools と Bun を用意し、対象 worktree で保護された検証入口から次を実行します。環境と成果物の版・digest は結果とともに記録します。opt-in 実行で適合方式を得られない場合、fixture は失敗します。
+上記の手順で launcher を事前ビルドし、既存の raw tools と Bun 1.4.4 以上を Nix store から選択します。対象 worktree の保護された検証入口から次を実行し、Nixpkgs の pin と出力を保存します。`launcher` にはビルドで得た store path を指定します。 [raw tools の一覧](raw-codex-isolation.md#必要な環境)
 
 ```sh
-RAW_LAUNCHER_PROOF=/nix/store/<hash>-raw-codex-launcher-1 \
-  python3 -B -m unittest discover -s tests -p test_raw_launcher.py -v
+set -eu
+git rev-parse HEAD
+uname -srm
+nix --version
+bwrap --version
+bun --version
+cat "${launcher:?launcher の store path を指定してください}/share/raw-codex-launcher/manifest.json"
+RAW_LAUNCHER_PROOF="$launcher" python3 -B -m unittest discover -s tests -p test_raw_launcher.py -v
 ```
+
+測定では `SIGTERM` を無視する離脱子が起動したことを確認してから、launcher だけに `SIGKILL` を送ります。opt-in 実行で適合方式を得られない場合、fixture は失敗します。通常 Linux arm64 の受入は、既存の raw 隔離が動作する arm64 CPU 上の実機または VM で、この opt-in テスト3件をすべて実行して判定します。 [必要範囲と実行環境](bun-namespace-proof.md#追加実証の受入条件)
