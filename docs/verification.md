@@ -75,6 +75,10 @@ report と質問シートの loopback 配信、旧 HTTP corpus、専用 root と
 
 worker-readiness の独立検証は `tests/bun/orca-worker-readiness.test.ts` と `tests/cli/orca-worker-readiness.bats` で確認します。
 
+devShell の TypeScript 準備は `lib/bun/run test tests/bun/devshell-environment.test.ts` で検証します。一時 Git worktree と fake Nix を使い、旧版の trust record の bytes と mode、Nix の argv、shellHook 後の環境、旧 `with-env` の prepared context、reasoning effort の TOML 入力を比較します。通常の Bun テストは保存済み corpus を読み込みます。 [旧版の corpus](../tests/fixtures/devshell-environment-python.json)
+
+#45 に引き継ぐ隔離内の資産は `lib/bun/devshell-environment.ts`、その依存 `git-context.ts`・`cli-path.ts`・`coordination-json.ts`・`strict-json.ts`、および Bun の共用起動に必要な `run`・`bunfig.toml`・`tsconfig.json` です。shellHook 後の環境は、準備前に探索した `env -0` から取得します。Nix の coreutils は `env` という名前で起動します。UTF-8 でない環境の bytes は旧ダンプと同じ surrogate escape で返るため、launcher へ渡す側で元の bytes に戻して検証します。host の公開入口の切り替えと旧 Python 実装の撤去は #48 が担当します。 [隔離内の切り替え #45](https://github.com/treflebonbon/skills/issues/45) [host の切り替え #48](https://github.com/treflebonbon/skills/issues/48)
+
 `gh-review-thread` の旧 CLI 出力・段階別失敗・返信と resolve の順序は [移行記録](bun-review-thread-proof.md)、`tests/bun/gh-review-thread.test.ts` と `tests/cli/gh-review-thread.bats` で確認します。実 GitHub への返信・resolve は行わず、fake `gh` の argv と応答を比較します。
 
 導入 smoke と session の `run/check`、旧証跡・native argv・process group の比較は [移行記録](bun-plugin-sessions-proof.md)と `tests/bun/plugin-{smoke,sessions,session-process}.test.ts` で確認します。通常 suite は fake CLI だけを使い、実公式導入・実モデルの opt-in と分けます。

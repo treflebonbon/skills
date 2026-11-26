@@ -1,0 +1,264 @@
+{
+  "sourceRevision": "5895b598755b1b7246d81bce567962aca58afef6",
+  "sources": [
+    {
+      "path": "bin/devshell-env",
+      "sha256": "2ebe6136dd3f8900d50de74996d779be8bdf2e676e057be9b2b6637a22e9bf70"
+    },
+    {
+      "path": "lib/python/treflebonbon_skills/devshell_environment.py",
+      "sha256": "a3450dcb840bdf5ba17f44571cdd3a38cb2119109afa17ad1cd2be1efcbd48c1"
+    },
+    {
+      "path": "lib/python/treflebonbon_skills/git_context.py",
+      "sha256": "986e2a6143cc467e760b7e931c93d3ab9126a6eda214192a372736502491de43"
+    },
+    {
+      "path": "share/codex-isolation/codex-inner.py",
+      "sha256": "98edfeda1f8ad632af6abdfb09b56cc3bfea29e5288fd519a599a078c07648f5"
+    }
+  ],
+  "captured": {
+    "python": "3.14.7",
+    "os": "Linux",
+    "architecture": "x86_64",
+    "git": "git version 2.55.0"
+  },
+  "inputs": {
+    "common": "repo-\u00e9",
+    "worktree": "work #\u00e9 '()!*",
+    "flake": "{ outputs = _: {}; }\n",
+    "lock": "{\"fixture\":true}\n",
+    "output": "\u00e1.\ud835\udfd8-\u2167_\u00b2",
+    "shell": "export BOOTSTRAP=\"${NIX_CONFIG-unset}|${HTTPS_PROXY-unset}|${https_proxy-unset}|${NO_PROXY-unset}|${NIX_REMOTE-unset}|${SSL_CERT_FILE-unset}|${XDG_CACHE_HOME-unset}|${TMPDIR-unset}|${PRIVATE_INPUT-unset}|${BASH_ENV-unset}\"\nexport PROJECT=from-flake\nexport PATH=\"/flake/bin::/shared/bin:/flake/bin\"\nexport KEEP=from-flake\nexport LC_ALL=C\nexport EMPTY=\"\"\nexport MULTILINE=$'\u5148\u982d\\n=middle\\r\\nlast'\nexport BYTES=$'\\xff\\xe2\\x98\\x83\\xe2\\x80'\nexport __proto__=own-value\nexport HOME=/flake/home USER=flake LOGNAME=flake PWD=/flake/dir OLDPWD=/flake/old TMPDIR=/flake/tmp SHLVL=9\nexport SHELL=/flake/shell BASH_ENV=/flake/bash ENV=/flake/env\nexport XDG_CONFIG_HOME=/flake/config XDG_CACHE_HOME=/flake/cache XDG_DATA_HOME=/flake/data\nexport XDG_STATE_HOME=/flake/state XDG_RUNTIME_DIR=/flake/runtime XDG_DATA_DIRS=/flake/share\nexport GIT_DIR=/flake/git CODEX_HOME=/flake/codex DEVSHELL_ENV_CONTEXT=from-flake\nshellHook='export HOOK=\"hook=$PROJECT\"; printf \"hook log\\n\"'\neval \"$shellHook\"\n",
+    "inherited": {
+      "PATH": "/shared/bin::/bin:/usr/bin:/shared/bin",
+      "HOME": "/caller/home",
+      "XDG_CACHE_HOME": "/caller/cache",
+      "KEEP": "",
+      "GIT_WORK_TREE": "/caller/git",
+      "CODEX_HOME": "/caller/codex",
+      "DEVSHELL_ENV_CONTEXT": "stale",
+      "PRIVATE_INPUT": "fixture-value",
+      "NIX_CONFIG": "fixture-config",
+      "NIX_REMOTE": "local",
+      "SSL_CERT_FILE": "/caller/ca",
+      "HTTPS_PROXY": "https://example.invalid",
+      "https_proxy": "https://example.invalid/lower",
+      "NO_PROXY": "localhost",
+      "BASH_ENV": "/caller/bash"
+    }
+  },
+  "cases": {
+    "untrusted": {
+      "exit": 0,
+      "stdout": "devshell-env: untrusted; flake present; {base}/work #\u00e9 '()!*\n",
+      "stderr": ""
+    },
+    "trust": {
+      "exit": 0,
+      "stdout": "devshell-env: trusted; no flake; {base}/repo-\u00e9\n",
+      "stderr": ""
+    },
+    "trusted": {
+      "exit": 0,
+      "stdout": "devshell-env: trusted; flake present; {base}/work #\u00e9 '()!*\n",
+      "stderr": ""
+    },
+    "record": {
+      "bytes": "{\"common_dir\": \"{base}/repo-\\u00e9/.git\", \"device\": {device}, \"inode\": {inode}}",
+      "mode": 384
+    },
+    "insideRepository": {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "devshell-env: trust state must be outside repositories and Git metadata\n"
+    },
+    "symlinkRecord": {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "devshell-env: symlinked trust record\n"
+    },
+    "nixArgv": [
+      "--extra-experimental-features",
+      "nix-command flakes",
+      "print-dev-env",
+      "--no-write-lock-file",
+      "git+file://{base}/work%20%23%C3%A9%20%27%28%29%21%2A#\u00e1.\ud835\udfd8-\u2167_\u00b2"
+    ],
+    "legacyLocale": "C.UTF-8",
+    "untrust": {
+      "exit": 0,
+      "stdout": "devshell-env: untrusted; flake present; {base}/work #\u00e9 '()!*\n",
+      "stderr": ""
+    },
+    "revoked": {
+      "exit": 0,
+      "stdout": "devshell-env: untrusted; no flake; {base}/repo-\u00e9\n",
+      "stderr": ""
+    },
+    "reused": {
+      "exit": 0,
+      "stdout": "a=b\n\u7a7a",
+      "stderr": ""
+    },
+    "missingContext": {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "devshell-env: no prepared devShell; restart through codex-worktree\n"
+    },
+    "foreignContext": {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "devshell-env: prepared devShell belongs to another root or flake; restart the session\n"
+    },
+    "changedContext": {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "devshell-env: prepared devShell belongs to another root or flake; restart the session\n"
+    },
+    "untrustedPreparation": {
+      "error": "untrusted repository; run devshell-env trust"
+    }
+  },
+  "prepared": {
+    "normal": {
+      "environment": {
+        "PATH": "/flake/bin:/shared/bin:/bin:/usr/bin",
+        "HOME": "/caller/home",
+        "XDG_CACHE_HOME": "/caller/cache",
+        "KEEP": "",
+        "GIT_WORK_TREE": "/caller/git",
+        "CODEX_HOME": "/caller/codex",
+        "PRIVATE_INPUT": "fixture-value",
+        "NIX_CONFIG": "fixture-config",
+        "NIX_REMOTE": "local",
+        "SSL_CERT_FILE": "/caller/ca",
+        "HTTPS_PROXY": "https://example.invalid",
+        "https_proxy": "https://example.invalid/lower",
+        "NO_PROXY": "localhost",
+        "BASH_ENV": "/caller/bash",
+        "MULTILINE": "\u5148\u982d\n=middle\r\nlast",
+        "__proto__": "own-value",
+        "BOOTSTRAP": "unset|unset|unset|unset|local|/caller/ca|/caller/cache|/tmp|unset|unset",
+        "HOOK": "hook=from-flake",
+        "EMPTY": "",
+        "LC_ALL": "C",
+        "XDG_DATA_DIRS": "/flake/share",
+        "BYTES": "\udcff\u2603\udce2\udc80",
+        "PROJECT": "from-flake"
+      },
+      "context": "{\"files\": {\"flake.lock\": \"218589323cbe80b7ed077e3ee36f1663e7cb5f8f4e4ad02c938ad8a5c2c5a6b9\", \"flake.nix\": \"feaf75615376a4734c8b3729ec68ff693e89a7af7d1bea02c244c408e518c1b2\"}, \"output\": \"\\u00e1.\\ud835\\udfd8-\\u2167_\\u00b2\", \"repository\": {\"common_dir\": \"{base}/repo-\\u00e9/.git\", \"device\": {device}, \"inode\": {inode}}, \"root\": \"{base}/work #\\u00e9 '()!*\"}"
+    },
+    "isolated": {
+      "environment": {
+        "PATH": "/flake/bin:/shared/bin:/bin:/usr/bin",
+        "HOME": "/caller/home",
+        "XDG_CACHE_HOME": "/caller/cache",
+        "KEEP": "",
+        "GIT_WORK_TREE": "/caller/git",
+        "CODEX_HOME": "/caller/codex",
+        "PRIVATE_INPUT": "fixture-value",
+        "NIX_CONFIG": "fixture-config",
+        "NIX_REMOTE": "local",
+        "SSL_CERT_FILE": "/caller/ca",
+        "HTTPS_PROXY": "https://example.invalid",
+        "https_proxy": "https://example.invalid/lower",
+        "NO_PROXY": "localhost",
+        "BASH_ENV": "/caller/bash",
+        "MULTILINE": "\u5148\u982d\n=middle\r\nlast",
+        "__proto__": "own-value",
+        "BOOTSTRAP": "fixture-config|https://example.invalid|https://example.invalid/lower|localhost|local|/caller/ca|/caller/cache|/tmp|unset|unset",
+        "HOOK": "hook=from-flake",
+        "EMPTY": "",
+        "LC_ALL": "C",
+        "XDG_DATA_DIRS": "/flake/share",
+        "BYTES": "\udcff\u2603\udce2\udc80",
+        "PROJECT": "from-flake"
+      },
+      "context": "{\"files\": {\"flake.lock\": \"218589323cbe80b7ed077e3ee36f1663e7cb5f8f4e4ad02c938ad8a5c2c5a6b9\", \"flake.nix\": \"feaf75615376a4734c8b3729ec68ff693e89a7af7d1bea02c244c408e518c1b2\"}, \"output\": \"\\u00e1.\\ud835\\udfd8-\\u2167_\\u00b2\", \"repository\": {\"common_dir\": \"{base}/repo-\\u00e9/.git\", \"device\": {device}, \"inode\": {inode}}, \"root\": \"{base}/work #\\u00e9 '()!*\"}"
+    }
+  },
+  "toml": {
+    "basic": {
+      "assignment": "model_reasoning_effort=\"xhigh\"",
+      "value": "xhigh"
+    },
+    "literal": {
+      "assignment": "model_reasoning_effort='a\\b'",
+      "value": "a\\b"
+    },
+    "escaped": {
+      "assignment": "model_reasoning_effort=\"\\u00e9\\U0001F600\\t\\u0000\"",
+      "value": "\u00e9\ud83d\ude00\t\u0000"
+    },
+    "escapedBackslash": {
+      "assignment": "model_reasoning_effort=\"\\\\x61 and \\\\e\"",
+      "value": "\\x61 and \\e"
+    },
+    "multiline": {
+      "assignment": "model_reasoning_effort=\"\"\"\r\nfirst\\\r\n  second\r\n\"\"\"",
+      "value": "firstsecond\n"
+    },
+    "multilineQuotes": {
+      "assignment": "model_reasoning_effort=\"\"\"a\"b\"\"c\"\"\"\"\" # allowed",
+      "value": "a\"b\"\"c\"\""
+    },
+    "literalNewEscape": {
+      "assignment": "model_reasoning_effort='\\x61\\e'",
+      "value": "\\x61\\e"
+    },
+    "commentNewEscape": {
+      "assignment": "model_reasoning_effort=\"xhigh\" # \\x61 \\e",
+      "value": "xhigh"
+    },
+    "controlEscape": {
+      "assignment": "model_reasoning_effort=\"\\e\"",
+      "error": "reasoning effort must be a TOML string"
+    },
+    "hexEscape": {
+      "assignment": "model_reasoning_effort=\"\\x61\"",
+      "error": "reasoning effort must be a TOML string"
+    },
+    "surrogate": {
+      "assignment": "model_reasoning_effort=\"\\uD800\"",
+      "error": "reasoning effort must be a TOML string"
+    },
+    "empty": {
+      "assignment": "model_reasoning_effort=\"\"",
+      "error": "reasoning effort must be one nonempty TOML string"
+    },
+    "integer": {
+      "assignment": "model_reasoning_effort=5",
+      "error": "reasoning effort must be one nonempty TOML string"
+    },
+    "boolean": {
+      "assignment": "model_reasoning_effort=true",
+      "error": "reasoning effort must be one nonempty TOML string"
+    },
+    "array": {
+      "assignment": "model_reasoning_effort=[\"high\"]",
+      "error": "reasoning effort must be one nonempty TOML string"
+    },
+    "datetime": {
+      "assignment": "model_reasoning_effort=2026-11-26T10:20:30Z",
+      "error": "reasoning effort must be one nonempty TOML string"
+    },
+    "extraKey": {
+      "assignment": "model_reasoning_effort=\"high\"\nother = \"yes\"",
+      "error": "reasoning effort must be one nonempty TOML string"
+    },
+    "extraTable": {
+      "assignment": "model_reasoning_effort=\"high\"\n[table]",
+      "error": "reasoning effort must be one nonempty TOML string"
+    },
+    "duplicate": {
+      "assignment": "model_reasoning_effort=\"high\"\neffort = \"low\"",
+      "error": "reasoning effort must be a TOML string"
+    },
+    "unquoted": {
+      "assignment": "model_reasoning_effort=xhigh",
+      "error": "reasoning effort must be a TOML string"
+    }
+  }
+}
