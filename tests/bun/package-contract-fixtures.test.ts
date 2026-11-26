@@ -74,11 +74,16 @@ test("package 契約は旧 corpus の12拒否と正常な配布物を区別し�
       expect(fixedPath.stderr).toContain("error: README.md");
       fs.writeFileSync(readmePath, readme);
 
-      fs.appendFileSync(readmePath, "\n" + ["orca", "peer", "refactor"].join("-") + "\n");
-      const rejected = run("test_no_dangling_references_to_removed_parts");
-      expect(rejected.status, rejected.stderr).toBe(1);
-      expect(rejected.stderr).toContain("dangling reference in README.md");
-      fs.writeFileSync(readmePath, readme);
+      for (const removed of [
+        ["orca", "peer", "refactor"].join("-"),
+        ["bin/prepare", "file", "safety"].join("-"),
+      ]) {
+        fs.appendFileSync(readmePath, "\n" + removed + "\n");
+        const rejected = run("test_no_dangling_references_to_removed_parts");
+        expect(rejected.status, rejected.stderr).toBe(1);
+        expect(rejected.stderr).toContain("dangling reference in README.md");
+        fs.writeFileSync(readmePath, readme);
+      }
       const control = run("test_no_dangling_references_to_removed_parts");
       expect(control.status, control.stderr).toBe(0);
     } finally {
