@@ -228,9 +228,9 @@ function publicRuntime(
   config.mcp_servers = servers;
   const plugins = Object.hasOwn(config, "plugins") ? config.plugins : {};
   if (!isTable(plugins)) throw new Error("managed plugins configuration must be a table");
-  config.plugins = Object.fromEntries(
-    Object.keys(plugins).map((name) => [name, { enabled: false }]),
-  );
+  const disabledPlugins = orderedTable<{ enabled: false }>();
+  for (const name of Object.keys(plugins)) disabledPlugins[name] = { enabled: false };
+  config.plugins = disabledPlugins;
 
   const github =
     githubPolicyFile === undefined ? null : bindGitHubPolicy(repo, head, githubPolicyFile);
