@@ -8,6 +8,7 @@ const read = (path: string) => fs.readFileSync(resolve(root, path), "utf8");
 const json = (path: string): any => JSON.parse(read(path));
 const version = json("plugin.json").version;
 const skills = [
+  "delete-comment",
   "dogfood",
   "domain-modeling-studio",
   "marp",
@@ -30,7 +31,6 @@ test("test_skill_directories_are_the_exact_public_set", () => {
   const names = fs
     .readdirSync(resolve(root, "skills"))
     .filter((name) => fs.existsSync(resolve(root, "skills", name, "SKILL.md")));
-  expect(names, "公開 skill 数").toHaveLength(10);
   expect(names.sort(), "公開 skill 集合").toEqual([...skills].sort());
   for (const name of skills) {
     expect(frontmatter(name), name + " name").toMatch(new RegExp("^name: " + name + "$", "m"));

@@ -43,7 +43,18 @@ function run(directory: string, source = root, mode = "success") {
     tape = resolve(directory, "legacy.json"),
     calls = resolve(directory, "calls.jsonl");
   fs.mkdirSync(commands);
-  fs.writeFileSync(tape, JSON.stringify(legacy.calls));
+  fs.writeFileSync(
+    tape,
+    JSON.stringify(
+      legacy.calls.map((call) => {
+        if (call.name === "agy" && call.args[1] === "validate")
+          return { ...call, output: call.output.replace('"skills":10', '"skills":11') };
+        if (call.name === "claude" && call.args[1] === "details")
+          return { ...call, output: "delete-comment\n" + call.output };
+        return call;
+      }),
+    ),
+  );
   for (const name of ["node", "bash", "sh", "dirname", "readlink"])
     fs.symlinkSync(Bun.which(name)!, resolve(commands, name));
   fs.symlinkSync(process.execPath, resolve(commands, "bun"));

@@ -84,10 +84,11 @@ test("CLI help と省略形を維持し、空の出力先は cwd の payload と
         maxBuffer: Infinity,
       });
       expect(result.status, result.stderr.toString()).toBe(0);
+      const previous = Buffer.from(encoded, "base64")
+        .toString()
+        .replaceAll("plugin_sessions.py", "plugin-sessions");
       expect(result.stdout.toString()).toBe(
-        Buffer.from(encoded, "base64")
-          .toString()
-          .replaceAll("plugin_sessions.py", "plugin-sessions"),
+        mode === "run" ? previous.replaceAll("{dogfood,", "{delete-comment,dogfood,") : previous,
       );
     }
   const empty = spawnSync(
@@ -194,6 +195,15 @@ function snapshot(directory: string) {
         ];
       }),
   );
+}
+
+function withDeleteCommentCases(stdout: string): string {
+  const summary = JSON.parse(stdout);
+  summary.cases = summary.cases.flatMap((entry: { skill: string }) =>
+    entry.skill === "dogfood" ? [{ ...entry, skill: "delete-comment" }, entry] : [entry],
+  );
+  summary.expected = summary.cases.length;
+  return JSON.stringify(summary, null, 2) + "\n";
 }
 
 test("run は旧 corpus の native argv・保存 bytes/mode・失敗と未確認を維持する", () => {
@@ -308,12 +318,8 @@ if(call.hang)setInterval(()=>{},1000);else if(call.status<0)process.kill(process
         },
       );
       expect(result.status, item.name + ": " + result.stderr.toString()).toBe(item.status);
-      expect(result.stdout.toString(), item.name).toBe(
-        translate(Buffer.from(item.stdout, "base64").toString()),
-      );
-      expect(result.stderr.toString(), item.name).toBe(
-        translate(Buffer.from(item.stderr, "base64").toString()),
-      );
+      let stdout = translate(Buffer.from(item.stdout, "base64").toString());
+      let stderr = translate(Buffer.from(item.stderr, "base64").toString());
       const expected = Object.fromEntries(
         Object.entries(item.after ?? {}).map(([name, entry]) => [
           name,
@@ -327,6 +333,33 @@ if(call.hang)setInterval(()=>{},1000);else if(call.status<0)process.kill(process
             : entry,
         ]),
       );
+      if (item.name === "run-013") {
+        stdout = withDeleteCommentCases(stdout);
+        for (const runtime of ["claude", "codex", "agy"]) {
+          const first = runtime + "/dogfood: unconfirmed\n";
+          stderr = stderr.replace(first, runtime + "/delete-comment: unconfirmed\n" + first);
+          for (const suffix of ["", "/inventory.json", "/result.json"]) {
+            const previous = expected[runtime + "/dogfood" + suffix]!;
+            expected[runtime + "/delete-comment" + suffix] =
+              previous.kind === "file"
+                ? {
+                    ...previous,
+                    base64: Buffer.from(
+                      Buffer.from(previous.base64!, "base64")
+                        .toString()
+                        .replaceAll("dogfood", "delete-comment"),
+                    ).toString("base64"),
+                  }
+                : previous;
+          }
+        }
+        expected["summary.json"] = {
+          ...expected["summary.json"]!,
+          base64: Buffer.from(stdout).toString("base64"),
+        };
+      }
+      expect(result.stdout.toString(), item.name).toBe(stdout);
+      expect(result.stderr.toString(), item.name).toBe(stderr);
       expect(snapshot(output), item.name).toEqual(item.after === null ? null : expected);
       expect(fs.existsSync(mismatch) ? fs.readFileSync(mismatch, "utf8") : "").toBe("");
       expect(fs.existsSync(count) ? Number(fs.readFileSync(count, "utf8")) : 0).toBe(native.length);
@@ -454,12 +487,10 @@ test(
         const output = resolve(directory, "output"),
           result = invoke(["run", "--output-dir", output]);
         expect(result.status, result.stderr.toString()).toBe(1);
-        const missing = corpus.cases.find(
-          (item) =>
-            item.args[0] === "run" &&
-            JSON.parse(Buffer.from(item.stdout, "base64").toString()).expected === 30,
-        )!;
-        expect(result.stdout).toEqual(Buffer.from(missing.stdout, "base64"));
+        const missing = corpus.cases.find((item) => item.name === "run-013")!;
+        expect(result.stdout.toString()).toBe(
+          withDeleteCommentCases(Buffer.from(missing.stdout, "base64").toString()),
+        );
         expect(fs.statSync(resolve(output, "summary.json")).mode & 0o777).toBe(0o600);
         const alias = resolve(directory, "inside");
         fs.symlinkSync(resolve(payload, "subdir"), alias);
@@ -484,7 +515,7 @@ test(
           resolve(directory, "again") + "/../again/output",
         ]);
         expect(repeated.status).toBe(1);
-        expect(JSON.parse(repeated.stdout.toString()).expected).toBe(30);
+        expect(repeated.stdout).toEqual(result.stdout);
         fs.symlinkSync(resolve(directory, "cycle-b"), resolve(directory, "cycle-a"));
         fs.symlinkSync(resolve(directory, "cycle-a"), resolve(directory, "cycle-b"));
         const cycle = invoke(["run", "--output-dir", resolve(directory, "cycle-a") + "/evidence"]);
