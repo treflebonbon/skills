@@ -143,6 +143,8 @@ function requestHandler(
       } catch {
         return reply(response, 403);
       }
+      // 本文受信後の公開処理には Git と GitHub のコマンドごとの制限が適用される。
+      if (method === "POST" && path === "/topic-push") request.socket.setTimeout(0);
       try {
         const answer = await github.dispatch(method, path, payload);
         return reply(response, 200, strictJSON(answer), "application/json");

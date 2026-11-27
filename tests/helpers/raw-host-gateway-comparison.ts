@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { createSocket } from "node:dgram";
 import { once } from "node:events";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { request, type IncomingMessage } from "node:http";
+import { request, Server as HttpServer, type IncomingMessage } from "node:http";
 import { createServer as httpsServer } from "node:https";
 import { connect, createServer as tcpServer, type Socket } from "node:net";
 import { join, resolve } from "node:path";
@@ -104,7 +104,7 @@ const policy = {
   automation: "no-project-secrets",
   review: "synthetic fixture",
 };
-const pushHelper = 'git rev-parse HEAD > "$HOME/published"\n';
+const pushHelper = 'sleep 0.4\ngit rev-parse HEAD > "$HOME/published"\n';
 type Run = typeof withGatewayScope;
 type Start = Parameters<Parameters<Run>[0]>[0];
 
@@ -442,8 +442,18 @@ async function observe(scope: Run) {
     assert.deepEqual(observations["dns mapped public"], [200, ["::ffff:8.8.8.8"]]);
 
     assert.equal((await proxied("POST", "/topic-push", { ...topic, bundle: "!" }))[0], 403);
-    // 過剰 padding の扱いは旧 Python のバージョンで異なる。
     if (scope === withGatewayScope) {
+      const stalled = connect(join(deps, "service.sock"));
+      try {
+        const closed = once(stalled, "close", { signal: AbortSignal.timeout(2000) });
+        stalled.write(
+          "POST http://api.github.com/topic-push HTTP/1.1\r\nHost: api.github.com\r\nContent-Length: 2\r\n\r\n{",
+        );
+        await closed;
+      } finally {
+        stalled.destroy();
+      }
+      // 過剰 padding の扱いは旧 Python のバージョンで異なる。
       assert.equal(
         (await proxied("POST", "/topic-push", { ...topic, bundle: topic.bundle + "=" }))[0],
         403,
@@ -527,7 +537,21 @@ async function observe(scope: Run) {
 
 try {
   const legacy = await observe(withPythonScope);
-  const migrated = await observe(withGatewayScope);
+  // 公開リクエストの受信期限を短縮して、タイムアウトを短時間で再現する。
+  const setServerTimeout = HttpServer.prototype.setTimeout;
+  HttpServer.prototype.setTimeout = function (...args) {
+    this.prependListener("request", (request: IncomingMessage) => {
+      if (request.method === "POST" && request.url === "http://api.github.com/topic-push")
+        request.socket.setTimeout(100);
+    });
+    return Reflect.apply(setServerTimeout, this, args);
+  };
+  let migrated;
+  try {
+    migrated = await observe(withGatewayScope);
+  } finally {
+    HttpServer.prototype.setTimeout = setServerTimeout;
+  }
   assert.deepEqual(migrated, legacy);
   console.log("gateway wire and lifecycle comparison passed");
 } finally {
