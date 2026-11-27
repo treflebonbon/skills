@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.4.3](https://github.com/treflebonbon/skills/compare/v0.4.2...v0.4.3) (2026-11-27)
+
+
+### Features
+
+* add reusable comment inventory skill ([#144](https://github.com/treflebonbon/skills/issues/144)) ([7863cbd](https://github.com/treflebonbon/skills/commit/7863cbda00f04aa22fbb4f5d1abe1808b23afd07))
+* add shared TypeScript Git context ([#134](https://github.com/treflebonbon/skills/issues/134)) ([f88cdcd](https://github.com/treflebonbon/skills/commit/f88cdcd59d73b1b3b2497db6b00a76db92a7e124))
+* **devshell:** prepare TypeScript environment module ([#136](https://github.com/treflebonbon/skills/issues/136)) ([a118a1c](https://github.com/treflebonbon/skills/commit/a118a1c558a0172b0e4beb52938ae11def1d757a))
+* improve product guide readability ([#129](https://github.com/treflebonbon/skills/issues/129)) ([98fb2ab](https://github.com/treflebonbon/skills/commit/98fb2ab471531d5ca30e4bc122dfa287c770b2cc))
+* **raw:** add a verified host launcher for Linux and WSL2 ([#148](https://github.com/treflebonbon/skills/issues/148)) ([7dddde5](https://github.com/treflebonbon/skills/commit/7dddde5c5e25dd5c1051395aced5942d2e73ccb5))
+* **raw:** package and verify the Nix launcher ([#135](https://github.com/treflebonbon/skills/issues/135)) ([5895b59](https://github.com/treflebonbon/skills/commit/5895b598755b1b7246d81bce567962aca58afef6))
+* **raw:** prepare Bun input admission ([#140](https://github.com/treflebonbon/skills/issues/140)) ([266209e](https://github.com/treflebonbon/skills/commit/266209e62ee255bd4d93159f0bbc5c374c9ebc4a))
+* **raw:** prepare Bun result return ([#143](https://github.com/treflebonbon/skills/issues/143)) ([6c3b4c4](https://github.com/treflebonbon/skills/commit/6c3b4c44d51f9226654b7f4c9955d0ac15532011))
+* **raw:** prepare the Bun host gateway ([#141](https://github.com/treflebonbon/skills/issues/141)) ([2296bea](https://github.com/treflebonbon/skills/commit/2296bea803251eb76a077f21e0602d89059acb32))
+* run isolated raw Codex entrypoints with Bun ([#139](https://github.com/treflebonbon/skills/issues/139)) ([d3958cf](https://github.com/treflebonbon/skills/commit/d3958cf04c26610103ecd05d1d88ef2890950a1d))
+
+
+### Bug Fixes
+
+* handle comment audit diagnostic failures ([#147](https://github.com/treflebonbon/skills/issues/147)) ([961d7c3](https://github.com/treflebonbon/skills/commit/961d7c3a746537b388f37c90be93b9fc9444e27d))
+* **raw:** support glibc 2.44 in the launcher ([#137](https://github.com/treflebonbon/skills/issues/137)) ([aa26b76](https://github.com/treflebonbon/skills/commit/aa26b76c6f1f8f22625757ae87ed8d31e7ce1132))
+* redact Chrome ownership tokens from status ([#127](https://github.com/treflebonbon/skills/issues/127)) ([97f4fea](https://github.com/treflebonbon/skills/commit/97f4fead56f552abe430dae39bade277e832c10e))
+
 ## [0.4.2](https://github.com/treflebonbon/skills/compare/v0.4.1...v0.4.2) (2026-11-23)
 
 
