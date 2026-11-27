@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import unittest
 
@@ -14,6 +15,13 @@ class RawCodexPackageTests(unittest.TestCase):
     def test_dev_shell_status_uses_packaged_git_context_without_dotfiles(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
+            payload = base / "installed-plugin"
+            (payload / "bin").mkdir(parents=True)
+            shutil.copy2(ROOT / "bin/devshell-env", payload / "bin/devshell-env")
+            shutil.copy2(ROOT / "bin/codex-worktree", payload / "bin/codex-worktree")
+            shutil.copytree(ROOT / "lib/bun", payload / "lib/bun")
+            before = {path.relative_to(payload): path.read_bytes()
+                      for path in payload.rglob("*") if path.is_file()}
             repository = base / "repo"
             repository.mkdir()
             subprocess.run(["git", "init", "-q", "-b", "main", str(repository)], check=True)
@@ -23,12 +31,16 @@ class RawCodexPackageTests(unittest.TestCase):
             }
 
             result = subprocess.run(
-                [str(ROOT / "bin/devshell-env"), "status", str(repository)],
+                [str(payload / "bin/devshell-env"), "status", str(repository)],
                 capture_output=True,
                 text=True,
                 env=environment,
                 check=False,
             )
+
+            after = {path.relative_to(payload): path.read_bytes()
+                     for path in payload.rglob("*") if path.is_file()}
+            self.assertEqual(after, before)
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("untrusted", result.stdout)

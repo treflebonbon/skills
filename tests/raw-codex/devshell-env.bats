@@ -102,6 +102,19 @@ SH
   [ -z "$(git -C "$FIXTURE/worktree" status --porcelain)" ]
 }
 
+@test "raw public entrypoints resolve trust and reject unsafe arguments without Python" {
+  printf '#!/bin/bash\nexit 99\n' >"$FIXTURE/bin/python3"
+  chmod +x "$FIXTURE/bin/python3"
+
+  run cli status "$FIXTURE/worktree"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'untrusted'* ]]
+
+  run adapter --sandbox=read-only
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'runtime boundary'* ]]
+}
+
 @test "untrusted, revoked and flake-free worktrees refuse startup before initialization" {
   raw_fixture
   run raw_run sandbox -- true
@@ -355,4 +368,33 @@ SH
   [[ "$output" == *"$head"* ]]
   [ "$(git -C "$RAW_BASE/work" log -1 --format=%s)" = 'test: raw isolated calculation' ]
   [ -f "$RAW_BASE/work/calculator.py" ]
+}
+
+@test "host with-env uses the prepared launcher and execs the command in the entry PID" {
+  case "${RAW_HOST_LAUNCHER_CONTAINMENT:-}" in
+    namespace|cgroup|refused) ;;
+    *) skip "requires an explicitly selected raw host containment mode" ;;
+  esac
+  install_runtime_fixture
+  local context
+  cd "$PROJECT_ROOT"
+  context="$(PATH="$FIXTURE/bin:$PATH" "$PROJECT_ROOT/lib/bun/run" run - "$FIXTURE/worktree" <<'TS'
+import { Repository } from "./lib/bun/git-context.ts";
+import { prepareEnvironment } from "./lib/bun/devshell-environment.ts";
+const repo = Repository.discover(process.argv[2]);
+console.log(prepareEnvironment(repo, process.env, { requireTrust: false }).DEVSHELL_ENV_CONTEXT);
+TS
+)"
+  export XDG_CACHE_HOME="$FIXTURE/cache"
+  "$PROJECT_ROOT/bin/prepare-raw-codex-launcher" >/dev/null
+
+  run env DEVSHELL_ENV_CONTEXT="$context"     bash -c 'cd "$1"; printf "%s\n" "$$" >"$2"; shift 2; exec "$@"'     _ "$FIXTURE/worktree" "$FIXTURE/entry-pid"     "$CLI" with-env --prepared -- bash -c 'printf "target-pid=%s\n" "$$"; exit 23'
+  if [ "$RAW_HOST_LAUNCHER_CONTAINMENT" = refused ]; then
+    [ "$status" -eq 69 ]
+    [[ "$output" == *'containment=refused'* && "$output" != *'target-pid='* ]]
+    return
+  fi
+  [ "$status" -eq 23 ] || printf '%s\n' "$output" >&3
+  [ "$status" -eq 23 ]
+  [[ "$output" == *"target-pid=$(cat "$FIXTURE/entry-pid")"* ]]
 }

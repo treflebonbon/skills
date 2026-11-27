@@ -390,3 +390,61 @@ PY
   [ ! -e "$RAW_BASE/shell-started" ]
   [ ! -e "$RAW_BASE/python-started" ]
 }
+
+@test "interrupting the public raw host releases the gateway and input lock without returning edits" {
+  raw_fixture
+  cat >"$RAW_BASE/work/task.sh" <<'SH'
+set -eu
+printf 'isolated edit\n' >> source.txt
+git add source.txt
+git commit -qm 'test: interrupted result'
+touch signal-ready
+while :; do sleep 1; done
+SH
+  printf 'host source\n' >"$RAW_BASE/work/source.txt"
+  raw_admit flake.nix task.sh source.txt
+
+  run python3 - "$RAW_BASE" <<'PY'
+import os, signal, subprocess, sys, time
+from pathlib import Path
+
+base = Path(sys.argv[1])
+environment = os.environ | {
+    "HOME": str(base / "home"),
+    "CODEX_HOME": str(base / "home/.codex"),
+    "XDG_STATE_HOME": str(base / "state"),
+}
+work = base / "work"
+argv = [base / "bin/codex-worktree", "sandbox", "--"]
+existing = set(Path("/tmp").glob("cxi-*"))
+log = base / "interrupted.log"
+with log.open("wb") as stream:
+    process = subprocess.Popen([*argv, "bash", "task.sh"], cwd=work, env=environment, stdout=stream, stderr=stream)
+    try:
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            marker = next((base / "state/devshell-env/sessions").glob("*/root" + str(work) + "/signal-ready"), None)
+            if marker or process.poll() is not None:
+                break
+            time.sleep(0.05)
+        assert marker and process.poll() is None, log.read_text()
+        gates = set(Path("/tmp").glob("cxi-*")) - existing
+        gates = {path for path in gates if (path / "dependencies/service.sock").is_socket()}
+        assert gates, log.read_text()
+        competing = subprocess.run([*argv, "true"], cwd=work, env=environment, text=True, capture_output=True, timeout=15)
+        assert competing.returncode == 1 and "locked by another raw session" in competing.stderr, competing
+        process.send_signal(signal.SIGTERM)
+        assert process.wait(timeout=20) == 143, log.read_text()
+        assert all(not path.exists() for path in gates), gates
+        assert marker.exists() and not (work / "signal-ready").exists()
+        assert (work / "source.txt").read_text() == "host source\n"
+        retried = subprocess.run([*argv, "true"], cwd=work, env=environment, text=True, capture_output=True, timeout=90)
+        assert retried.returncode == 0, retried
+        assert "returned HEAD" in retried.stdout, retried
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=10)
+PY
+  raw_assert_status 0
+}

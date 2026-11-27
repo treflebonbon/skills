@@ -49,7 +49,7 @@ nix --version
 bwrap --version
 bun --version
 cat "${launcher:?launcher の store path を指定してください}/share/raw-codex-launcher/manifest.json"
-RAW_LAUNCHER_PROOF="$launcher" python3 -B -m unittest discover -s tests -p test_raw_launcher.py -v
+RAW_LAUNCHER_PROOF="$launcher" lib/bun/run test tests/bun/raw-nix-launcher.test.ts
 ```
 
 測定では `SIGTERM` を無視する離脱子が起動したことを確認してから、launcher だけに `SIGKILL` を送ります。opt-in 実行で適合方式を得られない場合、fixture は失敗します。通常 Linux arm64 の受入は、既存の raw 隔離が動作する arm64 CPU 上の実機または VM で、この opt-in テスト3件をすべて実行して判定します。 [必要範囲と実行環境](bun-namespace-proof.md#追加実証の受入条件)

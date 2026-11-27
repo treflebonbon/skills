@@ -69,7 +69,6 @@ git(["init", "-q", "-b", "task"]);
 git(["commit", "-qm", "Initial", "--allow-empty"]);
 const base = git(["rev-parse", "HEAD"]).toString().trim();
 const pack = git(["pack-objects", "--stdout", "--revs"], Buffer.from(`${base}\n`));
-writeFileSync(join(fixture, "pack"), pack);
 function bundle(name: string) {
   const path = join(fixture, name);
   git(["bundle", "create", path, "HEAD", `^${base}`]);
@@ -103,81 +102,6 @@ const policy = {
   automation: "no-project-secrets",
   review: "synthetic fixture",
 };
-type Run = typeof withGatewayScope;
-type Start = Parameters<Parameters<Run>[0]>[0];
-
-const pythonScope = String.raw`
-import importlib.util, json, sys
-from pathlib import Path
-spec = importlib.util.spec_from_file_location("gateway", sys.argv[1])
-gateway = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(gateway)
-try:
-    with gateway.gateway_scope() as start:
-        for line in sys.stdin:
-            service, options = json.loads(line)
-            if 'codex_home' in options:
-                options['codex_home'] = Path(options['codex_home'])
-            if 'github_seed' in options:
-                options['github_seed']['pack'] = (Path(sys.argv[2]) / 'pack').read_bytes()
-            try:
-                directory = start(service, **options)
-            except FileNotFoundError as error:
-                if service == 'model' and 'codex_home' in options and error.filename == str(options['codex_home'] / 'auth.json'):
-                    print(json.dumps({'error': 'host ChatGPT login is unavailable'}), flush=True)
-                raise
-            print(json.dumps(str(directory)), flush=True)
-except Exception:
-    sys.exit(2)
-`;
-
-const withPythonScope: Run = async (run) => {
-  const child = spawn(
-    "python3",
-    [
-      "-B",
-      "-c",
-      pythonScope,
-      join(root, "share/codex-isolation/secret-isolation-gateway.py"),
-      fixture,
-    ],
-    {
-      stdio: ["pipe", "pipe", "ignore"],
-    },
-  );
-  const exited = once(child, "exit");
-  const replies = createInterface({ input: child.stdout })[Symbol.asyncIterator]();
-  let failed = false;
-  try {
-    return await run(async (service, options = {}) => {
-      child.stdin.write(
-        JSON.stringify([
-          service,
-          {
-            domains: options.domains,
-            denied_domains: options.deniedDomains,
-            codex_home: options.codexHome,
-            github_policy: options.githubPolicy,
-            github_seed: options.githubSeed && { push_helper: options.githubSeed.pushHelper },
-          },
-        ]) + "\n",
-      );
-      const answer = await replies.next();
-      if (answer.done) {
-        failed = true;
-        throw new Error("Python gateway setup failed");
-      }
-      const result = JSON.parse(answer.value);
-      if (typeof result === "string") return result;
-      failed = true;
-      throw new Error(result.error);
-    });
-  } finally {
-    child.stdin.end();
-    assert.equal((await exited)[0], failed ? 2 : 0);
-  }
-};
-
 async function readBody(req: IncomingMessage) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -253,7 +177,7 @@ tls.listen(443, "8.8.8.8");
 await once(tls, "listening");
 
 const captureHost = "capture.example";
-function clientHello(host: string) {
+function clientHello(host: string, extraExtensions = Buffer.alloc(0)) {
   const name = Buffer.from(host);
   const sni = Buffer.concat([
     Buffer.from([0, 0, 0, name.length + 5, 0, name.length + 3, 0, 0, name.length]),
@@ -262,8 +186,9 @@ function clientHello(host: string) {
   const body = Buffer.concat([
     Buffer.from([3, 3]),
     Buffer.alloc(32),
-    Buffer.from([0, 0, 2, 0x13, 1, 1, 0, 0, sni.length]),
+    Buffer.from([0, 0, 2, 0x13, 1, 1, 0, 0, sni.length + extraExtensions.length]),
     sni,
+    extraExtensions,
   ]);
   const bytes = Buffer.concat([Buffer.from([1, 0, 0, body.length]), body]);
   return [bytes.subarray(0, 2), bytes.subarray(2)].map((part) =>
@@ -376,12 +301,12 @@ async function dnsQuery(directory: string) {
   }
 }
 
-async function observe(scope: Run) {
+async function verifyGateway() {
   const directories: string[] = [];
-  const markerName = scope === withPythonScope ? "published-python" : "published-bun";
+  const markerName = "published-bun";
   const marker = join(fixture, markerName);
   const pushHelper = `sleep 0.4\ngit rev-parse HEAD > "$HOME/${markerName}"\n`;
-  const result = await scope(async (start: Start) => {
+  await withGatewayScope(async (start) => {
     const deps = await start("dependencies", {
       domains: ["**.example", "api.github.com"],
       deniedDomains: ["denied.example"],
@@ -393,7 +318,14 @@ async function observe(scope: Run) {
     const proxied = (method: string, path: string, payload?: unknown, headers?: object) =>
       send(deps, method, `http://api.github.com${path}`, payload, headers);
     const prefix = "/repos/example/public";
-    const observations: Record<string, unknown> = {};
+    const responses: Record<string, unknown> = {
+      metadata: { full_name: "example/public", private: false, default_branch: "main" },
+      pulls: [{ number: 7 }],
+      create: { number: 7 },
+      edit: { number: 7 },
+      "dns allowed": ["8.8.8.8"],
+      "dns mapped public": ["::ffff:8.8.8.8"],
+    };
     const cases = [
       ["metadata", 200, () => proxied("GET", prefix)],
       ["pulls", 200, () => proxied("GET", `${prefix}/pulls`)],
@@ -451,33 +383,35 @@ async function observe(scope: Run) {
       const [status, body] = await request();
       assert.equal(status, expected, name);
       if (name === "comment") assert(body.includes("9007199254740993"), "comment ID changed");
-      observations[name] = [status, body && JSON.parse(body)];
+      if (name in responses) assert.deepEqual(JSON.parse(body), responses[name], name);
+      if (status === 403) assert.equal(body, "", name);
     }
-    assert.deepEqual(observations["dns mapped public"], [200, ["::ffff:8.8.8.8"]]);
 
     assert.equal((await proxied("POST", "/topic-push", { ...topic, bundle: "!" }))[0], 403);
-    if (scope === withGatewayScope) {
-      const stalled = connect(join(deps, "service.sock"));
-      try {
-        const closed = once(stalled, "close", { signal: AbortSignal.timeout(2000) });
-        stalled.write(
-          "POST http://api.github.com/topic-push HTTP/1.1\r\nHost: api.github.com\r\nContent-Length: 2\r\n\r\n{",
-        );
-        await closed;
-      } finally {
-        stalled.destroy();
-      }
-      // 過剰 padding の扱いは旧 Python のバージョンで異なる。
-      assert.equal(
-        (await proxied("POST", "/topic-push", { ...topic, bundle: topic.bundle + "=" }))[0],
-        403,
+    const stalled = connect(join(deps, "service.sock"));
+    try {
+      const closed = once(stalled, "close", { signal: AbortSignal.timeout(2000) });
+      stalled.write(
+        "POST http://api.github.com/topic-push HTTP/1.1\r\nHost: api.github.com\r\nContent-Length: 2\r\n\r\n{",
       );
+      await closed;
+    } finally {
+      stalled.destroy();
     }
+    // 過剰 padding の扱いは旧 Python のバージョンで異なる。
+    assert.equal(
+      (await proxied("POST", "/topic-push", { ...topic, bundle: topic.bundle + "=" }))[0],
+      403,
+    );
     assert(!existsSync(marker), "a rejected publication ran the helper");
     const publication = await proxied("POST", "/topic-push", topic);
     assert.equal(publication[0], 200, "valid publication");
     assert.equal(readFileSync(marker, "utf8").trim(), topic.head);
-    observations.publication = JSON.parse(publication[1]);
+    assert.deepEqual(JSON.parse(publication[1]), {
+      head: topic.head,
+      branch: "task",
+      repository: "example/public",
+    });
     assert.equal((await proxied("POST", "/topic-push", { head: base, bundle: "" }))[0], 403);
     assert.equal((await proxied("POST", "/topic-push", automation))[0], 403);
     assert.equal(readFileSync(marker, "utf8").trim(), topic.head);
@@ -517,7 +451,6 @@ async function observe(scope: Run) {
       [403, ""],
     );
     assert.equal(modelRequests - before, 2, "a rejected request reached the upstream");
-    observations.model = [success, refused];
 
     const deny = await connectTunnel(deps, "mixed.example");
     assert.equal(deny.status, 403);
@@ -531,16 +464,25 @@ async function observe(scope: Run) {
     assert.equal(mismatch.status, 200);
     await assert.rejects(tlsEcho(mismatch.client, "other.example", "TLSv1.3"));
     await fragmentedTunnel(deps);
-    observations.dns = await dnsQuery(deps);
-    assert.match(String(observations.dns), /08080808$/);
-    return observations;
+    for (const records of [
+      clientHello(captureHost, Buffer.from([0xfe, 0x0d, 0, 0])),
+      [Buffer.from([22, 3, 3, 255, 255])],
+    ]) {
+      const { client, status } = await connectTunnel(deps, captureHost);
+      assert.equal(status, 200);
+      const chunks: Uint8Array[] = [];
+      client.write(Buffer.concat(records));
+      for await (const chunk of client) chunks.push(chunk);
+      assert.equal(Buffer.concat(chunks).length, 0, "invalid TLS hello reached the upstream");
+    }
+    assert.match(String(await dnsQuery(deps)), /08080808$/);
   });
   for (const directory of directories)
     assert(!existsSync(directory), "gateway scope left a published directory");
 
   let partial = "";
   await assert.rejects(
-    scope(async (start) => {
+    withGatewayScope(async (start) => {
       partial = await start("dependencies", { domains: [] });
       assert(statSync(join(partial, "service.sock")).isSocket());
       assert.deepEqual(await send(partial, "GET", "/unadmitted"), [403, ""]);
@@ -550,11 +492,9 @@ async function observe(scope: Run) {
   );
   assert(partial, "the dependency gateway did not start");
   assert(!existsSync(partial), "partial start left a published directory");
-  return result;
 }
 
 try {
-  const legacy = await observe(withPythonScope);
   // 公開リクエストの受信期限を短縮して、タイムアウトを短時間で再現する。
   const setServerTimeout = HttpServer.prototype.setTimeout;
   HttpServer.prototype.setTimeout = function (...args) {
@@ -564,14 +504,12 @@ try {
     });
     return Reflect.apply(setServerTimeout, this, args);
   };
-  let migrated;
   try {
-    migrated = await observe(withGatewayScope);
+    await verifyGateway();
   } finally {
     HttpServer.prototype.setTimeout = setServerTimeout;
   }
-  assert.deepEqual(migrated, legacy);
-  console.log("gateway wire and lifecycle comparison passed");
+  console.log("gateway wire and lifecycle checks passed");
 } finally {
   capture.close();
   tls.close();

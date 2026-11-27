@@ -178,96 +178,65 @@ PY
 }
 
 @test "home-relative public workspace grants project to an absolute raw path" {
-  run python3 - "$PROJECT_ROOT/share/codex-isolation/secret-isolation-worktree.py" "$BATS_TEST_TMPDIR" <<'PY'
-import os
-import runpy
-import sys
-import tomllib
-from pathlib import Path
-from types import SimpleNamespace
+  cd "$PROJECT_ROOT"
+  run "$PROJECT_ROOT/lib/bun/run" run - "$BATS_TEST_TMPDIR" <<'TS'
+import assert from "node:assert/strict";
+import { join } from "node:path";
+import { readManagedConfig, tomlDocument } from "./lib/bun/raw-admission-config.ts";
+import { parse } from "./lib/bun/vendor/smol-toml/parse.js";
 
-module = runpy.run_path(sys.argv[1])
-home = Path(sys.argv[2]) / "host-home"
-os.environ["HOME"] = str(home)
-root = home / "projects/repo"
-git_dir = root / ".git/worktrees/task"
-common_dir = root / ".git"
-repo = SimpleNamespace(root=root, git_dir=git_dir, common_dir=common_dir)
-workspace_rules = {".": "write", ".env": "deny", "**/*.key": "deny"}
-host_grant = home / ".config/gh"
-filesystem = {
-    ":root": "deny",
-    ":minimal": "read",
-    ":slash_tmp": "deny",
-    "/tmp/codex": {".": "write", "**/.env": "deny"},
-    "~/projects/repo": workspace_rules,
-    "~": {
-        ".": "read",
-        "projects/repo/private-note": "deny",
-        "projects/repo/read-only-note": "read",
-        "projects/repo/private-subtree": {".": "read", "private-note": "deny"},
-        "*/other-repo/**": "deny",
-        ".cache/host-only": "read",
-        ".cache/**": "deny",
-    },
-    "~/.config/gh": "read",
-    "~/.config/nix-devshell/skills-plugin.json": "read",
-    str(home / ".config/nix-devshell/skills-plugin.json"): "read",
-    str(common_dir): {".": "write", "profile-deny-fixture": "deny"},
+const home = join(process.argv[2], "host-home");
+process.env.HOME = home;
+const root = join(home, "projects/repo");
+const commonDir = join(root, ".git");
+const gitDir = join(commonDir, "worktrees/task");
+const repo = { root, commonDir, gitDir };
+const workspace = { ".": "write", ".env": "deny", "**/*.key": "deny" };
+const filesystem = {
+  ":root": "deny", ":minimal": "read", ":slash_tmp": "deny",
+  "/tmp/codex": { ".": "write", "**/.env": "deny" },
+  "~/projects/repo": workspace,
+  "~": {
+    ".": "read", "projects/repo/private-note": "deny",
+    "projects/repo/read-only-note": "read",
+    "projects/repo/private-subtree": { ".": "read", "private-note": "deny" },
+    "*/other-repo/**": "deny", ".cache/host-only": "read", ".cache/**": "deny",
+  },
+  "~/.config/gh": "read",
+  "~/.config/nix-devshell/skills-plugin.json": "read",
+  [join(home, ".config/nix-devshell/skills-plugin.json")]: "read",
+  [commonDir]: { ".": "write", "profile-deny-fixture": "deny" },
+};
+function normalized(rules) {
+  const config = tomlDocument({
+    permissions: { "dotfiles-secure": {
+      extends: ":workspace", network: { enabled: true, domains: { "cache.nixos.org": "allow" } },
+      filesystem: rules,
+    } },
+  });
+  const projected = readManagedConfig(config, repo).profile;
+  return parse(tomlDocument({ profile: projected })).profile.filesystem;
 }
-projected, private_tmp_codex = module["raw_filesystem_profile"](
-    {"filesystem": filesystem}, repo
-)
-assert private_tmp_codex is True
-document = module["toml_document"](
-    {"permissions": {"dotfiles-secure": {"filesystem": projected}}}
-)
-normalized = tomllib.loads(document)["permissions"]["dotfiles-secure"]["filesystem"]
-assert normalized[str(root)] == workspace_rules
-assert normalized[str(root / "private-note")] == "deny"
-assert normalized[str(root / "read-only-note")] == "read"
-assert normalized[str(root / "private-subtree")] == {
-    ".": "read",
-    "private-note": "deny",
-}
-assert normalized[str(common_dir)]["profile-deny-fixture"] == "deny"
-assert "~/projects/repo" not in normalized
-assert str(home) not in normalized
-assert "*/other-repo/**" not in normalized
-assert str(home / ".cache/host-only") not in normalized
-assert str(host_grant) not in normalized
-assert str(home / ".config/nix-devshell/skills-plugin.json") not in normalized
-assert str(Path("/home/agent") / "projects/repo") not in normalized
-
-duplicate = dict(filesystem)
-duplicate[str(root)] = {".": "write"}
-try:
-    module["raw_filesystem_profile"]({"filesystem": duplicate}, repo)
-except ValueError as error:
-    assert "duplicate normalized path grants" in str(error)
-else:
-    raise AssertionError("absolute and home-relative aliases were accepted together")
-
-invalid_traversal = dict(filesystem)
-invalid_traversal["~"] = {"projects/../repo/private-note": "deny"}
-try:
-    module["raw_filesystem_profile"]({"filesystem": invalid_traversal}, repo)
-except ValueError as error:
-    assert "invalid relative path rule" in str(error)
-else:
-    raise AssertionError("relative traversal in an ancestor rule was accepted")
-
-for pattern in ("projects/**/.env", "*/repo/**"):
-    complex_pattern = dict(filesystem)
-    complex_pattern["~"] = {pattern: "deny"}
-    try:
-        module["raw_filesystem_profile"]({"filesystem": complex_pattern}, repo)
-    except ValueError as error:
-        assert "ancestor pattern may affect a public path" in str(error)
-    else:
-        raise AssertionError(f"an ancestor pattern affecting public paths was dropped: {pattern}")
-print("HOME_RELATIVE_PUBLIC_GRANT_OK")
-PY
+const result = normalized(filesystem);
+assert.deepEqual({ ...result[root] }, workspace);
+assert.equal(result[join(root, "private-note")], "deny");
+assert.equal(result[join(root, "read-only-note")], "read");
+assert.deepEqual({ ...result[join(root, "private-subtree")] }, { ".": "read", "private-note": "deny" });
+assert.equal(result[commonDir]["profile-deny-fixture"], "deny");
+for (const hostOnly of [
+  "~/projects/repo", home, "*/other-repo/**", join(home, ".cache/host-only"),
+  join(home, ".config/gh"), join(home, ".config/nix-devshell/skills-plugin.json"),
+  "/home/agent/projects/repo",
+]) assert(!Object.hasOwn(result, hostOnly), hostOnly);
+assert.throws(() => normalized({ ...filesystem, [root]: { ".": "write" } }), /duplicate normalized path grants/);
+assert.throws(
+  () => normalized({ ...filesystem, "~": { "projects/../repo/private-note": "deny" } }),
+  /invalid relative path rule/,
+);
+for (const pattern of ["projects/**/.env", "*/repo/**"])
+  assert.throws(() => normalized({ ...filesystem, "~": { [pattern]: "deny" } }), /ancestor pattern may affect a public path/);
+console.log("HOME_RELATIVE_PUBLIC_GRANT_OK");
+TS
   [ "$status" -eq 0 ]
   [[ "$output" == *HOME_RELATIVE_PUBLIC_GRANT_OK* ]]
 }

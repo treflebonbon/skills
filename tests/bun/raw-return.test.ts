@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
@@ -18,8 +18,11 @@ import {
 import { join, resolve } from "node:path";
 import { Repository } from "../../lib/bun/git-context.ts";
 import { returnRawResult } from "../../lib/bun/raw-return.ts";
+import { prepareRawWorktree } from "../../lib/bun/raw-worktree.ts";
 
-const legacy = resolve(import.meta.dir, "../../share/codex-isolation/secret-isolation-worktree.py");
+const legacyRevision = "2296bea803251eb76a077f21e0602d89059acb32";
+let legacyRoot: string;
+let legacy: string;
 const realGit = Bun.which("git")!;
 const gitEnv = {
   PATH: process.env.PATH,
@@ -228,6 +231,22 @@ exec ${literal(realGit)} "$@"
 describe.skipIf(process.platform !== "linux" || process.env.RAW_RETURN_TEST !== "1")(
   "raw result return matches the legacy Python host",
   () => {
+    beforeAll(() => {
+      legacyRoot = mkdtempSync("/tmp/codex/raw-return-legacy.");
+      const archive = execFileSync(realGit, [
+        "-C",
+        resolve(import.meta.dir, "../.."),
+        "archive",
+        legacyRevision,
+        "share/codex-isolation",
+        "lib/python",
+      ]);
+      execFileSync("tar", ["-xf", "-", "-C", legacyRoot], { input: archive });
+      legacy = join(legacyRoot, "share/codex-isolation/secret-isolation-worktree.py");
+    });
+    afterAll(() => {
+      if (legacyRoot) rmSync(legacyRoot, { recursive: true, force: true });
+    });
     test("returns the commit, staged tree, ordinary files and next approval", async () => {
       await compare(async (input, implementation) => {
         const { policy, work, exported } = input;
@@ -280,15 +299,13 @@ describe.skipIf(process.platform !== "linux" || process.env.RAW_RETURN_TEST !== 
       });
     });
 
-    test("legacy prepare writes private session metadata under a shared umask", async () => {
+    test("Bun prepare writes private session metadata under a shared umask", async () => {
       await compare(async (input, implementation) => {
-        if (implementation !== "python") return;
+        if (implementation !== "bun") return;
         const output = join(input.base, "shared-umask-session");
         const umask = process.umask(0o002);
         try {
-          const prepared = input.python("prepare", "--policy", input.policy, "--output", output);
-          expect(prepared.stderr).toBe("");
-          expect(prepared.status).toBe(0);
+          prepareRawWorktree(input.repo, input.policy, output);
           expect(statSync(join(output, "session.json")).mode & 0o777).toBe(0o600);
         } finally {
           process.umask(umask);

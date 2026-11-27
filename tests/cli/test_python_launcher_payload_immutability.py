@@ -26,16 +26,10 @@ class PythonLauncherPayloadImmutabilityTest(unittest.TestCase):
             payload = base / "installed-plugin"
             (payload / "bin").mkdir(parents=True)
             (payload / "lib/python").mkdir(parents=True)
-            for entry in ("codex-reviewer", "codex-worktree", "devshell-env"):
-                shutil.copy2(ROOT / "bin" / entry, payload / "bin" / entry)
+            shutil.copy2(ROOT / "bin/codex-reviewer", payload / "bin/codex-reviewer")
             shutil.copytree(
                 ROOT / "lib/python/treflebonbon_skills",
                 payload / "lib/python/treflebonbon_skills",
-                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
-            )
-            shutil.copytree(
-                ROOT / "share/codex-isolation",
-                payload / "share/codex-isolation",
                 ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
             )
 
@@ -92,27 +86,6 @@ class PythonLauncherPayloadImmutabilityTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(json.loads(capture.read_text(encoding="utf-8"))[0:2], ["-C", str(worktree)])
 
-            status = subprocess.run(
-                [str(payload / "bin/devshell-env"), "status", str(worktree)],
-                cwd=base,
-                env=environment,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(status.returncode, 0, status.stdout + status.stderr)
-
-            raw = subprocess.run(
-                [
-                    str(payload / "bin/codex-worktree"),
-                    "--dangerously-bypass-approvals-and-sandbox",
-                ],
-                cwd=worktree,
-                env=environment,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(raw.returncode, 1, raw.stdout + raw.stderr)
-            self.assertIn("runtime boundary", raw.stderr)
             self.assertEqual(list(payload.rglob("__pycache__")), [])
 
 

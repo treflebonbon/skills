@@ -14,8 +14,8 @@ import {
 } from "./raw-github-service.ts";
 import { strictJSON } from "./strict-json.ts";
 
-type Service = "dependencies" | "github" | "model";
-type GatewayOptions = {
+export type Service = "dependencies" | "github" | "model";
+export type GatewayOptions = {
   domains?: readonly string[];
   deniedDomains?: readonly string[];
   codexHome?: string;
@@ -176,15 +176,20 @@ function requestHandler(
   };
 }
 
-export async function withGatewayScope<T>(run: (start: StartGateway) => Promise<T>): Promise<T> {
+export async function withGatewayScope<T>(
+  run: (start: StartGateway) => Promise<T>,
+  interruption?: AbortSignal,
+): Promise<T> {
   const root = mkdtempSync(join(tmpdir(), "cxi-"));
   const starts: Promise<string>[] = [];
   const stops: (() => void | Promise<void>)[] = [];
   const scope = new AbortController();
+  const signal = interruption ? AbortSignal.any([scope.signal, interruption]) : scope.signal;
   let closing = false;
   let failed = false;
 
   async function start(service: Service, options: GatewayOptions = {}) {
+    signal.throwIfAborted();
     if (closing || !["dependencies", "github", "model"].includes(service))
       throw new Error("invalid gateway start");
     const directory = join(root, service);
@@ -199,12 +204,12 @@ export async function withGatewayScope<T>(run: (start: StartGateway) => Promise<
         throw new Error("GitHub is denied by the managed network policy");
       github = await GitHubService.open(
         options.githubPolicy,
-        scope.signal,
+        signal,
         options.githubSeed && { directory: `${directory}-publish`, input: options.githubSeed },
       );
     }
-    const probe = service === "github" && !github ? githubProbe(scope.signal) : undefined;
-    const handler = requestHandler(service, admitted, model, github, probe, scope.signal);
+    const probe = service === "github" && !github ? githubProbe(signal) : undefined;
+    const handler = requestHandler(service, admitted, model, github, probe, signal);
     const connections = new Set<Socket>();
     const handled = new WeakSet<Socket>();
     const active = new Set<Promise<unknown>>();
@@ -241,7 +246,7 @@ export async function withGatewayScope<T>(run: (start: StartGateway) => Promise<
         return;
       }
       handled.add(socket);
-      track(tunnel(socket, head, host, scope.signal));
+      track(tunnel(socket, head, host, signal));
     });
     server.maxRequestsPerSocket = 1;
     server.setTimeout(120_000, (socket) => socket.destroy());
