@@ -824,7 +824,13 @@ def prepare(repo, policy, output):
         common_dir=str(repo.common_dir),
         policy=str(policy.resolve()),
     )
-    (output / "session.json").write_text(json.dumps(record, indent=2) + "\n")
+    descriptor = os.open(
+        output / "session.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
+    )
+    with os.fdopen(descriptor, "w") as destination:
+        os.fchmod(destination.fileno(), 0o600)
+        json.dump(record, destination, indent=2)
+        destination.write("\n")
     print("public worktree snapshot prepared; host files are not mounted")
 
 
