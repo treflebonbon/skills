@@ -1,6 +1,7 @@
 """Exercise the plugin's explicit preparation and host launcher entry points."""
 
 import errno
+import fcntl
 import hashlib
 import json
 import os
@@ -202,6 +203,52 @@ process.stdout.write(["exec-proof-v1", "search", target, String(args.length + 1)
         self.assertIn("raw-codex-launcher: exec-error:ENOENT errno=2", failure.stderr)
         self.assertIn("target=/nonexistent/raw-launcher-test", failure.stderr)
         self.assertEqual(fingerprint(), before)
+
+    @PRODUCT
+    def test_closed_stdout_is_preserved_through_verification(self):
+        """Enter the C launcher directly because Perl opens missing standard streams."""
+        artifact = self.prepare()
+        context = os.memfd_create("launcher-context", os.MFD_ALLOW_SEALING)
+        self.addCleanup(os.close, context)
+        os.write(
+            context,
+            b"\0".join(
+                os.fsencode(path)
+                for path in (
+                    ROOT / "lib/bun/run",
+                    ROOT / "lib/bun/verify-raw-codex-launcher.ts",
+                    artifact,
+                )
+            )
+            + b"\0",
+        )
+        fcntl.fcntl(
+            context,
+            fcntl.F_ADD_SEALS,
+            fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE,
+        )
+        result = subprocess.run(
+            [
+                "/bin/bash",
+                "-c",
+                'exec 1>&-; exec "$@"',
+                "--",
+                artifact / "launcher",
+                str(context),
+                FIXTURES / "bun-exec-prepare.ts",
+                "search",
+                "/bin/sh",
+                "-c",
+                "test ! -e /proc/self/fd/1 && exit 37; exit 91",
+            ],
+            pass_fds=(context,),
+            env=self.env,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 37, result.stderr)
+        self.assertEqual(result.stdout, "")
 
     @PRODUCT
     def test_replacement_after_bun_verification_prevents_preparation(self):

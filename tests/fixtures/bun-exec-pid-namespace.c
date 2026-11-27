@@ -560,7 +560,11 @@ int main(int argc, char **argv) {
     argv[1] = runner;
     return launcher_main(argc, argv);
   }
-  verify_fd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
+  int executable = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
+  if (executable < 0) invalid();
+  // 準備子が stdout を frame pipe に割り当てても、検査用 FD を維持する。
+  verify_fd = fcntl(executable, F_DUPFD_CLOEXEC, 3);
+  close(executable);
   if (verify_fd < 0) invalid();
   char descriptor[64];
   snprintf(descriptor, sizeof(descriptor), "/proc/self/fd/%d", verify_fd);
