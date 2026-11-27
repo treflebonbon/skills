@@ -116,6 +116,7 @@ export function modelUpstream(codexHome = process.env.CODEX_HOME ?? join(homedir
     if (!localRequest(payload)) return 403;
     payload.store = false;
     const body = strictJSON(payload);
+    if (response.destroyed) return 502;
     const abort = new AbortController();
     const cancel = () => abort.abort();
     response.once("close", cancel);

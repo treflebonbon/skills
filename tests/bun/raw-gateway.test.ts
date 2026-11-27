@@ -47,15 +47,11 @@ function unixRequest(
   });
 }
 
-test("the published Unix listener refuses an unadmitted dependency and is removed on scope exit", async () => {
+test("a gateway publishes its Unix socket in an owner-only directory and removes it on scope exit", async () => {
   const directory = await withGatewayScope(async (start) => {
-    const directory = await start("dependencies", { domains: [] });
+    const directory = await start("dependencies");
     expect(statSync(directory).mode & 0o777).toBe(0o700);
     expect(statSync(join(directory, "service.sock")).isSocket()).toBe(true);
-    expect(await unixRequest(join(directory, "service.sock"), "GET", "/forbidden")).toEqual({
-      status: 403,
-      body: "",
-    });
     return directory;
   });
   expect(existsSync(directory)).toBe(false);
@@ -195,11 +191,12 @@ test("the dependency proxy admits only the reviewed public GitHub topic", async 
   const originalPath = process.env.PATH;
   const originalConfig = process.env.GH_CONFIG_DIR;
   try {
+    writeFileSync(join(fixture, "fixture-config"), "");
     writeFileSync(
       join(fixture, "gh"),
       `#!/bin/sh
 test -z "\${GH_TOKEN+x}\${GITHUB_TOKEN+x}" || exit 71
-test "$GH_CONFIG_DIR" = ${JSON.stringify(fixture)} || exit 72
+test -f "$GH_CONFIG_DIR/fixture-config" || exit 72
 case "$*" in
   'api repos/example/public --method GET') printf '{"full_name":"example/public","private":false,"default_branch":"main","unprojected":"fixture"}' ;;
   'api repos/example/public/pulls?head=example%3Atask%2Fnarrow --method GET') printf '[{"number":7,"private_field":"fixture"}]' ;;

@@ -11,7 +11,7 @@
   openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=chatgpt.com \
     -addext subjectAltName=DNS:chatgpt.com,DNS:allowed.example \
     -keyout "$fixture/key.pem" -out "$fixture/cert.pem" >/dev/null 2>&1
-  run unshare --user --map-current-user --net --keep-caps bash -p -ec '
+  run timeout 45s unshare --user --map-current-user --net --keep-caps bash -p -ec '
     fixture="$1"
     shift
     ip link set lo up

@@ -184,12 +184,6 @@ export async function withGatewayScope<T>(run: (start: StartGateway) => Promise<
       throw new Error("invalid gateway start");
     const directory = join(root, service);
     mkdirSync(directory, { mode: 0o700 });
-    let address = join(directory, "service.sock");
-    if (Buffer.byteLength(address) > 107 && process.platform === "linux") {
-      const fd = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
-      stops.push(() => closeSync(fd));
-      address = `/proc/${process.pid}/fd/${fd}/service.sock`;
-    }
     const { domains = ["cache.nixos.org"], deniedDomains = [] } = options;
     const admitted = (host: string) =>
       allowedDestination(host, domains) && !allowedDestination(host, deniedDomains);
@@ -226,6 +220,7 @@ export async function withGatewayScope<T>(run: (start: StartGateway) => Promise<
     server.on("checkContinue", respond);
     server.on("connect", (request, connection, head) => {
       const socket = connection as Socket;
+      socket.on("error", () => socket.destroy());
       const target = request.url ?? "";
       const host = target.slice(0, -4);
       if (
@@ -249,9 +244,27 @@ export async function withGatewayScope<T>(run: (start: StartGateway) => Promise<
       connections.add(socket);
       socket.once("close", () => connections.delete(socket));
     });
-    const listening = once(server, "listening");
-    server.listen(address);
-    await listening;
+    const path = join(directory, "service.sock");
+    // 隔離側は短いパスにマウントする。host の bind だけをディレクトリ FD 経由にする。
+    const fd =
+      Buffer.byteLength(path) > 107 && process.platform === "linux"
+        ? openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY)
+        : undefined;
+    try {
+      const listening = once(server, "listening");
+      server.listen(fd === undefined ? path : `/proc/${process.pid}/fd/${fd}/service.sock`);
+      await listening;
+    } catch (error) {
+      if (fd !== undefined) {
+        try {
+          closeSync(fd);
+        } catch {
+          console.error("gateway cleanup failed");
+        }
+      }
+      throw error;
+    }
+    if (fd !== undefined) stops.push(() => closeSync(fd));
     stops.push(async () => {
       const closed = new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));

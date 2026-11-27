@@ -13,7 +13,7 @@ export function allowedDestination(host: string, domains: readonly string[]): bo
   );
 }
 
-// 特殊用途アドレスの例外を含め、Python 3.14 の is_global 判定に合わせる。
+// Python 3.14 の is_global に合わせる。BlockList は IPv4-mapped IPv6 にも IPv4 ルールを適用する。
 const nonpublic = new BlockList();
 for (const [address, prefix] of [
   ["0.0.0.0", 8],
@@ -155,7 +155,6 @@ function tunnelStatus(client: Socket, status: string) {
 export async function tunnel(client: Socket, head: Buffer, host: string) {
   const closed = new AbortController();
   client.once("close", () => closed.abort());
-  client.on("error", () => client.destroy());
   client.pause();
 
   let upstream: Socket | undefined;

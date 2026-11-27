@@ -96,7 +96,7 @@ const policy = {
   automation: "no-project-secrets",
   review: "synthetic fixture",
 };
-const pushHelper = `git rev-parse HEAD > ${JSON.stringify(marker)}\n`;
+const pushHelper = 'git rev-parse HEAD > "$HOME/published"\n';
 type Run = typeof withGatewayScope;
 type Start = Parameters<Parameters<Run>[0]>[0];
 
@@ -256,13 +256,12 @@ function clientHello(host: string) {
 }
 const hello = clientHello(captureHost);
 const expectedTunnel = Buffer.concat([...hello, Buffer.from("tail")]);
-const capture = tcpServer((socket) => {
+const capture = tcpServer({ allowHalfOpen: true }, (socket) => {
   let bytes = Buffer.alloc(0);
   socket.on("data", (chunk) => {
     bytes = Buffer.concat([bytes, Buffer.from(chunk)]);
-    if (bytes.length >= expectedTunnel.length)
-      socket.end(bytes.equals(expectedTunnel) ? "verified" : "");
   });
+  socket.once("end", () => socket.end(bytes.equals(expectedTunnel) ? "verified" : ""));
 });
 capture.listen(443, "8.8.4.4");
 await once(capture, "listening");
@@ -273,6 +272,8 @@ async function connectTunnel(directory: string, host: string) {
   await once(client, "connect");
   const status = new Promise<number>((resolve, reject) => {
     let header = "";
+    const earlyClose = () => reject(new Error("fixture tunnel closed before responding"));
+    client.once("close", earlyClose);
     client.once("error", reject);
     function data(chunk: Buffer) {
       header += chunk.toString("ascii");
@@ -280,6 +281,7 @@ async function connectTunnel(directory: string, host: string) {
       client.pause();
       client.off("data", data);
       client.off("error", reject);
+      client.off("close", earlyClose);
       resolve(Number(header.split(" ")[1]));
     }
     client.on("data", data);
@@ -302,7 +304,7 @@ async function fragmentedTunnel(directory: string) {
   })();
   client.write(Buffer.concat([header, hello[0]]));
   await Bun.sleep(50);
-  client.write(Buffer.concat([hello[1], Buffer.from("tail")]));
+  client.end(Buffer.concat([hello[1], Buffer.from("tail")]));
   assert.match(
     await buffering,
     /^HTTP\/1\.0 200 Connection established(?:\r\n[^\r\n]+)*\r\n\r\nverified$/,
@@ -416,6 +418,7 @@ async function observe(scope: Run) {
       if (name === "comment") assert(body.includes("9007199254740993"), "comment ID changed");
       observations[name] = [status, body && JSON.parse(body)];
     }
+    assert.deepEqual(observations["dns mapped public"], [200, ["::ffff:8.8.8.8"]]);
 
     assert.equal((await proxied("POST", "/topic-push", { ...topic, bundle: "!" }))[0], 403);
     const publication = await proxied("POST", "/topic-push", topic);
