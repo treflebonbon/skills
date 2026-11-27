@@ -73,9 +73,17 @@ writeFileSync(join(fixture, "pack"), pack);
 function bundle(name: string) {
   const path = join(fixture, name);
   git(["bundle", "create", path, "HEAD", `^${base}`]);
+  const bytes = readFileSync(path);
+  // prerequisite の説明欄に空白を足して、正規 Base64 が padding なしになるようにする。
+  const description = bytes.indexOf(0x0a, bytes.indexOf(0x0a) + 1);
+  const aligned = Buffer.concat([
+    bytes.subarray(0, description),
+    Buffer.alloc((3 - (bytes.length % 3)) % 3, 0x20),
+    bytes.subarray(description),
+  ]);
   return {
     head: git(["rev-parse", "HEAD"]).toString().trim(),
-    bundle: readFileSync(path).toString("base64"),
+    bundle: aligned.toString("base64"),
   };
 }
 git(["commit", "-qm", "Topic", "--allow-empty"]);
@@ -373,47 +381,60 @@ async function observe(scope: Run) {
     const prefix = "/repos/example/public";
     const observations: Record<string, unknown> = {};
     const cases = [
-      ["metadata", 200, proxied("GET", prefix)],
-      ["pulls", 200, proxied("GET", `${prefix}/pulls`)],
+      ["metadata", 200, () => proxied("GET", prefix)],
+      ["pulls", 200, () => proxied("GET", `${prefix}/pulls`)],
       [
         "create",
         200,
-        proxied("POST", `${prefix}/pulls`, {
-          title: "feat: fixture",
-          head: "task",
-          base: "main",
-          draft: true,
-        }),
+        () =>
+          proxied("POST", `${prefix}/pulls`, {
+            title: "feat: fixture",
+            head: "task",
+            base: "main",
+            draft: true,
+          }),
       ],
-      ["edit", 200, proxied("PATCH", `${prefix}/pulls/7`, { body: "public fixture" })],
-      ["comment", 200, proxied("POST", `${prefix}/issues/7/comments`, { body: "public fixture" })],
-      ["wrong topic", 403, proxied("PATCH", `${prefix}/pulls/8`, { body: "public fixture" })],
-      ["state edit", 403, proxied("PATCH", `${prefix}/pulls/7`, { state: "closed" })],
-      ["wrong repo", 403, proxied("GET", "/repos/example/other")],
-      ["wrong host", 403, proxied("GET", prefix, undefined, { Host: "example.invalid" })],
-      ["extra query", 403, proxied("GET", `${prefix}/pulls?head=other`)],
-      ["secret route", 403, proxied("GET", `${prefix}/actions/secrets`)],
-      ["dns allowed", 200, send(deps, "POST", "/resolve", { host: "allowed.example", type: 1 })],
-      ["dns denied", 403, send(deps, "POST", "/resolve", { host: "denied.example", type: 1 })],
-      ["dns mixed", 403, send(deps, "POST", "/resolve", { host: "mixed.example", type: 1 })],
+      ["edit", 200, () => proxied("PATCH", `${prefix}/pulls/7`, { body: "public fixture" })],
+      [
+        "comment",
+        200,
+        () => proxied("POST", `${prefix}/issues/7/comments`, { body: "public fixture" }),
+      ],
+      ["wrong topic", 403, () => proxied("PATCH", `${prefix}/pulls/8`, { body: "public fixture" })],
+      ["state edit", 403, () => proxied("PATCH", `${prefix}/pulls/7`, { state: "closed" })],
+      ["wrong repo", 403, () => proxied("GET", "/repos/example/other")],
+      ["wrong host", 403, () => proxied("GET", prefix, undefined, { Host: "example.invalid" })],
+      ["extra query", 403, () => proxied("GET", `${prefix}/pulls?head=other`)],
+      ["secret route", 403, () => proxied("GET", `${prefix}/actions/secrets`)],
+      [
+        "dns allowed",
+        200,
+        () => send(deps, "POST", "/resolve", { host: "allowed.example", type: 1 }),
+      ],
+      [
+        "dns denied",
+        403,
+        () => send(deps, "POST", "/resolve", { host: "denied.example", type: 1 }),
+      ],
+      ["dns mixed", 403, () => send(deps, "POST", "/resolve", { host: "mixed.example", type: 1 })],
       [
         "dns mapped public",
         200,
-        send(deps, "POST", "/resolve", { host: "mapped-public.example", type: 28 }),
+        () => send(deps, "POST", "/resolve", { host: "mapped-public.example", type: 28 }),
       ],
       [
         "dns mapped private",
         403,
-        send(deps, "POST", "/resolve", { host: "mapped-private.example", type: 28 }),
+        () => send(deps, "POST", "/resolve", { host: "mapped-private.example", type: 28 }),
       ],
       [
         "dns documentation",
         403,
-        send(deps, "POST", "/resolve", { host: "documentation.example", type: 28 }),
+        () => send(deps, "POST", "/resolve", { host: "documentation.example", type: 28 }),
       ],
     ] as const;
-    for (const [name, expected, pending] of cases) {
-      const [status, body] = await pending;
+    for (const [name, expected, request] of cases) {
+      const [status, body] = await request();
       assert.equal(status, expected, name);
       if (name === "comment") assert(body.includes("9007199254740993"), "comment ID changed");
       observations[name] = [status, body && JSON.parse(body)];
@@ -421,6 +442,13 @@ async function observe(scope: Run) {
     assert.deepEqual(observations["dns mapped public"], [200, ["::ffff:8.8.8.8"]]);
 
     assert.equal((await proxied("POST", "/topic-push", { ...topic, bundle: "!" }))[0], 403);
+    // 過剰 padding の扱いは旧 Python のバージョンで異なる。
+    if (scope === withGatewayScope) {
+      assert.equal(
+        (await proxied("POST", "/topic-push", { ...topic, bundle: topic.bundle + "=" }))[0],
+        403,
+      );
+    }
     const publication = await proxied("POST", "/topic-push", topic);
     assert.equal(publication[0], 200, "valid publication");
     assert.equal(readFileSync(marker, "utf8").trim(), topic.head);

@@ -96,8 +96,7 @@ function decodeBundle(value: string) {
   const required = (4 - (length % 4)) % 4;
   if (
     required === 3 ||
-    (required && value.length - length !== required) ||
-    (length === 0 && value.length > 0) ||
+    value.length - length !== required ||
     /[^A-Za-z0-9+/]/.test(value.slice(0, length)) ||
     /[^=]/.test(value.slice(length))
   )
