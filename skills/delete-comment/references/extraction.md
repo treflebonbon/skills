@@ -28,13 +28,16 @@ rule:
 Python の `tree-sitter-language-pack` が利用できる場合の例。末尾の引数は `.ts` なら `typescript`、`.tsx` なら `tsx` を使う。
 
 ```sh
-git cat-file blob "$blob" | python3 -c '
+python3 - "$blob" typescript <<'PY'
+import subprocess
 import sys
 from tree_sitter_language_pack import get_parser
 
-tree = get_parser(sys.argv[1]).parse(sys.stdin.buffer.read())
+blob, grammar = sys.argv[1:]
+source = subprocess.check_output(["git", "cat-file", "blob", blob])
+tree = get_parser(grammar).parse(source)
 print(tree.root_node.has_error)
-' typescript
+PY
 ```
 
 構文エラーが見つかったファイルや診断できなかったファイルは、検出済み件数（0 件を含む）と未確認範囲を示し、ファイル全体の件数は未確定とする。
