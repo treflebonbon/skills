@@ -1,11 +1,12 @@
 # treflebonbon-skills
 
-Claude Code、Codex、Antigravity CLI で使う Agent Skills plugin です。対象10件を1つの plugin にまとめています。最新の版は [releases](https://github.com/treflebonbon/skills/releases) にあります。plugin の利用と汎用 skill に dotfiles や Nix は必要ありません。
+Claude Code、Codex、Antigravity CLI で使う Agent Skills plugin です。最新の版は [releases](https://github.com/treflebonbon/skills/releases) にあります。plugin の利用と汎用 skill に dotfiles や Nix は必要ありません。
 
 ## 収録 skill
 
 | Skill                    | 用途                                                     |
 | ------------------------ | -------------------------------------------------------- |
+| `delete-comment`         | コードコメントを棚卸しし、処置案と削減見込みを報告       |
 | `dogfood`                | Web アプリや Chrome MV3 拡張を検査し、ローカル証跡を報告 |
 | `domain-modeling-studio` | 既存コードを調べ、人が編集できる offline model を作成    |
 | `marp`                   | Marp CLI でスライド・PDF を作成                          |
@@ -93,6 +94,7 @@ Antigravity App/IDE は[公式 plugin 手順](https://antigravity.google/docs/pl
 
 | Skill                                                                                | 依存・供給元・版                                                                                                                               | 必要になる経路と制約                                                                                                |
 | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [`delete-comment`](skills/delete-comment/SKILL.md)                                   | Git、対象言語に対応する構文解析器（TypeScript の例は `ast-grep`）                                                                              | 棚卸しは読み取り専用。対象パスを指定できる                                                                          |
 | [`dogfood`](skills/dogfood/references/dependencies.md)                               | Node.js 20+、npm、npm lock 内の Playwright/Core `1.63.0`。OS の Xvfb と `xauth` は headed retry 用のみ（版・導入法は依存詳細を参照）           | browser 実行時のみ。WSL2 は Windows Managed Chrome。annotation は別途 Microsoft skill と `@playwright/cli` `0.1.22` |
 | [`domain-modeling-studio`](skills/domain-modeling-studio/references/dependencies.md) | Node.js 20+、Matt Pocock `domain-modeling` plugin `1.3.1`、Bun 1.4.4+、公式 npm の `@ast-grep/cli`（確認環境で `0.42.1`）                      | Bun と `ast-grep` は TypeScript evidence のみ。browser review は任意                                                |
 | [`marp`](skills/marp/SKILL.md)                                                       | Node.js 18+、公式 npm package [`@marp-team/marp-cli@4.5.1`](https://github.com/marp-team/marp-cli/releases/tag/v4.5.1)                         | Marp 変換時。PDF・PowerPoint・画像出力は browser が必要。HTML 出力には不要                                          |
@@ -136,9 +138,9 @@ npm test
 npm run lint
 ```
 
-`npm test` は Bun CLI の型検査・Bun suite、Python suite、dogfood・domain-modeling-studio・WSL2 browser package の nested Node suite、dogfood・WSL2 browser package・raw-Codex の Bats fixture、および公開 root / CLI の Bats suite（`tests/*.bats`、`tests/cli/*.bats`）を実行します。実 browser を使う dogfood / WSL2 browser suite は通常テストに含めません。`npm run test:plugin-cli` は Claude Code、Codex、Antigravity CLI がすべて必要な隔離 HOME での公式導入 smoke test です。CLI が不足する必須実行では skip を成功と扱わず、[検証記録](docs/verification.md)へ未確認として残します。公式実 session の12 skill × 3 runtime の証跡と最終 version/source SHA/hash は plugin 外の採用記録に保管し、この README に自己参照として埋め込みません。
+`npm test` は Bun CLI の型検査・Bun suite、Python suite、dogfood・domain-modeling-studio・WSL2 browser package の nested Node suite、dogfood・WSL2 browser package・raw-Codex の Bats fixture、および公開 root / CLI の Bats suite（`tests/*.bats`、`tests/cli/*.bats`）を実行します。実 browser を使う dogfood / WSL2 browser suite は通常テストに含めません。`npm run test:plugin-cli` は Claude Code、Codex、Antigravity CLI がすべて必要な隔離 HOME での公式導入 smoke test です。CLI が不足する必須実行では skip を成功と扱わず、[検証記録](docs/verification.md)へ未確認として残します。各 skill を 3 runtime で呼び出した公式実 session の証跡と最終 version/source SHA/hash は plugin 外の採用記録に保管し、この README に自己参照として埋め込みません。
 
-実モデルを使う36件の新規 session は `npm run test:plugin-sessions -- run --output-dir <plugin 外の未作成 directory>` で明示的に実行します。導入確認で得た root を `--installed-root RUNTIME=/absolute/plugin/root` で runtime ごとに渡し、既存の通常認証・設定で導入済み skill を呼び出して、実ツールの読込先と照合します。root が未確認なら成功扱いにしません。保存済みの1件は `npm run test:plugin-sessions -- check <case directory>` で再判定できます。導入 smoke と session の入口は Bun 1.4.4+ で実行し、通常の `npm test` では fake CLI と保存済み証跡だけを検査します。[Bun 移行記録](docs/bun-plugin-sessions-proof.md)と、必要条件・未確認の扱いを記した[実セッション検査](docs/verification.md#実セッションの-opt-in-検査)を参照してください。
+実モデルを使う全 skill・全 runtime の新規 session は `npm run test:plugin-sessions -- run --output-dir <plugin 外の未作成 directory>` で明示的に実行します。導入確認で得た root を `--installed-root RUNTIME=/absolute/plugin/root` で runtime ごとに渡し、既存の通常認証・設定で導入済み skill を呼び出して、実ツールの読込先と照合します。root が未確認なら成功扱いにしません。保存済みの1件は `npm run test:plugin-sessions -- check <case directory>` で再判定できます。導入 smoke と session の入口は Bun 1.4.4+ で実行し、通常の `npm test` では fake CLI と保存済み証跡だけを検査します。[Bun 移行記録](docs/bun-plugin-sessions-proof.md)と、必要条件・未確認の扱いを記した[実セッション検査](docs/verification.md#実セッションの-opt-in-検査)を参照してください。
 
 ## 公式仕様と配布元
 

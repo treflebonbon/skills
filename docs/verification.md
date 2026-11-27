@@ -6,13 +6,13 @@
 
 受入では、以下を別々に確認します。版ごとの受入の結果は、その版の受入を行った時点の source SHA に対するものです。前の版の導入・session 証跡は、次の版の結果へ転用しません。
 
-| 境界                 | 確認内容                                                                                                                        | 成功扱いに必要な証拠                                                             |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| package static       | 12件の exact set、frontmatter、manifest version、license、依存表、resource links、npm lock URLs/integrity                       | `npm test`、`npm run format:check`、`npm run lint` の実行結果                    |
-| fixture / quality    | source と導入済み payload の hash、runtime の source/version/content 不一致、nested Node/Bats の回帰                            | fixture の具体的な検出・拒否結果と suite の終了状態                              |
-| official CLI install | Claude Code、Codex、Antigravity CLI それぞれが同一 full-SHA checkout から 12件を導入し、version/source/content を一致させたこと | CLI version、実行コマンド、導入元 path、導入済み path、skill set と content hash |
-| new session          | 各 runtime が公式名で12件を検出・呼出し、実際に読んだ SKILL.md と資源/補助 CLI の path を確認したこと                           | tool/command の実 path と成功・拒否状態。自己申告だけでは成功にしない            |
-| App / IDE            | Antigravity App/IDE の公式配置案内                                                                                              | 実機で試していない場合は未確認と記録                                             |
+| 境界                 | 確認内容                                                                                                                            | 成功扱いに必要な証拠                                                             |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| package static       | 公開 skill の exact set、frontmatter、manifest version、license、依存表、resource links、npm lock URLs/integrity                    | `npm test`、`npm run format:check`、`npm run lint` の実行結果                    |
+| fixture / quality    | source と導入済み payload の hash、runtime の source/version/content 不一致、nested Node/Bats の回帰                                | fixture の具体的な検出・拒否結果と suite の終了状態                              |
+| official CLI install | Claude Code、Codex、Antigravity CLI それぞれが同一 full-SHA checkout から全 skill を導入し、version/source/content を一致させたこと | CLI version、実行コマンド、導入元 path、導入済み path、skill set と content hash |
+| new session          | 各 runtime が公式名で全 skill を検出・呼出し、実際に読んだ SKILL.md と資源/補助 CLI の path を確認したこと                          | tool/command の実 path と成功・拒否状態。自己申告だけでは成功にしない            |
+| App / IDE            | Antigravity App/IDE の公式配置案内                                                                                                  | 実機で試していない場合は未確認と記録                                             |
 
 validator は manifest の受理、mock/fixture は指定分岐の挙動、公式 CLI install は runtime 配布境界、新規 session は実際の skill 呼出しを示します。それぞれ別の証拠として扱います。必須 CLI が無い場合の skip は未確認です。
 
