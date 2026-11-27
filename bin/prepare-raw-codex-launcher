@@ -1,0 +1,6 @@
+#!/usr/bin/perl -t
+use FindBin qw($RealBin);
+use lib (($RealBin =~ m{\A(/.*)\z}s)[0] . '/../lib/perl');
+use RawCodexLauncher;
+
+RawCodexLauncher::entry('prepare', @ARGV);

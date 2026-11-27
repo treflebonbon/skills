@@ -1,10 +1,11 @@
-/* Linux の正式実証と raw 用 Nix 成果物で共有する。
+/* Linux の正式実証、raw host、raw 用 Nix 成果物で共有する。
  * 準備のたびに方式を選ぶ（ADR 0005）。本番と同じ argv の unshare probe が成功すれば PID namespace、
  * 失敗すれば systemd-run の委譲 scope と cgroup.kill、どちらも使えなければ準備を始めずに拒否する。 */
 #define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -24,6 +25,12 @@ static ssize_t adaptive_read(int, void *, size_t);
 static int adaptive_await_preparation(void);
 static int adaptive_kill(void);
 static int adaptive_finish(void);
+#ifdef RAW_HOST_LAUNCHER
+static void host_verified(const char *, size_t);
+#define PROOF_MIN_ARGS 3
+#define PROOF_AFTER_FRAME host_verified
+#define PROOF_EXEC_ERROR_ENTRY(mode) "raw-codex-launcher"
+#endif
 int launcher_main(int, char **);
 #define PROOF_HOOKS
 #define PROOF_INTERRUPT() adaptive_kill()
@@ -59,7 +66,7 @@ static volatile sig_atomic_t kill_descriptor = -1;
 static int alive = -1, watchdog_descriptor = -1;
 static pid_t watchdog;
 
-#ifndef RAW_CODEX_LAUNCHER
+#if !defined(RAW_CODEX_LAUNCHER) && !defined(RAW_HOST_LAUNCHER)
 /* 試験と集約が読む観測。分岐には使わない。 */
 static void observe(const char *format, ...) {
   const char *path = getenv("PROCESS_PROOF_OBSERVE");
@@ -76,14 +83,107 @@ static void observe(const char *format, ...) {
 #define observe(...) ((void)0)
 #endif
 
+#ifdef RAW_HOST_LAUNCHER
+static int verify_fd = -1;
+static char **host_arguments;
+static const char *verify_directory;
+static const char host_verified_entry[] = "raw-codex-launcher-verified";
+static int refuse_containment(void);
+
+static int system_tool(const char *path) {
+  struct stat info;
+  if (lstat(path, &info) == 0 && S_ISREG(info.st_mode) && info.st_uid == 0 &&
+      !(info.st_mode & 07022) && (info.st_mode & 0001)) return 1;
+  fprintf(stderr, "raw-codex-launcher: unavailable verified system executable: %s\n", path);
+  return 0;
+}
+
+static int host_probe_available(void) {
+  const char *paths[] = {"/usr", "/usr/bin"};
+  for (size_t i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
+    struct stat info;
+    if (lstat(paths[i], &info) < 0 || !S_ISDIR(info.st_mode) || info.st_uid != 0 ||
+        (info.st_mode & 0022)) {
+      fprintf(stderr, "raw-codex-launcher: untrusted system executable directory: %s\n", paths[i]);
+      return -1;
+    }
+  }
+  return system_tool(PROCESS_PROOF_UNSHARE) && system_tool(PROCESS_PROOF_TRUE);
+}
+
+static int match_stamp(const char **receipt, const char *end, const char *path, int directory) {
+  struct stat info;
+  if (lstat(path, &info) < 0) return -1;
+  if (directory && (!S_ISDIR(info.st_mode) || (info.st_uid != 0 && info.st_uid != getuid()) ||
+      ((info.st_mode & 0022) && (strcmp(path, "/tmp") || info.st_uid || !(info.st_mode & S_ISVTX)))))
+    return -1;
+  char expected[80];
+  int size = directory
+      ? snprintf(expected, sizeof(expected), "%ju:%ju\n", (uintmax_t)info.st_dev, (uintmax_t)info.st_ino)
+      : snprintf(expected, sizeof(expected), "%ju:%ju:%jd%09ld\n", (uintmax_t)info.st_dev,
+                 (uintmax_t)info.st_ino, (intmax_t)info.st_ctim.tv_sec, info.st_ctim.tv_nsec);
+  if (size < 0 || (size_t)size >= sizeof(expected) || size > end - *receipt ||
+      memcmp(*receipt, expected, (size_t)size)) return -1;
+  *receipt += size;
+  return 0;
+}
+
+static void host_verified(const char *receipt, size_t size) {
+  if (!host_arguments) return;
+  const char prefix[] = "raw-launcher-verified-v1\n";
+  const char *end = receipt + size;
+  const char *files[] = {"/launcher", "/build.json"};
+  if (size < sizeof(prefix) - 1 || memcmp(receipt, prefix, sizeof(prefix) - 1)) goto changed;
+  receipt += sizeof(prefix) - 1;
+  char *ancestors = strdup(verify_directory);
+  if (!ancestors) invalid();
+  for (char *slash = strchr(ancestors + 1, '/'); slash; slash = strchr(slash + 1, '/')) {
+    *slash = 0;
+    int failed = match_stamp(&receipt, end, ancestors, 1);
+    *slash = '/';
+    if (failed) { free(ancestors); goto changed; }
+  }
+  int failed = match_stamp(&receipt, end, ancestors, 1);
+  free(ancestors);
+  if (failed) goto changed;
+  for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++) {
+    char *path;
+    if (asprintf(&path, "%s%s", verify_directory, files[i]) < 0) invalid();
+    failed = match_stamp(&receipt, end, path, 0);
+    free(path);
+    if (failed) goto changed;
+  }
+  if (receipt != end) goto changed;
+  fexecve(verify_fd, host_arguments, environ);
+  perror("raw-codex-launcher: exec verified launcher");
+  exit(1);
+changed:
+  fputs("raw-codex-launcher: 検査中に cache が変わりました。prepare-raw-codex-launcher を確認してください。\n", stderr);
+  exit(1);
+}
+#endif
+
 /* 選択はキャッシュしない。probe の出力は launcher の stderr へ混ぜない。 */
 static int adaptive_select(const sigset_t *original_mask) {
+#ifdef RAW_HOST_LAUNCHER
+  int available = host_probe_available();
+  if (available < 0) return refuse_containment();
+  if (!available) {
+    containment = CGROUP;
+    goto scope;
+  }
+  pid_t launcher = getpid();
+#else
   ssize_t length = readlink("/proc/self/exe", self, sizeof(self) - 1);
   if (length < 0) invalid();
   self[length] = 0;
+#endif
   pid_t probe = fork();
   if (probe < 0) invalid();
   if (!probe) {
+#ifdef RAW_HOST_LAUNCHER
+    if (setpgid(0, guardian) < 0 || getppid() != launcher) _exit(127);
+#endif
     const char *command[NAMESPACE_PREFIX + 2];
     for (size_t i = 0; i < NAMESPACE_PREFIX; i++) command[i] = namespace_prefix[i];
     command[NAMESPACE_PREFIX] = PROCESS_PROOF_TRUE;
@@ -106,7 +206,17 @@ static int adaptive_select(const sigset_t *original_mask) {
   if (ready < 0 || interrupted) return 1;
   containment = ready > 0 && WIFEXITED(status) && !WEXITSTATUS(status) ? NAMESPACE : CGROUP;
   observe("containment=%s\n", containment == NAMESPACE ? "namespace" : "cgroup");
+#ifdef RAW_HOST_LAUNCHER
+  if (containment == NAMESPACE)
+    fprintf(stderr, "raw-codex-launcher: containment=namespace reason=%s probe succeeded\n", PROCESS_PROOF_UNSHARE);
+  else if (ready > 0)
+    fprintf(stderr, "raw-codex-launcher: %s probe failed (wait status %d)\n", PROCESS_PROOF_UNSHARE, status);
+scope:
+#endif
   if (containment == CGROUP) {
+#ifdef RAW_HOST_LAUNCHER
+    if (!system_tool(PROCESS_PROOF_SYSTEMD_RUN)) return refuse_containment();
+#endif
     make_pipe(report_pipe);
     make_pipe(go_pipe);
   }
@@ -142,11 +252,22 @@ static int cgroup_execv(const char *path, char *const argv[]) {
   snprintf(go, sizeof(go), "%d", go_pipe[0]);
   snprintf(arguments, sizeof(arguments), "%d", descriptor);
   if (fcntl(report_pipe[1], F_SETFD, 0) < 0 || fcntl(go_pipe[0], F_SETFD, 0) < 0) return -1;
+#ifdef RAW_HOST_LAUNCHER
+  int gate_fd = open("/proc/self/exe", O_RDONLY);
+  if (gate_fd < 0) return -1;
+  char gate_descriptor[16];
+  snprintf(gate_descriptor, sizeof(gate_descriptor), "%d", gate_fd);
+  snprintf(self, sizeof(self), "/proc/self/fd/%d", gate_fd);
+#endif
   char *command[] = {PROCESS_PROOF_SYSTEMD_RUN, "--user", "--scope", "--quiet", "--collect", "-p",
-                     "Delegate=yes", "--", self, GATE_ARGUMENT, report, go, arguments, NULL};
+                     "Delegate=yes", "--", self, GATE_ARGUMENT, report, go, arguments,
+#ifdef RAW_HOST_LAUNCHER
+                     gate_descriptor,
+#endif
+                     NULL};
   // scope の作成に使う user bus だけを中継の exec に渡す。
   const char *const keys[] = {"XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS",
-#ifndef RAW_CODEX_LAUNCHER
+#if !defined(RAW_CODEX_LAUNCHER) && !defined(RAW_HOST_LAUNCHER)
                               "LD_PRELOAD", "PROCESS_PROOF_GATE",
 #endif
   };
@@ -164,6 +285,9 @@ static int cgroup_execv(const char *path, char *const argv[]) {
 
 /* 準備子の中で呼ばれる。probe が成功した後に本番の unshare が失敗しても cgroup へは移らない。 */
 static int namespace_execv(const char *path, char *const argv[]) {
+#ifdef RAW_HOST_LAUNCHER
+  if (verify_fd >= 0 && fcntl(verify_fd, F_SETFD, 0) < 0) return -1;
+#endif
   if (containment == CGROUP) return cgroup_execv(path, argv);
   size_t offset = NAMESPACE_PREFIX;
   size_t count = 0;
@@ -182,6 +306,9 @@ static int namespace_execv(const char *path, char *const argv[]) {
 
 /* scope の中で準備の前に止まり、cgroup を報告して launcher の G を待つ。 */
 static int gate_main(char **argv) {
+#ifdef RAW_HOST_LAUNCHER
+  if (fcntl(atoi(argv[5]), F_SETFD, FD_CLOEXEC) < 0) _exit(91);
+#endif
   int report = atoi(argv[2]), go = atoi(argv[3]), arguments = atoi(argv[4]);
   if (fcntl(report, F_SETFD, FD_CLOEXEC) < 0 || fcntl(go, F_SETFD, FD_CLOEXEC) < 0) _exit(91);
   struct stat state;
@@ -270,7 +397,11 @@ static int fail_start(void) {
 static int refuse_containment(void) {
   fail_start();
   observe("containment=refused\n");
+#ifdef RAW_HOST_LAUNCHER
+  fputs("raw-codex-launcher: containment=refused reason=no verified PID namespace or delegated cgroup v2\n", stderr);
+#else
   fputs("launcher: containment unavailable\n", stderr);
+#endif
   return REFUSED_STATUS;
 }
 
@@ -333,6 +464,10 @@ static int adaptive_start(void) {
   if (write_control(go_pipe[1], "G") != 1) return fail_start();
   close(go_pipe[1]);
   go_pipe[1] = -1;
+#ifdef RAW_HOST_LAUNCHER
+  fprintf(stderr, "raw-codex-launcher: containment=cgroup reason=namespace probe unavailable; %s granted cgroup.kill\n",
+          PROCESS_PROOF_SYSTEMD_RUN);
+#endif
   return 0;
 }
 
@@ -402,6 +537,23 @@ static int adaptive_finish(void) {
 }
 
 int main(int argc, char **argv) {
+#ifdef RAW_HOST_LAUNCHER
+  if (argc == 6 && !strcmp(argv[1], GATE_ARGUMENT)) return gate_main(argv);
+  if (!strcmp(argv[0], host_verified_entry)) return launcher_main(argc, argv);
+  if (argc < 5) invalid();
+  verify_fd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
+  if (verify_fd < 0) invalid();
+  verify_directory = argv[3];
+  host_arguments = argv + 2;
+  char *verification[] = {argv[0], argv[1], argv[2], argv[3], NULL, NULL};
+  char descriptor[64];
+  snprintf(descriptor, sizeof(descriptor), "/proc/self/fd/%d", verify_fd);
+  verification[4] = descriptor;
+  host_arguments[0] = (char *)host_verified_entry;
+  host_arguments[1] = argv[1];
+  return launcher_main(5, verification);
+#else
   if (argc == 5 && !strcmp(argv[1], GATE_ARGUMENT)) return gate_main(argv);
   return launcher_main(argc, argv);
+#endif
 }

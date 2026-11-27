@@ -22,6 +22,11 @@
 #define PROOF_READ read
 #define PROOF_AWAIT_PREPARATION() 0
 #endif
+#ifndef PROOF_MIN_ARGS
+#define PROOF_MIN_ARGS 5
+#define PROOF_AFTER_FRAME(frame, length) ((void)0)
+#define PROOF_EXEC_ERROR_ENTRY(mode) (!strcmp(mode, "reviewer") ? "codex-reviewer" : "devshell-env")
+#endif
 static pid_t preparation;
 static volatile sig_atomic_t guardian;
 static volatile sig_atomic_t interrupted;
@@ -125,7 +130,7 @@ static int same_key(const char *entry, const char *key, size_t length) {
 }
 
 int main(int argc, char **argv) {
-  if (argc < 5) invalid();
+  if (argc < PROOF_MIN_ARGS) invalid();
   const int signals[] = {SIGINT, SIGTERM, SIGHUP};
   struct sigaction saved[3], action, saved_chld, default_chld;
   sigset_t original_mask, setup_mask;
@@ -241,6 +246,7 @@ finished:
   // 方式選択 hook は理由を出力済みの拒否コードも返せる。
   if (failed > 1) return failed;
   if (failed || !WIFEXITED(status) || WEXITSTATUS(status)) invalid();
+  PROOF_AFTER_FRAME(buffer, size);
 
   char *cursor = buffer, *end = buffer + size;
   if (strcmp(next_nul_field(&cursor, end), "exec-proof-v1")) invalid();
@@ -317,7 +323,7 @@ finished:
   struct utsname system;
   if (!name) name = uname(&system) == 0 ? system.sysname : "unknown-os";
   fprintf(stderr, "%s: exec-error:%s errno=%d target=%s; %s\n",
-          !strcmp(mode, "reviewer") ? "codex-reviewer" : "devshell-env", name, error,
+          PROOF_EXEC_ERROR_ENTRY(mode), name, error,
           executable, strerror(error));
   return 1;
 }
