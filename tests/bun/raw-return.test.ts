@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   readlinkSync,
   renameSync,
@@ -146,6 +147,7 @@ async function compare(
 ) {
   const base = mkdtempSync("/tmp/codex/raw-return-test.");
   const path = process.env.PATH!;
+  const umask = process.umask(0o022);
   try {
     for (const implementation of ["python", "bun"] as const) {
       const directory = join(base, implementation);
@@ -158,6 +160,7 @@ async function compare(
       await run(input, implementation);
     }
   } finally {
+    process.umask(umask);
     process.env.PATH = path;
     rmSync(base, { recursive: true, force: true });
   }
@@ -177,7 +180,12 @@ async function runReturn(input: Fixture, implementation: Implementation) {
   }
 }
 
-async function rejectReturn(input: Fixture, implementation: Implementation, reason: RegExp) {
+async function rejectReturn(
+  input: Fixture,
+  implementation: Implementation,
+  reason: RegExp,
+  snapshotAfter = input.snapshot,
+) {
   const retained = [
     input.policy,
     join(input.session, "session.json"),
@@ -185,18 +193,21 @@ async function rejectReturn(input: Fixture, implementation: Implementation, reas
     join(input.result, "files"),
     join(input.result, "head"),
     join(input.result, "index-tree"),
-    join(input.snapshot, "source.txt"),
   ];
   const before = retained.map((path) => readFileSync(path));
+  const source = readFileSync(join(input.snapshot, "source.txt"));
   const returned = await runReturn(input, implementation);
   expect(returned.stderr).toMatch(reason);
   expect(returned.status).toBe(1);
   expect(returned.stdout).toBe("");
   expect(retained.map((path) => readFileSync(path))).toEqual(before);
+  expect(readFileSync(join(snapshotAfter, "source.txt"))).toEqual(source);
+  if (implementation === "bun")
+    expect(readdirSync(input.session).filter((path) => path.startsWith("return-"))).toEqual([]);
 }
 
-// Inject a cooperative Git writer at a plumbing call observed by both implementations.
-function injectGitWriter(input: Fixture, command: string, change: string[]) {
+// Run a fixture operation at a plumbing call observed by both implementations.
+function runBeforeGit(input: Fixture, command: string, change: string[]) {
   const literal = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
   writeFileSync(
     join(input.base, "bin/git"),
@@ -204,7 +215,7 @@ function injectGitWriter(input: Fixture, command: string, change: string[]) {
 set -eu
 case " $* " in
   *' ${command} '*)
-    ${[realGit, "-C", input.work, ...change].map(literal).join(" ")}
+    ${change.map(literal).join(" ")}
     printf '%s\\n' ran > ${literal(join(input.base, "writer-ran"))}
     ;;
 esac
@@ -220,6 +231,7 @@ describe.skipIf(process.platform !== "linux" || process.env.RAW_RETURN_TEST !== 
     test("returns the commit, staged tree, ordinary files and next approval", async () => {
       await compare(async (input, implementation) => {
         const { policy, work, exported } = input;
+        mkdirSync(join(input.session, "return-existing"));
         const linkedEntries = git(
           work,
           "ls-files",
@@ -261,6 +273,26 @@ describe.skipIf(process.platform !== "linux" || process.env.RAW_RETURN_TEST !== 
           executable: true,
         });
         expect(statSync(policy).mode & 0o777).toBe(0o600);
+        if (implementation === "bun")
+          expect(readdirSync(input.session).filter((path) => path.startsWith("return-"))).toEqual([
+            "return-existing",
+          ]);
+      });
+    });
+
+    test("legacy prepare writes private session metadata under a shared umask", async () => {
+      await compare(async (input, implementation) => {
+        if (implementation !== "python") return;
+        const output = join(input.base, "shared-umask-session");
+        const umask = process.umask(0o002);
+        try {
+          const prepared = input.python("prepare", "--policy", input.policy, "--output", output);
+          expect(prepared.stderr).toBe("");
+          expect(prepared.status).toBe(0);
+          expect(statSync(join(output, "session.json")).mode & 0o777).toBe(0o600);
+        } finally {
+          process.umask(umask);
+        }
       });
     });
 
@@ -402,7 +434,10 @@ describe.skipIf(process.platform !== "linux" || process.env.RAW_RETURN_TEST !== 
           "-m",
           "parallel commit",
         );
-        injectGitWriter(input, "update-ref --stdin", [
+        runBeforeGit(input, "update-ref --stdin", [
+          realGit,
+          "-C",
+          work,
           "update-ref",
           "refs/heads/task",
           racedHead,
@@ -421,7 +456,7 @@ describe.skipIf(process.platform !== "linux" || process.env.RAW_RETURN_TEST !== 
       await compare(async (input, implementation) => {
         const { before, work } = input;
         writeFileSync(join(work, "race.txt"), "parallel staging\n");
-        injectGitWriter(input, "read-tree", ["add", "race.txt"]);
+        runBeforeGit(input, "read-tree", [realGit, "-C", work, "add", "race.txt"]);
         await rejectReturn(input, implementation, /host index changed/);
         expect(readFileSync(join(input.base, "writer-ran"), "utf8")).toBe("ran\n");
         expect(git(work, "rev-parse", "HEAD")).toBe(before);
@@ -577,6 +612,34 @@ try {
           expect(git(input.work, "write-tree")).toBe(input.beforeIndex);
           expect(readFileSync(join(input.work, "source.txt"), "utf8")).toBe("original\n");
         }
+      });
+    });
+
+    test.each(["move", "replace"])("rejects a snapshot %s before publication", async (kind) => {
+      await compare(async (input, implementation) => {
+        const { base, snapshot, work, before, beforeIndex } = input;
+        const retained = snapshot + "-retained";
+        const change =
+          kind === "move"
+            ? ["mv", "--", snapshot, retained]
+            : ["sh", "-ec", 'mv -- "$1" "$2" && mkdir -- "$1"', "_", snapshot, retained];
+        runBeforeGit(input, kind === "replace" ? "merge-base" : "read-tree", change);
+        if (implementation === "python") {
+          expect((await runReturn(input, implementation)).status).toBe(0);
+          expect(git(work, "rev-parse", "HEAD")).toBe(input.exported.head);
+          if (kind === "replace") expect(existsSync(join(work, "source.txt"))).toBe(false);
+        } else {
+          await rejectReturn(
+            input,
+            implementation,
+            /result worktree snapshot (?:is missing|changed)/,
+            retained,
+          );
+          expect(git(work, "rev-parse", "HEAD")).toBe(before);
+          expect(git(work, "write-tree")).toBe(beforeIndex);
+          expect(readFileSync(join(work, "source.txt"), "utf8")).toBe("original\n");
+        }
+        expect(readFileSync(join(base, "writer-ran"), "utf8")).toBe("ran\n");
       });
     });
   },

@@ -32,7 +32,12 @@ function pathBytes(component: string): Buffer {
   return Buffer.concat(parts);
 }
 
-export function openPublicInputParent(root: string, name: string, create = false): Parent<Buffer> {
+// A root FD remains borrowed when the file is directly inside it.
+export function openPublicInputParent(
+  root: string | number,
+  name: string,
+  create = false,
+): Parent<Buffer> {
   const parts = name.split("/");
   if (
     name.includes("\0") ||
@@ -40,7 +45,7 @@ export function openPublicInputParent(root: string, name: string, create = false
   )
     throw new Error("input must be a relative file outside Git metadata");
   const components = parts.map(pathBytes);
-  let directory = openParent(join(root, ".public-root")).fd;
+  let directory = typeof root === "number" ? root : openParent(join(root, ".public-root")).fd;
   try {
     for (const part of components.slice(0, -1)) {
       if (create) {
@@ -51,12 +56,12 @@ export function openPublicInputParent(root: string, name: string, create = false
         }
       }
       const next = native.openat(directory, part, directoryFlags);
-      closeSync(directory);
+      if (directory !== root) closeSync(directory);
       directory = next;
     }
     return { fd: directory, leaf: components.at(-1)! };
   } catch (error) {
-    closeSync(directory);
+    if (directory !== root) closeSync(directory);
     throw error;
   }
 }
@@ -93,12 +98,16 @@ export function readPublicInputAt(
   }
 }
 
-export function readPublicInput(root: string, name: string) {
+export function readPublicInput(
+  root: string | number,
+  name: string,
+  validate?: (stat: BigIntStats) => void,
+) {
   const parent = openPublicInputParent(root, name);
   try {
-    return readPublicInputAt(parent);
+    return readPublicInputAt(parent, validate);
   } finally {
-    closeSync(parent.fd);
+    if (parent.fd !== root) closeSync(parent.fd);
   }
 }
 

@@ -4,8 +4,10 @@ import {
   constants,
   fchmodSync,
   fstatSync,
+  lstatSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   writeFileSync,
   type BigIntStats,
 } from "node:fs";
@@ -21,6 +23,7 @@ import {
   openInputPolicy,
   openPublicInputParent,
   publishInputPolicy,
+  readPublicInput,
   readPublicInputAt,
   type InputFingerprint,
 } from "./raw-admission-files.ts";
@@ -130,12 +133,28 @@ function privatePolicy(stat: BigIntStats): void {
     throw new Error("input approval must be private to the current user");
 }
 
-function readResultFile(root: string, name: string) {
-  const parent = openPublicInputParent(root, name);
+function readResultFile(root: string | number, name: string) {
+  return readPublicInput(root, name, checkFileOwnerAndMode);
+}
+
+function openSnapshotRoot(path: string): number {
   try {
-    return readPublicInputAt(parent, checkFileOwnerAndMode);
+    return openParent(join(path, ".public-root")).fd;
+  } catch (error) {
+    if (!missing(error)) throw error;
+    throw new Error("result worktree snapshot is missing; result is retained for recovery");
+  }
+}
+
+function checkSnapshotRoot(path: string, pinned: number): void {
+  const current = openSnapshotRoot(path);
+  try {
+    const opened = fstatSync(pinned, { bigint: true });
+    const named = fstatSync(current, { bigint: true });
+    if (opened.dev !== named.dev || opened.ino !== named.ino)
+      throw new Error("result worktree snapshot changed; result is retained for recovery");
   } finally {
-    closeSync(parent.fd);
+    closeSync(current);
   }
 }
 
@@ -346,125 +365,141 @@ export async function returnRawResult(repo: Repository, session: string): Promis
       throw new Error("invalid result object");
 
     const quarantine = mkdtempSync(join(session, "return-"));
-    git(
-      quarantine,
-      "init",
-      "--bare",
-      "--quiet",
-      `--object-format=sha${head.length === 40 ? 1 : 256}`,
-    );
-    const bundle = join(quarantine, "result.bundle");
-    writeFileSync(bundle, readExport("commits.bundle"), { flag: "wx", mode: 0o600 });
-    git(quarantine, "bundle", "unbundle", bundle);
-    git(quarantine, "fsck", "--full", "--no-reflogs");
-    if (
-      gitText(quarantine, "cat-file", "-t", head) !== "commit" ||
-      gitText(quarantine, "cat-file", "-t", index) !== "tree"
-    )
-      throw new Error("invalid result object");
-    git(quarantine, "merge-base", "--is-ancestor", before, head);
-    const oldTree = treeFiles(quarantine, before);
-    const newTree = treeFiles(quarantine, head);
-    const stagedTree = treeFiles(quarantine, index);
-    for (const tree of [newTree, stagedTree]) {
-      for (const [name, entry] of tree) {
-        if (!/^100(?:644|755) blob /.test(entry) && entry !== oldTree.get(name))
-          throw new Error("result tree contains a new or changed linked or unsupported file");
-      }
-    }
-
-    const names = new Set(decodeSurrogateEscape(readExport("files")).split("\0").filter(Boolean));
-    for (const name of fingerprints.keys()) names.add(name);
-    const files = new Map<string, ReturnType<typeof readResultFile>>();
-    const snapshot = join(session, "root", repo.root);
-    // A missing snapshot is a failed export, not a deletion of every admitted file.
+    const quarantineRoot = openParent(join(quarantine, ".quarantine-root")).fd;
     try {
-      closeSync(openParent(join(snapshot, ".public-root")).fd);
-    } catch (error) {
-      if (!missing(error)) throw error;
-      throw new Error("result worktree snapshot is missing; result is retained for recovery");
-    }
-    for (const name of names) {
+      const snapshot = join(session, "root", repo.root);
+      const snapshotRoot = openSnapshotRoot(snapshot);
       try {
-        const file = readResultFile(snapshot, name);
-        // Codex creates empty mount targets for concrete deny rules.
+        git(
+          quarantine,
+          "init",
+          "--bare",
+          "--quiet",
+          `--object-format=sha${head.length === 40 ? 1 : 256}`,
+        );
+        const bundle = join(quarantine, "result.bundle");
+        writeFileSync(bundle, readExport("commits.bundle"), { flag: "wx", mode: 0o600 });
+        git(quarantine, "bundle", "unbundle", bundle);
+        git(quarantine, "fsck", "--full", "--no-reflogs");
         if (
-          denied[name] === "deny" &&
-          !file.bytes.length &&
-          !fingerprints.has(name) &&
-          !newTree.has(name) &&
-          !stagedTree.has(name)
+          gitText(quarantine, "cat-file", "-t", head) !== "commit" ||
+          gitText(quarantine, "cat-file", "-t", index) !== "tree"
         )
-          continue;
-        files.set(name, file);
-      } catch (error) {
-        if (!missing(error)) throw error;
-      }
-    }
-    const affected = new Set([...fingerprints.keys(), ...files.keys()]);
-    for (const name of new Set([...oldTree.keys(), ...newTree.keys(), ...stagedTree.keys()])) {
-      if (oldTree.get(name) !== newTree.get(name) || newTree.get(name) !== stagedTree.get(name))
-        affected.add(name);
-    }
-    for (const name of affected) checkHostFile(repo.root, name, fingerprints.get(name));
-
-    git(quarantine, "read-tree", index);
-    const indexBytes = readFileSync(join(quarantine, "index"));
-    const lock = openParent(join(repo.gitDir, "index.lock"));
-    try {
-      const descriptor = native.openat(lock.fd, lock.leaf, createFile, 0o644);
-      try {
-        const stat = fstatSync(descriptor, { bigint: true });
-        const identity = { dev: stat.dev, ino: stat.ino };
-        try {
-          const previous = readPublicInputAt({ fd: lock.fd, leaf: "index" }, checkFileOwnerAndMode);
-          writeFileSync(join(quarantine, "index"), previous.bytes);
-          let currentIndex: string;
-          try {
-            currentIndex = gitText(quarantine, "write-tree");
-          } catch {
-            throw new Error(hostIndexChanged);
+          throw new Error("invalid result object");
+        git(quarantine, "merge-base", "--is-ancestor", before, head);
+        const oldTree = treeFiles(quarantine, before);
+        const newTree = treeFiles(quarantine, head);
+        const stagedTree = treeFiles(quarantine, index);
+        for (const tree of [newTree, stagedTree]) {
+          for (const [name, entry] of tree) {
+            if (!/^100(?:644|755) blob /.test(entry) && entry !== oldTree.get(name))
+              throw new Error("result tree contains a new or changed linked or unsupported file");
           }
-          if (currentIndex !== beforeIndex) throw new Error(hostIndexChanged);
-          writeFileSync(descriptor, indexBytes);
-          git(repo.root, "bundle", "unbundle", bundle);
-          await publishRef(repo.root, branch, before, head, () => {
-            repo.checkUnchanged(record.repository);
-            if (gitText(repo.root, "symbolic-ref", "HEAD") !== branch)
-              throw new Error(hostBranchChanged);
-            checkPolicy();
-            for (const name of affected) checkHostFile(repo.root, name, fingerprints.get(name));
-            for (const name of [...affected].sort()) {
-              const contents = files.get(name);
-              const expected = fingerprints.get(name);
-              if (equalStrictJSON(contents?.fingerprint, expected)) continue;
-              installResultFile(repo.root, name, contents, expected);
-            }
-            if (
-              !equalStrictJSON(namedIdentity(lock), identity) ||
-              !equalStrictJSON(namedIdentity({ fd: lock.fd, leaf: "index" }), previous.identity)
-            )
-              throw new Error(hostIndexChanged);
-            native.renameat(lock.fd, lock.leaf, lock.fd, "index");
-          });
-        } finally {
-          removeCreated(lock, identity);
         }
+
+        const names = new Set(
+          decodeSurrogateEscape(readExport("files")).split("\0").filter(Boolean),
+        );
+        for (const name of fingerprints.keys()) names.add(name);
+        const files = new Map<string, ReturnType<typeof readResultFile>>();
+        for (const name of names) {
+          try {
+            const file = readResultFile(snapshotRoot, name);
+            // Codex creates empty mount targets for concrete deny rules.
+            if (
+              denied[name] === "deny" &&
+              !file.bytes.length &&
+              !fingerprints.has(name) &&
+              !newTree.has(name) &&
+              !stagedTree.has(name)
+            )
+              continue;
+            files.set(name, file);
+          } catch (error) {
+            if (!missing(error)) throw error;
+          }
+        }
+        const affected = new Set([...fingerprints.keys(), ...files.keys()]);
+        for (const name of new Set([...oldTree.keys(), ...newTree.keys(), ...stagedTree.keys()])) {
+          if (oldTree.get(name) !== newTree.get(name) || newTree.get(name) !== stagedTree.get(name))
+            affected.add(name);
+        }
+        for (const name of affected) checkHostFile(repo.root, name, fingerprints.get(name));
+
+        git(quarantine, "read-tree", index);
+        const indexBytes = readFileSync(join(quarantine, "index"));
+        const lock = openParent(join(repo.gitDir, "index.lock"));
+        try {
+          const descriptor = native.openat(lock.fd, lock.leaf, createFile, 0o644);
+          try {
+            const stat = fstatSync(descriptor, { bigint: true });
+            const identity = { dev: stat.dev, ino: stat.ino };
+            try {
+              const previous = readPublicInputAt(
+                { fd: lock.fd, leaf: "index" },
+                checkFileOwnerAndMode,
+              );
+              writeFileSync(join(quarantine, "index"), previous.bytes);
+              let currentIndex: string;
+              try {
+                currentIndex = gitText(quarantine, "write-tree");
+              } catch {
+                throw new Error(hostIndexChanged);
+              }
+              if (currentIndex !== beforeIndex) throw new Error(hostIndexChanged);
+              writeFileSync(descriptor, indexBytes);
+              git(repo.root, "bundle", "unbundle", bundle);
+              await publishRef(repo.root, branch, before, head, () => {
+                repo.checkUnchanged(record.repository);
+                if (gitText(repo.root, "symbolic-ref", "HEAD") !== branch)
+                  throw new Error(hostBranchChanged);
+                checkPolicy();
+                for (const name of affected) checkHostFile(repo.root, name, fingerprints.get(name));
+                checkSnapshotRoot(snapshot, snapshotRoot);
+                for (const name of [...affected].sort()) {
+                  const contents = files.get(name);
+                  const expected = fingerprints.get(name);
+                  if (equalStrictJSON(contents?.fingerprint, expected)) continue;
+                  installResultFile(repo.root, name, contents, expected);
+                }
+                if (
+                  !equalStrictJSON(namedIdentity(lock), identity) ||
+                  !equalStrictJSON(namedIdentity({ fd: lock.fd, leaf: "index" }), previous.identity)
+                )
+                  throw new Error(hostIndexChanged);
+                native.renameat(lock.fd, lock.leaf, lock.fd, "index");
+              });
+            } finally {
+              removeCreated(lock, identity);
+            }
+          } finally {
+            closeSync(descriptor);
+          }
+        } finally {
+          closeSync(lock.fd);
+        }
+
+        const next = {
+          ...approval,
+          git_head: head,
+          index_tree: index,
+          files: Object.fromEntries([...files].map(([name, file]) => [name, file.fingerprint])),
+        };
+        publishInputPolicy(policyFile, strictJSON(next, 2, { ascii: true }), checkPolicy);
+        return head;
       } finally {
-        closeSync(descriptor);
+        closeSync(snapshotRoot);
       }
     } finally {
-      closeSync(lock.fd);
+      try {
+        const created = fstatSync(quarantineRoot, { bigint: true });
+        const current = lstatSync(quarantine, { bigint: true, throwIfNoEntry: false });
+        if (current?.dev === created.dev && current.ino === created.ino)
+          rmSync(quarantine, { recursive: true, force: true });
+      } finally {
+        closeSync(quarantineRoot);
+      }
     }
-
-    const next = {
-      ...approval,
-      git_head: head,
-      index_tree: index,
-      files: Object.fromEntries([...files].map(([name, file]) => [name, file.fingerprint])),
-    };
-    publishInputPolicy(policyFile, strictJSON(next, 2, { ascii: true }), checkPolicy);
-    return head;
   } finally {
     closeSync(policyFile.fd);
   }
