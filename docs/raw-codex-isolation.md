@@ -21,6 +21,8 @@ skills の source を完全なコミット SHA に固定し、配布先と同じ
 
 ホスト側の `PATH` の先頭に選択済み Nix Bash の `bin` を置き、同じ pin から Bun と namespace 用 OS ツールを供給します。`run_isolated` はそこで選択した Bash の closure をコピーし、隔離内の `/bin/bash` にリンクします。launcher は manifest の版・source・SHA-256 と外側の store の owner／mode を検証し、コピー先でも選択した closure、実行体の digest、owner／mode を照合します。
 
+[#48](https://github.com/treflebonbon/skills/issues/48) が利用するホスト向け launcher の明示準備と起動は、[Linux／WSL2 の raw ホスト向け launcher](raw-codex-host-launcher.md) を参照してください。
+
 ## Trust と公開入力
 
 trust は repository の Git common directory の physical path と inode に結び付き、同じ repository に所属する linked worktree で共有されます。公開入力登録は worktree ごとに行います。
