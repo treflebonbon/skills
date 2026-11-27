@@ -21,4 +21,22 @@ rule:
 '
 ```
 
-結果の行番号は 0 始まりなので、表示用に 1 を足す。解析の失敗と、コメントが 0 件のファイルを区別する。`ast-grep` は構文エラーを回復してコメントを返すことがある。同じ grammar の構文診断で、`ERROR` ノードとパーサーが挿入した欠落トークンの両方を確認する。Tree-sitter ではルートノードの `hasError` で両方を検出できる。エラーが見つかったファイルや診断できなかったファイルは、検出済みの件数と未確認範囲を示す。`ast-grep-ignore` のあるファイルは走査結果からコメントが欠けることがあるため、別の構文解析器で補うか、集計の未確認範囲として示す。
+結果の行番号は 0 始まりなので、表示用に 1 を足す。
+
+コメント抽出の後、同じ blob を対応する grammar で構文診断する。Tree-sitter のルートノードの `hasError`（Python では `has_error`）で、`ERROR` ノードとパーサーが挿入した欠落トークンの両方を検出できる。
+
+Python の `tree-sitter-language-pack` が利用できる場合の例。末尾の引数は `.ts` なら `typescript`、`.tsx` なら `tsx` を使う。
+
+```sh
+git cat-file blob "$blob" | python3 -c '
+import sys
+from tree_sitter_language_pack import get_parser
+
+tree = get_parser(sys.argv[1]).parse(sys.stdin.buffer.read())
+print(tree.root_node.has_error)
+' typescript
+```
+
+構文エラーが見つかったファイルや診断できなかったファイルは、検出済み件数（0 件を含む）と未確認範囲を示し、ファイル全体の件数は未確定とする。
+
+`ast-grep-ignore` のあるファイルは走査結果からコメントが欠けることがあるため、別の構文解析器で補うか、集計の未確認範囲として示す。
