@@ -117,7 +117,7 @@ async function publishRef(
     throw new Error("ref update failed; staged result is retained for recovery");
 }
 
-function ownedFile(stat: BigIntStats): void {
+function checkFileOwnerAndMode(stat: BigIntStats): void {
   if (stat.uid !== BigInt(process.getuid!()) || (stat.mode & 0o7022n) !== 0n)
     throw new Error(
       "result and host files must be owned by the current user and protected from other writers",
@@ -125,7 +125,7 @@ function ownedFile(stat: BigIntStats): void {
 }
 
 function privatePolicy(stat: BigIntStats): void {
-  ownedFile(stat);
+  checkFileOwnerAndMode(stat);
   if ((stat.mode & 0o177n) !== 0n)
     throw new Error("input approval must be private to the current user");
 }
@@ -133,7 +133,7 @@ function privatePolicy(stat: BigIntStats): void {
 function readResultFile(root: string, name: string) {
   const parent = openPublicInputParent(root, name);
   try {
-    return readPublicInputAt(parent, ownedFile);
+    return readPublicInputAt(parent, checkFileOwnerAndMode);
   } finally {
     closeSync(parent.fd);
   }
@@ -152,7 +152,7 @@ function checkHostAt(parent: Parent<Buffer>, expected: InputFingerprint | undefi
     if (namedIdentity(parent)) throw new Error("result would replace an unapproved host file");
     return undefined;
   }
-  const input = readPublicInputAt(parent, ownedFile);
+  const input = readPublicInputAt(parent, checkFileOwnerAndMode);
   if (!equalStrictJSON(input.fingerprint, expected)) throw new Error(hostFileChanged);
   return input.identity;
 }
@@ -276,7 +276,7 @@ export async function returnRawResult(repo: Repository, session: string): Promis
     const directory = fstatSync(sessionFile.fd);
     if (directory.uid !== process.getuid!() || (directory.mode & 0o077) !== 0)
       throw new Error("session must be private to the current user");
-    record = coordinationJSON(readPublicInputAt(sessionFile, ownedFile).bytes);
+    record = coordinationJSON(readPublicInputAt(sessionFile, checkFileOwnerAndMode).bytes);
   } finally {
     closeSync(sessionFile.fd);
   }
@@ -417,7 +417,7 @@ export async function returnRawResult(repo: Repository, session: string): Promis
         const stat = fstatSync(descriptor, { bigint: true });
         const identity = { dev: stat.dev, ino: stat.ino };
         try {
-          const previous = readPublicInputAt({ fd: lock.fd, leaf: "index" }, ownedFile);
+          const previous = readPublicInputAt({ fd: lock.fd, leaf: "index" }, checkFileOwnerAndMode);
           writeFileSync(join(quarantine, "index"), previous.bytes);
           let currentIndex: string;
           try {

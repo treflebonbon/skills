@@ -37,7 +37,7 @@ function git(cwd: string, ...args: string[]): string {
   return execFileSync(realGit, args, { cwd, env: gitEnv, encoding: "utf8" }).trimEnd();
 }
 
-function fixture(base: string, executablePath: string) {
+function fixture(base: string, executablePath: string, original: string) {
   const host = join(base, "host");
   const work = join(base, "work");
   const isolated = join(base, "isolated");
@@ -57,7 +57,7 @@ function fixture(base: string, executablePath: string) {
   }
 
   git(base, "init", "-q", "--initial-branch=main", host);
-  writeFileSync(join(host, "source.txt"), "original\n");
+  writeFileSync(join(host, "source.txt"), original);
   writeFileSync(join(host, "remove.txt"), "remove this\n");
   symlinkSync("source.txt", join(host, "existing-link"));
   git(host, "add", ".");
@@ -140,7 +140,10 @@ function fixture(base: string, executablePath: string) {
 type Fixture = ReturnType<typeof fixture>;
 type Implementation = "python" | "bun";
 
-async function compare(run: (input: Fixture, implementation: Implementation) => Promise<void>) {
+async function compare(
+  run: (input: Fixture, implementation: Implementation) => Promise<void>,
+  original = "original\n",
+) {
   const base = mkdtempSync("/tmp/codex/raw-return-test.");
   const path = process.env.PATH!;
   try {
@@ -150,7 +153,7 @@ async function compare(run: (input: Fixture, implementation: Implementation) => 
       const bin = join(directory, "bin");
       mkdirSync(bin);
       const executablePath = `${bin}:${path}`;
-      const input = fixture(directory, executablePath);
+      const input = fixture(directory, executablePath, original);
       process.env.PATH = executablePath;
       await run(input, implementation);
     }
@@ -454,23 +457,108 @@ describe.skipIf(process.platform !== "linux" || process.env.RAW_RETURN_TEST !== 
       },
     );
 
-    test("rejects an approval with permissions wider than the saved private state contract", async () => {
-      await compare(async (input, implementation) => {
-        chmodSync(input.policy, 0o644);
-        if (implementation === "python") {
-          const returned = await runReturn(input, implementation);
-          expect(returned.stderr).toBe("");
-          expect(returned.status).toBe(0);
-          expect(statSync(input.policy).mode & 0o777).toBe(0o600);
-        } else {
-          await rejectReturn(input, implementation, /input approval must be private/);
-          expect(git(input.work, "rev-parse", "HEAD")).toBe(input.before);
-          expect(git(input.work, "write-tree")).toBe(input.beforeIndex);
-          expect(readFileSync(join(input.work, "source.txt"), "utf8")).toBe("original\n");
-          expect(statSync(input.policy).mode & 0o777).toBe(0o644);
-        }
-      });
-    });
+    test.each(["public approval", "group-writable file"] as const)(
+      "rejects a %s under the TypeScript owner and mode checks",
+      async (kind) => {
+        await compare(async (input, implementation) => {
+          const { work, policy, before, beforeIndex } = input;
+          const hostFile = join(work, "source.txt");
+          const isPolicy = kind === "public approval";
+          const file = isPolicy ? policy : hostFile;
+          const mode = isPolicy ? 0o644 : 0o664;
+          chmodSync(file, mode);
+          if (implementation === "python") {
+            const returned = await runReturn(input, implementation);
+            expect(returned.stderr).toBe("");
+            expect(returned.status).toBe(0);
+            expect(statSync(file).mode & 0o777).toBe(isPolicy ? 0o600 : 0o644);
+          } else {
+            await rejectReturn(
+              input,
+              implementation,
+              isPolicy ? /input approval must be private/ : /protected from other writers/,
+            );
+            expect(git(work, "rev-parse", "HEAD")).toBe(before);
+            expect(git(work, "write-tree")).toBe(beforeIndex);
+            expect(readFileSync(hostFile, "utf8")).toBe("original\n");
+            expect(statSync(file).mode & 0o777).toBe(mode);
+          }
+        });
+      },
+    );
+
+    test.skipIf(process.getuid?.() === 0)(
+      "rejects an unchanged approved file when it has a different owner",
+      async () => {
+        const foreign = "/proc/sys/kernel/ostype";
+        const original = readFileSync(foreign, "utf8");
+        await compare(async (input, implementation) => {
+          const { work, snapshot, base, session, policy, before, beforeIndex } = input;
+          const hostFile = join(work, "source.txt");
+          writeFileSync(join(snapshot, "source.txt"), original);
+          const saved = readFileSync(policy);
+          const entry = join(base, "return.ts");
+          writeFileSync(
+            entry,
+            `
+import { Repository } from ${JSON.stringify(resolve(import.meta.dir, "../../lib/bun/git-context.ts"))};
+import { returnRawResult } from ${JSON.stringify(resolve(import.meta.dir, "../../lib/bun/raw-return.ts"))};
+try {
+  await returnRawResult(Repository.discover(process.argv[2], { linkedOnly: true }), process.argv[3]);
+} catch (error) {
+  console.error(error.message);
+  process.exitCode = 1;
+}
+`,
+          );
+          const command =
+            implementation === "python"
+              ? ["python3", "-B", legacy, "return", "--root", work, "--session", session]
+              : [resolve(import.meta.dir, "../../lib/bun/run"), "run", entry, work, session];
+          // Bind a public regular file of the same content only within this fixture's namespace.
+          const returned = spawnSync(
+            "bwrap",
+            [
+              "--unshare-user",
+              "--die-with-parent",
+              "--ro-bind",
+              "/",
+              "/",
+              "--dev",
+              "/dev",
+              "--proc",
+              "/proc",
+              "--bind",
+              base,
+              base,
+              "--ro-bind",
+              foreign,
+              hostFile,
+              "--",
+              "bash",
+              "-ec",
+              'test "$(stat -c %u "$1")" != "$(id -u)"; shift; exec "$@"',
+              "_",
+              hostFile,
+              ...command,
+            ],
+            { encoding: "utf8", timeout: 10_000 },
+          );
+          if (implementation === "python") {
+            expect(returned.stderr).toBe("");
+            expect(returned.status).toBe(0);
+            expect(git(work, "rev-parse", "HEAD")).toBe(input.exported.head);
+          } else {
+            expect(returned.stderr).toMatch(/must be owned by the current user/);
+            expect(returned.status).toBe(1);
+            expect(git(work, "rev-parse", "HEAD")).toBe(before);
+            expect(git(work, "write-tree")).toBe(beforeIndex);
+            expect(readFileSync(policy)).toEqual(saved);
+          }
+          expect(readFileSync(hostFile, "utf8")).toBe(original);
+        }, original);
+      },
+    );
 
     test("the TypeScript return treats an absent snapshot as a failed export", async () => {
       await compare(async (input, implementation) => {

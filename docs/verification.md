@@ -96,7 +96,7 @@ TypeScript の入力登録では、GitHub policy ファイルを物理パスで�
 
 #47 の `returnRawResult(repo, session)` は、旧 Python の admission・snapshot 記録を読み、書き戻した HEAD を返します。比較 fixture は `2296bea803251eb76a077f21e0602d89059acb32` と同じ旧 `return` を、別々の一時 linked worktree で実行します。Git の ref と index、ファイルの bytes と mode、更新した入力記録、競合時やファイル設置失敗時に残る snapshot と bundle を比較します。途中の I/O 障害では先行するファイル操作が残り得ます。公開入口と repo 外の呼び出し元を切り替える作業は #48 が担当します。 [結果返却 #47](https://github.com/treflebonbon/skills/issues/47) [host の切り替え #48](https://github.com/treflebonbon/skills/issues/48)
 
-比較には Linux／WSL2、Git、Python 3、Bun 1.4.4 以上と、#44 と同じ Node-API header・C compiler を使います。TypeScript は本人所有の private な session・入力記録を要求し、他ユーザー所有、グループまたはその他のユーザーが書込み可能なファイル、set-id・sticky bit、symlink を拒否します。snapshot の作業ディレクトリが欠けている場合は返却を中止します。空の deny mount target は既存の返却と同様に対象から外します。
+比較には Linux／WSL2、Git、Python 3、Bun 1.4.4 以上と、#44 と同じ Node-API header・C compiler を使います。TypeScript は本人所有の private な session・入力記録を要求し、他ユーザー所有、グループまたはその他のユーザーが書込み可能なファイル、set-id・sticky bit、symlink を拒否します。所有者の比較は一般ユーザーで実行し、bubblewrap の一時 mount namespace に別 owner の公開ファイルを読み取り専用で置きます。snapshot の作業ディレクトリが欠けている場合は返却を中止します。空の deny mount target は既存の返却と同様に対象から外します。
 
 ```sh
 mkdir -p -m 700 /tmp/codex &&
