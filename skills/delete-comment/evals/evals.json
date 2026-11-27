@@ -1,0 +1,25 @@
+{
+  "skill_name": "delete-comment",
+  "evals": [
+    {
+      "id": 1,
+      "name": "parser-recovery",
+      "prompt": "この Git リポジトリの src/ 直下でコメントを棚卸しして。ファイルごとに確認できた件数を教えて。確認しきれなかった範囲があれば、その理由も報告して。ソースは変更しないで。",
+      "expected_output": "4ファイルで各1件を検出。format.ts の1件は確定し、limit.ts、status.ts、badge.tsx ではそれぞれ検出済みの1件と構文エラーによる未確認範囲を報告する。4件は検出済みの合計で、全件数は未確定。",
+      "files": [
+        "evals/files/parser-recovery/src/badge.tsx",
+        "evals/files/parser-recovery/src/format.ts",
+        "evals/files/parser-recovery/src/limit.ts",
+        "evals/files/parser-recovery/src/status.ts"
+      ],
+      "assertions": [
+        "[critical] format.ts の1行目のコメント1件を完全に確認済みと報告する。",
+        "[critical] limit.ts の1行目のコメント1件を検出し、構文エラーでファイル全体の件数は未確定と報告する。",
+        "[critical] status.ts の1行目のコメント1件を検出し、欠落トークンだけで回復した場合もファイル全体の件数は未確定と報告する。",
+        "[critical] badge.tsx を JSX を扱える文法で解析して1行目のコメント1件を検出し、欠落トークンだけで回復した場合もファイル全体の件数は未確定と報告する。",
+        "[critical] 合計4件を検出済みの件数として示し、全対象の完全な合計は未確定と報告する。",
+        "[critical] 作業ツリー、index、HEAD を変更しない。"
+      ]
+    }
+  ]
+}
