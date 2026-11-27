@@ -20,6 +20,22 @@
         "[critical] 合計4件を検出済みの件数として示し、全対象の完全な合計は未確定と報告する。",
         "[critical] 作業ツリー、index、HEAD を変更しない。"
       ]
+    },
+    {
+      "id": 2,
+      "name": "zero-comments",
+      "prompt": "この Git リポジトリの src/ 直下のコメントを棚卸しして。コメントが見つからなかったファイルも、件数を確認できたかどうかが分かるように報告して。ソースは変更しないで。",
+      "expected_output": "label.tsx は確定0件。status.js はコメントの検出0件で、構文エラーのためファイル全体の件数は未確定。対象全体も検出0件・総数未確定。",
+      "files": [
+        "evals/files/zero-comments/src/label.tsx",
+        "evals/files/zero-comments/src/status.js"
+      ],
+      "assertions": [
+        "[critical] label.tsx を JSX を扱える文法で解析し、文字列に含まれるコメント記号を数えず、0件と確定する。",
+        "[critical] status.js はコメントの検出0件を示し、構文エラーのためファイル全体の件数は未確定と報告する。",
+        "[critical] 対象全体の検出済みコメントは0件で、完全な合計は未確定と報告する。",
+        "[critical] 作業ツリー、index、HEAD を変更しない。"
+      ]
     }
   ]
 }
