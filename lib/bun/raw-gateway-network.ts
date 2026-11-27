@@ -1,4 +1,5 @@
 import { lookup } from "node:dns/promises";
+import type { LookupAddress } from "node:dns";
 import { once } from "node:events";
 import { BlockList, connect, isIP, type Socket } from "node:net";
 
@@ -52,8 +53,16 @@ for (const [address, prefix] of [
 ] as const)
   exceptions.addSubnet(address, prefix, "ipv6");
 
-export async function publicAddresses(host: string) {
-  const addresses = await lookup(host, { all: true, order: "verbatim" });
+export async function publicAddresses(host: string, signal: AbortSignal) {
+  signal.throwIfAborted();
+  const pending = lookup(host, { all: true, order: "verbatim" });
+  // getaddrinfo は中断できないため、スコープ終了後に到着した結果は破棄する。
+  const addresses = await new Promise<LookupAddress[]>((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    void pending.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+  signal.throwIfAborted();
   return addresses.every(({ address, family }) => {
     if (address.includes("%") || isIP(address) !== family) return false;
     const type = family === 6 ? "ipv6" : "ipv4";
@@ -152,29 +161,30 @@ function tunnelStatus(client: Socket, status: string) {
   client.end(`HTTP/1.0 ${status}\r\nContent-Length: 0\r\n\r\n`);
 }
 
-export async function tunnel(client: Socket, head: Buffer, host: string) {
+export async function tunnel(client: Socket, head: Buffer, host: string, scope: AbortSignal) {
   const closed = new AbortController();
   client.once("close", () => closed.abort());
+  const signal = AbortSignal.any([scope, closed.signal]);
   client.pause();
 
   let upstream: Socket | undefined;
   let established = false;
   try {
-    const addresses = await publicAddresses(host);
-    if (closed.signal.aborted) return;
+    const addresses = await publicAddresses(host, signal);
+    if (signal.aborted) return;
     if (!addresses?.length) return tunnelStatus(client, "403 Forbidden");
     for (const { address, family } of addresses) {
       const candidate = connect({ host: address, family, port: 443, allowHalfOpen: true });
       candidate.on("error", () => candidate.destroy());
       try {
         await once(candidate, "connect", {
-          signal: AbortSignal.any([closed.signal, AbortSignal.timeout(10_000)]),
+          signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
         });
         upstream = candidate;
         break;
       } catch {
         candidate.destroy();
-        if (closed.signal.aborted) return;
+        if (signal.aborted) return;
       }
     }
     if (!upstream) return tunnelStatus(client, "502 Bad Gateway");
@@ -190,10 +200,13 @@ export async function tunnel(client: Socket, head: Buffer, host: string) {
     established = true;
     peer.setTimeout(120_000, close);
     client.setTimeout(120_000, close);
-    peer.write(await checkedClientHello(client, head, host, closed.signal));
+    peer.write(await checkedClientHello(client, head, host, signal));
+    // relay 開始後は Unix ソケットの書き込みキューを流し切ってから閉じる。
+    peer.off("close", close);
+    peer.once("close", () => client.end());
     client.pipe(peer).pipe(client);
   } catch {
-    if (established) client.destroy();
+    if (established || signal.aborted) client.destroy();
     else if (!client.destroyed) tunnelStatus(client, "502 Bad Gateway");
     upstream?.destroy();
   }

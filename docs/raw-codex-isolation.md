@@ -56,6 +56,6 @@ raw 起動はホストの HOME、Nix daemon、任意の継承環境変数、未�
 
 #46 の TypeScript host gateway は `lib/bun/raw-gateway.ts` の `withGatewayScope` から開始します。スコープ内でサービスを開始すると、マウントに使う Unix ソケットの親ディレクトリを返します。スコープ終了時は接続とリスナーを閉じ、作業ディレクトリを削除します。公開 CLI と本番の host 配線は #48 で切り替えます。
 
-`bats tests/raw-codex/host-gateway-comparison.bats` は、Linux の network namespace 内で旧 Python と TypeScript の Unix HTTP、モデル SSE、TLS CONNECT、UDP DNS、GitHub の操作と topic 公開を比較します。合成 auth と fake `gh`、一時 HTTPS/TCP upstream と一時 Git repository を使用し、途中の認証準備失敗からの cleanup も観測します。`lib/bun/run test tests/bun/raw-gateway.test.ts` は Linux の長い Unix ソケットパス、idle 接続の解放、cleanup 失敗時のエラー優先順位を確認します。
+`bats tests/raw-codex/host-gateway-comparison.bats` は、Linux の network namespace 内で旧 Python と TypeScript の Unix HTTP、モデル SSE、TLS CONNECT、UDP DNS、GitHub の操作と topic 公開を比較します。比較用の一時証明書を生成するため、PATH 上で `openssl req -addext` を実行できることが必要です。合成 auth と fake `gh`、一時 HTTPS/TCP upstream と一時 Git repository を使用し、途中の認証準備失敗からの cleanup も観測します。`lib/bun/run test tests/bun/raw-gateway.test.ts` は Linux の長い Unix ソケットパス、idle 接続の解放、cleanup 失敗時のエラー優先順位を確認します。
 
 raw の Bats を再実行する際も、上記の launcher と Nix ツールを指定します。WSL2 x86_64 の検証では、配布用 Nixpkgs `7529d323f8f9926b38df356da2483c2a4e759d00` からビルドした `1rb2qg5r383m1sdqk33f0f0qf16sc9fm-raw-codex-launcher-1` を使用しました。選択済み Bash と隔離内の `/bin/bash` の実体、同じ PID の exec、SIGKILL 後の準備子孫の cleanup を確認しました。ネイティブ Linux arm64 の実測結果と対象 SHA は、[#45](https://github.com/treflebonbon/skills/issues/45) の実装 PR に記録します。外部 flake への配備は未確認です。

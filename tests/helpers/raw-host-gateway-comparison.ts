@@ -95,7 +95,6 @@ git(["commit", "-qm", "Unreviewed automation"]);
 git(["revert", "--no-edit", "HEAD"]);
 const automation = bundle("automation.bundle");
 
-const marker = join(fixture, "published");
 const policy = {
   repository: "example/public",
   branch: "task",
@@ -104,7 +103,6 @@ const policy = {
   automation: "no-project-secrets",
   review: "synthetic fixture",
 };
-const pushHelper = 'sleep 0.4\ngit rev-parse HEAD > "$HOME/published"\n';
 type Run = typeof withGatewayScope;
 type Start = Parameters<Parameters<Run>[0]>[0];
 
@@ -122,7 +120,12 @@ try:
                 options['codex_home'] = Path(options['codex_home'])
             if 'github_seed' in options:
                 options['github_seed']['pack'] = (Path(sys.argv[2]) / 'pack').read_bytes()
-            directory = start(service, **options)
+            try:
+                directory = start(service, **options)
+            except FileNotFoundError as error:
+                if service == 'model' and 'codex_home' in options and error.filename == str(options['codex_home'] / 'auth.json'):
+                    print(json.dumps({'error': 'host ChatGPT login is unavailable'}), flush=True)
+                raise
             print(json.dumps(str(directory)), flush=True)
 except Exception:
     sys.exit(2)
@@ -164,7 +167,10 @@ const withPythonScope: Run = async (run) => {
         failed = true;
         throw new Error("Python gateway setup failed");
       }
-      return JSON.parse(answer.value);
+      const result = JSON.parse(answer.value);
+      if (typeof result === "string") return result;
+      failed = true;
+      throw new Error(result.error);
     });
   } finally {
     child.stdin.end();
@@ -216,11 +222,13 @@ const credentials = {
   cert: readFileSync(join(fixture, "cert.pem")),
 };
 let validModelRequest = false;
+let multilineModelRequest = false;
 let modelRequests = 0;
 let nextModelChunk: Promise<void>;
 const model = httpsServer(credentials, async (req, res) => {
   modelRequests++;
   const text = await readBody(req);
+  multilineModelRequest = text.includes("\n");
   const payload = JSON.parse(text);
   validModelRequest =
     req.method === "POST" &&
@@ -264,12 +272,13 @@ function clientHello(host: string) {
 }
 const hello = clientHello(captureHost);
 const expectedTunnel = Buffer.concat([...hello, Buffer.from("tail")]);
+const tunnelReply = Buffer.alloc(2 * 1024 * 1024, 0x61);
 const capture = tcpServer({ allowHalfOpen: true }, (socket) => {
   let bytes = Buffer.alloc(0);
   socket.on("data", (chunk) => {
     bytes = Buffer.concat([bytes, Buffer.from(chunk)]);
   });
-  socket.once("end", () => socket.end(bytes.equals(expectedTunnel) ? "verified" : ""));
+  socket.once("end", () => socket.end(bytes.equals(expectedTunnel) ? tunnelReply : ""));
 });
 capture.listen(443, "8.8.4.4");
 await once(capture, "listening");
@@ -305,18 +314,20 @@ async function fragmentedTunnel(directory: string) {
   const header = Buffer.from(
     `CONNECT ${captureHost}:443 HTTP/1.1\r\nHost: ${captureHost}:443\r\n\r\n`,
   );
-  const buffering = (async () => {
-    const chunks = [];
-    for await (const chunk of client) chunks.push(chunk);
-    return Buffer.concat(chunks).toString();
-  })();
   client.write(Buffer.concat([header, hello[0]]));
   await Bun.sleep(50);
   client.end(Buffer.concat([hello[1], Buffer.from("tail")]));
+  await Bun.sleep(100);
+  const chunks = [];
+  for await (const chunk of client) chunks.push(chunk);
+  const response = Buffer.concat(chunks);
+  const end = response.indexOf("\r\n\r\n");
+  assert(end !== -1, "CONNECT did not return a response header");
   assert.match(
-    await buffering,
-    /^HTTP\/1\.0 200 Connection established(?:\r\n[^\r\n]+)*\r\n\r\nverified$/,
+    response.subarray(0, end).toString(),
+    /^HTTP\/1\.0 200 Connection established(?:\r\n[^\r\n]+)*$/,
   );
+  assert(response.subarray(end + 4).equals(tunnelReply), "CONNECT truncated the upstream reply");
 }
 
 async function tlsEcho(client: Socket, servername: string, version: SecureVersion) {
@@ -367,6 +378,9 @@ async function dnsQuery(directory: string) {
 
 async function observe(scope: Run) {
   const directories: string[] = [];
+  const markerName = scope === withPythonScope ? "published-python" : "published-bun";
+  const marker = join(fixture, markerName);
+  const pushHelper = `sleep 0.4\ngit rev-parse HEAD > "$HOME/${markerName}"\n`;
   const result = await scope(async (start: Start) => {
     const deps = await start("dependencies", {
       domains: ["**.example", "api.github.com"],
@@ -459,6 +473,7 @@ async function observe(scope: Run) {
         403,
       );
     }
+    assert(!existsSync(marker), "a rejected publication ran the helper");
     const publication = await proxied("POST", "/topic-push", topic);
     assert.equal(publication[0], 200, "valid publication");
     assert.equal(readFileSync(marker, "utf8").trim(), topic.head);
@@ -492,6 +507,7 @@ async function observe(scope: Run) {
     }
     assert.deepEqual(success, [200, "data: first\n\ndata: second\n\n"]);
     assert(validModelRequest, "model upstream route, body or authentication changed");
+    assert(!multilineModelRequest, "model upstream JSON contains formatting newlines");
     const refused = await send(model, "POST", "/v1/responses", { ...payload, model: "refused" });
     assert.deepEqual(refused, [429, ""]);
     assert.deepEqual(
@@ -530,7 +546,9 @@ async function observe(scope: Run) {
       assert.deepEqual(await send(partial, "GET", "/unadmitted"), [403, ""]);
       await start("model", { codexHome: join(fixture, "no-login") });
     }),
+    { message: "host ChatGPT login is unavailable" },
   );
+  assert(partial, "the dependency gateway did not start");
   assert(!existsSync(partial), "partial start left a published directory");
   return result;
 }

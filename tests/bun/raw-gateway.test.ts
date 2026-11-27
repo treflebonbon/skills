@@ -1,9 +1,12 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
+import * as dns from "node:dns/promises";
 import { once } from "node:events";
 import {
+  closeSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   renameSync,
   rmSync,
   statSync,
@@ -69,6 +72,96 @@ test("scope exit closes an idle client and releases its Unix listener", async ()
   expect(existsSync(directory)).toBe(false);
 });
 
+test("scope exit releases resolver and CONNECT clients before pending DNS finishes", async () => {
+  const answer = Promise.withResolvers<never>();
+  const started = Promise.withResolvers<void>();
+  let count = 0;
+  const lookup = spyOn(dns, "lookup").mockImplementation(() => {
+    if (++count === 2) started.resolve();
+    return answer.promise;
+  });
+  try {
+    const scope = withGatewayScope(async (start) => {
+      const directory = await start("dependencies", { domains: ["pending.invalid"] });
+      const path = join(directory, "service.sock");
+      const resolve = unixRequest(path, "POST", "/resolve", '{"host":"pending.invalid","type":1}');
+      const tunnel = connect(path);
+      tunnel.resume();
+      const requests = Promise.allSettled([resolve, once(tunnel, "close")]);
+      tunnel.write("CONNECT pending.invalid:443 HTTP/1.1\r\nHost: pending.invalid:443\r\n\r\n");
+      await Promise.race([
+        started.promise,
+        Bun.sleep(1000).then(() => {
+          throw new Error("both DNS lookups must start");
+        }),
+      ]);
+      return { directory, requests };
+    });
+    const { directory, requests } = await Promise.race([
+      scope,
+      Bun.sleep(2000).then(() => {
+        throw new Error("gateway scope waited for DNS");
+      }),
+    ]);
+    await requests;
+    expect(existsSync(directory)).toBe(false);
+  } finally {
+    answer.reject(new Error("fixture DNS released"));
+    lookup.mockRestore();
+  }
+});
+
+test("GitHub stdout obeys scope exit and the command deadline when a descendant holds it open", async () => {
+  const fixture = mkdtempSync(join(tmpdir(), "cxi-child-"));
+  const originalPath = process.env.PATH;
+  const probe = (directory: string) =>
+    unixRequest(join(directory, "service.sock"), "GET", "/repos/octocat/Hello-World", "", {
+      Host: "api.github.com",
+    });
+  try {
+    symlinkSync(Bun.which("sleep")!, join(fixture, "sleep"));
+    writeFileSync(
+      join(fixture, "gh"),
+      '#!/bin/sh\nsleep 4 &\nprintf \'{ "full_name": "octocat/Hello-World" }\'\n: > "$0.started"\n',
+      { mode: 0o700 },
+    );
+    process.env.PATH = `${fixture}:${originalPath}`;
+    const scope = withGatewayScope(async (start) => {
+      const directory = await start("github");
+      const request = probe(directory).catch(() => undefined);
+      for (let attempt = 0; !existsSync(join(fixture, "gh.started")); attempt++) {
+        if (attempt === 100) throw new Error("fake gh did not start");
+        await Bun.sleep(10);
+      }
+      return { directory, request };
+    });
+    const { directory, request } = await Promise.race([
+      scope,
+      Bun.sleep(2000).then(() => {
+        throw new Error("gateway scope waited for inherited stdout");
+      }),
+    ]);
+    await request;
+    expect(existsSync(directory)).toBe(false);
+
+    const setDeadline = AbortSignal.timeout;
+    const timeout = spyOn(AbortSignal, "timeout").mockImplementation((ms) =>
+      setDeadline(ms === 30_000 ? 250 : ms),
+    );
+    try {
+      await withGatewayScope(async (start) => {
+        expect(await probe(await start("github"))).toEqual({ status: 502, body: "" });
+      });
+    } finally {
+      timeout.mockRestore();
+    }
+  } finally {
+    if (originalPath === undefined) delete process.env.PATH;
+    else process.env.PATH = originalPath;
+    rmSync(fixture, { recursive: true });
+  }
+});
+
 test.skipIf(process.platform !== "linux")(
   "two scopes bind independent Unix sockets under a long TMPDIR",
   async () => {
@@ -77,24 +170,29 @@ test.skipIf(process.platform !== "linux")(
     const long = join(fixture, "long-gateway-parent-".repeat(8));
     mkdirSync(long);
     process.env.TMPDIR = long;
+    const directories: string[] = [];
     try {
       await withGatewayScope(async (first) => {
         await withGatewayScope(async (second) => {
-          const directories = await Promise.all([first("dependencies"), second("dependencies")]);
+          directories.push(...(await Promise.all([first("dependencies"), second("dependencies")])));
           expect(directories[0]).not.toBe(directories[1]);
-          for (const [i, directory] of directories.entries()) {
-            const alias = join(fixture, `bound-${i}`);
-            symlinkSync(directory, alias);
+          for (const directory of directories) {
             expect(statSync(join(directory, "service.sock")).isSocket()).toBe(true);
-            expect(await unixRequest(join(alias, "service.sock"), "GET", "/forbidden")).toEqual({
-              status: 403,
-              body: "",
-            });
+            const fd = openSync(directory, "r");
+            try {
+              expect(
+                await unixRequest(`/proc/self/fd/${fd}/service.sock`, "GET", "/forbidden"),
+              ).toEqual({
+                status: 403,
+                body: "",
+              });
+            } finally {
+              closeSync(fd);
+            }
           }
         });
       });
-      expect(existsSync(join(fixture, "bound-0"))).toBe(false);
-      expect(existsSync(join(fixture, "bound-1"))).toBe(false);
+      for (const directory of directories) expect(existsSync(directory)).toBe(false);
     } finally {
       if (previous === undefined) delete process.env.TMPDIR;
       else process.env.TMPDIR = previous;

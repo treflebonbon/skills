@@ -28,19 +28,34 @@ async function command(
   input?: Uint8Array,
 ) {
   signal.throwIfAborted();
+  const deadline = AbortSignal.any([signal, AbortSignal.timeout(timeout)]);
   const child = Bun.spawn(argv, {
     env,
     cwd,
-    signal: AbortSignal.any([signal, AbortSignal.timeout(timeout)]),
+    signal: deadline,
+    killSignal: "SIGKILL",
     stdin: input ? Buffer.from(input.buffer, input.byteOffset, input.byteLength) : "ignore",
     stdout: "pipe",
     stderr: "ignore",
   });
-  const [output, status] = await Promise.all([
-    new Response(child.stdout).arrayBuffer(),
-    child.exited,
-  ]);
-  return { output: Buffer.from(output), status };
+  const chunks: Uint8Array[] = [];
+  // 子孫が stdout を継承していても、操作の期限で読み取りを打ち切る。
+  const read = child.stdout.pipeTo(
+    new WritableStream<Uint8Array>({
+      write(chunk) {
+        chunks.push(chunk);
+      },
+    }),
+    { signal: deadline },
+  );
+  try {
+    const [status] = await Promise.all([child.exited, read]);
+    deadline.throwIfAborted();
+    return { output: Buffer.concat(chunks), status };
+  } catch (error) {
+    await child.exited;
+    throw error;
+  }
 }
 
 export function githubProbe(signal: AbortSignal) {

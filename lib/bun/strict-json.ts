@@ -30,7 +30,7 @@ export function parseStrictJSON(raw: Uint8Array): any {
   });
 }
 
-export function strictJSON(value: unknown): string {
+export function strictJSON(value: unknown, indent = 2): string {
   const strings = new Set<string>();
   const visit = (item: any): void => {
     if (typeof item === "string") {
@@ -64,7 +64,7 @@ export function strictJSON(value: unknown): string {
       }
       return item;
     },
-    2,
+    indent,
   );
   return (
     text.replace(/"(?:[^"\\]|\\[\s\S])*"/g, (token) => constants.get(JSON.parse(token)) ?? token) +

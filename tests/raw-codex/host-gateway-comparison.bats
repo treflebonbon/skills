@@ -19,12 +19,12 @@
     ip addr add 8.8.4.4/32 dev lo
     printf 0 > /proc/sys/net/ipv4/ip_unprivileged_port_start
     exec setpriv --inh-caps=-all --ambient-caps=-all bwrap --unshare-user --unshare-pid \
-      --die-with-parent --ro-bind / / --bind "$fixture" "$fixture" \
+      --die-with-parent --ro-bind / / --tmpfs /run --bind "$fixture" /run/cxi \
       --ro-bind "$fixture/hosts" /etc/hosts --proc /proc --dev /dev --clearenv \
-      --setenv PATH "$PATH" --setenv HOME "$fixture" --setenv TMPDIR "$fixture" \
-      --setenv GH_CONFIG_DIR "$fixture" --setenv PYTHONDONTWRITEBYTECODE 1 \
-      --setenv SSL_CERT_FILE "$fixture/cert.pem" --setenv NODE_EXTRA_CA_CERTS "$fixture/cert.pem" \
-      "$@" "$fixture"
+      --setenv PATH "$PATH" --setenv HOME /run/cxi --setenv TMPDIR /run/cxi \
+      --setenv GH_CONFIG_DIR /run/cxi --setenv PYTHONDONTWRITEBYTECODE 1 \
+      --setenv SSL_CERT_FILE /run/cxi/cert.pem --setenv NODE_EXTRA_CA_CERTS /run/cxi/cert.pem \
+      "$@" /run/cxi
   ' _ "$fixture" "$root/lib/bun/run" run "$root/tests/helpers/raw-host-gateway-comparison.ts"
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]

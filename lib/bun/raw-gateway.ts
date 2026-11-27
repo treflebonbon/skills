@@ -68,6 +68,7 @@ function requestHandler(
   model: ReturnType<typeof modelUpstream> | undefined,
   github: GitHubService | undefined,
   probe: ReturnType<typeof githubProbe> | undefined,
+  signal: AbortSignal,
 ) {
   return async (request: IncomingMessage, response: ServerResponse) => {
     const method = request.method ?? "";
@@ -107,7 +108,8 @@ function requestHandler(
           ![1, 28].includes(body.type)
         )
           return reply(response, 403);
-        const addresses = await publicAddresses(body.host);
+        const addresses = await publicAddresses(body.host, signal);
+        if (signal.aborted) return;
         if (!addresses) return reply(response, 403);
         const family = body.type === 1 ? 4 : 6;
         const answer = new Set(
@@ -115,7 +117,8 @@ function requestHandler(
         );
         return reply(response, 200, JSON.stringify([...answer].slice(0, 4)));
       } catch {
-        return reply(response, 502);
+        if (!signal.aborted) return reply(response, 502);
+        return;
       }
     }
     if (github && ["GET", "POST", "PATCH"].includes(method)) {
@@ -201,7 +204,7 @@ export async function withGatewayScope<T>(run: (start: StartGateway) => Promise<
       );
     }
     const probe = service === "github" && !github ? githubProbe(scope.signal) : undefined;
-    const handler = requestHandler(service, admitted, model, github, probe);
+    const handler = requestHandler(service, admitted, model, github, probe, scope.signal);
     const connections = new Set<Socket>();
     const handled = new WeakSet<Socket>();
     const active = new Set<Promise<unknown>>();
@@ -238,7 +241,7 @@ export async function withGatewayScope<T>(run: (start: StartGateway) => Promise<
         return;
       }
       handled.add(socket);
-      track(tunnel(socket, head, host));
+      track(tunnel(socket, head, host, scope.signal));
     });
     server.maxRequestsPerSocket = 1;
     server.setTimeout(120_000, (socket) => socket.destroy());
