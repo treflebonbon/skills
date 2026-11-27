@@ -5,8 +5,9 @@
 ## 準備と起動
 
 ```sh
-<plugin>/bin/prepare-raw-codex-launcher
-exec <plugin>/bin/raw-codex-launcher <prepare.ts> [args...]
+plugin=/absolute/path/to/plugin
+"$plugin/bin/prepare-raw-codex-launcher"
+exec "$plugin/bin/raw-codex-launcher" /absolute/path/to/prepare.ts
 ```
 
 明示準備には導入済みの `cc`、Linux の C header／library、システムの `/usr/bin/perl` と標準モジュール（`syscall.ph` を含む）が必要です。Ubuntu 24.04 では `gcc`、`libc6-dev`、`perl` を利用できます。明示準備は C source からビルドし、成果物が公開された directory を stdout に返します。成果物は `$XDG_CACHE_HOME/treflebonbon-skills/raw-codex-launcher/`、未指定時は実行ユーザーのホームの `.cache` 以下に保存します。格納先は plugin payload 外の、祖先 directory が保護された Linux filesystem に置きます。公開には `renameat2(RENAME_NOREPLACE)` が必要です。並行実行では先に公開された成果物を再検査して利用します。不完全な成果物が同じ場所にある場合は、当該成果物を利用者が退避するか、新しい private cache を選んで明示準備を実行してください。

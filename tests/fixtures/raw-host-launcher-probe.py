@@ -17,11 +17,14 @@ def hold():
         signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
     elif mode == "ignored":
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
-    identity = os.pidfd_open(os.getpid())
+    identities = [os.pidfd_open(pid) for pid in (os.getpid(), os.getppid())]
     with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as channel:
         channel.connect(os.environ["LAUNCHER_TEST_READY"])
-        channel.sendmsg([b"R"], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, struct.pack("i", identity))])
-    os.close(identity)
+        channel.sendmsg(
+            [b"R"], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, struct.pack("ii", *identities))]
+        )
+    for identity in identities:
+        os.close(identity)
     while True:
         signal.pause()
 

@@ -85,6 +85,7 @@ static void observe(const char *format, ...) {
 
 #ifdef RAW_HOST_LAUNCHER
 static int verify_fd = -1;
+static int context_fd = -1;
 static char **host_arguments;
 static const char *verify_directory;
 static const char host_verified_entry[] = "raw-codex-launcher-verified";
@@ -154,6 +155,7 @@ static void host_verified(const char *receipt, size_t size) {
     if (failed) goto changed;
   }
   if (receipt != end) goto changed;
+  if (fcntl(context_fd, F_SETFD, 0) < 0) invalid();
   fexecve(verify_fd, host_arguments, environ);
   perror("raw-codex-launcher: exec verified launcher");
   exit(1);
@@ -539,18 +541,32 @@ static int adaptive_finish(void) {
 int main(int argc, char **argv) {
 #ifdef RAW_HOST_LAUNCHER
   if (argc == 6 && !strcmp(argv[1], GATE_ARGUMENT)) return gate_main(argv);
-  if (!strcmp(argv[0], host_verified_entry)) return launcher_main(argc, argv);
-  if (argc < 5) invalid();
+  if (argc < PROOF_MIN_ARGS) invalid();
+  context_fd = (int)parse_nonnegative_integer(argv[1], INT_MAX);
+  char context[3 * PATH_MAX];
+  struct stat info;
+  if (fstat(context_fd, &info) < 0 || !S_ISREG(info.st_mode) ||
+      info.st_size <= 0 || (uintmax_t)info.st_size > sizeof(context) ||
+      fcntl(context_fd, F_GET_SEALS) != (F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE) ||
+      fcntl(context_fd, F_SETFD, FD_CLOEXEC) < 0 ||
+      pread(context_fd, context, (size_t)info.st_size, 0) != info.st_size) invalid();
+  char *cursor = context, *end = context + info.st_size;
+  char *runner = next_nul_field(&cursor, end);
+  char *verifier = next_nul_field(&cursor, end);
+  verify_directory = next_nul_field(&cursor, end);
+  if (cursor != end || *runner != '/' || *verifier != '/' || *verify_directory != '/') invalid();
+  if (!strcmp(argv[0], host_verified_entry)) {
+    close(context_fd);
+    argv[1] = runner;
+    return launcher_main(argc, argv);
+  }
   verify_fd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
   if (verify_fd < 0) invalid();
-  verify_directory = argv[3];
-  host_arguments = argv + 2;
-  char *verification[] = {argv[0], argv[1], argv[2], argv[3], NULL, NULL};
   char descriptor[64];
   snprintf(descriptor, sizeof(descriptor), "/proc/self/fd/%d", verify_fd);
-  verification[4] = descriptor;
+  char *verification[] = {argv[0], runner, verifier, (char *)verify_directory, descriptor, NULL};
+  host_arguments = argv;
   host_arguments[0] = (char *)host_verified_entry;
-  host_arguments[1] = argv[1];
   return launcher_main(5, verification);
 #else
   if (argc == 5 && !strcmp(argv[1], GATE_ARGUMENT)) return gate_main(argv);

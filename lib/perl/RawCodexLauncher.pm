@@ -7,7 +7,7 @@ no warnings 'taint';
 use Cwd qw(abs_path);
 use Digest::SHA qw(sha256_hex);
 use Errno qw(EEXIST ENOENT);
-use Fcntl qw(:DEFAULT :mode);
+use Fcntl qw(:DEFAULT :mode F_SETFD);
 use File::Basename qw(dirname);
 use File::Path qw(remove_tree);
 use File::Temp qw(tempdir);
@@ -35,9 +35,10 @@ sub read_bytes {
 sub cache_directory {
     my ($source_hash) = @_;
     my $base = $ENV{XDG_CACHE_HOME} || ((getpwuid($<))[7] . '/.cache');
+    my ($canonical) = $base =~ m{\A(/[^/]+(?:/[^/]+)*)\z};
     die "XDG_CACHE_HOME は正規の絶対 path が必要です\n"
-        unless $base =~ m{\A/[^/]+(?:/[^/]+)*\z} && $base !~ m{/(?:\.|\.\.)(?:/|\z)};
-    my $directory = "$base/treflebonbon-skills/raw-codex-launcher/$source_hash-linux-$architecture";
+        unless defined($canonical) && $canonical !~ m{/(?:\.|\.\.)(?:/|\z)};
+    my $directory = "$canonical/treflebonbon-skills/raw-codex-launcher/$source_hash-linux-$architecture";
     die "launcher は plugin payload 外に準備してください\n" if index($directory, "$payload/") == 0;
     return $directory;
 }
@@ -120,20 +121,28 @@ sub build {
     print "$directory\n";
 }
 
-sub launch {
-    my ($directory, $source_hash, @arguments) = @_;
-    my $binary = read_artifact($directory, $source_hash);
+sub sealed_memfd {
+    my ($name, $bytes, $inherit) = @_;
     require 'syscall.ph';
-    my $name = 'raw-codex-launcher';
     # MFD_CLOEXEC | MFD_ALLOW_SEALING, then F_ADD_SEALS with all four write/size/seal bits.
     my $fd = syscall(&SYS_memfd_create, $name, 3);
     die "memfd_create: $!\n" if $fd < 0;
     open(my $snapshot, '+<&=', $fd) or die "open memfd: $!\n";
-    syswrite($snapshot, $binary) == length($binary) or die "write memfd: $!\n";
+    syswrite($snapshot, $bytes) == length($bytes) or die "write memfd: $!\n";
     fcntl($snapshot, 1033, 15) or die "seal memfd: $!\n";
-    my $executable = "/proc/self/fd/$fd";
-    exec {$executable} "$payload/bin/raw-codex-launcher", "$payload/lib/bun/run",
-        "$payload/lib/bun/verify-raw-codex-launcher.ts", $directory, @arguments;
+    fcntl($snapshot, F_SETFD, 0) or die "inherit memfd: $!\n" if $inherit;
+    return $snapshot;
+}
+
+sub launch {
+    my ($directory, $source_hash, @arguments) = @_;
+    my $binary = read_artifact($directory, $source_hash);
+    my $snapshot = sealed_memfd('raw-codex-launcher', $binary, 0);
+    # Carry internal paths out of band so they do not take space from caller argv at exec.
+    my $context = sealed_memfd('raw-codex-context', join("\0", "$payload/lib/bun/run",
+        "$payload/lib/bun/verify-raw-codex-launcher.ts", $directory, ''), 1);
+    my $executable = '/proc/self/fd/' . fileno($snapshot);
+    exec {$executable} 'raw-codex-launcher', '' . fileno($context), @arguments;
     die "exec launcher: $!\n";
 }
 
@@ -144,7 +153,7 @@ sub entry {
         die "使い方: $prepare\n" if $mode eq 'prepare' && @arguments;
         die "使い方: raw-codex-launcher <prepare.ts> [args...]\n" if $mode eq 'launch' && !@arguments;
         my @contents = map { read_bytes("$payload/tests/fixtures/$_", 1024 * 1024, undef) } @sources;
-        my $source_hash = sha256_hex(join('', map { sha256_hex($_) } @contents));
+        my ($source_hash) = sha256_hex(join('', map { sha256_hex($_) } @contents)) =~ /\A([0-9a-f]{64})\z/;
         my $directory = cache_directory($source_hash);
         if ($mode eq 'prepare') { build($directory, $source_hash, \@contents); }
         else { launch($directory, $source_hash, @arguments); }
