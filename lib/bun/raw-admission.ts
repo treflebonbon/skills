@@ -22,7 +22,6 @@ import {
   type InputFingerprint,
 } from "./raw-admission-files.ts";
 import {
-  asciiJSON,
   isTable,
   readManagedConfig,
   tomlDocument,
@@ -30,7 +29,7 @@ import {
   type Table,
 } from "./raw-admission-config.ts";
 import { type GitHubPolicy, validateGitHubPolicy } from "./raw-github-policy.ts";
-import { parseStrictJSON } from "./strict-json.ts";
+import { parseStrictJSON, strictJSON } from "./strict-json.ts";
 import { orderedTable } from "./vendor/smol-toml/table.js";
 
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
@@ -306,13 +305,7 @@ export function admitRawInputs(
       files,
       runtime,
     };
-    const jsonify = JSON as typeof JSON & { rawJSON(text: string): unknown };
-    const text = JSON.stringify(
-      record,
-      (_key, value) => (typeof value === "bigint" ? jsonify.rawJSON(value.toString()) : value),
-      2,
-    );
-    publishInputPolicy(parent, asciiJSON(text) + "\n");
+    publishInputPolicy(parent, strictJSON(record, 2, { ascii: true }));
     return path;
   } finally {
     closeSync(parent.fd);

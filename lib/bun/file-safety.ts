@@ -62,6 +62,7 @@ type Addon = {
   openat(fd: number, name: Buffer, flags: number, mode: number): number;
   mkdirat(fd: number, name: Buffer, mode: number): number;
   renameat(fd: number, name: Buffer, otherFd: number, otherName: Buffer): number;
+  linkat(fd: number, name: Buffer, otherFd: number, otherName: Buffer): number;
   unlinkat(fd: number, name: Buffer): number;
   fstatat(fd: number, name: Buffer): Identity | number;
 };
@@ -151,19 +152,24 @@ function bytes(name: string | Buffer): Buffer {
   if (!name.isWellFormed()) throw new Error("有効な Unicode または Buffer が必要です");
   return Buffer.from(name);
 }
+type Component = string | Buffer;
+
 export const native = {
-  openat: (fd: number, name: string | Buffer, flags: number, mode = 0o600): number =>
+  openat: (fd: number, name: Component, flags: number, mode = 0o600): number =>
     checked(load().openat(fd, bytes(name), flags, mode), "openat"),
-  mkdirat: (fd: number, name: string, mode = 0o700): void => {
+  mkdirat: (fd: number, name: Component, mode = 0o700): void => {
     checked(load().mkdirat(fd, bytes(name), mode), "mkdirat");
   },
-  renameat: (fd: number, name: string, otherFd: number, otherName: string): void => {
+  renameat: (fd: number, name: Component, otherFd: number, otherName: Component): void => {
     checked(load().renameat(fd, bytes(name), otherFd, bytes(otherName)), "renameat");
   },
-  unlinkat: (fd: number, name: string): void => {
+  linkat: (fd: number, name: Component, otherFd: number, otherName: Component): void => {
+    checked(load().linkat(fd, bytes(name), otherFd, bytes(otherName)), "linkat");
+  },
+  unlinkat: (fd: number, name: Component): void => {
     checked(load().unlinkat(fd, bytes(name)), "unlinkat");
   },
-  fstatat: (fd: number, name: string): Identity => {
+  fstatat: (fd: number, name: Component): Identity => {
     const result = load().fstatat(fd, bytes(name));
     if (typeof result === "number") {
       checked(result, "fstatat");
@@ -172,7 +178,7 @@ export const native = {
     return result;
   },
 };
-export type Parent = { fd: number; leaf: string };
+export type Parent<Leaf extends Component = string> = { fd: number; leaf: Leaf };
 export function openParent(path: string, anchor = "/", create = false): Parent {
   if (
     !isAbsolute(path) ||
@@ -217,7 +223,12 @@ export function openParent(path: string, anchor = "/", create = false): Parent {
     throw error;
   }
 }
-export function removeCreated(parent: Parent, made: Identity): void {
-  const current = native.fstatat(parent.fd, parent.leaf);
-  if (current.dev === made.dev && current.ino === made.ino) native.unlinkat(parent.fd, parent.leaf);
+export function removeCreated(parent: Parent<Component>, made: Identity): void {
+  try {
+    const current = native.fstatat(parent.fd, parent.leaf);
+    if (current.dev === made.dev && current.ino === made.ino)
+      native.unlinkat(parent.fd, parent.leaf);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
 }

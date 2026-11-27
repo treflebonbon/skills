@@ -1,5 +1,6 @@
 import { posix as path } from "node:path";
 import type { Repository } from "./git-context.ts";
+import { asciiJSON } from "./strict-json.ts";
 import { parse } from "./vendor/smol-toml/parse.js";
 
 export type Table = Record<string, unknown>;
@@ -324,13 +325,6 @@ export function readManagedConfig(text: string, repo: Repository) {
   profile.workspace_roots = {};
   config.default_permissions = "dotfiles-secure";
   return { config, profile, domains, denied };
-}
-
-export function asciiJSON(text: string): string {
-  return text.replace(
-    /[\u007f-\uffff]/g,
-    (character) => "\\u" + character.charCodeAt(0).toString(16).padStart(4, "0"),
-  );
 }
 
 function tomlKey(key: string): string {

@@ -1,4 +1,12 @@
-import { closeSync, constants, fchmodSync, fstatSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  constants,
+  fchmodSync,
+  fstatSync,
+  readFileSync,
+  writeFileSync,
+  type BigIntStats,
+} from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { hash, native, openParent, removeCreated, type Parent } from "./file-safety.ts";
@@ -24,34 +32,49 @@ function pathBytes(component: string): Buffer {
   return Buffer.concat(parts);
 }
 
-export function readPublicInput(root: string, name: string) {
+export function openPublicInputParent(root: string, name: string, create = false): Parent<Buffer> {
   const parts = name.split("/");
   if (
     name.includes("\0") ||
     parts.some((part) => !part || part === "." || part === ".." || part.toLowerCase() === ".git")
   )
     throw new Error("input must be a relative file outside Git metadata");
-  let directory = openParent(join(root, ".admission-root")).fd;
-  let descriptor: number;
+  const components = parts.map(pathBytes);
+  let directory = openParent(join(root, ".public-root")).fd;
   try {
-    for (const part of parts.slice(0, -1)) {
-      const next = native.openat(directory, pathBytes(part), directoryFlags);
+    for (const part of components.slice(0, -1)) {
+      if (create) {
+        try {
+          native.mkdirat(directory, part, 0o755);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        }
+      }
+      const next = native.openat(directory, part, directoryFlags);
       closeSync(directory);
       directory = next;
     }
-    descriptor = native.openat(
-      directory,
-      pathBytes(parts.at(-1)!),
-      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-    );
-  } finally {
+    return { fd: directory, leaf: components.at(-1)! };
+  } catch (error) {
     closeSync(directory);
+    throw error;
   }
+}
 
+export function readPublicInputAt(
+  { fd, leaf }: Parent<string | Buffer>,
+  validate?: (stat: BigIntStats) => void,
+) {
+  const descriptor = native.openat(
+    fd,
+    leaf,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
   try {
     const before = fstatSync(descriptor, { bigint: true });
     if (!before.isFile() || before.nlink !== 1n)
       throw new Error("input must be a regular file with one link");
+    validate?.(before);
     const bytes = readFileSync(descriptor);
     const after = fstatSync(descriptor, { bigint: true });
     if (
@@ -64,16 +87,25 @@ export function readPublicInput(root: string, name: string) {
       sha256: hash(bytes),
       executable: (before.mode & 0o111n) !== 0n,
     };
-    return { bytes, fingerprint };
+    return { bytes, fingerprint, identity: { dev: before.dev, ino: before.ino } };
   } finally {
     closeSync(descriptor);
   }
 }
 
-export function openInputPolicy(path: string): Parent {
+export function readPublicInput(root: string, name: string) {
+  const parent = openPublicInputParent(root, name);
+  try {
+    return readPublicInputAt(parent);
+  } finally {
+    closeSync(parent.fd);
+  }
+}
+
+export function openInputPolicy(path: string, { create = true } = {}): Parent {
   let parent: Parent;
   try {
-    parent = openParent(path, "/", true);
+    parent = openParent(path, "/", create);
   } catch (error) {
     if (["ENOTDIR", "ELOOP"].includes((error as NodeJS.ErrnoException).code ?? ""))
       throw new Error("input state must be private to the current user");
@@ -90,7 +122,7 @@ export function openInputPolicy(path: string): Parent {
   }
 }
 
-export function publishInputPolicy(parent: Parent, text: string): void {
+export function publishInputPolicy(parent: Parent, text: string, beforePublish?: () => void): void {
   const leaf = parent.leaf + "." + randomUUID();
   const descriptor = native.openat(
     parent.fd,
@@ -102,6 +134,7 @@ export function publishInputPolicy(parent: Parent, text: string): void {
     try {
       fchmodSync(descriptor, 0o600);
       writeFileSync(descriptor, text);
+      beforePublish?.();
       native.renameat(parent.fd, leaf, parent.fd, parent.leaf);
     } catch (error) {
       try {

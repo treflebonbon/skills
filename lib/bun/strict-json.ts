@@ -30,11 +30,18 @@ export function parseStrictJSON(raw: Uint8Array): any {
   });
 }
 
-export function strictJSON(value: unknown, indent = 2): string {
+export function asciiJSON(text: string): string {
+  return text.replace(
+    /[\u007f-\uffff]/g,
+    (character) => "\\u" + character.charCodeAt(0).toString(16).padStart(4, "0"),
+  );
+}
+
+export function strictJSON(value: unknown, indent = 2, { ascii = false } = {}): string {
   const strings = new Set<string>();
   const visit = (item: any): void => {
     if (typeof item === "string") {
-      if (!item.isWellFormed()) throw new Error("JSON を UTF-8 で保存できません");
+      if (!ascii && !item.isWellFormed()) throw new Error("JSON を UTF-8 で保存できません");
       strings.add(item);
     } else if (item && typeof item === "object") {
       for (const [key, child] of Object.entries(item)) {
@@ -66,10 +73,11 @@ export function strictJSON(value: unknown, indent = 2): string {
     },
     indent,
   );
-  return (
-    text.replace(/"(?:[^"\\]|\\[\s\S])*"/g, (token) => constants.get(JSON.parse(token)) ?? token) +
-    "\n"
+  const payload = text.replace(
+    /"(?:[^"\\]|\\[\s\S])*"/g,
+    (token) => constants.get(JSON.parse(token)) ?? token,
   );
+  return (ascii ? asciiJSON(payload) : payload) + "\n";
 }
 
 export function equalStrictJSON(left: any, right: any): boolean {
