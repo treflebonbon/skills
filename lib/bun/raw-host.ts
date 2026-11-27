@@ -7,7 +7,7 @@ import { openInputPolicy } from "./raw-admission-files.ts";
 import { executable, selectedOutput, trusted } from "./devshell-environment.ts";
 import { native } from "./file-safety.ts";
 import { Repository } from "./git-context.ts";
-import type { Service } from "./raw-gateway.ts";
+import { GatewayCleanupError, type Service } from "./raw-gateway.ts";
 import {
   isolationTools,
   launcherArgv,
@@ -155,9 +155,15 @@ export async function launch(args: string[]) {
     console.log(`returned HEAD ${head}, index and ordinary worktree changes`);
     return interrupted || status;
   } catch (error) {
-    if (!interrupted) throw error;
-    console.error(`codex-worktree: ${controller.signal.reason.message}`);
-    return interrupted;
+    if (interrupted) {
+      console.error(`codex-worktree: ${controller.signal.reason.message}`);
+      return interrupted;
+    }
+    if (error instanceof GatewayCleanupError) {
+      console.error(`codex-worktree: ${error.message}`);
+      return error.status;
+    }
+    throw error;
   } finally {
     for (const [signal, handler] of handlers) process.off(signal, handler);
     closeSync(lock);

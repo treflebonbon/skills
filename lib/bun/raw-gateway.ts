@@ -24,7 +24,15 @@ export type GatewayOptions = {
 };
 type StartGateway = (service: Service, options?: GatewayOptions) => Promise<string>;
 
-export class GatewayCleanupError extends Error {}
+export class GatewayCleanupError extends Error {
+  constructor(
+    message: string,
+    readonly status = 1,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
+}
 
 function reply(
   response: ServerResponse,

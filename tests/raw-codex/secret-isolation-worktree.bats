@@ -5,7 +5,7 @@ setup() {
   CLI="$PROJECT_ROOT/tests/helpers/raw-worktree-fixture.ts"
   RUNNER="$PROJECT_ROOT/lib/bun/run"
   FIXTURE="$BATS_TEST_TMPDIR/fixture"
-  mkdir -p "$FIXTURE"
+  mkdir -m 700 "$FIXTURE"
   git init -q -b main "$FIXTURE/repo"
   printf 'public source\n' >"$FIXTURE/repo/source.txt"
   git -C "$FIXTURE/repo" add source.txt

@@ -9,7 +9,7 @@
 - PATH で選択できる Nix store 内の `nix`、`bash`、`cat`、Bun 1.4.4 以上、Git、Codex CLI 0.153.4 以上、GitHub CLI `gh`、bubblewrap `bwrap`、util-linux の `unshare` と `setpriv`、iproute2 の `ip`
 - ホストの `/usr/bin/perl` と標準モジュール。入力 lock は Perl が取得し、Bun のホストプロセスが起動から結果返却まで FD を保持します。
 - 入力登録と結果返却には `lib/bun/prepare-file-safety.ts` で明示準備した file-safety cache が必要です。準備時に導入済みの Node.js、対応する Node-API header、C compiler を使います。 `lib/bun/run run lib/bun/prepare-file-safety.ts` を同じ plugin source と信頼済みのホスト環境で実行し、別の cache を使う場合は `TREFLEBONBON_FILE_SAFETY_DIR` を手順と通常利用で揃えます。
-- ホストから直接 `devshell-env with-env --prepared` を使う場合は `bin/prepare-raw-codex-launcher` で launcher を明示準備します。隔離内で使う `with-env` の用意は Nix 成果物で行います。 [ホスト launcher の準備](raw-codex-host-launcher.md)
+- Linux／WSL2 のホストから直接 `devshell-env with-env --prepared` を使う場合は `bin/prepare-raw-codex-launcher` で launcher を明示準備します。隔離内で使う `with-env` の用意は Nix 成果物で行います。 [ホスト launcher の準備](raw-codex-host-launcher.md)
 - 事前ビルド済み raw launcher の正規の store path を `CODEX_RAW_LAUNCHER`、同じ Nix derivation の `sourceSha256` を `CODEX_RAW_LAUNCHER_SOURCE_SHA256` に指定します。 [利用側 flake の準備](raw-codex-launcher-proof.md#利用側-flake-と-45-への引継ぎ)
 - managed Codex 設定にある `dotfiles-secure` permission profile と、その profile が参照する network allowlist
 - Nix store 内の公開 CA bundle。`CODEX_ISOLATION_CA_BUNDLE`、`NIX_SSL_CERT_FILE`、`SSL_CERT_FILE` の順に選び、指定なし・Nix store 外は拒否します。
@@ -28,7 +28,11 @@ skills の source を完全なコミット SHA に固定し、配布先と同じ
 
 ホストの `PATH` から選ばれた `python3` が Nix store に存在する場合は、従来と同じくプロジェクトコマンドから利用できます。公開 CLI とホスト処理の実行依存は Bun です。
 
-利用側の `treflebonbon/dotfiles` は、固定版 plugin の `codex-worktree` と `devshell-env codex`／`admit` を選んで実行します。`private_dot_config/nix-devshell/skills-plugin.json` の pin を同一の受入済み版の source に揃え、通常の plugin 同期後に `sync-skills-plugin --verify-only` で照合します。その版から隔離用 launcher をビルドし、利用側 flake でホストの Bun・Perl と Nix ツールを用意します。同じ固定版で file-safety cache と、ホストの process 置換を使う場合の launcher cache を明示準備します。dotfiles 側の trust と汎用 devShell 呼び出しはそれぞれの既存契約に従います。 [利用側での pin と launcher の準備](raw-codex-host-launcher.md#48-への引き継ぎ)
+### dotfiles 側の切り替え
+
+1. `private_dot_local/bin/executable_devshell-env` の `codex`／`admit` と、グローバル `codex-worktree` は固定版 plugin の実行ファイルを選ぶため、公開入口のパスを引き継げます。汎用 `devshell-env` は固定版から `treflebonbon_skills.devshell_environment` を直接 import しています。pin の更新前に、汎用側の trust、`with-env`、Claude 用の準備・hook を新しい実装へ接続し、既存の dotenv 契約を確認します。退役検証の `.chezmoitemplates/local-skills-legacy.py` も同じ旧 Python module の存在を確認するため、固定版の新しい依存を検査するよう更新します。検証には `tests/claude-devshell-env.bats` と `tests/legacy-skills-retirement.bats` を使います。
+2. 利用側 flake でホストの Bun・Perl と Nix ツールを用意し、導入する版と同じ source から隔離用 launcher をビルドします。固定版の source で file-safety cache と、ホストの process 置換を使う場合の launcher cache を明示準備します。 [利用側での pin と launcher の準備](raw-codex-host-launcher.md#48-への引き継ぎ)
+3. 上記を揃えた版に `private_dot_config/nix-devshell/skills-plugin.json` の pin を更新し、通常の plugin 同期後に `sync-skills-plugin --verify-only` で照合します。公開入口と固定版の dispatch を dotfiles 側の raw fixture で確認します。
 
 ## Trust と公開入力
 

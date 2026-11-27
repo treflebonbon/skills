@@ -97,32 +97,32 @@ export function prepareRawWorktree(
   const branch = rawGitText(repo.root, "symbolic-ref", "HEAD");
   rawGit(repo.root, ["check-ref-format", branch]);
   mkdirSync(output, { mode: 0o700 });
-  const fs = join(output, "root");
-  const work = join(fs, repo.root);
-  const common = join(fs, repo.commonDir);
-  const metadata = join(fs, repo.gitDir);
-  mkdirSync(work, { recursive: true });
-  mkdirSync(common, { recursive: true });
+  const snapshotRoot = join(output, "root");
+  const snapshotWorktree = join(snapshotRoot, repo.root);
+  const snapshotCommon = join(snapshotRoot, repo.commonDir);
+  const snapshotMetadata = join(snapshotRoot, repo.gitDir);
+  mkdirSync(snapshotWorktree, { recursive: true });
+  mkdirSync(snapshotCommon, { recursive: true });
 
   const pack = rawGit(repo.root, ["pack-objects", "--stdout", "--revs"], {
     input: Buffer.from(`${head}\n${record.index_tree}\n`),
   });
   const format = head.length === 64 ? "sha256" : "sha1";
-  rawGit(common, ["init", "--bare", "--quiet", `--object-format=${format}`]);
-  rawGit(work, ["index-pack", "--stdin"], { gitDir: common, input: pack });
-  rawGit(work, ["fsck", "--full", "--no-reflogs"], { gitDir: common });
-  rawGit(work, ["config", "core.bare", "false"], { gitDir: common });
-  rawGit(work, ["update-ref", branch, head], { gitDir: common });
-  mkdirSync(metadata, { recursive: true });
-  writeFileSync(join(metadata, "HEAD"), `ref: ${branch}\n`);
-  writeFileSync(join(metadata, "commondir"), repo.commonDir + "\n");
-  writeFileSync(join(metadata, "gitdir"), join(repo.root, ".git") + "\n");
-  writeFileSync(join(work, ".git"), `gitdir: ${repo.gitDir}\n`);
+  rawGit(snapshotCommon, ["init", "--bare", "--quiet", `--object-format=${format}`]);
+  rawGit(snapshotWorktree, ["index-pack", "--stdin"], { gitDir: snapshotCommon, input: pack });
+  rawGit(snapshotWorktree, ["fsck", "--full", "--no-reflogs"], { gitDir: snapshotCommon });
+  rawGit(snapshotWorktree, ["config", "core.bare", "false"], { gitDir: snapshotCommon });
+  rawGit(snapshotWorktree, ["update-ref", branch, head], { gitDir: snapshotCommon });
+  mkdirSync(snapshotMetadata, { recursive: true });
+  writeFileSync(join(snapshotMetadata, "HEAD"), `ref: ${branch}\n`);
+  writeFileSync(join(snapshotMetadata, "commondir"), repo.commonDir + "\n");
+  writeFileSync(join(snapshotMetadata, "gitdir"), join(repo.root, ".git") + "\n");
+  writeFileSync(join(snapshotWorktree, ".git"), `gitdir: ${repo.gitDir}\n`);
   // The absolute pointers refer to the host until the snapshot is mounted.
-  rawGit(work, ["read-tree", record.index_tree], { gitDir: common });
-  renameSync(join(common, "index"), join(metadata, "index"));
+  rawGit(snapshotWorktree, ["read-tree", record.index_tree], { gitDir: snapshotCommon });
+  renameSync(join(snapshotCommon, "index"), join(snapshotMetadata, "index"));
   for (const [name, { bytes, fingerprint }] of admitted) {
-    const parent = openPublicInputParent(work, name, true);
+    const parent = openPublicInputParent(snapshotWorktree, name, true);
     try {
       const fd = native.openat(parent.fd, parent.leaf, exclusive);
       try {

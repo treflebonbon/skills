@@ -455,7 +455,11 @@ export NIX_SSL_CERT_FILE=${certificate} SSL_CERT_FILE=${certificate}
       return status;
     }, signal);
   } catch (error) {
-    if (!(error instanceof GatewayCleanupError) || !status) throw error;
-    return status;
+    if (!(error instanceof GatewayCleanupError)) throw error;
+    throw new GatewayCleanupError(
+      "gateway cleanup failed; the session is retained for recovery",
+      status || 1,
+      { cause: error },
+    );
   }
 }
