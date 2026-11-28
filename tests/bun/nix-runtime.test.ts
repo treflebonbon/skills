@@ -293,9 +293,9 @@ console.log(JSON.stringify({ event: 'legacy-target', version: Bun.version,
 process.exit(37);
 PROBE
 head=$(git -C "$RAW_BASE/work" rev-parse HEAD)
-python3 -I -B "$PROJECT_ROOT/share/codex-isolation/secret-isolation-worktree.py" approve \
+"$PROJECT_ROOT/lib/bun/run" run "$PROJECT_ROOT/tests/helpers/raw-worktree-fixture.ts" approve \
   --root "$RAW_BASE/work" --policy "$RAW_BASE/policy.json" --git-head "$head" -- run bunfig.toml tsconfig.json probe.ts
-NIX_BUN_PROOF_POISON=must-not-enter python3 -I -B "$PROJECT_ROOT/share/codex-isolation/secret-isolation-worktree.py" run \
+NIX_BUN_PROOF_POISON=must-not-enter "$PROJECT_ROOT/lib/bun/run" run "$PROJECT_ROOT/tests/helpers/raw-worktree-fixture.ts" run \
   --root "$RAW_BASE/work" --policy "$RAW_BASE/policy.json" --output "$RAW_BASE/session" -- \
   "$SELECTED_BASH" "$RAW_BASE/work/run" run "$RAW_BASE/work/probe.ts" "$HOST_CANARY"
 `;
@@ -342,7 +342,7 @@ NIX_BUN_PROOF_POISON=must-not-enter python3 -I -B "$PROJECT_ROOT/share/codex-iso
       target,
       copiedBunHash,
       sourceHash: createHash("sha256")
-        .update(readFileSync(resolve(root, "share/codex-isolation/secret-isolation-worktree.py")))
+        .update(readFileSync(resolve(root, "lib/bun/raw-isolation.ts")))
         .digest("hex"),
     };
   }, 370_000);

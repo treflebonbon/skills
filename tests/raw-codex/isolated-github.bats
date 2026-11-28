@@ -12,13 +12,14 @@ case "$*" in
 esac
 SH
   chmod +x "$BATS_TEST_TMPDIR/bin/gh"
-  run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" python3 - "$root/share/codex-isolation/secret-isolation-gateway.py" "$BATS_TEST_TMPDIR/socket" <<'PY'
-import http.client, json, os, runpy, select, socket, subprocess, sys
+  run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" PYTHONPATH="$root/tests/helpers" python3 -B - "$root" <<'PY'
+import http.client, json, os, select, socket, subprocess, sys
 from pathlib import Path
-module = runpy.run_path(sys.argv[1])
+from raw_gateway_fixture import GatewayFixture
+root = Path(sys.argv[1])
 policy = {'repository': 'example/public', 'branch': 'task', 'default_branch': 'main',
           'reviewed_commit': 'a' * 40, 'automation': 'no-project-secrets', 'review': 'dummy reviewed fixture'}
-server = module['start_gateway'](Path(sys.argv[2]), 'github', github_policy=policy)
+server = GatewayFixture(root, 'github', github_policy=policy)
 class Client(http.client.HTTPConnection):
     def connect(self):
         self.sock = socket.socket(socket.AF_UNIX)
@@ -45,11 +46,9 @@ try:
         client.close()
 finally:
     server.shutdown()
-    server.server_close()
 
-root = Path(sys.argv[1]).parents[2]
 runtime = root / "lib/bun"
-proxy = module["start_gateway"](Path(sys.argv[2]).with_name("proxy"), "dependencies",
+proxy = GatewayFixture(root, "dependencies",
                                 domains=["api.github.com"], github_policy=policy)
 with socket.socket() as listener:
     listener.bind(("127.0.0.1", 0))
@@ -78,7 +77,6 @@ finally:
     bridge.terminate()
     bridge.wait(timeout=5)
     proxy.shutdown()
-    proxy.server_close()
 PY
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
@@ -102,8 +100,8 @@ SH
   local mode
   for mode in gh xdg home; do
     mkdir "$BATS_TEST_TMPDIR/$mode"
-    run env DUMMY_HOST_SECRET=dummy-host-secret PATH="$BATS_TEST_TMPDIR/bin:$PATH" \
-      python3 "$root/tests/fixtures/raw-codex/github-push.py" "$root" "$BATS_TEST_TMPDIR/$mode" "$mode"
+    run env DUMMY_HOST_SECRET=dummy-host-secret PATH="$BATS_TEST_TMPDIR/bin:$PATH" PYTHONPATH="$root/tests/helpers" \
+      python3 -B "$root/tests/fixtures/raw-codex/github-push.py" "$root" "$BATS_TEST_TMPDIR/$mode" "$mode"
     [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
     [ "$status" -eq 0 ]
   done
@@ -127,13 +125,14 @@ esac
 SH
   chmod +x "$BATS_TEST_TMPDIR/bin/gh"
   printf '{"tree":[]}\n' > "$BATS_TEST_TMPDIR/tree.json"
-  run env HOME="$BATS_TEST_TMPDIR" PATH="$BATS_TEST_TMPDIR/bin:$PATH" python3 - "$root/share/codex-isolation/secret-isolation-gateway.py" "$BATS_TEST_TMPDIR/socket" <<'PY'
-import http.client, json, runpy, socket, sys
+  run env HOME="$BATS_TEST_TMPDIR" PATH="$BATS_TEST_TMPDIR/bin:$PATH" PYTHONPATH="$root/tests/helpers" python3 -B - "$root" <<'PY'
+import http.client, json, socket, sys
 from pathlib import Path
-module = runpy.run_path(sys.argv[1])
+from raw_gateway_fixture import GatewayFixture
+root = Path(sys.argv[1])
 policy = {'repository':'example/public','branch':'task','default_branch':'main',
           'reviewed_commit':'a'*40,'automation':'no-project-secrets','review':'dummy CI review'}
-server = module['start_gateway'](Path(sys.argv[2]), 'github', github_policy=policy)
+server = GatewayFixture(root, 'github', github_policy=policy)
 class Client(http.client.HTTPConnection):
     def connect(self):
         self.sock = socket.socket(socket.AF_UNIX)
@@ -160,7 +159,6 @@ try:
         client.close()
 finally:
     server.shutdown()
-    server.server_close()
 PY
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
@@ -183,14 +181,14 @@ case "$*" in
 esac
 SH
   chmod +x "$BATS_TEST_TMPDIR/bin/gh"
-  run env HOME="$BATS_TEST_TMPDIR" PATH="$BATS_TEST_TMPDIR/bin:$PATH" python3 - \
-    "$root/share/codex-isolation/secret-isolation-gateway.py" "$BATS_TEST_TMPDIR/socket" <<'PY'
-import http.client, json, runpy, socket, sys
+  run env HOME="$BATS_TEST_TMPDIR" PATH="$BATS_TEST_TMPDIR/bin:$PATH" PYTHONPATH="$root/tests/helpers" python3 -B - "$root" <<'PY'
+import http.client, json, socket, sys
 from pathlib import Path
-module = runpy.run_path(sys.argv[1])
+from raw_gateway_fixture import GatewayFixture
+root = Path(sys.argv[1])
 policy = {'repository': 'example/public', 'branch': 'task', 'default_branch': 'main',
           'reviewed_commit': 'a' * 40, 'automation': 'no-project-secrets', 'review': 'public fixture'}
-server = module['start_gateway'](Path(sys.argv[2]), 'github', github_policy=policy)
+server = GatewayFixture(root, 'github', github_policy=policy)
 payload = {'title': 'fix: fragmented body', 'body': 'public fixture ' * 3000,
            'head': 'task', 'base': 'main'}
 body = json.dumps(payload).encode()
@@ -209,7 +207,6 @@ try:
     assert json.loads((Path.home() / 'received.json').read_text()) == payload
 finally:
     server.shutdown()
-    server.server_close()
 PY
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
@@ -246,7 +243,6 @@ try:
     assert len(requests) == 3
 finally:
     server.shutdown()
-    server.server_close()
 PY
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]

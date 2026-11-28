@@ -1311,21 +1311,18 @@ proof(
       });
       expect(result.status).toBe(0);
     }
-    const python = Bun.which("python3");
-    if (!python) throw new Error("実 caller の対照には導入済み Python が必要です");
-    const caller = join(root, "real-caller.py");
-    const library = fileURLToPath(new URL("../../lib/python", import.meta.url));
-    fs.writeFileSync(
-      caller,
-      `import os,sys,json\nsys.path.insert(0,${JSON.stringify(library)})\nfrom treflebonbon_skills.git_context import Repository\nfrom treflebonbon_skills.devshell_environment import prepare_environment\nrepo=Repository.discover(sys.argv[1])\nenv=prepare_environment(repo,dict(os.environ),require_trust=False,timeout=30,isolated=True)\nprint(json.dumps({"hook":env.get("PROCESS_NAMESPACE_NIX_PROBE")}))\n`,
-    );
+    const caller = fileURLToPath(new URL("../../lib/bun/devshell-environment.ts", import.meta.url));
+    const context = fileURLToPath(new URL("../../lib/bun/git-context.ts", import.meta.url));
     const realPrepare = join(root, "real-prepare.ts");
     fs.writeFileSync(
       realPrepare,
-      `const result = Bun.spawnSync([${JSON.stringify(python)}, "-I", "-B", ${JSON.stringify(caller)}, ${JSON.stringify(project)}], {env: {...process.env, NIX_CONFIG: "experimental-features = nix-command flakes\\npure-eval = false\\nsubstituters = \\n"}});
-    process.stderr.write(result.stderr); if (result.exitCode !== 0) process.exit(17);
-    console.error("real-caller:" + result.stdout.toString().trim());
-    await import(${JSON.stringify(prepare)});`,
+      `import { prepareEnvironment } from ${JSON.stringify(caller)};
+import { Repository } from ${JSON.stringify(context)};
+const repo = Repository.discover(${JSON.stringify(project)});
+process.env.NIX_CONFIG = "experimental-features = nix-command flakes\\npure-eval = false\\nsubstituters = \\n";
+const env = prepareEnvironment(repo, process.env, { requireTrust: false, timeoutMs: 30_000, isolated: true });
+console.error("real-caller:" + JSON.stringify({ hook: env.PROCESS_NAMESPACE_NIX_PROBE }));
+await import(${JSON.stringify(prepare)});`,
     );
     const observations = [baseline, launcher].map((binary) => {
       const result = spawnSync(entry, [runner, realPrepare, binary, "reviewer", observer], {
@@ -1346,7 +1343,7 @@ proof(
         nixStdenv,
         nixBash,
         nixVersion: nix.stdout.trim(),
-        callerSourceHash: hash(join(library, "treflebonbon_skills/devshell_environment.py")),
+        callerSourceHash: hash(caller),
         flakeHash: hash(join(project, "flake.nix")),
         bashHash: hash(join(nixBash!, "bin/bash")),
         observations,
@@ -1354,7 +1351,7 @@ proof(
     });
     for (const result of observations) {
       expect(result.status).toBe(37);
-      expect(result.stderr).toContain('real-caller:{"hook": "hook-ok"}');
+      expect(result.stderr).toContain('real-caller:{"hook":"hook-ok"}');
     }
   },
   150_000,

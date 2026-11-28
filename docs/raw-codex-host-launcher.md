@@ -22,7 +22,7 @@ exec "$plugin/bin/raw-codex-launcher" /absolute/path/to/prepare.ts
 
 利用側 flake では、plugin と外部 caller が同じ repository revision の payload を参照するように pin を更新します。`treflebonbon/dotfiles` では `private_dot_config/nix-devshell/skills-plugin.json` の `rev` と `nar_hash` がこの pin です。グローバル `codex-worktree` と `devshell-env` は固定 source を選択するので、その source を準備にも使います。
 
-ホスト側のセットアップで `bin/prepare-raw-codex-launcher` を実行し、#48 の caller が起動時に `bin/raw-codex-launcher` へ `exec` するように接続します。`cc` と C header／library は準備用の環境に置き、`perl`、Bash、Bun と選択方式の依存はホストの実行環境に揃えます。隔離内の成果物は同じ pin の `nix/raw-codex-launcher.nix` からビルドし、#45 の契約で選択します。公開入口の統合と Git・ファイル返却は #48 で検証します。 [#45 の Nix 配布契約](raw-codex-launcher-proof.md#利用側-flake-と-45-への引継ぎ) · [#48](https://github.com/treflebonbon/skills/issues/48)
+ホスト側のセットアップで `bin/prepare-raw-codex-launcher` を実行し、ホストの `devshell-env with-env --prepared` は `bin/raw-codex-launcher` へ `exec` します。raw の起動・gateway・結果返却は、Bun の同一ホストプロセスが管理します。`cc` と C header／library は準備用の環境に置き、`perl`、Bash、Bun と選択方式の依存はホストの実行環境に揃えます。隔離内の成果物は同じ pin の `nix/raw-codex-launcher.nix` からビルドし、#45 の契約で選択します。公開入口の統合と Git・ファイル返却は #48 で検証します。 [#45 の Nix 配布契約](raw-codex-launcher-proof.md#利用側-flake-と-45-への引継ぎ) · [#48](https://github.com/treflebonbon/skills/issues/48)
 
 ## 製品の検証
 

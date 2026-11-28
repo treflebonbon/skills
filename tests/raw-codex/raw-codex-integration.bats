@@ -390,3 +390,84 @@ PY
   [ ! -e "$RAW_BASE/shell-started" ]
   [ ! -e "$RAW_BASE/python-started" ]
 }
+
+@test "interrupting the public raw host or failing gateway cleanup preserves host state and releases the lock" {
+  raw_fixture
+  cat >"$RAW_BASE/work/task.sh" <<'SH'
+set -eu
+printf 'isolated edit\n' >> source.txt
+git add source.txt
+git commit -qm 'test: interrupted result'
+touch signal-ready
+while [ ! -e finish-task ]; do sleep 0.1; done
+exit 17
+SH
+  printf 'host source\n' >"$RAW_BASE/work/source.txt"
+  raw_admit flake.nix task.sh source.txt
+
+  run python3 - "$RAW_BASE" <<'PY'
+import os, shutil, signal, subprocess, sys, time
+from pathlib import Path
+
+base = Path(sys.argv[1])
+environment = os.environ | {
+    "HOME": str(base / "home"),
+    "CODEX_HOME": str(base / "home/.codex"),
+    "XDG_STATE_HOME": str(base / "state"),
+}
+work = base / "work"
+argv = [base / "bin/codex-worktree", "sandbox", "--"]
+sessions = base / "state/devshell-env/sessions"
+for mode, exit_code in (("interrupt", 143), ("cleanup-failure", 17)):
+    before = set(sessions.glob("*"))
+    existing = set(Path("/tmp").glob("cxi-*"))
+    log = base / f"{mode}.log"
+    moved = None
+    with log.open("wb") as stream:
+        process = subprocess.Popen([*argv, "bash", "task.sh"], cwd=work, env=environment, stdout=stream, stderr=stream)
+        try:
+            deadline = time.monotonic() + 90
+            marker = None
+            while time.monotonic() < deadline:
+                for session in set(sessions.glob("*")) - before:
+                    candidate = session / "root" / str(work).lstrip("/") / "signal-ready"
+                    if candidate.is_file():
+                        marker = candidate
+                        break
+                if marker or process.poll() is not None:
+                    break
+                time.sleep(0.05)
+            assert marker and process.poll() is None, log.read_text()
+            gates = set(Path("/tmp").glob("cxi-*")) - existing
+            gates = {path for path in gates if (path / "dependencies/service.sock").is_socket()}
+            assert gates, log.read_text()
+            if mode == "interrupt":
+                competing = subprocess.run([*argv, "true"], cwd=work, env=environment, text=True, capture_output=True, timeout=15)
+                assert competing.returncode == 1 and "locked by another raw session" in competing.stderr, competing
+                process.send_signal(signal.SIGTERM)
+            else:
+                assert len(gates) == 1, gates
+                gate = next(iter(gates))
+                moved = gate.rename(gate.with_name("moved-" + gate.name))
+                (marker.parent / "finish-task").touch()
+            assert process.wait(timeout=20) == exit_code, log.read_text()
+            assert all(not path.exists() for path in gates), gates
+            if mode == "cleanup-failure":
+                assert "gateway cleanup failed" in log.read_text(), log.read_text()
+            assert "returned HEAD" not in log.read_text(), log.read_text()
+            assert marker.exists() and not (work / "signal-ready").exists()
+            assert (work / "source.txt").read_text() == "host source\n"
+            retried = subprocess.run([*argv, "true"], cwd=work, env=environment, text=True, capture_output=True, timeout=90)
+            assert retried.returncode == 0, retried
+            assert "returned HEAD" in retried.stdout, retried
+        finally:
+            try:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=10)
+            finally:
+                if moved is not None:
+                    shutil.rmtree(moved)
+PY
+  raw_assert_status 0
+}

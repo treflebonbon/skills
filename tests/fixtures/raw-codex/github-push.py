@@ -5,7 +5,6 @@ import http.client
 import json
 import os
 from pathlib import Path
-import runpy
 import socket
 import subprocess
 import sys
@@ -60,11 +59,10 @@ publisher = (
     + str(temporary / "published")
     + "\n"
 )
-gateway = runpy.run_path(
-    str(root / "share/codex-isolation/secret-isolation-gateway.py")
-)
-server = gateway["start_gateway"](
-    temporary / "socket",
+from raw_gateway_fixture import GatewayFixture
+
+server = GatewayFixture(
+    root,
     "github",
     github_policy=policy,
     github_seed={"pack": pack, "push_helper": publisher},
@@ -106,4 +104,3 @@ try:
     assert (temporary / "published").read_text() == "published"
 finally:
     server.shutdown()
-    server.server_close()

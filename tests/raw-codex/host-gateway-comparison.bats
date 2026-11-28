@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-@test "Bun compares host gateway wire and lifecycle behavior with the Python gateway" {
+@test "Bun host gateway preserves wire and lifecycle behavior" {
   [ "$(uname -s)" = Linux ] || skip "raw host gateway is supported on Linux and WSL2"
   local root fixture
   root="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
@@ -22,11 +22,11 @@
       --die-with-parent --ro-bind / / --tmpfs /run --bind "$fixture" /run/cxi \
       --ro-bind "$fixture/hosts" /etc/hosts --proc /proc --dev /dev --clearenv \
       --setenv PATH "$PATH" --setenv HOME /run/cxi --setenv TMPDIR /run/cxi \
-      --setenv GH_CONFIG_DIR /run/cxi --setenv PYTHONDONTWRITEBYTECODE 1 \
+      --setenv GH_CONFIG_DIR /run/cxi \
       --setenv SSL_CERT_FILE /run/cxi/cert.pem --setenv NODE_EXTRA_CA_CERTS /run/cxi/cert.pem \
       "$@" /run/cxi
   ' _ "$fixture" "$root/lib/bun/run" run "$root/tests/helpers/raw-host-gateway-comparison.ts"
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
-  [[ "$output" == *'gateway wire and lifecycle comparison passed'* ]]
+  [[ "$output" == *'gateway wire and lifecycle checks passed'* ]]
 }

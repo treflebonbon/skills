@@ -267,6 +267,12 @@ function publicRuntime(
   };
 }
 
+export function inputPolicy(repo: Repository) {
+  return join(dirname(dirname(trustFile(repo))), "inputs", hash(Buffer.from(repo.root)) + ".json");
+}
+
+export type RawRuntime = ReturnType<typeof publicRuntime> & { output: string };
+
 export function admitRawInputs(
   repo: Repository,
   head: string,
@@ -276,11 +282,7 @@ export function admitRawInputs(
   if (repo.gitDir === repo.commonDir)
     throw new Error("current directory is not a linked Git worktree");
   const repository = repo.identity();
-  const path = join(
-    dirname(dirname(trustFile(repo))),
-    "inputs",
-    hash(Buffer.from(repo.root)) + ".json",
-  );
+  const path = inputPolicy(repo);
   const parent = openInputPolicy(path);
   try {
     const runtime = publicRuntime(repo, head, options);

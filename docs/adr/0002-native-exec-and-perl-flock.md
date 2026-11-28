@@ -42,6 +42,8 @@ launcher の適用は process 置換を必要とする入口に限定する。�
 
 ## 実証と製品化の分担
 
+#48 が前提とする Linux／WSL2 の raw ホスト向け製品化は、後続の ADR で定める。 [ADR 0006](0006-separate-linux-raw-host-launcher.md)
+
 #33 は追加実証と方式確定に集中させ、実証用 fixture と記録の範囲を維持する。明示準備・cache 検査・Nix derivation を含む native launcher の製品化は別 ticket に切り出し、#40・#41 および launcher を使う後続の移行の前提にする。製品化の完了と、各 caller の移植・受入を区別する。
 
 製品化 ticket は #33 を前提として作成し、#40・#41・#45 にその blocked-by を登録してから #33 の完了を扱う。製品化 ticket は host prepare・実行体検査・derivation のビルドを担当する。raw の統合受入は #34・#35 の条件が満たされた後、#45 などの該当する移行 ticket で行う。この順序で、方式確定だけで製品未準備の CLI 移行が解禁されることを防ぐ。

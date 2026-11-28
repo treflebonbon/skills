@@ -77,7 +77,7 @@ worker-readiness の独立検証は `tests/bun/orca-worker-readiness.test.ts` �
 
 devShell の TypeScript 準備は `lib/bun/run test tests/bun/devshell-environment.test.ts` で検証します。一時 Git worktree と fake Nix を使い、旧版の trust record の bytes と mode、Nix の argv、shellHook 後の環境、旧 `with-env` の prepared context、reasoning effort の TOML 入力を比較します。通常の Bun テストは保存済み corpus を読み込みます。 [旧版の corpus](../tests/fixtures/devshell-environment-python.json)
 
-#44 の raw 入力登録は、一時 linked worktree で TypeScript の `admitRawInputs` を呼び出し、旧 `bin/devshell-env admit` が保存した JSON と埋め込み TOML の bytes、mode、拒否理由を比較します。旧版は `d3958cf04c26610103ecd05d1d88ef2890950a1d` の Python 3.14.7 で採取しました。公開 `admit` の切り替えは #48 が担当します。 [旧版の corpus](../tests/fixtures/raw-admission-python.json)
+#44 の raw 入力登録は、一時 linked worktree で TypeScript の `admitRawInputs` を呼び出し、旧 `bin/devshell-env admit` が保存した JSON と埋め込み TOML の bytes、mode、拒否理由を比較します。旧版は `d3958cf04c26610103ecd05d1d88ef2890950a1d` の Python 3.14.7 で採取しました。公開 `devshell-env admit` は同じ TypeScript module を呼び出します。 [旧版の corpus](../tests/fixtures/raw-admission-python.json)
 
 通常の Bun テストは GitHub policy の schema を比較します。入力登録全体を再検証する Linux／WSL2 では、既存の Node.js と Node-API header、C compiler、Nix の `bunx`、`node`、`uvx` および公開 CA bundle を用意します。ADR 0004 の履歴から復元した Node-API を payload 外で明示ビルドしてから、比較を実行します。
 
@@ -92,11 +92,11 @@ mkdir -p -m 700 /tmp/codex &&
 
 TypeScript の入力登録では、GitHub policy ファイルを物理パスで指定します。旧 Python が受理した祖先 symlink も拒否するため、symlink を含むパスを指定していた場合は、移行時に実体のパスへ変更します。公開入力に含まれる `.git` の要素は ASCII の大文字小文字を区別せず拒否します。この 2 件は旧版の記録を使い、強化後の拒否を検証します。
 
-#45 が利用する隔離内の資産は `lib/bun/devshell-environment.ts`、その依存 `git-context.ts`・`cli-path.ts`・`coordination-json.ts`・`strict-json.ts`、および Bun の共用起動に必要な `run`・`bunfig.toml`・`tsconfig.json` です。準備前に呼び出し元の `PATH` で `env` を探し、shellHook の後に `env -0` で環境を取得します。Nix の coreutils への symlink が見つかった場合はそのパスを使い、`argv[0]` で `env` が選ばれるようにします。UTF-8 でない環境の bytes は旧ダンプと同じ surrogate escape で返るため、launcher へ渡す側で元の bytes に戻して検証します。host の公開入口の切り替えと旧 Python 実装の撤去は #48 が担当します。 [隔離内の切り替え #45](https://github.com/treflebonbon/skills/issues/45) [host の切り替え #48](https://github.com/treflebonbon/skills/issues/48)
+#45 が利用する隔離内の資産は `lib/bun/devshell-environment.ts`、その依存 `git-context.ts`・`cli-path.ts`・`coordination-json.ts`・`strict-json.ts`、および Bun の共用起動に必要な `run`・`bunfig.toml`・`tsconfig.json` です。準備前に呼び出し元の `PATH` で `env` を探し、shellHook の後に `env -0` で環境を取得します。Nix の coreutils への symlink が見つかった場合はそのパスを使い、`argv[0]` で `env` が選ばれるようにします。UTF-8 でない環境の bytes は旧ダンプと同じ surrogate escape で返るため、launcher へ渡す側で元の bytes に戻して検証します。ホスト側の起動と結果返却も同じ TypeScript runtime に接続しています。 [隔離内の切り替え #45](https://github.com/treflebonbon/skills/issues/45) [host の切り替え #48](https://github.com/treflebonbon/skills/issues/48)
 
-#47 の `returnRawResult(repo, session)` は、旧 Python の admission・snapshot 記録を読み、書き戻した HEAD を返します。比較 fixture は `2296bea803251eb76a077f21e0602d89059acb32` と同じ旧 `return` を、別々の一時 linked worktree で実行します。Git の ref と index、ファイルの bytes と mode、更新した入力記録、競合時やファイル設置失敗時に残る snapshot と bundle を比較します。途中の I/O 障害では先行するファイル操作が残り得ます。公開入口と repo 外の呼び出し元を切り替える作業は #48 が担当します。 [結果返却 #47](https://github.com/treflebonbon/skills/issues/47) [host の切り替え #48](https://github.com/treflebonbon/skills/issues/48)
+#47 の `returnRawResult(repo, session)` は、旧 Python の admission・snapshot 記録を読み、書き戻した HEAD を返します。比較 fixture は `2296bea803251eb76a077f21e0602d89059acb32` と同じ旧 `return` を、別々の一時 linked worktree で実行します。Git の ref と index、ファイルの bytes と mode、更新した入力記録、競合時やファイル設置失敗時に残る snapshot と bundle を比較します。途中の I/O 障害では先行するファイル操作が残り得ます。公開入口からも同じ返却処理を使います。利用側 flake と外部 caller の手順は raw Codex の利用手順を参照します。 [利用手順](raw-codex-isolation.md#利用側-flake-の更新) [結果返却 #47](https://github.com/treflebonbon/skills/issues/47) [host の切り替え #48](https://github.com/treflebonbon/skills/issues/48)
 
-比較には Linux／WSL2、Git、Python 3、Bun 1.4.4 以上と、#44 と同じ Node-API header・C compiler を使います。TypeScript は本人所有の private な session・入力記録を要求し、他ユーザー所有、グループまたはその他のユーザーが書込み可能なファイル、set-id・sticky bit、symlink を拒否します。snapshot の作業ディレクトリが欠けているか、読み取り開始後に移動・差し替えられた場合は返却を中止します。空の deny mount target は既存の返却と同様に対象から外します。Git bundle の検査に使った一時リポジトリは処理の終了時に片付けます。
+旧版との opt-in 比較には記録した Git revision を含む履歴、`tar`、Linux／WSL2、Git、Python 3、Bun 1.4.4 以上と、#44 と同じ Node-API header・C compiler を使います。TypeScript は本人所有の private な session・入力記録を要求し、他ユーザー所有、グループまたはその他のユーザーが書込み可能なファイル、set-id・sticky bit、symlink を拒否します。snapshot の作業ディレクトリが欠けているか、読み取り開始後に移動・差し替えられた場合は返却を中止します。空の deny mount target は既存の返却と同様に対象から外します。Git bundle の検査に使った一時リポジトリは処理の終了時に片付けます。
 
 `prepare` は `session.json` を mode `0600` で作成します。以前の umask でグループ書込みが付いた記録を使う場合は、セッションを使うプロセスを停止し、物理パス上のセッションディレクトリが本人所有の mode `0700`、`session.json` が本人所有のリンク数1の通常ファイルであることを確認します。そのファイルだけを `chmod 600` で直してから返却を再試行します。
 

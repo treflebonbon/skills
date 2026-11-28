@@ -216,7 +216,7 @@ jq -s -e 'length == 4 and all(.[]; .cleanupCompatible == true)' "$proof_dir/obse
 
 通常テストの期待値は8 pass／0 fail、最後の採用判定は false／終了1。観測0件を成功にしない。再実行の compiler／OS／版・source hash と実際の verdict は `run.log` で確認する。将来、方式を直した場合は終了条件を満たす肯定試験へ更新し、この否定試験を残したまま完了扱いにしない。
 
-実 caller の [codex-inner](../share/codex-isolation/codex-inner.py) は [prepare_environment](../lib/python/treflebonbon_skills/devshell_environment.py) で Nix の `print-dev-env` と Bash の `shellHook` を実行する。子孫が必ず元 group 内に残る制約は、この caller の確認からは導けない。「離脱しない」という前提を追加して条件を狭める判断は未承認である。
+実 caller の [codex-inner](https://github.com/treflebonbon/skills/blob/7863cbda00f04aa22fbb4f5d1abe1808b23afd07/share/codex-isolation/codex-inner.py) は [prepare_environment](https://github.com/treflebonbon/skills/blob/7863cbda00f04aa22fbb4f5d1abe1808b23afd07/lib/python/treflebonbon_skills/devshell_environment.py) で Nix の `print-dev-env` と Bash の `shellHook` を実行する。子孫が必ず元 group 内に残る制約は、この caller の確認からは導けない。「離脱しない」という前提を追加して条件を狭める判断は未承認である。
 
 レビュー後の観測 fixture source SHA-256 は `a206c8d904a8fee13de8ad299a3a9fb0e8d9385088fb1cc856014cb5395a6b39`。この source で process／lock は65 pass／0 fail／0 skip、621 assertions、型検査も成功した。採用用の JSON 判定は4件すべて false／終了1であり、不適合は残っている。
 

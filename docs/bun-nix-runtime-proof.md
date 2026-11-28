@@ -4,7 +4,7 @@
 
 ## 比較する境界と選択する tool
 
-[既存の隔離処理](../share/codex-isolation/secret-isolation-worktree.py)は、選択した tool の実体を Nix store に限定し、`nix copy --to DIRECTORY --no-check-sigs` と `nix-store --query --requisites` で専用 store と closure の読み取り専用 mount を準備する。今回の[実証 CLI](../tests/fixtures/bun-nix-runtime.ts)は同じ OS コマンドと bubblewrap の構成を使い、Bun・Bash・coreutils を roots とする。これに加えて[既存の raw fixture](../tests/helpers/raw-codex.bash)と公開 `approve/run` 入口を通し、既存境界への closure 取り込みとダミー entrypoint の起動も検査する。
+[既存の隔離処理](../lib/bun/raw-isolation.ts)は、選択した tool の実体を Nix store に限定し、`nix copy --to DIRECTORY --no-check-sigs` と `nix-store --query --requisites` で専用 store と closure の読み取り専用 mount を準備する。今回の[実証 CLI](../tests/fixtures/bun-nix-runtime.ts)は同じ OS コマンドと bubblewrap の構成を使い、Bun・Bash・coreutils を roots とする。これに加えて[既存の raw fixture](../tests/helpers/raw-codex.bash)と検証用の `approve/run` fixtureを通し、既存境界への closure 取り込みとダミー entrypoint の起動も検査する。
 
 ```mermaid
 flowchart TD
@@ -55,7 +55,7 @@ payload の書込み拒否と正常起動を併せて確認する。読み取り
 
 ## 既存の隔離入口を通した検証
 
-`raw_fixture` が合成 repository と linked worktree を作り、公開 `approve/run` 入口に既存の `lib/bun/run`・config とダミー entrypoint を渡す。fixture の PATH 上に限り、既存の `codex` tool slot を選択済み Nix Bun への symlink にする。これにより本番 tools 一覧を変えず、実際の `run_isolated` に Bun の closure をコピーさせる。通常の製品起動が既に Bun を選ぶようになったという意味ではない。
+`raw_fixture` が合成 repository と linked worktree を作り、検証用の `approve/run` fixtureに既存の `lib/bun/run`・config とダミー entrypoint を渡す。fixture の PATH 上に限り、既存の `codex` tool slot を選択済み Nix Bun への symlink にする。これにより本番 tools 一覧を変えず、実際の `run_isolated` に Bun の closure をコピーさせる。通常の製品起動が既に Bun を選ぶようになったという意味ではない。
 
 既存の生成 `/inside.sh`、copied store、clearenv と専用 HOME の内側でも Bun 1.4.4 が起動し、終了37と HOME / scratch の書込みを確認した。host の canary と未登録の合成 `.env` は見えず、外側の合成変数も届かない。コピー先の Bun binary の hash は選択元と一致した。入口の source hash と観測値を JSON の `existingBoundary` に残す。
 

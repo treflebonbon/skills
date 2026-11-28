@@ -2,9 +2,10 @@
 
 setup() {
   PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-  CLI="$PROJECT_ROOT/share/codex-isolation/secret-isolation-worktree.py"
+  CLI="$PROJECT_ROOT/tests/helpers/raw-worktree-fixture.ts"
+  RUNNER="$PROJECT_ROOT/lib/bun/run"
   FIXTURE="$BATS_TEST_TMPDIR/fixture"
-  mkdir -p "$FIXTURE"
+  mkdir -m 700 "$FIXTURE"
   git init -q -b main "$FIXTURE/repo"
   printf 'public source\n' >"$FIXTURE/repo/source.txt"
   git -C "$FIXTURE/repo" add source.txt
@@ -28,10 +29,10 @@ PY
 }
 
 @test "explicit public inputs produce an independent snapshot of the existing linked worktree" {
-  python3 "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --git-head "$HEAD_SHA" -- source.txt
 
-  run python3 "$CLI" prepare --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" --output "$FIXTURE/session"
+  run "$RUNNER" run "$CLI" prepare --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" --output "$FIXTURE/session"
 
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
@@ -45,7 +46,7 @@ PY
 @test "changed bytes and linked inputs are rejected before a snapshot can be launched" {
   mkdir "$FIXTURE/work/src"
   printf 'public source\n' >"$FIXTURE/work/src/entry.txt"
-  python3 "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --git-head "$HEAD_SHA" -- src/entry.txt
   local attack
   for attack in changed symlink hardlink ancestor; do
@@ -60,7 +61,7 @@ PY
         cp "$FIXTURE/saved-$attack" "$FIXTURE/real-src/entry.txt"
         ;;
     esac
-    run python3 "$CLI" prepare --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" --output "$FIXTURE/session-$attack"
+    run "$RUNNER" run "$CLI" prepare --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" --output "$FIXTURE/session-$attack"
     [ "$status" -ne 0 ]
     [[ "$output" != *'dummy-root-secret'* ]]
     [ ! -e "$FIXTURE/session-$attack" ]
@@ -69,6 +70,34 @@ PY
       mv "$FIXTURE/saved-$attack" "$FIXTURE/work/src/entry.txt"
     fi
   done
+}
+
+@test "snapshot preparation refuses a different GitHub topic at the same HEAD" {
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+    --git-head "$HEAD_SHA" -- source.txt
+  cd "$PROJECT_ROOT"
+  run "$RUNNER" run - "$FIXTURE" <<'TS'
+import assert from "node:assert/strict";
+import { join } from "node:path";
+import { Repository } from "./lib/bun/git-context.ts";
+import { prepareRawWorktree, rawGit, rawGitText } from "./lib/bun/raw-worktree.ts";
+
+const base = process.argv[2];
+const repo = Repository.discover(join(base, "work"), { linkedOnly: true });
+const policy = join(base, "policy.json");
+const head = rawGitText(repo.root, "rev-parse", "HEAD");
+const tree = rawGitText(repo.root, "write-tree");
+assert.equal(prepareRawWorktree(repo, policy, join(base, "matched"), undefined, "task").branch, "refs/heads/task");
+rawGit(repo.root, ["switch", "-c", "other-topic"]);
+assert.equal(rawGitText(repo.root, "rev-parse", "HEAD"), head);
+assert.equal(rawGitText(repo.root, "write-tree"), tree);
+assert.throws(
+  () => prepareRawWorktree(repo, policy, join(base, "mismatched"), undefined, "task"),
+  /prepared branch differs from the admitted GitHub topic/,
+);
+TS
+  [ "$status" -eq 0 ]
+  [ ! -e "$FIXTURE/mismatched" ]
 }
 
 @test "the real isolated Git worktree returns the same commit and refuses concurrent host edits" {
@@ -84,10 +113,10 @@ git add source.txt
 git -c user.name=Fixture -c user.email=fixture@example.invalid commit -qm 'test: isolated edit'
 git rev-parse HEAD
 SH
-  python3 "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --git-head "$HEAD_SHA" -- source.txt task.sh
 
-  run env WORKTREE_DUMMY_SECRET=dummy-parent-secret python3 "$CLI" run \
+  run env WORKTREE_DUMMY_SECRET=dummy-parent-secret "$RUNNER" run "$CLI" run \
     --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" --output "$FIXTURE/session" -- bash task.sh
 
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
@@ -97,18 +126,35 @@ SH
   [[ "$output" == *"$result_head"* ]]
   [ "$(git -C "$FIXTURE/work" rev-parse HEAD)" = "$HEAD_SHA" ]
   printf 'concurrent host edit\n' >"$FIXTURE/work/source.txt"
-  run python3 "$CLI" return --root "$FIXTURE/work" --session "$FIXTURE/session"
+  run "$RUNNER" run "$CLI" return --root "$FIXTURE/work" --session "$FIXTURE/session"
   [ "$status" -ne 0 ]
   [ "$(cat "$FIXTURE/work/source.txt")" = 'concurrent host edit' ]
   [ "$(git -C "$FIXTURE/work" rev-parse HEAD)" = "$HEAD_SHA" ]
   printf 'public source\n' >"$FIXTURE/work/source.txt"
-  run python3 "$CLI" return --root "$FIXTURE/work" --session "$FIXTURE/session"
+  run "$RUNNER" run "$CLI" return --root "$FIXTURE/work" --session "$FIXTURE/session"
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
   [ "$(git -C "$FIXTURE/work" rev-parse HEAD)" = "$result_head" ]
   [ "$(cat "$FIXTURE/work/source.txt")" = 'edited public source' ]
   [ "$(cat "$FIXTURE/work/.env")" = 'dummy-root-secret' ]
   [ -z "$(git -C "$FIXTURE/work" diff --name-only HEAD)" ]
+}
+
+@test "isolated commands receive the original argument bytes from the host" {
+  [ "${SECRET_ISOLATION_REAL_RUNTIME:-0}" = 1 ] || skip "opt in with SECRET_ISOLATION_REAL_RUNTIME=1; requires Nix store tools and bubblewrap"
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+    --git-head "$HEAD_SHA" -- source.txt
+
+  run "$RUNNER" run "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+    --output "$FIXTURE/session" -- bash -c '
+      read -r input && test "$input" = "caller stdin" || exit 1
+      test ! -e /proc/self/fd/3 || exit 1
+      printf "%s\0" "$@" | od -An -tx1 -w32
+    ' _ $'byte-\xff' '' '日本語' <<< "caller stdin"
+
+  [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
+  [ "$status" -eq 0 ]
+  [[ "$output" == *' 62 79 74 65 2d ff 00 00 e6 97 a5 e6 9c ac e8 aa 9e 00'* ]]
 }
 
 @test "isolated GitHub uses only the fixed authenticated public metadata route" {
@@ -125,9 +171,9 @@ test ! -e /home/ubuntu/.config/gh/hosts.yml
 test ! -e .env
 printf 'GITHUB_BOUNDARY_OK\n'
 SH
-  python3 "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --git-head "$HEAD_SHA" -- source.txt github.sh
-  run python3 "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  run "$RUNNER" run "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --output "$FIXTURE/session" --service github -- bash github.sh
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
@@ -205,15 +251,15 @@ SH
   git -C "$FIXTURE/work" add flake.nix worktree-task.py model.sh
   git -C "$FIXTURE/work" -c user.name=Fixture -c user.email=fixture@example.invalid commit -qm 'test: public hosted fixture'
   HEAD_SHA="$(git -C "$FIXTURE/work" rev-parse HEAD)"
-  python3 "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --git-head "$HEAD_SHA" -- source.txt model.sh flake.nix worktree-task.py
-  run python3 "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  run "$RUNNER" run "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --output "$FIXTURE/session" --service model --service github -- bash model.sh
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
   [[ "$output" == *ISOLATED_MODEL_OK* ]]
   [ -f "$FIXTURE/session/root$FIXTURE/work/mcp-ok" ]
-  run python3 "$CLI" return --root "$FIXTURE/work" --session "$FIXTURE/session"
+  run "$RUNNER" run "$CLI" return --root "$FIXTURE/work" --session "$FIXTURE/session"
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
   [ -f "$FIXTURE/work/calculator.py" ]
@@ -239,9 +285,9 @@ for target in ('example.com:443', '127.0.0.1:443', 'cache.nixos.org:80', 'cache.
 print('DEPENDENCY_BOUNDARY_OK')
 PY
 SH
-  python3 "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --git-head "$HEAD_SHA" -- source.txt fetch.sh
-  run python3 "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  run "$RUNNER" run "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --output "$FIXTURE/session" --service dependencies --ca-bundle "$SECRET_ISOLATION_CA_BUNDLE" -- bash fetch.sh
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
@@ -263,20 +309,20 @@ mkdir docs
 printf 'new public file\n' > docs/new.txt
 exit 7
 SH
-  python3 "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --git-head "$HEAD_SHA" -- src/source.txt task.sh
-  run python3 "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  run "$RUNNER" run "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --output "$FIXTURE/session" -- bash task.sh
   [ "$status" -eq 7 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 7 ]
-  run python3 "$CLI" return --root "$FIXTURE/work" --session "$FIXTURE/session"
+  run "$RUNNER" run "$CLI" return --root "$FIXTURE/work" --session "$FIXTURE/session"
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
   [ "$(git -C "$FIXTURE/work" show :src/source.txt)" = 'staged source' ]
   [ "$(cat "$FIXTURE/work/src/source.txt")" = 'unstaged source' ]
   [ "$(cat "$FIXTURE/work/docs/new.txt")" = 'new public file' ]
   [ "$(git -C "$FIXTURE/work" rev-parse HEAD)" = "$HEAD_SHA" ]
-  run python3 "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  run "$RUNNER" run "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --output "$FIXTURE/restart" -- bash -c 'test "$(git show :src/source.txt)" = "staged source" && test "$(cat src/source.txt)" = "unstaged source" && test -f docs/new.txt && test ! -e .env'
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
@@ -304,9 +350,9 @@ else:
     os.rename('/nix/moved-store', '/nix/store')
     raise AssertionError('project code can replace the store parent')
 PY
-  python3 "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --git-head "$HEAD_SHA" -- source.txt check-runtime.py
-  run python3 "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  run "$RUNNER" run "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --output "$FIXTURE/session" -- python3 check-runtime.py
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
@@ -314,9 +360,9 @@ PY
 
 @test "result transfer preserves a host stage completed before acquiring the index lock" {
   [ "${SECRET_ISOLATION_REAL_RUNTIME:-0}" = 1 ] || skip "opt in with SECRET_ISOLATION_REAL_RUNTIME=1; requires Nix store tools and bubblewrap"
-  python3 "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --git-head "$HEAD_SHA" -- source.txt
-  run python3 "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+  run "$RUNNER" run "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
     --output "$FIXTURE/session" -- bash -c 'printf "agent edit\n" > source.txt; git add source.txt'
   [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
   [ "$status" -eq 0 ]
@@ -335,7 +381,7 @@ wrapper.write_text(f'''#!{bash}
 {real_git} "$@"
 result=$?
 case " $* " in
-  *" -C "{work}" bundle unbundle "*)
+  *" bundle unbundle "*)
     [ "$result" -eq 0 ] || exit "$result"
     {real_git} -C {work} add host-stage.txt
     exit "$?"
@@ -345,7 +391,7 @@ exit "$result"
 ''')
 wrapper.chmod(0o755)
 PY
-  run env PATH="$FIXTURE/bin:$PATH" python3 "$CLI" return \
+  run env PATH="$FIXTURE/bin:$PATH" "$RUNNER" run "$CLI" return \
     --root "$FIXTURE/work" --session "$FIXTURE/session"
   [ "$status" -ne 0 ]
   [ "$(git -C "$FIXTURE/work" show :host-stage.txt)" = 'concurrent host stage' ]
