@@ -32,7 +32,7 @@ WSL2 の実行には Nix 2.34.6、bubblewrap 0.12.0、Bun 1.4.4 を使用しま�
 
 1. 利用側 flake でこの repo を完全なコミット SHA の `flake = false` の入力として固定します。同じ flake の Linux 用 `pkgs` で `pkgs.callPackage "${inputs.skills}/nix/raw-codex-launcher.nix" { }` を評価し、例として `packages.${system}.rawLauncher` から公開します。
 2. 通常起動に先立って、明示的に `nix build <flake>#rawLauncher --no-link --print-out-paths` を実行します。信頼済み設定に、その出力の正規の Nix store path と、同じ pin から得た derivation の `sourceSha256` を記録します。binary の SHA-256 と版 `1` はビルドが生成する manifest に記録されています。
-3. raw の host 側で `select_raw_launcher(package, source_sha256)` を呼び、返った `RawLauncher` を `run_isolated(..., launcher=launcher)` に渡します。選択時に source、版、実行体の digest、Nix store の所有者と directory 0555／実行体 0555／manifest 0444 を照合します。ホストの store からコピーした後は、選択した出力が mount 対象の closure に含まれ、コピー側の実行体が private store の所有者・mode・digest と一致することを検査します。
+3. raw の host 側で `selectRawLauncher(packagePath, sourceSha256)` を呼び、返った launcher を `runIsolated(repo, policy, output, command, services, { launcher, runtime, caBundle })` のオプションに渡します。選択時に source、版、実行体の digest、Nix store の所有者と directory 0555／実行体 0555／manifest 0444 を照合します。ホストの store からコピーした後は、選択した出力が mount 対象の closure に含まれ、コピー側の実行体が private store の所有者・mode・digest と一致することを検査します。
 4. #45 の生成入口は、検査した `launcher.executable` の絶対 path を明示して `exec` します。引数は runner、Bun の準備 script、準備 script へ渡す残りの引数です。準備子と launcher の間では既存の NUL 区切り `exec-proof-v1` frame を使います。通常起動に伴う自動 build・download・install はありません。
 
 既存の raw から実 caller を使う #45 の受入では、argv、TTY、signal、cleanup、closure と実行体の対応を確認します。利用側 flake の変更は #45 の引継ぎ情報です。 [#45](https://github.com/treflebonbon/skills/issues/45)

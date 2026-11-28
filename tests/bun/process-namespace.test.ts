@@ -1320,7 +1320,7 @@ proof(
 import { Repository } from ${JSON.stringify(context)};
 const repo = Repository.discover(${JSON.stringify(project)});
 process.env.NIX_CONFIG = "experimental-features = nix-command flakes\\npure-eval = false\\nsubstituters = \\n";
-const env = prepareEnvironment(repo, process.env, { requireTrust: false, timeout: 30_000, isolated: true });
+const env = prepareEnvironment(repo, process.env, { requireTrust: false, timeoutMs: 30_000, isolated: true });
 console.error("real-caller:" + JSON.stringify({ hook: env.PROCESS_NAMESPACE_NIX_PROBE }));
 await import(${JSON.stringify(prepare)});`,
     );

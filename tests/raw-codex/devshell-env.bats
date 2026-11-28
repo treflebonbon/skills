@@ -102,6 +102,22 @@ SH
   [ -z "$(git -C "$FIXTURE/worktree" status --porcelain)" ]
 }
 
+@test "directory commands accept help before the option separator" {
+  run cli status "$FIXTURE/worktree" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == usage:* ]]
+
+  run cli trust "$FIXTURE/worktree" -h
+  [ "$status" -eq 0 ]
+  [[ "$output" == usage:* ]]
+
+  cd "$FIXTURE"
+  ln -s "$FIXTURE/worktree" ./--help
+  run cli status -- --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *untrusted* ]]
+}
+
 @test "raw public entrypoints resolve trust and reject unsafe arguments without Python" {
   printf '#!/bin/bash\nexit 99\n' >"$FIXTURE/bin/python3"
   chmod +x "$FIXTURE/bin/python3"

@@ -22,7 +22,7 @@ GitHub policy を登録する場合だけ Nix store の `awk` と `jq` も必要
 
 skills の source を完全なコミット SHA に固定し、配布先と同じ Nixpkgs で `pkgs.callPackage "${inputs.skills}/nix/raw-codex-launcher.nix" { }` を使います。たとえば `packages.${system}.rawLauncher` に公開し、初回起動前に `nix build <flake>#rawLauncher --no-link --print-out-paths` でビルドします。出力 path と、この derivation の `sourceSha256` を組にして信頼済みのホスト設定から渡します。
 
-ホスト側の `PATH` の先頭に選択済み Nix Bash の `bin` を置き、同じ pin から Bun と namespace 用 OS ツールを供給します。`run_isolated` はそこで選択した Bash の closure をコピーし、隔離内の `/bin/bash` にリンクします。launcher は manifest の版・source・SHA-256 と外側の store の owner／mode を検証し、コピー先でも選択した closure、実行体の digest、owner／mode を照合します。
+ホスト側の `PATH` の先頭に選択済み Nix Bash の `bin` を置き、同じ pin から Bun と namespace 用 OS ツールを供給します。`runIsolated` はそこで選択した Bash の closure をコピーし、隔離内の `/bin/bash` にリンクします。launcher は manifest の版・source・SHA-256 と外側の store の owner／mode を検証し、コピー先でも選択した closure、実行体の digest、owner／mode を照合します。
 
 [#48](https://github.com/treflebonbon/skills/issues/48) が利用するホスト向け launcher の明示準備と起動は、[Linux／WSL2 の raw ホスト向け launcher](raw-codex-host-launcher.md) を参照してください。
 

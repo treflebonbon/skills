@@ -72,6 +72,34 @@ PY
   done
 }
 
+@test "snapshot preparation refuses a different GitHub topic at the same HEAD" {
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+    --git-head "$HEAD_SHA" -- source.txt
+  cd "$PROJECT_ROOT"
+  run "$RUNNER" run - "$FIXTURE" <<'TS'
+import assert from "node:assert/strict";
+import { join } from "node:path";
+import { Repository } from "./lib/bun/git-context.ts";
+import { prepareRawWorktree, rawGit, rawGitText } from "./lib/bun/raw-worktree.ts";
+
+const base = process.argv[2];
+const repo = Repository.discover(join(base, "work"), { linkedOnly: true });
+const policy = join(base, "policy.json");
+const head = rawGitText(repo.root, "rev-parse", "HEAD");
+const tree = rawGitText(repo.root, "write-tree");
+assert.equal(prepareRawWorktree(repo, policy, join(base, "matched"), undefined, "task").branch, "refs/heads/task");
+rawGit(repo.root, ["switch", "-c", "other-topic"]);
+assert.equal(rawGitText(repo.root, "rev-parse", "HEAD"), head);
+assert.equal(rawGitText(repo.root, "write-tree"), tree);
+assert.throws(
+  () => prepareRawWorktree(repo, policy, join(base, "mismatched"), undefined, "task"),
+  /prepared branch differs from the admitted GitHub topic/,
+);
+TS
+  [ "$status" -eq 0 ]
+  [ ! -e "$FIXTURE/mismatched" ]
+}
+
 @test "the real isolated Git worktree returns the same commit and refuses concurrent host edits" {
   [ "${SECRET_ISOLATION_REAL_RUNTIME:-0}" = 1 ] || skip "opt in with SECRET_ISOLATION_REAL_RUNTIME=1; requires Nix store tools and bubblewrap"
   cat >"$FIXTURE/work/task.sh" <<'SH'

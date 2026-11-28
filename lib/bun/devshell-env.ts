@@ -70,8 +70,10 @@ try {
     case "trust":
     case "untrust":
     case "status": {
+      const separator = args.indexOf("--");
+      const beforeSeparator = separator === -1 ? args : args.slice(0, separator);
       const positionals = args[0] === "--" ? args.slice(1) : args;
-      if (args[0] === "-h" || args[0] === "--help") console.log(usage);
+      if (beforeSeparator.includes("-h") || beforeSeparator.includes("--help")) console.log(usage);
       else if (positionals.length > 1 || (positionals[0]?.startsWith("-") && args[0] !== "--"))
         throw new UsageError(usage);
       else console.log(trustCommand(command, Repository.discover(positionals[0] ?? ".")));

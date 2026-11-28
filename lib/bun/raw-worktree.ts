@@ -75,6 +75,7 @@ export function prepareRawWorktree(
   policy: string,
   output: string,
   record = readApproval(policy),
+  expectedTopic?: string,
 ) {
   if (
     record.version !== 1 ||
@@ -96,6 +97,8 @@ export function prepareRawWorktree(
   }
   const branch = rawGitText(repo.root, "symbolic-ref", "HEAD");
   rawGit(repo.root, ["check-ref-format", branch]);
+  if (expectedTopic !== undefined && branch !== "refs/heads/" + expectedTopic)
+    throw new Error("prepared branch differs from the admitted GitHub topic");
   mkdirSync(output, { mode: 0o700 });
   const snapshotRoot = join(output, "root");
   const snapshotWorktree = join(snapshotRoot, repo.root);

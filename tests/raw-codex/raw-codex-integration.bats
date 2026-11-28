@@ -406,7 +406,7 @@ SH
   raw_admit flake.nix task.sh source.txt
 
   run python3 - "$RAW_BASE" <<'PY'
-import os, signal, subprocess, sys, time
+import os, shutil, signal, subprocess, sys, time
 from pathlib import Path
 
 base = Path(sys.argv[1])
@@ -422,6 +422,7 @@ for mode, exit_code in (("interrupt", 143), ("cleanup-failure", 17)):
     before = set(sessions.glob("*"))
     existing = set(Path("/tmp").glob("cxi-*"))
     log = base / f"{mode}.log"
+    moved = None
     with log.open("wb") as stream:
         process = subprocess.Popen([*argv, "bash", "task.sh"], cwd=work, env=environment, stdout=stream, stderr=stream)
         try:
@@ -447,7 +448,7 @@ for mode, exit_code in (("interrupt", 143), ("cleanup-failure", 17)):
             else:
                 assert len(gates) == 1, gates
                 gate = next(iter(gates))
-                gate.rename(gate.with_name("moved-" + gate.name))
+                moved = gate.rename(gate.with_name("moved-" + gate.name))
                 (marker.parent / "finish-task").touch()
             assert process.wait(timeout=20) == exit_code, log.read_text()
             assert all(not path.exists() for path in gates), gates
@@ -460,9 +461,13 @@ for mode, exit_code in (("interrupt", 143), ("cleanup-failure", 17)):
             assert retried.returncode == 0, retried
             assert "returned HEAD" in retried.stdout, retried
         finally:
-            if process.poll() is None:
-                process.kill()
-                process.wait(timeout=10)
+            try:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=10)
+            finally:
+                if moved is not None:
+                    shutil.rmtree(moved)
 PY
   raw_assert_status 0
 }

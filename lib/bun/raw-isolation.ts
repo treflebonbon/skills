@@ -241,7 +241,13 @@ export async function runIsolated(
   if (services.includes("dependencies") && !caBundle)
     throw new Error("dependency access requires an explicitly selected public CA bundle");
   if (runtime && !launcher) throw new Error("raw runtime requires an explicitly selected launcher");
-  const record = prepareRawWorktree(repo, policy, output, options.approval);
+  const record = prepareRawWorktree(
+    repo,
+    policy,
+    output,
+    options.approval,
+    runtime?.github?.branch,
+  );
   const paths = Object.fromEntries(
     isolationTools.map((name) => [name, toolOutput(nixExecutable(name))]),
   );

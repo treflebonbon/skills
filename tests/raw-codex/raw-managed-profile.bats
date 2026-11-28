@@ -225,6 +225,7 @@ assert.deepEqual({ ...result[join(root, "private-subtree")] }, { ".": "read", "p
 assert.equal(result[commonDir]["profile-deny-fixture"], "deny");
 for (const hostOnly of [
   "~/projects/repo", home, "*/other-repo/**", join(home, ".cache/host-only"),
+  "~/.config/gh", "~/.config/nix-devshell/skills-plugin.json",
   join(home, ".config/gh"), join(home, ".config/nix-devshell/skills-plugin.json"),
   "/home/agent/projects/repo",
 ]) assert(!Object.hasOwn(result, hostOnly), hostOnly);
