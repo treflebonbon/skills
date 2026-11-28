@@ -8,13 +8,16 @@ import {
   readFileSync,
   realpathSync,
   statSync,
+  unlinkSync,
   writeFileSync,
+  writeSync,
 } from "node:fs";
 import { delimiter, dirname, join, sep } from "node:path";
 import type { RawRuntime } from "./raw-admission.ts";
 import { readPublicInput } from "./raw-admission-files.ts";
 import { executable } from "./devshell-environment.ts";
 import type { Repository } from "./git-context.ts";
+import { encodeSurrogateEscape } from "./raw-exec-frame.ts";
 import {
   GatewayCleanupError,
   withGatewayScope,
@@ -182,20 +185,39 @@ async function childStatus(
   argv: string[],
   env: NodeJS.ProcessEnv,
   signal: AbortSignal,
-  log?: number,
+  stdio: ["inherit" | "ignore", "inherit" | number, "inherit" | number, ...number[]],
 ) {
   signal.throwIfAborted();
   const child = Bun.spawn(argv, {
     env,
     signal,
     killSignal: "SIGKILL",
-    stdin: log === undefined ? "inherit" : "ignore",
-    stdout: log ?? "inherit",
-    stderr: log ?? "inherit",
+    stdio,
   });
   const status = await child.exited;
   signal.throwIfAborted();
   return status;
+}
+
+async function isolatedStatus(
+  argv: string[],
+  command: string[],
+  output: string,
+  environment: NodeJS.ProcessEnv,
+  signal: AbortSignal,
+) {
+  const path = join(output, "command-argv");
+  const fd = openSync(path, "wx+", 0o600);
+  try {
+    // Unlink before writing argv. Positional writes leave the read offset at zero.
+    unlinkSync(path);
+    const bytes = encodeSurrogateEscape(command.map((arg) => arg + "\0").join(""));
+    for (let offset = 0; offset < bytes.length;)
+      offset += writeSync(fd, bytes, offset, bytes.length - offset, offset);
+    return await childStatus(argv, environment, signal, ["inherit", "inherit", "inherit", fd]);
+  } finally {
+    closeSync(fd);
+  }
 }
 
 type IsolationOptions = {
@@ -253,7 +275,7 @@ export async function runIsolated(
         [join(paths.nix, "bin/nix"), "copy", "--to", store, "--no-check-sigs", ...roots],
         environment,
         deadline,
-        log,
+        ["ignore", log, log],
       )
     )
       throw new Error("Nix runtime copy failed; the session is retained for recovery");
@@ -341,7 +363,13 @@ export NIX_SSL_CERT_FILE=${certificate} SSL_CERT_FILE=${certificate}
       if (runtime && launcher)
         startup += configureRuntime(output, repo, runtime, launcher, bash, mounts);
       const script = join(output, "inside.sh");
-      writeFileSync(script, "set -eu\n" + startup + resultExport);
+      // Bun.spawn encodes strings as UTF-8. Pass the command in a byte stream on fd 3.
+      writeFileSync(
+        script,
+        'set -eu\nmapfile -d "" -t command <&3\nexec 3<&-\nset -- "${command[@]}"\n' +
+          startup +
+          resultExport,
+      );
       const fs = join(output, "root");
       let argv = [
         join(paths.bwrap, "bin/bwrap"),
@@ -415,7 +443,6 @@ export NIX_SSL_CERT_FILE=${certificate} SSL_CERT_FILE=${certificate}
         repo.root,
         bash,
         "/inside.sh",
-        ...command,
       ];
       if (runtime) {
         const prepare = shell([
@@ -444,7 +471,7 @@ export NIX_SSL_CERT_FILE=${certificate} SSL_CERT_FILE=${certificate}
         ];
       }
       const deadline = runtime ? signal : AbortSignal.any([signal, AbortSignal.timeout(180_000)]);
-      if (await childStatus(argv, environment, deadline))
+      if (await isolatedStatus(argv, command, output, environment, deadline))
         throw new Error(
           "isolated execution or export failed; the session is retained for recovery",
         );

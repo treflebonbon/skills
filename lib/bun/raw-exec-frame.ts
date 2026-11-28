@@ -7,6 +7,20 @@ export function rawArguments(): string[] {
   return argv.slice(argv.length - (process.argv.length - 2));
 }
 
+export function encodeSurrogateEscape(value: string): Buffer {
+  const parts: Buffer[] = [];
+  let offset = 0;
+  for (const match of value.matchAll(/[\udc80-\udcff]/gu)) {
+    parts.push(
+      Buffer.from(value.slice(offset, match.index)),
+      Buffer.from([match[0].charCodeAt(0) - 0xdc00]),
+    );
+    offset = match.index + 1;
+  }
+  parts.push(Buffer.from(value.slice(offset)));
+  return Buffer.concat(parts);
+}
+
 export function writeExecFrame(argv: string[], environment: NodeJS.ProcessEnv = process.env) {
   const removed = Object.keys(process.env).filter((name) => environment[name] === undefined);
   const changed = Object.entries(environment)
@@ -26,19 +40,8 @@ export function writeExecFrame(argv: string[], environment: NodeJS.ProcessEnv = 
   if (!argv[0] || fields.some((field) => field.includes("\0")))
     throw new Error("invalid exec argument or environment");
 
-  const frame = fields.join("\0") + "\0";
-  const parts: Buffer[] = [];
-  let offset = 0;
   // Preserve Python's surrogateescaped bytes without changing valid UTF-8 arguments.
-  for (const match of frame.matchAll(/[\udc80-\udcff]/gu)) {
-    parts.push(
-      Buffer.from(frame.slice(offset, match.index)),
-      Buffer.from([match[0].charCodeAt(0) - 0xdc00]),
-    );
-    offset = match.index + 1;
-  }
-  parts.push(Buffer.from(frame.slice(offset)));
-  const bytes = Buffer.concat(parts);
+  const bytes = encodeSurrogateEscape(fields.join("\0") + "\0");
   for (let written = 0; written < bytes.length;)
     written += writeSync(1, bytes, written, bytes.length - written);
 }

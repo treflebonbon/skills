@@ -112,6 +112,23 @@ SH
   [ -z "$(git -C "$FIXTURE/work" diff --name-only HEAD)" ]
 }
 
+@test "isolated commands receive the original argument bytes from the host" {
+  [ "${SECRET_ISOLATION_REAL_RUNTIME:-0}" = 1 ] || skip "opt in with SECRET_ISOLATION_REAL_RUNTIME=1; requires Nix store tools and bubblewrap"
+  "$RUNNER" run "$CLI" approve --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+    --git-head "$HEAD_SHA" -- source.txt
+
+  run "$RUNNER" run "$CLI" run --root "$FIXTURE/work" --policy "$FIXTURE/policy.json" \
+    --output "$FIXTURE/session" -- bash -c '
+      read -r input && test "$input" = "caller stdin" || exit 1
+      test ! -e /proc/self/fd/3 || exit 1
+      printf "%s\0" "$@" | od -An -tx1 -w32
+    ' _ $'byte-\xff' '' '日本語' <<< "caller stdin"
+
+  [ "$status" -eq 0 ] || printf '%s\n' "$output" >&3
+  [ "$status" -eq 0 ]
+  [[ "$output" == *' 62 79 74 65 2d ff 00 00 e6 97 a5 e6 9c ac e8 aa 9e 00'* ]]
+}
+
 @test "isolated GitHub uses only the fixed authenticated public metadata route" {
   [ "${SECRET_ISOLATION_REAL_SERVICES:-0}" = 1 ] || skip "opt in with SECRET_ISOLATION_REAL_SERVICES=1; uses the host GitHub login for one public GET"
   cat >"$FIXTURE/work/github.sh" <<'SH'

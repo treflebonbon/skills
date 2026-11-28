@@ -4,13 +4,14 @@ import { relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { Repository } from "../../lib/bun/git-context.ts";
 import { readPublicInput } from "../../lib/bun/raw-admission-files.ts";
+import { rawArguments } from "../../lib/bun/raw-exec-frame.ts";
 import { runIsolated } from "../../lib/bun/raw-isolation.ts";
 import { selectRawLauncher } from "../../lib/bun/raw-nix-launcher.ts";
 import { returnRawResult } from "../../lib/bun/raw-return.ts";
 import { prepareRawWorktree, rawGit, rawGitText } from "../../lib/bun/raw-worktree.ts";
 import { strictJSON } from "../../lib/bun/strict-json.ts";
 
-const [command, ...args] = process.argv.slice(2);
+const [command, ...args] = rawArguments();
 const separator = args.indexOf("--");
 const argumentsBefore = separator === -1 ? args : args.slice(0, separator);
 const remainder = separator === -1 ? [] : args.slice(separator + 1);
